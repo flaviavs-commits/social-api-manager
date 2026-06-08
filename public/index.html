@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Social API Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f; --surface: #111118; --surface2: #1a1a24;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+  --text: #e8e8f0; --muted: #6b6b80;
+  --accent: #5b7fff; --accent2: #a78bfa;
+  --green: #34d399; --red: #f87171; --yellow: #fbbf24;
+  --fb: #4f7df0; --ig: #e1306c; --yt: #ff4444; --tt: #e8e8f0;
+  --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; font-size: 14px; }
+.app { display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; position: fixed; height: 100vh; overflow-y: auto; }
+.main { margin-left: 220px; flex: 1; padding: 2rem; max-width: 1100px; }
+.logo { padding: 0 1.25rem 1.5rem; font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.05em; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+.logo span { color: var(--muted); }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border-left: 2px solid transparent; }
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,127,255,0.06); }
+.nav-section { font-size: 10px; font-family: var(--mono); letter-spacing: 0.1em; color: var(--muted); padding: 1rem 1.25rem 0.4rem; text-transform: uppercase; }
+.sidebar-plat { display: flex; align-items: center; gap: 8px; padding: 7px 1.25rem; font-size: 12px; color: var(--muted); }
+.sidebar-plat .dot { width: 6px; height: 6px; border-radius: 50%; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; }
+.page-title { font-size: 22px; font-weight: 500; }
+.page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+.btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-accent:hover { background: #4a6ee0; border-color: #4a6ee0; color: #fff; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 2rem; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+.stat-val { font-size: 26px; font-weight: 500; font-family: var(--mono); margin-bottom: 2px; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.stat-sub { font-size: 11px; color: var(--green); margin-top: 4px; }
+.plat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 2rem; }
+.plat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; position: relative; overflow: hidden; transition: border-color 0.2s; }
+.plat-card:hover { border-color: var(--border2); }
+.plat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.plat-card.fb::before { background: var(--fb); }
+.plat-card.ig::before { background: linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+.plat-card.yt::before { background: var(--yt); }
+.plat-card.tt::before { background: linear-gradient(90deg,#69C9D0,#EE1D52); }
+.plat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.plat-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.plat-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.plat-icon.fb { background: rgba(79,125,240,0.15); color: var(--fb); }
+.plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
+.plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
+.plat-icon.tt { background: rgba(232,232,240,0.1); color: var(--tt); }
+.status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px; border-radius: 99px; }
+.status-pill.connected { background: rgba(52,211,153,0.1); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
+.status-pill.partial { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
+.status-pill.disconnected { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+.plat-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 1.25rem; }
+.plat-stat { background: var(--surface2); border-radius: 6px; padding: 10px; text-align: center; }
+.plat-stat-val { font-size: 18px; font-weight: 500; font-family: var(--mono); }
+.plat-stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.progress-bar { height: 3px; background: var(--border); border-radius: 99px; margin-bottom: 6px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+.plat-actions { display: flex; gap: 8px; }
+.plat-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--border2); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.15s; text-align: center; font-family: var(--sans); }
+.plat-btn:hover { color: var(--text); background: var(--surface2); }
+.plat-btn.primary { border-color: var(--accent); color: var(--accent); }
+.plat-btn.primary:hover { background: rgba(91,127,255,0.1); }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+.tab { padding: 10px 16px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.token-table { width: 100%; border-collapse: collapse; }
+.token-table th { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.token-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+.token-table tr:hover td { background: rgba(255,255,255,0.02); }
+.token-val { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--surface2); padding: 4px 8px; border-radius: 4px; }
+.expiry-ok { color: var(--green); font-size: 12px; font-family: var(--mono); }
+.expiry-warn { color: var(--yellow); font-size: 12px; font-family: var(--mono); }
+.expiry-bad { color: var(--red); font-size: 12px; font-family: var(--mono); }
+.log-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-family: var(--mono); font-size: 12px; line-height: 1.8; height: 400px; overflow-y: auto; }
+.log-line { display: flex; gap: 12px; }
+.log-time { color: var(--muted); flex-shrink: 0; }
+.log-ok { color: var(--green); }
+.log-err { color: var(--red); }
+.log-warn { color: var(--yellow); }
+.log-info { color: var(--accent); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 2rem; width: 520px; max-width: 95vw; }
+.modal-title { font-size: 16px; font-weight: 500; margin-bottom: 0.5rem; }
+.modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 12px; font-family: var(--mono); color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 9px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem; }
+.steps { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+.step { flex: 1; padding: 10px; background: var(--surface2); border-radius: 6px; text-align: center; border: 1px solid var(--border); }
+.step.active { border-color: var(--accent); background: rgba(91,127,255,0.08); }
+.step-num { font-size: 10px; font-family: var(--mono); color: var(--muted); }
+.step-label { font-size: 12px; margin-top: 2px; }
+.step.active .step-label { color: var(--accent); }
+.code-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: var(--mono); font-size: 12px; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; overflow-x: auto; white-space: pre; }
+.code-block .key { color: var(--accent2); }
+.code-block .val { color: var(--green); }
+.code-block .comment { color: #444460; }
+.sched-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
+.sched-form, .sched-queue { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; }
+.queue-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.queue-item:last-child { border-bottom: none; }
+.queue-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.queue-info { flex: 1; }
+.queue-title { font-size: 13px; font-weight: 500; }
+.queue-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+.queue-plats { display: flex; gap: 4px; margin-top: 4px; }
+.mini-pill { font-size: 10px; padding: 1px 7px; border-radius: 99px; font-family: var(--mono); }
+.mini-pill.facebook { background: rgba(79,125,240,0.15); color: var(--fb); }
+.mini-pill.instagram { background: rgba(225,48,108,0.15); color: var(--ig); }
+.mini-pill.youtube { background: rgba(255,68,68,0.15); color: var(--yt); }
+.mini-pill.tiktok { background: rgba(232,232,240,0.1); color: #a0a0b0; }
+.queue-status { font-size: 10px; font-family: var(--mono); white-space: nowrap; }
+.qs-ok { color: var(--green); }
+.qs-pend { color: var(--yellow); }
+.qs-err { color: var(--red); }
+.section-page { display: none; }
+.section-page.active { display: block; }
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 18px; font-size: 13px; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.25s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.ok { border-color: rgba(52,211,153,0.4); color: var(--green); }
+.toast.err { border-color: rgba(248,113,113,0.4); color: var(--red); }
+.loading { opacity: 0.5; pointer-events: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="sidebar">
+  <div class="logo">api_manager<span>.io</span></div>
+  <div class="nav-item active" onclick="showPage('dashboard')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </div>
+  <div class="nav-item" onclick="showPage('integracoes')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    Integrações
+  </div>
+  <div class="nav-item" onclick="showPage('tokens')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    Tokens OAuth
+  </div>
+  <div class="nav-item" onclick="showPage('agendador')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Agendador
+  </div>
+  <div class="nav-item" onclick="showPage('logs')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Logs de API
+  </div>
+  <div class="nav-section">Plataformas</div>
+  <div class="sidebar-plat"><div class="dot" style="background:var(--fb)"></div> Facebook <span id="sb-fb" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
+  <div class="sidebar-plat"><div class="dot" style="background:var(--ig)"></div> Instagram <span id="sb-ig" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
+  <div class="sidebar-plat"><div class="dot" style="background:var(--yt)"></div> YouTube <span id="sb-yt" style="margin-left:auto;font-size:11px;color:var(--yellow)">—</span></div>
+  <div class="sidebar-plat"><div class="dot" style="background:#888"></div> TikTok <span id="sb-tt" style="margin-left:auto;font-size:11px;color:var(--red)">—</span></div>
+</div>
+
+<div class="main">
+
+  <!-- DASHBOARD -->
+  <div id="page-dashboard" class="section-page active">
+    <div class="page-header">
+      <div><div class="page-title">Dashboard</div><div class="page-sub">// visão geral das integrações</div></div>
+      <button class="btn btn-accent" onclick="openModal('nova-conta')">+ Conectar conta</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" id="stat-total" style="color:var(--accent)">—</div><div class="stat-label">Contas ativas</div><div class="stat-sub" id="stat-total-sub">carregando...</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-valid" style="color:var(--green)">—</div><div class="stat-label">Tokens válidos</div><div class="stat-sub" id="stat-valid-sub">—</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-expiring" style="color:var(--yellow)">—</div><div class="stat-label">Expiram em 7 dias</div><div class="stat-sub">⚠ renovar em breve</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-error" style="color:var(--red)">—</div><div class="stat-label">Com erro</div><div class="stat-sub">↓ requer atenção</div></div>
+    </div>
+    <div class="plat-grid" id="plat-grid">
+      <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-family:var(--mono)">carregando plataformas...</div>
+    </div>
+  </div>
+
+  <!-- INTEGRAÇÕES -->
+  <div id="page-integracoes" class="section-page">
+    <div class="page-header"><div><div class="page-title">Integrações</div><div class="page-sub">// configuração de apps e credenciais</div></div></div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this,'tab-meta')">Meta (FB + IG)</div>
+      <div class="tab" onclick="switchTab(this,'tab-yt')">YouTube</div>
+      <div class="tab" onclick="switchTab(this,'tab-tt')">TikTok</div>
+      <div class="tab" onclick="switchTab(this,'tab-fluxo')">Fluxo OAuth</div>
+    </div>
+    <div id="tab-meta">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Configuração do App Meta</div>
+          <div class="form-group"><label>App ID</label><input id="cfg-meta-id" type="text" placeholder="do .env: META_APP_ID"/></div>
+          <div class="form-group"><label>App Secret</label><input id="cfg-meta-secret" type="password" placeholder="do .env: META_APP_SECRET"/></div>
+          <div class="form-group"><label>Redirect URI</label><input id="cfg-meta-uri" type="text" placeholder="http://localhost:3000/oauth/meta/callback"/></div>
+          <div class="form-group">
+            <label>Permissões (scopes)</label>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> pages_manage_posts</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> instagram_content_publish</label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> pages_read_engagement</label>
+            </div>
+          </div>
+          <div style="background:rgba(91,127,255,0.08);border:1px solid rgba(91,127,255,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--accent);line-height:1.6">
+            💡 Credenciais ficam no arquivo <code>.env</code> no servidor. Nunca expostas ao browser.
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Endpoint de publicação</div>
+          <div class="code-block"><span class="comment">// POST para publicar em página FB</span>
+POST /<span class="key">{page-id}</span>/feed
+{
+  <span class="key">"message"</span>: <span class="val">"Texto do post"</span>,
+  <span class="key">"scheduled_publish_time"</span>: <span class="val">1699999999</span>,
+  <span class="key">"published"</span>: <span class="val">false</span>,
+  <span class="key">"access_token"</span>: <span class="val">"EAABx..."</span>
+}
+
+<span class="comment">// POST para Instagram (2 etapas)</span>
+POST /<span class="key">{ig-user-id}</span>/media
+{
+  <span class="key">"image_url"</span>: <span class="val">"https://..."</span>,
+  <span class="key">"caption"</span>: <span class="val">"Legenda #hashtag"</span>
+}
+<span class="comment">// Depois: POST /{id}/media_publish</span></div>
+        </div>
+      </div>
+    </div>
+    <div id="tab-yt" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Configuração Google / YouTube</div>
+          <div class="form-group"><label>Client ID</label><input type="text" placeholder="do .env: GOOGLE_CLIENT_ID"/></div>
+          <div class="form-group"><label>Client Secret</label><input type="password" placeholder="do .env: GOOGLE_CLIENT_SECRET"/></div>
+          <div class="form-group"><label>Redirect URI</label><input type="text" placeholder="http://localhost:3000/oauth/google/callback"/></div>
+          <div style="background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--green);line-height:1.6">
+            ✅ YouTube suporta <strong>refresh_token</strong> — renovação automática sem intervenção do usuário.
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Agendamento de vídeo</div>
+          <div class="code-block"><span class="comment">// INSERT com agendamento nativo</span>
+POST /youtube/v3/videos?part=snippet,status
+{
+  <span class="key">"snippet"</span>: {
+    <span class="key">"title"</span>: <span class="val">"Título do vídeo"</span>,
+    <span class="key">"categoryId"</span>: <span class="val">"22"</span>
+  },
+  <span class="key">"status"</span>: {
+    <span class="key">"privacyStatus"</span>: <span class="val">"private"</span>,
+    <span class="key">"publishAt"</span>: <span class="val">"2026-06-10T09:00:00Z"</span>
+  }
+}
+<span class="comment">// Cota: 10.000 unidades/dia</span>
+<span class="comment">// Upload consome 1.600 unidades</span></div>
+        </div>
+      </div>
+    </div>
+    <div id="tab-tt" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">TikTok Content Posting API</div>
+          <div class="form-group"><label>Client Key</label><input type="text" placeholder="do .env: TIKTOK_CLIENT_KEY"/></div>
+          <div class="form-group"><label>Client Secret</label><input type="password" placeholder="do .env: TIKTOK_CLIENT_SECRET"/></div>
+          <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--yellow);line-height:1.6">
+            ⚠️ A Content Posting API exige aprovação prévia via TikTok for Business. Solicite em: developers.tiktok.com
+          </div>
+          <div style="margin-top:10px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red);line-height:1.6">
+            🎬 TikTok <strong>não suporta agendamento nativo</strong> via API — o post vai ao ar imediatamente. Use ferramentas certificadas para agendamento.
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Publicação de vídeo</div>
+          <div class="code-block"><span class="comment">// Etapa 1: iniciar upload</span>
+POST /v2/post/publish/video/init/
+Authorization: Bearer <span class="val">{access_token}</span>
+{
+  <span class="key">"post_info"</span>: {
+    <span class="key">"title"</span>: <span class="val">"Título"</span>,
+    <span class="key">"privacy_level"</span>: <span class="val">"PUBLIC_TO_EVERYONE"</span>
+  },
+  <span class="key">"source_info"</span>: {
+    <span class="key">"source"</span>: <span class="val">"PULL_FROM_URL"</span>,
+    <span class="key">"video_url"</span>: <span class="val">"https://..."</span>
+  }
+}</div>
+        </div>
+      </div>
+    </div>
+    <div id="tab-fluxo" style="display:none">
+      <div style="font-size:13px;font-weight:500;margin-bottom:1.25rem">Fluxo OAuth 2.0 implementado neste servidor</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.5rem">
+        <div style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">01</div>
+          <div style="font-size:13px;font-weight:500;color:var(--accent)">GET /oauth/{plataforma}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Gera URL de autorização</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px">→</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">02</div>
+          <div style="font-size:13px;font-weight:500;color:var(--accent2)">Redirect</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Usuário autoriza na plataforma</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px">→</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">03</div>
+          <div style="font-size:13px;font-weight:500;color:var(--green)">GET /oauth/{plataforma}/callback</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Troca code → token → salva no DB</div>
+        </div>
+      </div>
+      <div class="code-block"><span class="comment">// Rota de callback no servidor (src/routes/oauth.js)</span>
+router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
+  const { code, state } = req.query;
+  <span class="comment">// Troca code por access_token na API do Facebook</span>
+  const tokenRes = await fetch(<span class="val">'https://graph.facebook.com/oauth/access_token'</span>, {
+    method: <span class="val">'POST'</span>,
+    body: new URLSearchParams({
+      client_id: process.env.META_APP_ID,
+      client_secret: process.env.META_APP_SECRET,
+      redirect_uri: process.env.META_REDIRECT_URI,
+      code
+    })
+  });
+  const { access_token, expires_in } = await tokenRes.json();
+  <span class="comment">// Salvar em data/db.json via lowdb</span>
+  db.get(<span class="val">'tokens'</span>).push({ access_token, expires_in }).write();
+  res.redirect(<span class="val">'/?connected=true'</span>);
+});</div>
+    </div>
+  </div>
+
+  <!-- TOKENS -->
+  <div id="page-tokens" class="section-page">
+    <div class="page-header">
+      <div><div class="page-title">Tokens OAuth</div><div class="page-sub">// gerenciamento de access tokens</div></div>
+      <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Renovar expirados</button><button class="btn btn-accent" onclick="openModal('add-token')">+ Adicionar token</button></div>
+    </div>
+    <table class="token-table">
+      <thead><tr><th>Conta</th><th>Plataforma</th><th>Token</th><th>Expiração</th><th>Status</th><th></th></tr></thead>
+      <tbody id="token-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">carregando tokens...</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- AGENDADOR -->
+  <div id="page-agendador" class="section-page">
+    <div class="page-header"><div><div class="page-title">Agendador de posts</div><div class="page-sub">// fila de publicação automática</div></div></div>
+    <div class="sched-grid">
+      <div class="sched-form">
+        <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
+        <div class="form-group">
+          <label>Plataformas</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="plat-btn primary" style="flex:0;padding:5px 12px" data-plat="facebook" onclick="togglePlat(this)">FB</button>
+            <button class="plat-btn primary" style="flex:0;padding:5px 12px" data-plat="instagram" onclick="togglePlat(this)">IG</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="youtube" onclick="togglePlat(this)">YT</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="tiktok" onclick="togglePlat(this)">TT</button>
+          </div>
+        </div>
+        <div class="form-group"><label>Estrelas</label>
+          <select id="post-group"><option value="Todas">Todas as contas</option>
+          <option value="Casais">Casais</option>
+          <option value="Apoio">Apoio</option>
+          <option value="Apoio Geral">Apoio Geral</option>
+          <option value="Prova Social">Prova Social</option>
+          <option value="Viajantes">Viajantes</option>
+          <option value="Empreendedores">Empreendedores</option>
+          <option value="Mães">Mães</option>
+          <option value="Fitness">Fitness</option>
+          <option value="Professores">Professores</option>
+          <option value="Revendedores">Revendedores</option>
+          <option value="Estudantes">Estudantes</option>
+          <option value="Fashionistas">Fashionistas</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Texto</label>
+          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post..."></textarea>
+        </div>
+        <div class="form-group"><label>Data e hora</label><input type="datetime-local" id="post-date"/></div>
+        <div class="form-group"><label>Repetição</label>
+          <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
+        </div>
+        <button class="btn btn-accent" style="width:100%" onclick="schedulePost()">Agendar post</button>
+      </div>
+      <div class="sched-queue">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <div style="font-size:13px;font-weight:500">Fila de publicação</div>
+          <span id="queue-count" style="font-size:11px;color:var(--muted);font-family:var(--mono)">— posts</span>
+        </div>
+        <div id="queue-list"><div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">carregando fila...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGS -->
+  <div id="page-logs" class="section-page">
+    <div class="page-header">
+      <div><div class="page-title">Logs de API</div><div class="page-sub">// stream em tempo real via SSE</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="clearLogs()">Limpar</button>
+        <button class="btn" id="btn-pause-logs" onclick="toggleLogStream()">⏸ Pausar</button>
+      </div>
+    </div>
+    <div class="log-box" id="log-box"><div style="color:var(--muted);font-size:12px">aguardando stream...</div></div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Modal nova conta -->
+<div class="modal-overlay" id="modal-nova-conta">
+  <div class="modal">
+    <div class="modal-title">Conectar nova conta</div>
+    <div class="modal-sub">Autorize via OAuth para adicionar uma conta ao sistema.</div>
+    <div class="steps">
+      <div class="step active"><div class="step-num">01</div><div class="step-label">Plataforma</div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-label">OAuth</div></div>
+      <div class="step"><div class="step-num">03</div><div class="step-label">Confirmar</div></div>
+    </div>
+    <div class="form-group"><label>Plataforma</label>
+      <select id="modal-platform" onchange="updateNameField('modal-name', 'modal-name-preview', this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option></select>
+    </div>
+    <div class="form-group">
+      <label>Nome ou link da conta</label>
+      <input type="text" id="modal-name" placeholder="@nickname ou https://instagram.com/perfil" oninput="extractNickname(this, 'modal-name-preview')"/>
+      <div id="modal-name-preview" style="font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
+    </div>
+    <div class="form-group"><label>Grupo</label>
+      <select id="modal-group">
+        <option>Gerais</option>>
+        <option>Casais</option>
+        <option>Apoio</option>
+        <option>Apoio Geral</option>
+        <option>Prova Social</option>
+        <option>Viajantes</option>
+        <option>Empreendedores</option>
+        <option>Mães</option>
+        <option>Fitness</option>
+        <option>Professores</option>
+        <option>Revendedores</option>
+        <option>Estudantes</option>
+        <option>Fashionistas</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-accent" onclick="startOAuth()">Autorizar via OAuth →</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-token">
+  <div class="modal" style="width:580px;max-width:95vw">
+    <div class="modal-title">Adicionar token manualmente</div>
+    <div class="modal-sub">Preencha os dados do token para a conta e plataforma desejadas.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label>Plataforma</label>
+        <select id="at-platform" onchange="atChangePlat(this.value)">
+          <option value="facebook">Facebook</option>
+          <option value="instagram">Instagram</option>
+          <option value="youtube">YouTube</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Estrelas</label>
+        <select id="at-group">
+          <option value="Geral">Geral</option>
+          <option value="Casais">Casais</option>
+          <option value="Apoio">Apoio</option>
+          <option value="Apoio Geral">Apoio Geral</option>
+          <option value="Prova Social">Prova Social</option>
+          <option value="Viajantes">Viajantes</option>
+          <option value="Empreendedores">Empreendedores</option>
+          <option value="Mães">Mães</option>
+          <option value="Fitness">Fitness</option>
+          <option value="Professores">Professores</option>
+          <option value="Revendedores">Revendedores</option>
+          <option value="Estudantes">Estudantes</option>
+          <option value="Fashionistas">Fashionistas</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Nome ou link da conta</label>
+      <input type="text" id="at-name" placeholder="@nickname ou https://facebook.com/pagina" oninput="extractNickname(this, 'at-name-preview')"/>
+      <div id="at-name-preview" style="font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
+    </div>
+
+    <div class="form-group">
+      <label>Access Token</label>
+      <input type="text" id="at-token" placeholder="Cole o token aqui..." style="font-family:var(--mono);font-size:12px"/>
+    </div>
+
+    <div class="form-group" id="at-refresh-group">
+      <label>Refresh Token <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(apenas YouTube — renovação automática)</span></label>
+      <input type="text" id="at-refresh" placeholder="1//0g_xxxxxx..." style="font-family:var(--mono);font-size:12px"/>
+    </div>
+
+    <div class="form-group">
+      <label id="at-expiry-label">Data de expiração</label>
+      <input type="datetime-local" id="at-expiry"/>
+    </div>
+
+    <div id="at-hint" style="border-radius:6px;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:0.5rem"></div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-accent" id="at-save-btn" onclick="saveToken()">Salvar token</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal adicionar token -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';  // mesmo servidor
+
+// ── Navegação ────────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.section-page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const map = { dashboard:0, integracoes:1, tokens:2, agendador:3, logs:4 };
+  document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'tokens')    loadTokens();
+  if (name === 'agendador') loadQueue();
+  if (name === 'logs')      startLogStream();
+}
+
+function switchTab(el, id) {
+  el.closest('.section-page').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['tab-meta','tab-yt','tab-tt','tab-fluxo'].forEach(tid => {
+    const el2 = document.getElementById(tid);
+    if (el2) el2.style.display = (tid === id) ? '' : 'none';
+  });
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const { platforms, summary } = await apiFetch('/api/accounts/stats');
+
+    document.getElementById('stat-total').textContent    = summary.totalAccounts;
+    document.getElementById('stat-total-sub').textContent = `↑ ${platforms.length} plataformas`;
+    document.getElementById('stat-valid').textContent    = summary.validTokensTotal;
+    document.getElementById('stat-valid-sub').textContent = `↑ ${Math.round(summary.validTokensTotal/summary.totalAccounts*100)}% do total`;
+    document.getElementById('stat-expiring').textContent = summary.expiringTokensTotal;
+    document.getElementById('stat-error').textContent    = summary.errorTotal;
+
+    // Sidebar counts
+    const platMap = { facebook:'sb-fb', instagram:'sb-ig', youtube:'sb-yt', tiktok:'sb-tt' };
+    platforms.forEach(p => {
+      const el = document.getElementById(platMap[p.platform]);
+      if (el) el.textContent = p.total;
+    });
+
+    // Platform cards
+    const grid = document.getElementById('plat-grid');
+    grid.innerHTML = '';
+    const platCfg = {
+      facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Graph API v18 · Limite: 200 req/hora' },
+      instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Instagram Graph API · Requer Business' },
+      youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'YouTube Data v3 · Cota: 10k unidades/dia' },
+      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Content Posting API · Exige aprovação' }
+    };
+    platforms.forEach(p => {
+      const cfg = platCfg[p.platform];
+      const health = p.total > 0 ? Math.round((p.active / p.total) * 100) : 0;
+      const statusLabel = p.error > 0 ? 'partial' : 'connected';
+      const statusText  = p.error > 0 ? 'parcial' : 'conectado';
+      grid.innerHTML += `
+        <div class="plat-card ${cfg.cls}">
+          <div class="plat-header">
+            <div class="plat-name"><div class="plat-icon ${cfg.cls}">${cfg.icon}</div>${cfg.label}</div>
+            <span class="status-pill ${statusLabel}">${statusText}</span>
+          </div>
+          <div class="plat-stats">
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${cfg.cls})">${p.total}</div><div class="plat-stat-label">Contas</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Ativos</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${p.error>0?'red':'yellow'})">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com erro':'Expiram'}</div></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Saúde dos tokens</span><span>${health}%</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${health}%;background:var(--${cfg.cls})"></div></div>
+            <div style="font-size:11px;color:var(--muted)">${cfg.api}</div>
+          </div>
+          <div class="plat-actions">
+            <button class="plat-btn" onclick="showPage('tokens')">Ver tokens</button>
+            <button class="plat-btn primary" onclick="openModal('nova-conta')">+ Conta</button>
+          </div>
+        </div>`;
+    });
+  } catch (e) {
+    showToast('Erro ao carregar dashboard: ' + e.message, 'err');
+  }
+}
+
+// ── Tokens ───────────────────────────────────────────────────────────────────
+async function loadTokens() {
+  const body = document.getElementById('token-body');
+  body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">carregando...</td></tr>';
+  try {
+    const { tokens } = await apiFetch('/api/tokens');
+    if (tokens.length === 0) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">nenhum token cadastrado</td></tr>';
+      return;
+    }
+    body.innerHTML = tokens.map(t => {
+      const expiryClass = t.status === 'valid' ? 'expiry-ok' : t.status === 'expiring' ? 'expiry-warn' : 'expiry-bad';
+      const statusClass = t.status === 'valid' ? 'connected' : t.status === 'expiring' ? 'partial' : 'disconnected';
+      const statusLabel = { valid:'válido', expiring:'expirando', expired:'inválido' }[t.status] || t.status;
+      const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
+      const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
+      return `<tr>
+        <td>${t.accountName}</td>
+        <td><span class="mini-pill ${t.platform}">${t.platform}</span></td>
+        <td><span class="token-val">${t.accessToken}</span></td>
+        <td class="${expiryClass}">${t.expiryLabel}</td>
+        <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+        <td><button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${btnLabel}</button></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:1.5rem">${e.message}</td></tr>`;
+  }
+}
+
+async function renewToken(id, btn) {
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const data = await apiFetch(`/api/tokens/renew/${id}`, { method: 'POST' });
+    if (data.success) {
+      showToast('Token renovado com sucesso!', 'ok');
+    } else if (data.requiresReconnect) {
+      showToast('Reconexão manual necessária — abrindo OAuth...', 'err');
+      setTimeout(() => window.open(data.oauthUrl, '_blank'), 800);
+    }
+    loadTokens();
+  } catch (e) {
+    showToast('Erro ao renovar: ' + e.message, 'err');
+    btn.disabled = false; btn.textContent = 'Renovar';
+  }
+}
+
+async function renewAll() {
+  try {
+    const data = await apiFetch('/api/tokens/renew-all', { method: 'POST' });
+    showToast(`Renovados: ${data.renewed.length} | Manual: ${data.requiresManual.length}`, 'ok');
+    loadTokens();
+    showPage('logs');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Agendador ────────────────────────────────────────────────────────────────
+const selectedPlats = new Set(['facebook', 'instagram']);
+
+function togglePlat(btn) {
+  const plat = btn.dataset.plat;
+  if (selectedPlats.has(plat)) { selectedPlats.delete(plat); btn.classList.remove('primary'); }
+  else { selectedPlats.add(plat); btn.classList.add('primary'); }
+}
+
+async function schedulePost() {
+  const text = document.getElementById('post-text').value.trim();
+  const scheduledAt = document.getElementById('post-date').value;
+  const group = document.getElementById('post-group').value;
+  const repeat = document.getElementById('post-repeat').value;
+  const platforms = [...selectedPlats];
+
+  if (!text) return showToast('Escreva o texto do post', 'err');
+  if (platforms.length === 0) return showToast('Selecione ao menos uma plataforma', 'err');
+  if (!scheduledAt) return showToast('Defina a data e hora', 'err');
+
+  try {
+    await apiFetch('/api/posts', {
+      method: 'POST',
+      body: JSON.stringify({ text, platforms, group, scheduledAt, repeat })
+    });
+    showToast('Post agendado com sucesso!', 'ok');
+    document.getElementById('post-text').value = '';
+    loadQueue();
+  } catch (e) {
+    showToast('Erro ao agendar: ' + e.message, 'err');
+  }
+}
+
+async function loadQueue() {
+  const list = document.getElementById('queue-list');
+  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">carregando...</div>';
+  try {
+    const { posts } = await apiFetch('/api/posts?status=scheduled');
+    document.getElementById('queue-count').textContent = posts.length + ' posts';
+
+    if (posts.length === 0) {
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">fila vazia</div>';
+      return;
+    }
+
+    const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888' };
+    list.innerHTML = posts.map(p => {
+      const d = new Date(p.scheduledAt);
+      const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toTimeString().slice(0,5);
+      const dotColor = dotColors[p.platforms[0]] || 'var(--accent)';
+      const pills = p.platforms.map(pl => `<span class="mini-pill ${pl}">${pl}</span>`).join('');
+      return `<div class="queue-item">
+        <div class="queue-dot" style="background:${dotColor}"></div>
+        <div class="queue-info">
+          <div class="queue-title">${p.text.slice(0,50)}${p.text.length>50?'…':''}</div>
+          <div class="queue-meta">${fmt} · ${p.group}</div>
+          <div class="queue-plats">${pills}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${p.repeat}</span>`:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <span class="queue-status qs-pend">⏳ agendado</span>
+          <button class="btn" style="padding:3px 8px;font-size:11px" onclick="deletePost('${p.id}', this)">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = `<div style="text-align:center;color:var(--red);padding:1rem">${e.message}</div>`;
+  }
+}
+
+async function deletePost(id, btn) {
+  btn.disabled = true;
+  try {
+    await apiFetch(`/api/posts/${id}`, { method: 'DELETE' });
+    showToast('Post cancelado', 'ok');
+    loadQueue();
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'err');
+    btn.disabled = false;
+  }
+}
+
+// ── Logs SSE stream ──────────────────────────────────────────────────────────
+let logEs = null;
+let logPaused = false;
+
+function startLogStream() {
+  if (logEs) return;
+  const box = document.getElementById('log-box');
+  box.innerHTML = '';
+
+  // Carregar logs históricos primeiro
+  apiFetch('/api/logs?limit=50').then(({ logs }) => {
+    logs.reverse().forEach(l => appendLog(box, l));
+    box.scrollTop = box.scrollHeight;
+  });
+
+  // Conectar ao SSE
+  logEs = new EventSource(API + '/api/logs/stream');
+  logEs.onmessage = (e) => {
+    if (logPaused) return;
+    const log = JSON.parse(e.data);
+    appendLog(box, log);
+    box.scrollTop = box.scrollHeight;
+  };
+  logEs.onerror = () => {
+    appendLog(box, { type:'warn', message:'Stream desconectado — reconectando...', timestamp: new Date().toISOString() });
+  };
+
+  document.getElementById('btn-pause-logs').textContent = '⏸ Pausar';
+}
+
+function appendLog(box, log) {
+  const clsMap = { ok:'log-ok', err:'log-err', warn:'log-warn', info:'log-info' };
+  const time = new Date(log.timestamp).toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${time}</span><span class="${clsMap[log.type]||''}">[${log.type.toUpperCase()}]</span><span>${log.message}</span>`;
+  box.appendChild(line);
+  // Limitar a 300 linhas no DOM
+  while (box.children.length > 300) box.removeChild(box.firstChild);
+}
+
+function toggleLogStream() {
+  logPaused = !logPaused;
+  document.getElementById('btn-pause-logs').textContent = logPaused ? '▶ Retomar' : '⏸ Pausar';
+}
+
+async function clearLogs() {
+  try {
+    await apiFetch('/api/logs', { method: 'DELETE' });
+    document.getElementById('log-box').innerHTML = '';
+    showToast('Logs limpos', 'ok');
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+
+// ── Add Token Modal ─────────────────────────────────────────────────────────
+const AT_CONFIG = {
+  facebook: {
+    hint: '<strong>Facebook:</strong> Acesse <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> → gere token com escopo <code>pages_manage_posts</code> + <code>pages_read_engagement</code>. Token de longa duração dura 60 dias.',
+    expiryDays: 60,
+    expiryLabel: 'Expiração (tokens FB duram até 60 dias)',
+    showRefresh: false
+  },
+  instagram: {
+    hint: '<strong>Instagram:</strong> Acesse <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> → selecione seu App → gere token com escopo <code>instagram_content_publish</code> + <code>instagram_basic</code>. Requer conta Business.',
+    expiryDays: 60,
+    expiryLabel: 'Expiração (tokens IG duram até 60 dias)',
+    showRefresh: false
+  },
+  youtube: {
+    hint: '<strong>YouTube:</strong> Acesse <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">Google Cloud Console</a> → Credenciais → OAuth 2.0. O Access Token dura 1h — adicione o Refresh Token para renovação automática.',
+    expiryDays: 0,
+    expiryLabel: 'Expiração do Access Token (YouTube: ~1 hora)',
+    showRefresh: true
+  },
+  tiktok: {
+    hint: '<strong>TikTok:</strong> Acesse <a href="https://developers.tiktok.com" target="_blank" style="color:var(--accent)">developers.tiktok.com</a> → seu App → Token Management. Scope necessário: <code>video.publish</code>. Token dura 24h.',
+    expiryDays: 1,
+    expiryLabel: 'Expiração (tokens TikTok duram 24 horas)',
+    showRefresh: false
+  }
+};
+
+function atChangePlat(plat) {
+  const cfg = AT_CONFIG[plat];
+  if (!cfg) return;
+
+  // Hint
+  const hint = document.getElementById('at-hint');
+  if (hint) {
+    hint.innerHTML = cfg.hint;
+    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)' };
+    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)' };
+    hint.style.background = colors[plat];
+    hint.style.border = `1px solid ${borders[plat]}`;
+    hint.style.color = 'var(--text)';
+  }
+
+  // Refresh token — só YouTube
+  const refreshGroup = document.getElementById('at-refresh-group');
+  if (refreshGroup) refreshGroup.style.display = cfg.showRefresh ? 'block' : 'none';
+
+  // Label e valor padrão da expiração
+  const label = document.getElementById('at-expiry-label');
+  if (label) label.textContent = cfg.expiryLabel;
+
+  const expEl = document.getElementById('at-expiry');
+  if (expEl) {
+    const exp = new Date();
+    if (cfg.expiryDays === 0) {
+      exp.setHours(exp.getHours() + 1); // YouTube: 1 hora
+    } else {
+      exp.setDate(exp.getDate() + cfg.expiryDays);
+    }
+    expEl.value = new Date(exp.getTime() - exp.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  }
+
+  // Atualizar campo nome conforme plataforma
+  updateNameField('at-name', 'at-name-preview', plat);
+}
+
+function openModal(name) {
+  if (name === 'nova-conta') {
+    updateNameField('modal-name', 'modal-name-preview', document.getElementById('modal-platform').value || 'facebook');
+  }
+  if (name === 'add-token') {
+    // Inicializar com Facebook como padrão
+    atChangePlat('facebook');
+    document.getElementById('at-platform').value = 'facebook';
+    document.getElementById('at-token').value = '';
+    document.getElementById('at-refresh').value = '';
+    updateNameField('at-name', 'at-name-preview', 'facebook');
+    document.getElementById('at-platform').value = 'facebook';
+  }
+  document.getElementById('modal-' + name).classList.add('open');
+}
+
+async function saveToken() {
+  const platform    = document.getElementById('at-platform').value;
+  const group       = document.getElementById('at-group').value;
+  const name        = resolveInputName('at-name');
+  const accessToken = document.getElementById('at-token').value.trim();
+  const refreshToken= document.getElementById('at-refresh').value.trim();
+  const expiresAt   = document.getElementById('at-expiry').value;
+
+  if (!name)        return showToast('Informe o nome ou link da conta.', 'err');
+  if (!accessToken) return showToast('Cole o access token.', 'err');
+  if (!expiresAt)   return showToast('Defina a data de expiração.', 'err');
+
+  const btn = document.getElementById('at-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    // 1. Criar a conta primeiro
+    const accData = await apiFetch('/api/accounts', {
+      method: 'POST',
+      body: JSON.stringify({ name, platform, group })
+    });
+    const accountId = accData.account.id;
+
+    // 2. Salvar o token vinculado à conta
+    await apiFetch('/api/tokens', {
+      method: 'POST',
+      body: JSON.stringify({
+        accountId,
+        platform,
+        accessToken,
+        refreshToken: refreshToken || null,
+        expiresAt
+      })
+    });
+
+    showToast(`Token de "${name}" salvo com sucesso!`, 'ok');
+    closeModal();
+    loadTokens();
+    loadDashboard();
+  } catch (e) {
+    showToast('Erro ao salvar: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Salvar token';
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Extração de nickname / link ciente de plataforma ─────────────────────────
+const PLAT_FIELD_CFG = {
+  facebook: {
+    placeholder: '@pagina ou https://facebook.com/suapagina',
+    pattern: /facebook\.com\/(?:pages\/[^/]+\/|groups\/)?([^/?#\s]+)/i,
+    label: 'Facebook',
+    example: 'ex: @marca-brasil'
+  },
+  instagram: {
+    placeholder: '@usuario ou https://instagram.com/seuperfil',
+    pattern: /instagram\.com\/([^/?#\s]+)/i,
+    label: 'Instagram',
+    example: 'ex: @loja.oficial'
+  },
+  youtube: {
+    placeholder: '@canal ou https://youtube.com/@seucanal',
+    pattern: /youtube\.com\/(?:channel\/|user\/|c\/|@)([^/?#\s]+)/i,
+    label: 'YouTube',
+    example: 'ex: @MarcaOficial'
+  },
+  tiktok: {
+    placeholder: '@usuario ou https://tiktok.com/@seuperfil',
+    pattern: /tiktok\.com\/@?([^/?#\s]+)/i,
+    label: 'TikTok',
+    example: 'ex: @marca.tiktok'
+  }
+};
+
+function updateNameField(inputId, previewId, plat) {
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(previewId);
+  const cfg = PLAT_FIELD_CFG[plat];
+  if (!input || !cfg) return;
+  input.placeholder = cfg.placeholder;
+  input.value = '';
+  input.dataset.resolved = '';
+  if (preview) preview.innerHTML = '<span style="color:var(--muted)">' + cfg.example + '</span>';
+}
+
+function extractNickname(input, previewId) {
+  const val = input.value.trim();
+  const preview = document.getElementById(previewId);
+  if (!preview) return;
+  if (!val) { preview.textContent = ''; return; }
+
+  // Detectar plataforma pelo select mais próximo no mesmo modal
+  const modal = input.closest('.modal');
+  const platSel = modal ? (modal.querySelector('#at-platform') || modal.querySelector('#modal-platform')) : null;
+  const plat = platSel ? platSel.value : null;
+  const cfg = PLAT_FIELD_CFG[plat] || null;
+
+  // Nickname direto com @
+  if (val.startsWith('@')) {
+    preview.innerHTML = '✓ nickname: <strong>' + val + '</strong>';
+    input.dataset.resolved = val;
+    return;
+  }
+
+  // Tentar padrão específico da plataforma primeiro
+  if (cfg && cfg.pattern) {
+    const m = val.match(cfg.pattern);
+    if (m && m[1] && !['watch','shorts','reel','reels'].includes(m[1].toLowerCase())) {
+      const nick = '@' + m[1].replace(/\/$/, '');
+      preview.innerHTML = '✓ extraído de ' + cfg.label + ': <strong>' + nick + '</strong>';
+      input.dataset.resolved = nick;
+      return;
+    }
+  }
+
+  // Fallback: qualquer URL — pegar último segmento
+  const urlMatch = val.match(/https?:\/\/[^/]+\/([^/?#\s]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    const nick = '@' + urlMatch[1].replace(/\/$/, '');
+    preview.innerHTML = '✓ extraído do link: <strong>' + nick + '</strong>';
+    input.dataset.resolved = nick;
+    return;
+  }
+
+  // Texto simples — usar como está
+  preview.innerHTML = '✓ nome: <strong>' + val + '</strong>';
+  input.dataset.resolved = '';
+}
+
+function resolveInputName(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return '';
+  return (input.dataset.resolved || input.value).trim() || 'Nova Conta';
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open')); }
+
+async function startOAuth() {
+  const platform = document.getElementById('modal-platform').value;
+  const name     = resolveInputName('modal-name');
+  const group    = document.getElementById('modal-group').value;
+
+  if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
+
+  const oauthMap = { facebook:'meta', instagram:'meta', youtube:'google', tiktok:'tiktok' };
+  const provider = oauthMap[platform];
+
+  const btn = document.querySelector('#modal-nova-conta .btn-accent');
+  if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
+
+  try {
+    const params = new URLSearchParams({ accountName: name, group, platform });
+    const res = await fetch(`/oauth/${provider}?${params}`);
+    const data = await res.json();
+
+    // Servidor retornou erro de configuração (.env)
+    if (!res.ok || data.error) {
+      showOAuthConfigError(data);
+      return;
+    }
+
+    closeModal();
+    showToast('Abrindo janela de autorização...', 'ok');
+    window.open(data.authUrl, '_blank', 'width=640,height=720');
+  } catch (e) {
+    showToast('Erro de conexão: ' + e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Autorizar via OAuth →'; }
+  }
+}
+
+function showOAuthConfigError(data) {
+  // Remover erro anterior se houver
+  const existing = document.getElementById('oauth-error-box');
+  if (existing) existing.remove();
+
+  const steps = (data.steps || []).map(s => `<li style="margin:4px 0">${s}</li>`).join('');
+  const box = document.createElement('div');
+  box.id = 'oauth-error-box';
+  box.style.cssText = 'background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:14px 16px;margin-top:12px;font-size:12px;line-height:1.7';
+  box.innerHTML = `
+    <div style="font-weight:500;color:var(--red);margin-bottom:6px">
+      Credencial não configurada: ${data.error || 'erro desconhecido'}
+    </div>
+    <div style="color:var(--muted);margin-bottom:${steps ? '10px' : '0'}">${data.detail || ''}</div>
+    ${steps ? `<ol style="padding-left:16px;color:var(--muted)">${steps}</ol>` : ''}
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(248,113,113,0.2);color:var(--muted)">
+      Após preencher o <code style="color:var(--accent2)">.env</code>, reinicie o servidor com <code style="color:var(--accent2)">npm start</code>
+    </div>`;
+
+  // Inserir dentro do modal, após o modal-sub ou antes das modal-actions
+  const modal = document.getElementById('modal-nova-conta');
+  const actions = modal.querySelector('.modal-actions');
+  modal.querySelector('.modal').insertBefore(box, actions);
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(); }));
+
+// ── Inicialização ────────────────────────────────────────────────────────────
+const now = new Date(); now.setHours(now.getHours()+1, 0, 0, 0);
+const isoLocal = new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+const di = document.getElementById('post-date');
+if (di) di.value = isoLocal;
+
+// Verificar se voltou de OAuth com sucesso
+if (location.search.includes('connected=true')) {
+  showToast('Conta conectada com sucesso!', 'ok');
+  history.replaceState({}, '', '/');
+}
+
+loadDashboard();
+</script>
+</body>
+</html>
