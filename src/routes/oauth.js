@@ -141,21 +141,6 @@ router.get('/google/callback', async (req, res) => {
 
 // ─── TikTok ───────────────────────────────────────────────────────────────────
 
-router.get('/tiktok', (req, res) => {
-  const { accountName, group } = req.query;
-  const state = Buffer.from(JSON.stringify({ accountName, group, platform: 'tiktok' })).toString('base64');
-
-  const url = `https://www.tiktok.com/v2/auth/authorize/` +
-    `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
-    `&response_type=code` +
-    `&scope=user.info.basic,video.publish` +
-    `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
-    `&state=${state}`;
-
-  addLog('info', `OAuth TikTok iniciado para "${accountName}"`, 'tiktok');
-  res.json({ authUrl: url });
-});
-
 router.get('/tiktok/callback', async (req, res) => {
   const { code, state, error } = req.query;
   if (error) {
@@ -167,9 +152,25 @@ router.get('/tiktok/callback', async (req, res) => {
   try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
 
   try {
-    // Em produção: POST para https://open.tiktokapis.com/v2/oauth/token/
-    const fakeToken = 'act.' + Math.random().toString(36).slice(2, 20);
-    const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString(); // TikTok: 24h
+    // Troca o code pelo access_token real
+    const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_key: process.env.TIKTOK_CLIENT_KEY,
+        client_secret: process.env.TIKTOK_CLIENT_SECRET,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.TIKTOK_REDIRECT_URI
+      })
+    });
+
+    const tokenData = await tokenRes.json();
+
+    if (tokenData.error) {
+      addLog('err', `Erro ao obter token TikTok: ${tokenData.error_description}`);
+      return res.redirect('/?error=token_failed');
+    }
 
     const accountId = 'acc_' + Date.now();
     db.get('accounts').push({
@@ -185,12 +186,13 @@ router.get('/tiktok/callback', async (req, res) => {
       id: 'tok_' + Date.now(),
       accountId,
       platform: 'tiktok',
-      accessToken: fakeToken,
-      expiresAt,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
       status: 'valid'
     }).write();
 
-    addLog('ok', `Conta TikTok conectada: "${meta.accountName}" — token expira em 24h`, 'tiktok', accountId);
+    addLog('ok', `Conta TikTok conectada: "${meta.accountName}"`, 'tiktok', accountId);
     res.redirect('/?connected=true');
   } catch (err) {
     addLog('err', `Falha no callback TikTok: ${err.message}`);
