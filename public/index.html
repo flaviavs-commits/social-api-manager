@@ -1062,7 +1062,7 @@ async function startOAuth() {
 
   if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
 
-  const oauthMap = { facebook:'meta', instagram:'meta', youtube:'google', tiktok:'tiktok' };
+  const oauthMap = { facebook:'meta', instagram:'instagram', youtube:'google', tiktok:'tiktok' };
   const provider = oauthMap[platform];
 
   const btn = document.querySelector('#modal-nova-conta .btn-accent');
@@ -1070,7 +1070,7 @@ async function startOAuth() {
 
   try {
     const params = new URLSearchParams({ accountName: name, group, platform });
-    const res = await fetch(`/oauth/${provider}?${params}`);
+    const res = await fetch(`/auth/${provider}?${params}`);
     const data = await res.json();
 
     // Servidor retornou erro de configuração (.env)

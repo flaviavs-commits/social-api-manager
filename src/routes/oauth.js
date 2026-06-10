@@ -1,18 +1,42 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/database');
+const contasRepo = require('../repositories/contasRepository');
+const tokensRepo = require('../repositories/tokensRepository');
 const { addLog } = require('../middleware/logger');
 
-// ─── Meta (Facebook + Instagram) ──────────────────────────────────────────────
+// Verifica se uma credencial obrigatória foi preenchida no .env.
+// Retorna o erro (formato esperado pelo front-end) ou null se estiver tudo ok.
+function checkEnv(vars, platform) {
+  for (const name of vars) {
+    const value = process.env[name];
+    if (!value || value.startsWith('seu_')) {
+      addLog('err', `OAuth ${platform} falhou: ${name} não configurado no .env`, platform);
+      return {
+        error: `${name} não configurado`,
+        detail: `Abra o arquivo .env e preencha ${name} com a credencial correspondente.`,
+        steps: [
+          '1. Abra o arquivo .env na raiz do projeto',
+          `2. Preencha a variável ${name}`,
+          '3. Reinicie o servidor com npm start'
+        ]
+      };
+    }
+  }
+  return null;
+}
+
+// ─── Facebook ─────────────────────────────────────────────────────────────────
 
 router.get('/meta', (req, res) => {
-  const { accountName, group, platform } = req.query;
+  const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'META_REDIRECT_URI'], 'facebook');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName, group } = req.query;
+  const platform = 'facebook';
   const state = Buffer.from(JSON.stringify({ accountName, group, platform })).toString('base64');
   const scopes = [
     'pages_manage_posts',
     'pages_read_engagement',
-    'instagram_content_publish',
-    'instagram_basic',
     'public_profile'
   ].join(',');
 
@@ -23,7 +47,7 @@ router.get('/meta', (req, res) => {
     `&state=${state}` +
     `&response_type=code`;
 
-  addLog('info', `OAuth Meta iniciado para "${accountName}" [${platform}]`, platform);
+  addLog('info', `OAuth Facebook iniciado para "${accountName}"`, platform);
   res.json({ authUrl: url });
 });
 
@@ -31,7 +55,7 @@ router.get('/meta/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   if (error) {
-    addLog('err', `OAuth Meta cancelado pelo usuário: ${error}`);
+    addLog('err', `OAuth Facebook cancelado pelo usuário: ${error}`);
     return res.redirect('/?error=oauth_cancelled');
   }
 
@@ -44,30 +68,103 @@ router.get('/meta/callback', async (req, res) => {
     // Simulando resposta para fins de desenvolvimento:
     const fakeToken = 'EAABx_' + Math.random().toString(36).slice(2, 18).toUpperCase();
     const expiresAt = new Date(Date.now() + 60 * 86400000).toISOString();
+    const platform = 'facebook';
 
-    const accountId = 'acc_' + Date.now();
-    db.get('accounts').push({
-      id: accountId,
-      name: meta.accountName || 'Nova Conta Meta',
-      platform: meta.platform || 'facebook',
-      group: meta.group || 'Geral',
-      status: 'active',
-      createdAt: new Date().toISOString()
-    }).write();
+    const conta = await contasRepo.criarContaRapida({
+      name: meta.accountName || 'Nova Conta Facebook',
+      platform,
+      group: meta.group || 'Geral'
+    });
 
-    db.get('tokens').push({
-      id: 'tok_' + Date.now(),
-      accountId,
-      platform: meta.platform || 'facebook',
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
       accessToken: fakeToken,
       expiresAt,
-      status: 'valid'
-    }).write();
+      accountName: meta.accountName || 'Nova Conta Facebook'
+    });
 
-    addLog('ok', `Conta Meta conectada: "${meta.accountName}" — token expira em 60 dias`, meta.platform, accountId);
+    addLog('ok', `Conta Facebook conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id);
     res.redirect('/?connected=true');
   } catch (err) {
-    addLog('err', `Falha no callback Meta: ${err.message}`);
+    addLog('err', `Falha no callback Facebook: ${err.message}`);
+    res.redirect('/?error=oauth_failed');
+  }
+});
+
+// ─── Instagram (Instagram API with Instagram Login) ───────────────────────────
+
+router.get('/instagram', (req, res) => {
+  const configError = checkEnv(['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET', 'INSTAGRAM_REDIRECT_URI'], 'instagram');
+  if (configError) {
+    configError.steps = [
+      '1. Acesse https://developers.facebook.com e abra seu App',
+      '2. Adicione o produto "Instagram" (Instagram API with Instagram Login)',
+      '3. Em "Configurações da API do Instagram", copie o Instagram App ID e Instagram App Secret',
+      '4. Preencha INSTAGRAM_APP_ID e INSTAGRAM_APP_SECRET no arquivo .env',
+      '5. Reinicie o servidor com npm start'
+    ];
+    return res.status(400).json(configError);
+  }
+
+  const { accountName, group } = req.query;
+  const platform = 'instagram';
+  const state = Buffer.from(JSON.stringify({ accountName, group, platform })).toString('base64');
+  const scopes = [
+    'instagram_business_basic',
+    'instagram_business_content_publish',
+    'instagram_business_manage_comments',
+    'instagram_business_manage_messages'
+  ].join(',');
+
+  const url = `https://www.instagram.com/oauth/authorize` +
+    `?client_id=${process.env.INSTAGRAM_APP_ID}` +
+    `&redirect_uri=${encodeURIComponent(process.env.INSTAGRAM_REDIRECT_URI)}` +
+    `&scope=${scopes}` +
+    `&state=${state}` +
+    `&response_type=code`;
+
+  addLog('info', `OAuth Instagram iniciado para "${accountName}"`, platform);
+  res.json({ authUrl: url });
+});
+
+router.get('/instagram/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  if (error) {
+    addLog('err', `OAuth Instagram cancelado pelo usuário: ${error}`);
+    return res.redirect('/?error=oauth_cancelled');
+  }
+
+  let meta = {};
+  try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
+
+  try {
+    // Em produção: troca code por access_token via
+    // POST https://api.instagram.com/oauth/access_token (login da página do Instagram)
+    // Simulando resposta para fins de desenvolvimento:
+    const fakeToken = 'IGQVJ_' + Math.random().toString(36).slice(2, 18).toUpperCase();
+    const expiresAt = new Date(Date.now() + 60 * 86400000).toISOString();
+    const platform = 'instagram';
+
+    const conta = await contasRepo.criarContaRapida({
+      name: meta.accountName || 'Nova Conta Instagram',
+      platform,
+      group: meta.group || 'Geral'
+    });
+
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken: fakeToken,
+      expiresAt,
+      accountName: meta.accountName || 'Nova Conta Instagram'
+    });
+
+    addLog('ok', `Conta Instagram conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id);
+    res.redirect('/?connected=true');
+  } catch (err) {
+    addLog('err', `Falha no callback Instagram: ${err.message}`);
     res.redirect('/?error=oauth_failed');
   }
 });
@@ -111,27 +208,22 @@ router.get('/google/callback', async (req, res) => {
     const fakeRefreshToken = '1//0g_' + Math.random().toString(36).slice(2, 30);
     const expiresAt = new Date(Date.now() + 1 * 3600000).toISOString(); // access token: 1h
 
-    const accountId = 'acc_' + Date.now();
-    db.get('accounts').push({
-      id: accountId,
+    const conta = await contasRepo.criarContaRapida({
       name: meta.accountName || 'Novo Canal YouTube',
       platform: 'youtube',
-      group: meta.group || 'Geral',
-      status: 'active',
-      createdAt: new Date().toISOString()
-    }).write();
+      group: meta.group || 'Geral'
+    });
 
-    db.get('tokens').push({
-      id: 'tok_' + Date.now(),
-      accountId,
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
       platform: 'youtube',
       accessToken: fakeAccessToken,
       refreshToken: fakeRefreshToken,
       expiresAt,
-      status: 'valid'
-    }).write();
+      accountName: meta.accountName || 'Novo Canal YouTube'
+    });
 
-    addLog('ok', `Canal YouTube conectado: "${meta.accountName}" — refresh token salvo`, 'youtube', accountId);
+    addLog('ok', `Canal YouTube conectado: "${meta.accountName}" — refresh token salvo`, 'youtube', conta.id);
     res.redirect('/?connected=true');
   } catch (err) {
     addLog('err', `Falha no callback Google: ${err.message}`);
@@ -172,27 +264,22 @@ router.get('/tiktok/callback', async (req, res) => {
       return res.redirect('/?error=token_failed');
     }
 
-    const accountId = 'acc_' + Date.now();
-    db.get('accounts').push({
-      id: accountId,
+    const conta = await contasRepo.criarContaRapida({
       name: meta.accountName || 'Nova Conta TikTok',
       platform: 'tiktok',
-      group: meta.group || 'Geral',
-      status: 'active',
-      createdAt: new Date().toISOString()
-    }).write();
+      group: meta.group || 'Geral'
+    });
 
-    db.get('tokens').push({
-      id: 'tok_' + Date.now(),
-      accountId,
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
       platform: 'tiktok',
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-      status: 'valid'
-    }).write();
+      accountName: meta.accountName || 'Nova Conta TikTok'
+    });
 
-    addLog('ok', `Conta TikTok conectada: "${meta.accountName}"`, 'tiktok', accountId);
+    addLog('ok', `Conta TikTok conectada: "${meta.accountName}"`, 'tiktok', conta.id);
     res.redirect('/?connected=true');
   } catch (err) {
     addLog('err', `Falha no callback TikTok: ${err.message}`);

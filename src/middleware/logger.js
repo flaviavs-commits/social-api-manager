@@ -1,22 +1,8 @@
-const db = require('../db/database');
+const { registrarLog } = require('../repositories/logsRepository')
 
 function addLog(type, message, platform = null, accountId = null) {
-  const logs = db.get('logs');
-  const entry = {
-    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-    type,       // ok | err | warn | info
-    message,
-    platform,
-    accountId,
-    timestamp: new Date().toISOString()
-  };
-  logs.push(entry).write();
-  // Manter só os últimos 500 logs
-  const all = logs.value();
-  if (all.length > 500) {
-    db.set('logs', all.slice(all.length - 500)).write();
-  }
-  return entry;
+  return registrarLog({ type, message, platform, conta_id: accountId })
+    .catch(err => console.error('Erro ao registrar log:', err.message))
 }
 
 // Middleware que loga toda requisição de API
