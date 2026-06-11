@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
 
     let conta
     if (name && platform) {
-      conta = await repo.criarContaRapida({ name, platform, group })
+      conta = await repo.criarContaRapida({ name, platform, group, email })
     } else {
       conta = await repo.criarConta({ email, tipo, nicho_id, ...rest })
     }

@@ -111,7 +111,16 @@ async function buscarContaPorId(id) {
 }
 
 // ── Criar conta rápida (para OAuth flow) ─────────────────────────────────────
-async function criarContaRapida({ name, platform, group }) {
+// Regra de negócio: o e-mail informado define o agrupamento das redes da pessoa.
+// - Mesmo e-mail usado em Facebook/Instagram/YouTube/TikTok -> tudo cai na mesma
+//   conta (linha).
+// - E-mail diferente por rede -> cada um vira uma conta separada.
+//
+// Antes de gravar, confere se essa rede social já está vinculada a alguma conta:
+// - Se já está, e o e-mail informado bate com o da conta -> reaproveita a conta.
+// - Se já está, mas o e-mail informado é diferente -> o e-mail informado é o
+//   e-mail real da pessoa, então a conta é atualizada/realocada para ele.
+async function criarContaRapida({ name, platform, group, email }) {
   // Resolve nicho_id
   const { rows: [nicho] } = await pool.query(
     `SELECT id FROM nichos WHERE nome ILIKE $1 LIMIT 1`, [group || 'Gerais']
@@ -120,14 +129,50 @@ async function criarContaRapida({ name, platform, group }) {
   const campos = { facebook:'facebook', instagram:'instagram', youtube:'youtube', tiktok:'tiktok' }
   const col = campos[platform] || 'instagram'
 
-  const email = `${name.replace(/[^a-z0-9]/gi, '').toLowerCase()}@pendente.local`
+  const emailFinal = (email || '').trim().toLowerCase() ||
+    `${name.replace(/[^a-z0-9]/gi, '').toLowerCase()}@pendente.local`
 
+  // Essa rede social já está conectada em alguma conta?
+  const { rows: [contaExistente] } = await pool.query(
+    `SELECT id, email FROM contas WHERE ${col} = $1 LIMIT 1`, [name]
+  )
+
+  if (contaExistente && contaExistente.email === emailFinal) {
+    // Mesma pessoa, mesmo e-mail -> só reaproveita a conta já existente
+    const { rows } = await pool.query(`SELECT * FROM contas WHERE id = $1`, [contaExistente.id])
+    return rows[0]
+  }
+
+  // Já existe uma conta dona desse e-mail real?
+  const { rows: [contaDoEmail] } = await pool.query(
+    `SELECT id FROM contas WHERE email = $1 LIMIT 1`, [emailFinal]
+  )
+
+  if (contaDoEmail) {
+    // Move a rede social para a conta dona do e-mail informado
+    if (contaExistente && contaExistente.id !== contaDoEmail.id) {
+      await pool.query(`UPDATE contas SET ${col} = NULL WHERE id = $1`, [contaExistente.id])
+    }
+    const { rows } = await pool.query(
+      `UPDATE contas SET ${col} = $1 WHERE id = $2 RETURNING *`, [name, contaDoEmail.id]
+    )
+    return rows[0]
+  }
+
+  if (contaExistente) {
+    // Atualiza a conta existente para o e-mail real informado pela pessoa
+    const { rows } = await pool.query(
+      `UPDATE contas SET email = $1 WHERE id = $2 RETURNING *`, [emailFinal, contaExistente.id]
+    )
+    return rows[0]
+  }
+
+  // Nenhuma conta encontrada -> cria uma nova
   const { rows } = await pool.query(`
     INSERT INTO contas (email, ${col}, tipo, nicho_id)
     VALUES ($1, $2, 'NICHO', $3)
-    ON CONFLICT (email) DO UPDATE SET ${col} = EXCLUDED.${col}
     RETURNING *
-  `, [email, name, nicho?.id || 1])
+  `, [emailFinal, name, nicho?.id || 1])
 
   return rows[0]
 }

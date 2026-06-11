@@ -31,9 +31,9 @@ router.get('/meta', (req, res) => {
   const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'META_REDIRECT_URI'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName, group } = req.query;
+  const { accountName, group, email } = req.query;
   const platform = 'facebook';
-  const state = Buffer.from(JSON.stringify({ accountName, group, platform })).toString('base64');
+  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
   const scopes = [
     'pages_manage_posts',
     'pages_read_engagement',
@@ -73,7 +73,8 @@ router.get('/meta/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: meta.accountName || 'Nova Conta Facebook',
       platform,
-      group: meta.group || 'Geral'
+      group: meta.group || 'Geral',
+      email: meta.email
     });
 
     await tokensRepo.salvarToken({
@@ -107,9 +108,9 @@ router.get('/instagram', (req, res) => {
     return res.status(400).json(configError);
   }
 
-  const { accountName, group } = req.query;
+  const { accountName, group, email } = req.query;
   const platform = 'instagram';
-  const state = Buffer.from(JSON.stringify({ accountName, group, platform })).toString('base64');
+  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
   const scopes = [
     'instagram_business_basic',
     'instagram_business_content_publish',
@@ -139,32 +140,66 @@ router.get('/instagram/callback', async (req, res) => {
   let meta = {};
   try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
 
+  const platform = 'instagram';
+
   try {
-    // Em produção: troca code por access_token via
-    // POST https://api.instagram.com/oauth/access_token (login da página do Instagram)
-    // Simulando resposta para fins de desenvolvimento:
-    const fakeToken = 'IGQVJ_' + Math.random().toString(36).slice(2, 18).toUpperCase();
-    const expiresAt = new Date(Date.now() + 60 * 86400000).toISOString();
-    const platform = 'instagram';
+    // 1. Troca o code por um token de curta duração
+    const shortRes = await fetch('https://api.instagram.com/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.INSTAGRAM_APP_ID,
+        client_secret: process.env.INSTAGRAM_APP_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI,
+        code
+      })
+    });
+    const shortData = await shortRes.json();
+
+    if (shortData.error_message || !shortData.access_token) {
+      addLog('err', `Erro ao obter token Instagram: ${shortData.error_message || JSON.stringify(shortData)}`, platform);
+      return res.redirect('/?error=token_failed');
+    }
+
+    // 2. Troca o token de curta duração por um long-lived token (60 dias)
+    const longRes = await fetch(`https://graph.instagram.com/access_token` +
+      `?grant_type=ig_exchange_token` +
+      `&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET)}` +
+      `&access_token=${encodeURIComponent(shortData.access_token)}`);
+    const longData = await longRes.json();
+
+    if (longData.error || !longData.access_token) {
+      addLog('err', `Erro ao gerar long-lived token Instagram (status ${longRes.status}): ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform);
+      return res.redirect('/?error=token_failed');
+    }
+
+    // 3. Busca o username da conta conectada
+    const profileRes = await fetch(`https://graph.instagram.com/me?fields=user_id,username&access_token=${longData.access_token}`);
+    const profileData = await profileRes.json();
+    const accountName = meta.accountName || profileData.username || 'Nova Conta Instagram';
+
+    const expiresAt = new Date(Date.now() + (longData.expires_in || 60 * 86400) * 1000).toISOString();
 
     const conta = await contasRepo.criarContaRapida({
-      name: meta.accountName || 'Nova Conta Instagram',
+      name: accountName,
       platform,
-      group: meta.group || 'Geral'
+      group: meta.group || 'Geral',
+      email: meta.email
     });
 
     await tokensRepo.salvarToken({
       accountId: conta.id,
       platform,
-      accessToken: fakeToken,
+      accessToken: longData.access_token,
       expiresAt,
-      accountName: meta.accountName || 'Nova Conta Instagram'
+      accountName
     });
 
-    addLog('ok', `Conta Instagram conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id);
+    addLog('ok', `Conta Instagram conectada: "${accountName}" — token expira em 60 dias`, platform, conta.id);
     res.redirect('/?connected=true');
   } catch (err) {
-    addLog('err', `Falha no callback Instagram: ${err.message}`);
+    addLog('err', `Falha no callback Instagram: ${err.message}`, platform);
     res.redirect('/?error=oauth_failed');
   }
 });
@@ -172,8 +207,8 @@ router.get('/instagram/callback', async (req, res) => {
 // ─── Google / YouTube ──────────────────────────────────────────────────────────
 
 router.get('/google', (req, res) => {
-  const { accountName, group } = req.query;
-  const state = Buffer.from(JSON.stringify({ accountName, group, platform: 'youtube' })).toString('base64');
+  const { accountName, group, email } = req.query;
+  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform: 'youtube' })).toString('base64');
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly'
@@ -203,27 +238,52 @@ router.get('/google/callback', async (req, res) => {
   try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
 
   try {
-    // Em produção: troca code por tokens via https://oauth2.googleapis.com/token
-    const fakeAccessToken = 'ya29.A0A_' + Math.random().toString(36).slice(2, 20);
-    const fakeRefreshToken = '1//0g_' + Math.random().toString(36).slice(2, 30);
-    const expiresAt = new Date(Date.now() + 1 * 3600000).toISOString(); // access token: 1h
+    // 1. Troca o code pelos tokens reais
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+        code
+      })
+    });
+    const tokenData = await tokenRes.json();
+
+    if (tokenData.error || !tokenData.access_token) {
+      addLog('err', `Erro ao obter token Google: ${JSON.stringify(tokenData)}`, 'youtube');
+      return res.redirect('/?error=token_failed');
+    }
+
+    // 2. Busca o nome do canal conectado
+    const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` }
+    });
+    const channelData = await channelRes.json();
+    const channelTitle = channelData.items?.[0]?.snippet?.title;
+    const accountName = meta.accountName || channelTitle || 'Novo Canal YouTube';
+
+    const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
     const conta = await contasRepo.criarContaRapida({
-      name: meta.accountName || 'Novo Canal YouTube',
+      name: accountName,
       platform: 'youtube',
-      group: meta.group || 'Geral'
+      group: meta.group || 'Geral',
+      email: meta.email
     });
 
     await tokensRepo.salvarToken({
       accountId: conta.id,
       platform: 'youtube',
-      accessToken: fakeAccessToken,
-      refreshToken: fakeRefreshToken,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
       expiresAt,
-      accountName: meta.accountName || 'Novo Canal YouTube'
+      accountName
     });
 
-    addLog('ok', `Canal YouTube conectado: "${meta.accountName}" — refresh token salvo`, 'youtube', conta.id);
+    addLog('ok', `Canal YouTube conectado: "${accountName}" — refresh token salvo`, 'youtube', conta.id);
     res.redirect('/?connected=true');
   } catch (err) {
     addLog('err', `Falha no callback Google: ${err.message}`);
@@ -267,7 +327,8 @@ router.get('/tiktok/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: meta.accountName || 'Nova Conta TikTok',
       platform: 'tiktok',
-      group: meta.group || 'Geral'
+      group: meta.group || 'Geral',
+      email: meta.email
     });
 
     await tokensRepo.salvarToken({

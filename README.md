@@ -135,6 +135,50 @@ TIKTOK_REDIRECT_URI=http://localhost:3000/oauth/tiktok/callback
 > front-end para iniciar o fluxo) quanto em `/oauth/...` (usado como
 > Redirect URI pelos provedores, conforme `.env`).
 
+## Geração manual de token de longa duração (Facebook/Instagram)
+
+Caso o fluxo OAuth automático (`/auth/meta`, `/auth/instagram`) não esteja
+disponível (ex: app em revisão, Login do Facebook indisponível), é possível
+gerar manualmente um Page Access Token de longa duração que **não expira**
+(enquanto o acesso não for revogado) e funciona tanto para Facebook quanto
+para a conta Instagram Business vinculada à página:
+
+1. Acesse https://developers.facebook.com/tools/explorer
+2. Selecione o app correto, escolha o **usuário**, adicione as permissões
+   necessárias (`pages_show_list`, `pages_read_engagement`,
+   `pages_manage_posts`, `pages_manage_metadata`, `instagram_basic`,
+   `instagram_content_publish`, `instagram_manage_messages`) e clique em
+   **"Generate Access Token"**
+3. Copie o **App Secret** real em **Configurações → Básico** do app (não
+   confundir com um access token — o App Secret tem ~32 caracteres
+   hexadecimais)
+4. Troque o token gerado por um **token de usuário de longa duração** (60 dias):
+   ```
+   GET https://graph.facebook.com/v18.0/oauth/access_token
+     ?grant_type=fb_exchange_token
+     &client_id=SEU_META_APP_ID
+     &client_secret=SEU_META_APP_SECRET
+     &fb_exchange_token=TOKEN_CURTO
+   ```
+5. Use o token de longa duração para listar as páginas e os tokens de página
+   (não expiram) e as contas Instagram Business vinculadas:
+   ```
+   GET https://graph.facebook.com/v18.0/me/accounts
+     ?fields=id,name,access_token,instagram_business_account
+     &access_token=TOKEN_LONGO_DE_USUARIO
+   ```
+6. Cadastre o `access_token` da página retornada via:
+   ```
+   POST /api/tokens
+   { "accountId": <id>, "platform": "facebook", "accessToken": "...", "accountName": "Nome da Página" }
+   ```
+   e repita para `"platform": "instagram"` usando o mesmo token (ele também
+   é válido para a conta Instagram Business vinculada à página).
+
+> Esse Page Access Token herda a validade do token de usuário que o gerou.
+> Se o token de usuário (60 dias) expirar e precisar ser renovado, repita o
+> processo a partir do passo 4 para obter novos tokens de página.
+
 ## Endpoints da API
 
 ### Contas

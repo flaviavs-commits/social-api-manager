@@ -86,14 +86,38 @@ async function salvarToken({ accountId, platform, accessToken, refreshToken, exp
   return { ...token, accessToken: mask(token.accessToken) }
 }
 
+// ── Renova o access_token do YouTube via refresh_token (Google OAuth) ─────────
+async function renovarTokenYoutube(token) {
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: token.refresh_token
+    })
+  })
+  const data = await tokenRes.json()
+
+  if (data.error || !data.access_token) {
+    throw new Error(data.error_description || data.error || 'Falha ao renovar token do Google')
+  }
+
+  const newExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000)
+  await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
+    [data.access_token, newExpiry.toISOString(), token.id])
+
+  return newExpiry
+}
+
 // ── Renovar um token específico ────────────────────────────────────────────────
 async function renovarToken(id) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
   if (!token) throw new Error('Token não encontrado')
 
   if (token.platform === 'youtube' && token.refresh_token) {
-    const newExpiry = new Date(Date.now() + 3600000)
-    await pool.query(`UPDATE tokens SET expires_at = $1, status = 'valid', atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), id])
+    const newExpiry = await renovarTokenYoutube(token)
     await registrarLog({ type: 'ok', message: 'Token YouTube renovado automaticamente', platform: 'youtube', conta_id: token.conta_id })
     return { success: true, message: 'Token renovado via refresh_token', newExpiry }
   }
@@ -123,10 +147,14 @@ async function renovarTodos() {
 
   for (const token of toRenew) {
     if (token.platform === 'youtube' && token.refresh_token) {
-      const newExpiry = new Date(Date.now() + 3600000)
-      await pool.query(`UPDATE tokens SET status = 'valid', expires_at = $1, atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
-      results.renewed.push(token.id)
-      await registrarLog({ type: 'ok', message: 'Auto-renovado [youtube]', platform: 'youtube', conta_id: token.conta_id })
+      try {
+        await renovarTokenYoutube(token)
+        results.renewed.push(token.id)
+        await registrarLog({ type: 'ok', message: 'Auto-renovado [youtube]', platform: 'youtube', conta_id: token.conta_id })
+      } catch (err) {
+        results.failed.push(token.id)
+        await registrarLog({ type: 'err', message: `Falha ao renovar token YouTube: ${err.message}`, platform: 'youtube', conta_id: token.conta_id })
+      }
     } else if (token.platform === 'facebook') {
       const newExpiry = new Date(Date.now() + 60 * 86400000)
       await pool.query(`UPDATE tokens SET status = 'valid', expires_at = $1, atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
