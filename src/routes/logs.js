@@ -1,16 +1,20 @@
 const { Router } = require('express')
 const repo = require('../repositories/logsRepository')
+const { serverError } = require('../utils/http')
 
 const router = Router()
 
 // GET /api/logs  → histórico
 router.get('/', async (req, res) => {
   try {
-    const limit = Number(req.query.limit) || 50
+    const requested = Number(req.query.limit)
+    const limit = Number.isInteger(requested) && requested > 0
+      ? Math.min(requested, 200)
+      : 50
     const logs = await repo.listarLogs(limit)
     res.json({ logs })
   } catch (e) {
-    res.status(500).json({ erro: e.message })
+    serverError(res, e)
   }
 })
 
@@ -37,7 +41,7 @@ router.delete('/', async (req, res) => {
     await repo.limparLogs()
     res.status(204).send()
   } catch (e) {
-    res.status(500).json({ erro: e.message })
+    serverError(res, e)
   }
 })
 

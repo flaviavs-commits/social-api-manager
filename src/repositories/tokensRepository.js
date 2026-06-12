@@ -111,22 +111,101 @@ async function renovarTokenYoutube(token) {
   return newExpiry
 }
 
+// ── Renova o access_token do Instagram via long-lived token refresh ──────────
+async function renovarTokenInstagram(token) {
+  const res = await fetch(`https://graph.instagram.com/refresh_access_token` +
+    `?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token.access_token)}`)
+  const data = await res.json()
+
+  if (data.error || !data.access_token) {
+    throw new Error(data.error?.message || data.error_message || 'Falha ao renovar token do Instagram')
+  }
+
+  const newExpiry = new Date(Date.now() + (data.expires_in || 60 * 86400) * 1000)
+  await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
+    [data.access_token, newExpiry.toISOString(), token.id])
+
+  return newExpiry
+}
+
+// ── Renova o access_token do TikTok via refresh_token (rotaciona o refresh_token também) ──
+async function renovarTokenTiktok(token) {
+  if (!token.refresh_token) throw new Error('Token TikTok sem refresh_token salvo')
+
+  const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_key: process.env.TIKTOK_CLIENT_KEY,
+      client_secret: process.env.TIKTOK_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: token.refresh_token
+    })
+  })
+  const data = await res.json()
+
+  if (data.error || !data.access_token) {
+    throw new Error(data.error_description || data.error || 'Falha ao renovar token do TikTok')
+  }
+
+  const newExpiry = new Date(Date.now() + (data.expires_in || 86400) * 1000)
+  await pool.query(`UPDATE tokens SET access_token = $1, refresh_token = $2, expires_at = $3, status = 'valid', atualizado_em = NOW() WHERE id = $4`,
+    [data.access_token, data.refresh_token || token.refresh_token, newExpiry.toISOString(), token.id])
+
+  return newExpiry
+}
+
+// ── Renova (estende) sessões simuladas: Facebook (fake OAuth) e Kwai (login/senha) ──
+async function renovarTokenSimulado(token, dias) {
+  const newExpiry = new Date(Date.now() + dias * 86400000)
+  await pool.query(`UPDATE tokens SET expires_at = $1, status = 'valid', atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
+  return newExpiry
+}
+
 // ── Renovar um token específico ────────────────────────────────────────────────
 async function renovarToken(id) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
   if (!token) throw new Error('Token não encontrado')
 
-  if (token.platform === 'youtube' && token.refresh_token) {
-    const newExpiry = await renovarTokenYoutube(token)
-    await registrarLog({ type: 'ok', message: 'Token YouTube renovado automaticamente', platform: 'youtube', conta_id: token.conta_id })
-    return { success: true, message: 'Token renovado via refresh_token', newExpiry }
-  }
+  try {
+    if (token.platform === 'youtube' && token.refresh_token) {
+      const newExpiry = await renovarTokenYoutube(token)
+      await registrarLog({ type: 'ok', message: 'Token YouTube renovado automaticamente', platform: 'youtube', conta_id: token.conta_id })
+      return { success: true, message: 'Token renovado via refresh_token', newExpiry }
+    }
 
-  if (token.platform === 'facebook') {
-    const newExpiry = new Date(Date.now() + 60 * 86400000)
-    await pool.query(`UPDATE tokens SET expires_at = $1, status = 'valid', atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), id])
-    await registrarLog({ type: 'ok', message: 'Token Facebook estendido por mais 60 dias', platform: 'facebook', conta_id: token.conta_id })
-    return { success: true, message: 'Token estendido por mais 60 dias', newExpiry }
+    if (token.platform === 'instagram') {
+      const newExpiry = await renovarTokenInstagram(token)
+      await registrarLog({ type: 'ok', message: 'Token Instagram renovado automaticamente', platform: 'instagram', conta_id: token.conta_id })
+      return { success: true, message: 'Token renovado via long-lived token refresh', newExpiry }
+    }
+
+    if (token.platform === 'tiktok' && token.refresh_token) {
+      const newExpiry = await renovarTokenTiktok(token)
+      await registrarLog({ type: 'ok', message: 'Token TikTok renovado automaticamente', platform: 'tiktok', conta_id: token.conta_id })
+      return { success: true, message: 'Token renovado via refresh_token', newExpiry }
+    }
+
+    if (token.platform === 'facebook') {
+      const newExpiry = await renovarTokenSimulado(token, 60)
+      await registrarLog({ type: 'ok', message: 'Token Facebook estendido por mais 60 dias', platform: 'facebook', conta_id: token.conta_id })
+      return { success: true, message: 'Token estendido por mais 60 dias', newExpiry }
+    }
+
+    if (token.platform === 'kwai') {
+      const newExpiry = await renovarTokenSimulado(token, 30)
+      await registrarLog({ type: 'ok', message: 'Sessão Kwai renovada por mais 30 dias', platform: 'kwai', conta_id: token.conta_id })
+      return { success: true, message: 'Sessão estendida por mais 30 dias', newExpiry }
+    }
+  } catch (err) {
+    await pool.query(`UPDATE tokens SET status = 'error', atualizado_em = NOW() WHERE id = $1`, [token.id])
+    await registrarLog({ type: 'err', message: `Falha ao renovar token ${token.platform}: ${err.message}`, platform: token.platform, conta_id: token.conta_id })
+    return {
+      success: false,
+      requiresReconnect: true,
+      message: `Não foi possível renovar automaticamente: ${err.message}. Reconecte via OAuth.`,
+      oauthUrl: `/auth/${token.platform}`
+    }
   }
 
   await registrarLog({ type: 'warn', message: `Token ${token.platform} exige reconexão manual`, platform: token.platform, conta_id: token.conta_id })
@@ -141,29 +220,15 @@ async function renovarToken(id) {
 // ── Renovar todos os tokens expirados/expirando ────────────────────────────────
 async function renovarTodos() {
   await atualizarStatusTokens()
-  const { rows: toRenew } = await pool.query(`SELECT * FROM tokens WHERE status IN ('expired', 'expiring')`)
+  const { rows: toRenew } = await pool.query(`SELECT id FROM tokens WHERE status IN ('expired', 'expiring')`)
 
   const results = { renewed: [], requiresManual: [], failed: [] }
 
-  for (const token of toRenew) {
-    if (token.platform === 'youtube' && token.refresh_token) {
-      try {
-        await renovarTokenYoutube(token)
-        results.renewed.push(token.id)
-        await registrarLog({ type: 'ok', message: 'Auto-renovado [youtube]', platform: 'youtube', conta_id: token.conta_id })
-      } catch (err) {
-        results.failed.push(token.id)
-        await registrarLog({ type: 'err', message: `Falha ao renovar token YouTube: ${err.message}`, platform: 'youtube', conta_id: token.conta_id })
-      }
-    } else if (token.platform === 'facebook') {
-      const newExpiry = new Date(Date.now() + 60 * 86400000)
-      await pool.query(`UPDATE tokens SET status = 'valid', expires_at = $1, atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
-      results.renewed.push(token.id)
-      await registrarLog({ type: 'ok', message: 'Auto-renovado [facebook]', platform: 'facebook', conta_id: token.conta_id })
-    } else {
-      results.requiresManual.push(token.id)
-      await registrarLog({ type: 'warn', message: `Reconexão manual necessária [${token.platform}]`, platform: token.platform, conta_id: token.conta_id })
-    }
+  for (const { id } of toRenew) {
+    const r = await renovarToken(id)
+    if (r.success) results.renewed.push(id)
+    else if (r.requiresReconnect) results.requiresManual.push(id)
+    else results.failed.push(id)
   }
 
   return { ...results, total: toRenew.length }

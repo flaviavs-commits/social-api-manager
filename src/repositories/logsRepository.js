@@ -46,4 +46,13 @@ function adicionarClienteSSE(res) {
   res.on('close', () => sseClients.delete(res))
 }
 
-module.exports = { registrarLog, listarLogs, limparLogs, adicionarClienteSSE }
+// Envia um evento SSE customizado (ex: 'post_published') para todos os clientes
+function broadcastEvent(eventName, data) {
+  const payload = JSON.stringify(data)
+  sseClients.forEach(res => {
+    try { res.write(`event: ${eventName}\ndata: ${payload}\n\n`) }
+    catch { sseClients.delete(res) }
+  })
+}
+
+module.exports = { registrarLog, listarLogs, limparLogs, adicionarClienteSSE, broadcastEvent }

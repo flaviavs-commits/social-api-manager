@@ -126,7 +126,7 @@ async function criarContaRapida({ name, platform, group, email }) {
     `SELECT id FROM nichos WHERE nome ILIKE $1 LIMIT 1`, [group || 'Gerais']
   )
 
-  const campos = { facebook:'facebook', instagram:'instagram', youtube:'youtube', tiktok:'tiktok' }
+  const campos = { facebook:'facebook', instagram:'instagram', youtube:'youtube', tiktok:'tiktok', kwai:'kwai' }
   const col = campos[platform] || 'instagram'
 
   const emailFinal = (email || '').trim().toLowerCase() ||

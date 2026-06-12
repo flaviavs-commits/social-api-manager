@@ -1,5 +1,0 @@
-
-> social-api-manager@1.0.0 start
-> node src/server.js
-
-✅ Servidor rodando em http://localhost:3000

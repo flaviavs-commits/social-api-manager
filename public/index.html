@@ -12,7 +12,7 @@
   --text: #e8e8f0; --muted: #6b6b80;
   --accent: #5b7fff; --accent2: #a78bfa;
   --green: #34d399; --red: #f87171; --yellow: #fbbf24;
-  --fb: #4f7df0; --ig: #e1306c; --yt: #ff4444; --tt: #e8e8f0;
+  --fb: #4f7df0; --ig: #e1306c; --yt: #ff4444; --tt: #e8e8f0; --kw: #ff8800;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,6 +33,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
 .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
+.media-picker { position: relative; }
+.media-picker .btn { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+.media-picker-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; z-index: 20; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.media-picker-menu.open { display: block; }
+.media-picker-option { padding: 10px 12px; font-size: 13px; font-family: var(--sans); cursor: pointer; transition: all 0.15s; }
+.media-picker-option:hover { background: var(--surface); color: var(--accent); }
 .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-accent:hover { background: #4a6ee0; border-color: #4a6ee0; color: #fff; }
 .btn:disabled { opacity: 0.4; cursor: default; }
@@ -49,6 +55,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-card.ig::before { background: linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
 .plat-card.yt::before { background: var(--yt); }
 .plat-card.tt::before { background: linear-gradient(90deg,#69C9D0,#EE1D52); }
+.plat-card.kw::before { background: var(--kw); }
 .plat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .plat-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .plat-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
@@ -56,6 +63,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
 .plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
 .plat-icon.tt { background: rgba(232,232,240,0.1); color: var(--tt); }
+.plat-icon.kw { background: rgba(255,136,0,0.15); color: var(--kw); }
 .status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px; border-radius: 99px; }
 .status-pill.connected { background: rgba(52,211,153,0.1); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
 .status-pill.partial { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
@@ -124,6 +132,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .mini-pill.instagram { background: rgba(225,48,108,0.15); color: var(--ig); }
 .mini-pill.youtube { background: rgba(255,68,68,0.15); color: var(--yt); }
 .mini-pill.tiktok { background: rgba(232,232,240,0.1); color: #a0a0b0; }
+.mini-pill.kwai { background: rgba(255,136,0,0.15); color: var(--kw); }
 .queue-status { font-size: 10px; font-family: var(--mono); white-space: nowrap; }
 .qs-ok { color: var(--green); }
 .qs-pend { color: var(--yellow); }
@@ -134,6 +143,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.ok { border-color: rgba(52,211,153,0.4); color: var(--green); }
 .toast.err { border-color: rgba(248,113,113,0.4); color: var(--red); }
+.toast.warn { border-color: rgba(251,191,36,0.4); color: #fbbf24; }
 .loading { opacity: 0.5; pointer-events: none; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -231,6 +241,8 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   .toast { padding: 14px 20px; font-size: 14px; }
 }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 <div class="app">
@@ -265,6 +277,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   <div class="sidebar-plat"><div class="dot" style="background:var(--ig)"></div> Instagram <span id="sb-ig" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
   <div class="sidebar-plat"><div class="dot" style="background:var(--yt)"></div> YouTube <span id="sb-yt" style="margin-left:auto;font-size:11px;color:var(--yellow)">—</span></div>
   <div class="sidebar-plat"><div class="dot" style="background:#888"></div> TikTok <span id="sb-tt" style="margin-left:auto;font-size:11px;color:var(--red)">—</span></div>
+  <div class="sidebar-plat"><div class="dot" style="background:var(--kw)"></div> Kwai <span id="sb-kw" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
 </div>
 
 <div class="main">
@@ -293,6 +306,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
       <div class="tab active" onclick="switchTab(this,'tab-meta')">Meta (FB + IG)</div>
       <div class="tab" onclick="switchTab(this,'tab-yt')">YouTube</div>
       <div class="tab" onclick="switchTab(this,'tab-tt')">TikTok</div>
+      <div class="tab" onclick="switchTab(this,'tab-kw')">Kwai</div>
       <div class="tab" onclick="switchTab(this,'tab-fluxo')">Fluxo OAuth</div>
     </div>
     <div id="tab-meta">
@@ -396,6 +410,26 @@ Authorization: Bearer <span class="val">{access_token}</span>
         </div>
       </div>
     </div>
+    <div id="tab-kw" style="display:none">
+      <div class="two-col-grid">
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Kwai (conexão simulada)</div>
+          <div style="background:rgba(255,136,0,0.08);border:1px solid rgba(255,136,0,0.25);border-radius:6px;padding:12px;font-size:12px;color:var(--kw);line-height:1.6">
+            🔑 O Kwai ainda não possui OAuth público. A conta é conectada automaticamente ao clicar em <strong>"Autorizar via OAuth"</strong> no modal "+ Conectar conta", sem precisar informar usuário/senha.
+          </div>
+          <div style="margin-top:10px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red);line-height:1.6">
+            ⚠️ Token gerado nessa conexão expira em 30 dias — renovação automática estende por mais 30 dias.
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Conexão da conta</div>
+          <div class="code-block"><span class="comment">// Rota de autenticação no servidor</span>
+GET <span class="val">/auth/kwai</span>?accountName=@perfil&amp;group=Gerais
+
+<span class="comment">// Resposta: { connected: true, accountId }</span></div>
+        </div>
+      </div>
+    </div>
     <div id="tab-fluxo" style="display:none">
       <div style="font-size:13px;font-weight:500;margin-bottom:1.25rem">Fluxo OAuth 2.0 implementado neste servidor</div>
       <div class="oauth-flow-grid">
@@ -465,6 +499,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
             <button class="plat-btn primary" style="flex:0;padding:5px 12px" data-plat="instagram" onclick="togglePlat(this)">IG</button>
             <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="youtube" onclick="togglePlat(this)">YT</button>
             <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="tiktok" onclick="togglePlat(this)">TT</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="kwai" onclick="togglePlat(this)">KW</button>
           </div>
         </div>
         <div class="form-group"><label>Estrelas</label>
@@ -483,10 +518,30 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
           <option value="Fashionistas">Fashionistas</option>
           </select>
         </div>
-        <div class="form-group"><label>Texto</label>
-          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post..."></textarea>
+        <div class="form-group"><label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
+          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..."></textarea>
         </div>
-        <div class="form-group"><label>Data e hora</label><input type="datetime-local" id="post-date"/></div>
+        <div class="form-group">
+          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem ou vídeo, opcional)</span></label>
+          <div class="media-picker">
+            <button type="button" class="btn" onclick="toggleMediaMenu(event)">
+              <span>📎 Selecionar mídia</span><span style="font-size:10px;color:var(--muted)">▾</span>
+            </button>
+            <div class="media-picker-menu" id="media-picker-menu">
+              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">💻 Arquivo do computador</div>
+              <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">📁 Google Drive</div>
+            </div>
+            <input type="file" id="post-media" accept="image/*,video/*" onchange="updateMediaPreview()" style="display:none"/>
+          </div>
+          <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
+        </div>
+        <div class="form-group">
+          <label>Data e hora</label>
+          <div style="position:relative">
+            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer"/>
+            <input type="datetime-local" id="post-date" onchange="updatePostDateDisplay()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"/>
+          </div>
+        </div>
         <div class="form-group"><label>Repetição</label>
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
@@ -528,14 +583,14 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
       <div class="step"><div class="step-num">03</div><div class="step-label">Confirmar</div></div>
     </div>
     <div class="form-group"><label>Plataforma</label>
-      <select id="modal-platform" onchange="updateNameField('modal-name', 'modal-name-preview', this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option></select>
+      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="kwai">Kwai</option></select>
     </div>
     <div class="form-group">
       <label>Nome ou link da conta</label>
       <input type="text" id="modal-name" placeholder="@nickname ou https://instagram.com/perfil" oninput="extractNickname(this, 'modal-name-preview')"/>
       <div id="modal-name-preview" style="font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="modal-email-group">
       <label>E-mail da pessoa</label>
       <input type="email" id="modal-email" placeholder="email@exemplo.com"/>
     </div>
@@ -558,7 +613,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-accent" onclick="startOAuth()">Autorizar via OAuth →</button>
+      <button class="btn btn-accent" id="modal-connect-btn" onclick="startOAuth()">Autorizar via OAuth →</button>
     </div>
   </div>
 </div>
@@ -576,6 +631,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
           <option value="instagram">Instagram</option>
           <option value="youtube">YouTube</option>
           <option value="tiktok">TikTok</option>
+          <option value="kwai">Kwai</option>
         </select>
       </div>
       <div class="form-group">
@@ -635,6 +691,14 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
 <script>
 const API = '';  // mesmo servidor
 
+// Escapa texto antes de injetar em innerHTML, evitando XSS com dados
+// vindos do usuário (nomes de conta, texto de posts, mensagens de log etc.)
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 // ── Navegação ────────────────────────────────────────────────────────────────
 function showPage(name) {
   document.querySelectorAll('.section-page').forEach(p => p.classList.remove('active'));
@@ -664,7 +728,7 @@ function closeSidebar() {
 function switchTab(el, id) {
   el.closest('.section-page').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  ['tab-meta','tab-yt','tab-tt','tab-fluxo'].forEach(tid => {
+  ['tab-meta','tab-yt','tab-tt','tab-kw','tab-fluxo'].forEach(tid => {
     const el2 = document.getElementById(tid);
     if (el2) el2.style.display = (tid === id) ? '' : 'none';
   });
@@ -680,8 +744,9 @@ function showToast(msg, type = 'ok') {
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
+  const isFormData = opts.body instanceof FormData;
   const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: isFormData ? {} : { 'Content-Type': 'application/json' },
     ...opts
   });
   if (!res.ok) throw new Error(await res.text());
@@ -701,7 +766,7 @@ async function loadDashboard() {
     document.getElementById('stat-error').textContent    = summary.errorTotal;
 
     // Sidebar counts
-    const platMap = { facebook:'sb-fb', instagram:'sb-ig', youtube:'sb-yt', tiktok:'sb-tt' };
+    const platMap = { facebook:'sb-fb', instagram:'sb-ig', youtube:'sb-yt', tiktok:'sb-tt', kwai:'sb-kw' };
     platforms.forEach(p => {
       const el = document.getElementById(platMap[p.platform]);
       if (el) el.textContent = p.total;
@@ -714,7 +779,8 @@ async function loadDashboard() {
       facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Graph API v18 · Limite: 200 req/hora' },
       instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Instagram Graph API · Requer Business' },
       youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'YouTube Data v3 · Cota: 10k unidades/dia' },
-      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Content Posting API · Exige aprovação' }
+      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Content Posting API · Exige aprovação' },
+      kwai:     { cls:'kw', icon:'kw', label:'Kwai',    api:'Login/senha · Token expira em 30 dias' }
     };
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
@@ -765,16 +831,16 @@ async function loadTokens() {
       const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
       const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
       return `<tr>
-        <td>${t.accountName}</td>
-        <td><span class="mini-pill ${t.platform}">${t.platform}</span></td>
-        <td><span class="token-val">${t.accessToken}</span></td>
-        <td class="${expiryClass}">${t.expiryLabel}</td>
-        <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
-        <td><button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${btnLabel}</button></td>
+        <td>${escapeHtml(t.accountName)}</td>
+        <td><span class="mini-pill ${t.platform}">${escapeHtml(t.platform)}</span></td>
+        <td><span class="token-val">${escapeHtml(t.accessToken)}</span></td>
+        <td class="${expiryClass}">${escapeHtml(t.expiryLabel)}</td>
+        <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
+        <td><button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${escapeHtml(btnLabel)}</button></td>
       </tr>`;
     }).join('');
   } catch (e) {
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:1.5rem">${e.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -809,30 +875,179 @@ async function renewAll() {
 // ── Agendador ────────────────────────────────────────────────────────────────
 const selectedPlats = new Set(['facebook', 'instagram']);
 
+// Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
+const VIDEO_ONLY_PLATS = ['youtube', 'tiktok', 'kwai'];
+
 function togglePlat(btn) {
   const plat = btn.dataset.plat;
   if (selectedPlats.has(plat)) { selectedPlats.delete(plat); btn.classList.remove('primary'); }
   else { selectedPlats.add(plat); btn.classList.add('primary'); }
+  updateMediaAccept();
+}
+
+function updateMediaAccept() {
+  const input = document.getElementById('post-media');
+  const plats = [...selectedPlats];
+  const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
+  input.accept = onlyVideo ? 'video/*' : 'image/*,video/*';
+
+  // Limpa o arquivo selecionado se ele não bater mais com o tipo aceito
+  const file = input.files[0];
+  if (file && onlyVideo && !file.type.startsWith('video/')) {
+    input.value = '';
+  }
+  updateMediaPreview();
+}
+
+function updateMediaPreview() {
+  const input = document.getElementById('post-media');
+  const hint = document.getElementById('post-media-hint');
+  const plats = [...selectedPlats];
+  const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
+  const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/TikTok/Kwai).' : '';
+
+  const file = input.files[0];
+  if (!file) {
+    hint.textContent = restriction;
+    return;
+  }
+  const kind = file.type.startsWith('video/') ? '🎬 vídeo' : '🖼️ imagem';
+  hint.textContent = `${kind} selecionado: ${file.name}` + (restriction ? ` · ${restriction}` : '');
+}
+
+// ── Menu de seleção de mídia (arquivo local x Google Drive) ──────────────────
+function toggleMediaMenu(e) {
+  e.stopPropagation();
+  document.getElementById('media-picker-menu').classList.toggle('open');
+}
+function closeMediaMenu() {
+  document.getElementById('media-picker-menu').classList.remove('open');
+}
+document.addEventListener('click', closeMediaMenu);
+
+// ── Importar mídia do Google Drive ────────────────────────────────────────────
+let gDriveConfig = null;
+let gDriveTokenClient = null;
+let gDriveAccessToken = null;
+
+async function loadGDriveConfig() {
+  if (!gDriveConfig) gDriveConfig = await apiFetch('/api/config');
+  return gDriveConfig;
+}
+
+function ensurePickerLoaded() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.picker) return resolve();
+    if (!window.gapi) return reject(new Error('Biblioteca do Google ainda não carregou, tente novamente em alguns segundos'));
+    gapi.load('picker', { callback: resolve, onerror: () => reject(new Error('Falha ao carregar o Google Picker')) });
+  });
+}
+
+async function openDrivePicker() {
+  try {
+    const cfg = await loadGDriveConfig();
+    if (!cfg.googleClientId || !cfg.googleApiKey) {
+      return showToast('Configure GOOGLE_CLIENT_ID e GOOGLE_API_KEY no .env para usar o Google Drive', 'err');
+    }
+    if (!window.google?.accounts?.oauth2) {
+      return showToast('Biblioteca do Google ainda não carregou, tente novamente em alguns segundos', 'err');
+    }
+    await ensurePickerLoaded();
+
+    if (!gDriveTokenClient) {
+      gDriveTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: cfg.googleClientId,
+        scope: 'https://www.googleapis.com/auth/drive.readonly',
+        callback: (resp) => {
+          if (resp.error) return showToast('Falha ao autorizar o Google Drive: ' + resp.error, 'err');
+          gDriveAccessToken = resp.access_token;
+          showDrivePicker(cfg.googleApiKey);
+        }
+      });
+    }
+
+    if (gDriveAccessToken) showDrivePicker(cfg.googleApiKey);
+    else gDriveTokenClient.requestAccessToken();
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'err');
+  }
+}
+
+function showDrivePicker(apiKey) {
+  const plats = [...selectedPlats];
+  const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
+
+  const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+    .setMimeTypes(onlyVideo ? 'video/*' : 'image/*,video/*')
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(false);
+
+  const picker = new google.picker.PickerBuilder()
+    .addView(view)
+    .setOAuthToken(gDriveAccessToken)
+    .setDeveloperKey(apiKey)
+    .setCallback(handleDrivePicked)
+    .build();
+  picker.setVisible(true);
+}
+
+async function handleDrivePicked(data) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  const doc = data.docs[0];
+  if (!doc) return;
+
+  if (!doc.mimeType.startsWith('image/') && !doc.mimeType.startsWith('video/')) {
+    return showToast('Selecione uma imagem ou vídeo', 'err');
+  }
+
+  showToast('Importando arquivo do Google Drive...', 'ok');
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`, {
+      headers: { Authorization: `Bearer ${gDriveAccessToken}` }
+    });
+    if (!res.ok) throw new Error('Falha ao baixar arquivo do Drive (' + res.status + ')');
+    const blob = await res.blob();
+    const file = new File([blob], doc.name, { type: doc.mimeType });
+
+    const input = document.getElementById('post-media');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    updateMediaAccept();
+    showToast(`Arquivo "${doc.name}" importado do Google Drive`, 'ok');
+  } catch (e) {
+    showToast('Erro ao importar do Google Drive: ' + e.message, 'err');
+  }
 }
 
 async function schedulePost() {
   const text = document.getElementById('post-text').value.trim();
+  const mediaInput = document.getElementById('post-media');
+  const media = mediaInput.files[0];
   const scheduledAt = document.getElementById('post-date').value;
   const group = document.getElementById('post-group').value;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
-  if (!text) return showToast('Escreva o texto do post', 'err');
+  if (!text && !media) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Selecione ao menos uma plataforma', 'err');
+  if (!group) return showToast('Selecione a estrela/grupo', 'err');
   if (!scheduledAt) return showToast('Defina a data e hora', 'err');
 
+  const formData = new FormData();
+  formData.append('text', text);
+  formData.append('platforms', JSON.stringify(platforms));
+  formData.append('group', group);
+  formData.append('scheduledAt', scheduledAt);
+  formData.append('repeat', repeat);
+  if (media) formData.append('media', media);
+
   try {
-    await apiFetch('/api/posts', {
-      method: 'POST',
-      body: JSON.stringify({ text, platforms, group, scheduledAt, repeat })
-    });
+    await apiFetch('/api/posts', { method: 'POST', body: formData });
     showToast('Post agendado com sucesso!', 'ok');
     document.getElementById('post-text').value = '';
+    mediaInput.value = '';
+    updateMediaAccept();
     loadQueue();
   } catch (e) {
     showToast('Erro ao agendar: ' + e.message, 'err');
@@ -851,18 +1066,21 @@ async function loadQueue() {
       return;
     }
 
-    const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888' };
+    const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888', kwai:'var(--kw)' };
     list.innerHTML = posts.map(p => {
       const d = new Date(p.scheduledAt);
       const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toTimeString().slice(0,5);
       const dotColor = dotColors[p.platforms[0]] || 'var(--accent)';
-      const pills = p.platforms.map(pl => `<span class="mini-pill ${pl}">${pl}</span>`).join('');
+      const pills = p.platforms.map(pl => `<span class="mini-pill ${pl}">${escapeHtml(pl)}</span>`).join('');
+      const text = p.text || '';
+      const title = text ? escapeHtml(`${text.slice(0,50)}${text.length>50?'…':''}`) : '<span style="color:var(--muted)">(sem texto)</span>';
+      const mediaTag = p.mediaPath ? `<span class="mini-pill" style="background:rgba(91,127,255,0.12);color:var(--accent)">${p.mediaType === 'video' ? '🎬 vídeo' : '🖼️ imagem'}</span>` : '';
       return `<div class="queue-item">
         <div class="queue-dot" style="background:${dotColor}"></div>
         <div class="queue-info">
-          <div class="queue-title">${p.text.slice(0,50)}${p.text.length>50?'…':''}</div>
-          <div class="queue-meta">${fmt} · ${p.group}</div>
-          <div class="queue-plats">${pills}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${p.repeat}</span>`:''}</div>
+          <div class="queue-title">${title}</div>
+          <div class="queue-meta">${fmt} · ${escapeHtml(p.group)}</div>
+          <div class="queue-plats">${pills}${mediaTag}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${escapeHtml(p.repeat)}</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           <span class="queue-status qs-pend">⏳ agendado</span>
@@ -871,7 +1089,7 @@ async function loadQueue() {
       </div>`;
     }).join('');
   } catch (e) {
-    list.innerHTML = `<div style="text-align:center;color:var(--red);padding:1rem">${e.message}</div>`;
+    list.innerHTML = `<div style="text-align:center;color:var(--red);padding:1rem">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -914,6 +1132,23 @@ function startLogStream() {
     appendLog(box, { type:'warn', message:'Stream desconectado — reconectando...', timestamp: new Date().toISOString() });
   };
 
+  // Notifica quando um post agendado é publicado
+  logEs.addEventListener('post_published', (e) => {
+    const data = JSON.parse(e.data);
+    const plats = (data.platforms || []).join(', ');
+    if (data.status === 'published') {
+      showToast(`✅ Post #${data.id} publicado em ${plats} (${data.group})`, 'ok');
+    } else if (data.status === 'partial') {
+      showToast(`⚠️ Post #${data.id} publicado parcialmente em ${plats} (${data.group})`, 'warn');
+    } else {
+      showToast(`❌ Post #${data.id} falhou ao publicar em ${plats} (${data.group})`, 'err');
+    }
+    // Atualiza a fila se a página do agendador estiver ativa
+    if (document.getElementById('page-agendador')?.classList.contains('active')) {
+      loadQueue();
+    }
+  });
+
   document.getElementById('btn-pause-logs').textContent = '⏸ Pausar';
 }
 
@@ -922,7 +1157,7 @@ function appendLog(box, log) {
   const time = new Date(log.timestamp).toTimeString().slice(0,8);
   const line = document.createElement('div');
   line.className = 'log-line';
-  line.innerHTML = `<span class="log-time">${time}</span><span class="${clsMap[log.type]||''}">[${log.type.toUpperCase()}]</span><span>${log.message}</span>`;
+  line.innerHTML = `<span class="log-time">${time}</span><span class="${clsMap[log.type]||''}">[${escapeHtml(String(log.type).toUpperCase())}]</span><span>${escapeHtml(log.message)}</span>`;
   box.appendChild(line);
   // Limitar a 300 linhas no DOM
   while (box.children.length > 300) box.removeChild(box.firstChild);
@@ -970,6 +1205,12 @@ const AT_CONFIG = {
     expiryDays: 1,
     expiryLabel: 'Expiração (tokens TikTok duram 24 horas)',
     showRefresh: false
+  },
+  kwai: {
+    hint: '<strong>Kwai:</strong> não possui geração de token via OAuth público. Use o modal "+ Conectar conta" com usuário e senha para gerar o token automaticamente, ou cole aqui um token obtido manualmente.',
+    expiryDays: 30,
+    expiryLabel: 'Expiração (login Kwai dura 30 dias)',
+    showRefresh: false
   }
 };
 
@@ -981,8 +1222,8 @@ function atChangePlat(plat) {
   const hint = document.getElementById('at-hint');
   if (hint) {
     hint.innerHTML = cfg.hint;
-    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)' };
-    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)' };
+    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)', kwai:'rgba(255,136,0,0.1)' };
+    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)', kwai:'rgba(255,136,0,0.3)' };
     hint.style.background = colors[plat];
     hint.style.border = `1px solid ${borders[plat]}`;
     hint.style.color = 'var(--text)';
@@ -1013,7 +1254,7 @@ function atChangePlat(plat) {
 
 function openModal(name) {
   if (name === 'nova-conta') {
-    updateNameField('modal-name', 'modal-name-preview', document.getElementById('modal-platform').value || 'facebook');
+    updatePlatformUI(document.getElementById('modal-platform').value || 'facebook');
   }
   if (name === 'add-token') {
     // Inicializar com Facebook como padrão
@@ -1101,6 +1342,12 @@ const PLAT_FIELD_CFG = {
     pattern: /tiktok\.com\/@?([^/?#\s]+)/i,
     label: 'TikTok',
     example: 'ex: @marca.tiktok'
+  },
+  kwai: {
+    placeholder: '@usuario ou https://kwai.com/@seuperfil',
+    pattern: /kwai\.com\/(?:u\/|profile\/)?@?([^/?#\s]+)/i,
+    label: 'Kwai',
+    example: 'ex: @marca.kwai'
   }
 };
 
@@ -1129,7 +1376,7 @@ function extractNickname(input, previewId) {
 
   // Nickname direto com @
   if (val.startsWith('@')) {
-    preview.innerHTML = '✓ nickname: <strong>' + val + '</strong>';
+    preview.innerHTML = '✓ nickname: <strong>' + escapeHtml(val) + '</strong>';
     input.dataset.resolved = val;
     return;
   }
@@ -1139,7 +1386,7 @@ function extractNickname(input, previewId) {
     const m = val.match(cfg.pattern);
     if (m && m[1] && !['watch','shorts','reel','reels'].includes(m[1].toLowerCase())) {
       const nick = '@' + m[1].replace(/\/$/, '');
-      preview.innerHTML = '✓ extraído de ' + cfg.label + ': <strong>' + nick + '</strong>';
+      preview.innerHTML = '✓ extraído de ' + escapeHtml(cfg.label) + ': <strong>' + escapeHtml(nick) + '</strong>';
       input.dataset.resolved = nick;
       return;
     }
@@ -1149,13 +1396,13 @@ function extractNickname(input, previewId) {
   const urlMatch = val.match(/https?:\/\/[^/]+\/([^/?#\s]+)/i);
   if (urlMatch && urlMatch[1]) {
     const nick = '@' + urlMatch[1].replace(/\/$/, '');
-    preview.innerHTML = '✓ extraído do link: <strong>' + nick + '</strong>';
+    preview.innerHTML = '✓ extraído do link: <strong>' + escapeHtml(nick) + '</strong>';
     input.dataset.resolved = nick;
     return;
   }
 
   // Texto simples — usar como está
-  preview.innerHTML = '✓ nome: <strong>' + val + '</strong>';
+  preview.innerHTML = '✓ nome: <strong>' + escapeHtml(val) + '</strong>';
   input.dataset.resolved = '';
 }
 
@@ -1168,6 +1415,18 @@ function resolveInputName(inputId) {
 
 function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open')); }
 
+// ── Plataforma selecionada no modal "Conectar nova conta" ──────────────────────
+function updatePlatformUI(plat) {
+  updateNameField('modal-name', 'modal-name-preview', plat);
+
+  // Kwai não usa e-mail para vincular a conta (conexão simulada, sem OAuth público)
+  document.getElementById('modal-email-group').style.display = plat === 'kwai' ? 'none' : 'block';
+
+  const btn = document.getElementById('modal-connect-btn');
+  btn.textContent = 'Autorizar via OAuth →';
+  btn.onclick = startOAuth;
+}
+
 async function startOAuth() {
   const platform = document.getElementById('modal-platform').value;
   const name     = resolveInputName('modal-name');
@@ -1175,9 +1434,9 @@ async function startOAuth() {
   const email    = document.getElementById('modal-email').value.trim();
 
   if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
-  if (!email) return showToast('Informe o e-mail da pessoa.', 'err');
+  if (platform !== 'kwai' && !email) return showToast('Informe o e-mail da pessoa.', 'err');
 
-  const oauthMap = { facebook:'meta', instagram:'instagram', youtube:'google', tiktok:'tiktok' };
+  const oauthMap = { facebook:'meta', instagram:'instagram', youtube:'google', tiktok:'tiktok', kwai:'kwai' };
   const provider = oauthMap[platform];
 
   const btn = document.querySelector('#modal-nova-conta .btn-accent');
@@ -1191,6 +1450,14 @@ async function startOAuth() {
     // Servidor retornou erro de configuração (.env)
     if (!res.ok || data.error) {
       showOAuthConfigError(data);
+      return;
+    }
+
+    // Kwai conecta direto no servidor (sem OAuth público), sem precisar de popup
+    if (data.connected) {
+      closeModal();
+      showToast('Conta Kwai conectada com sucesso!', 'ok');
+      loadDashboard();
       return;
     }
 
@@ -1231,11 +1498,24 @@ function showOAuthConfigError(data) {
 
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(); }));
 
+// Atualiza o campo visível com a data/hora no formato brasileiro (dd/mm/aaaa hh:mm)
+function updatePostDateDisplay() {
+  const input = document.getElementById('post-date');
+  const display = document.getElementById('post-date-display');
+  if (!input || !display) return;
+  if (!input.value) { display.value = ''; return; }
+  const d = new Date(input.value);
+  const data = d.toLocaleDateString('pt-BR');
+  const hora = d.toTimeString().slice(0,5);
+  display.value = `${data} ${hora}`;
+}
+
 // ── Inicialização ────────────────────────────────────────────────────────────
 const now = new Date(); now.setHours(now.getHours()+1, 0, 0, 0);
 const isoLocal = new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16);
 const di = document.getElementById('post-date');
 if (di) di.value = isoLocal;
+updatePostDateDisplay();
 
 // Verificar se voltou de OAuth com sucesso
 if (location.search.includes('connected=true')) {
@@ -1244,6 +1524,7 @@ if (location.search.includes('connected=true')) {
 }
 
 loadDashboard();
+startLogStream(); // mantém SSE ativo para notificações de posts publicados em qualquer página
 </script>
 </body>
 </html>

@@ -348,4 +348,40 @@ router.get('/tiktok/callback', async (req, res) => {
   }
 });
 
+// ─── Kwai (sem OAuth público - conexão simulada, igual ao Facebook) ──────────
+
+router.get('/kwai', async (req, res) => {
+  const { accountName, group, email } = req.query;
+  const platform = 'kwai';
+
+  try {
+    // O Kwai não disponibiliza OAuth público; a conta é conectada de forma
+    // simulada (mesmo padrão usado no callback do Facebook).
+    const fakeToken = 'KWAI_' + Math.random().toString(36).slice(2, 18).toUpperCase();
+    const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+    const name = accountName || 'Nova Conta Kwai';
+
+    const conta = await contasRepo.criarContaRapida({
+      name,
+      platform,
+      group: group || 'Geral',
+      email
+    });
+
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken: fakeToken,
+      expiresAt,
+      accountName: name
+    });
+
+    addLog('ok', `Conta Kwai conectada: "${name}" — token expira em 30 dias`, platform, conta.id);
+    res.json({ connected: true, accountId: conta.id });
+  } catch (err) {
+    addLog('err', `Falha ao conectar Kwai: ${err.message}`, platform);
+    res.status(500).json({ error: 'Falha ao conectar conta Kwai' });
+  }
+});
+
 module.exports = router;

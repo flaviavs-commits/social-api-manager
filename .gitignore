@@ -2,3 +2,6 @@
 .env
 .env.example
 /data
+/public/uploads/*
+!/public/uploads/.gitkeep
+*.log
