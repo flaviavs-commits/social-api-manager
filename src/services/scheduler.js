@@ -11,7 +11,8 @@ async function buscarPostsPendentes() {
     SELECT
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status,
-      media_path AS "mediaPath", media_type AS "mediaType"
+      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
+      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
     FROM posts
     WHERE status = 'scheduled' AND scheduled_at <= NOW()
   `)
@@ -73,7 +74,7 @@ function start() {
         await processarPost(post)
       }
     } catch (err) {
-      await registrarLog({ type: 'err', message: `Erro no agendador: ${err.message}`, platform: null })
+      await registrarLog({ type: 'err', message: `Erro ao programar post: ${err.message}`, platform: null })
     }
   })
 

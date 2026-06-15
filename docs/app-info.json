@@ -1,0 +1,89 @@
+{
+  "app": {
+    "name": "Social Manager Pro",
+    "description": "Manage all your TikTok content and social media in one place with Social Manager Pro.",
+    "version": "1.0.0",
+    "category": "Social Networking",
+    "icon": "https://your-domain.com/public/app-icon-1024x1024.png",
+    "screenshots": [
+      "https://your-domain.com/screenshots/dashboard.png",
+      "https://your-domain.com/screenshots/publish.png",
+      "https://your-domain.com/screenshots/schedule.png",
+      "https://your-domain.com/screenshots/analytics.png"
+    ]
+  },
+  "tiktok_submission": {
+    "platforms": ["Web", "Desktop", "Android", "iOS"],
+    "products": ["Content Posting API"],
+    "scopes": [
+      {
+        "name": "user.info.basic",
+        "description": "Access basic user information (ID, username, profile picture)",
+        "justification": "Required to identify which TikTok account content is being published to"
+      },
+      {
+        "name": "video.create",
+        "description": "Create video drafts on TikTok",
+        "justification": "Allows users to create and upload video content to their TikTok accounts"
+      },
+      {
+        "name": "video.publish",
+        "description": "Publish videos from drafts to user's TikTok profile",
+        "justification": "Enables automated or manual publishing of scheduled content directly to TikTok profiles"
+      }
+    ],
+    "features": [
+      {
+        "name": "Centralized Account Management",
+        "description": "Connect and manage multiple TikTok accounts from one dashboard",
+        "api_used": "Content Posting API, user.info.basic"
+      },
+      {
+        "name": "Content Scheduling",
+        "description": "Schedule content publication to TikTok at optimal times",
+        "api_used": "Content Posting API, video.publish"
+      },
+      {
+        "name": "Automated Token Renewal",
+        "description": "Automatically renew TikTok OAuth tokens to maintain uninterrupted access",
+        "api_used": "OAuth 2.0 token refresh"
+      },
+      {
+        "name": "Multi-Platform Management",
+        "description": "Also supports Facebook, Instagram, YouTube alongside TikTok",
+        "api_used": "Multiple APIs (Meta, Google)"
+      },
+      {
+        "name": "Activity Logging",
+        "description": "Track all publication events, errors, and token renewals in real-time",
+        "api_used": "Content Posting API hooks"
+      }
+    ]
+  },
+  "urls": {
+    "website": "https://your-domain.com",
+    "privacy_policy": "https://your-domain.com/privacy-policy",
+    "terms_of_service": "https://your-domain.com/terms-of-service",
+    "support": "https://your-domain.com/support",
+    "redirect_uri": "https://your-domain.com/oauth/tiktok/callback"
+  },
+  "deployment": {
+    "environment": "sandbox_and_production",
+    "sandbox_redirect_uri": "http://localhost:3000/oauth/tiktok/callback",
+    "production_redirect_uri": "https://your-domain.com/oauth/tiktok/callback",
+    "https_required": true,
+    "domain_verification": "required_for_production"
+  },
+  "security": {
+    "oauth_version": "2.0",
+    "token_storage": "encrypted_database",
+    "token_expiration": "7_days_sandbox_60_days_production",
+    "api_rate_limiting": "compliant_with_tiktok",
+    "https_enforced": true
+  },
+  "support": {
+    "email": "support@socialmanagerpro.local",
+    "documentation": "https://your-domain.com/docs/tiktok-integration",
+    "issues_contact": "tech@socialmanagerpro.local"
+  }
+}

@@ -39,6 +39,16 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .media-picker-menu.open { display: block; }
 .media-picker-option { padding: 10px 12px; font-size: 13px; font-family: var(--sans); cursor: pointer; transition: all 0.15s; }
 .media-picker-option:hover { background: var(--surface); color: var(--accent); }
+.media-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.media-item { display: flex; gap: 8px; align-items: flex-start; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 6px; cursor: grab; }
+.media-item.dragging { opacity: 0.4; }
+.media-item .media-thumb { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: #000; }
+.media-item .media-order { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 18px; text-align: center; flex-shrink: 0; padding-top: 4px; }
+.media-item .media-fields { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.media-item .media-name { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-item input.media-caption { font-size: 12px; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-family: var(--sans); }
+.media-item .media-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 2px 4px; }
+.media-item .media-remove:hover { color: var(--red, #e55); }
 .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-accent:hover { background: #4a6ee0; border-color: #4a6ee0; color: #fff; }
 .btn:disabled { opacity: 0.4; cursor: default; }
@@ -79,6 +89,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-btn:hover { color: var(--text); background: var(--surface2); }
 .plat-btn.primary { border-color: var(--accent); color: var(--accent); }
 .plat-btn.primary:hover { background: rgba(91,127,255,0.1); }
+.plat-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.plat-btn:disabled:hover { color: var(--muted); background: transparent; }
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
 .tab { padding: 10px 16px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
 .tab:hover { color: var(--text); }
@@ -266,7 +278,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   </div>
   <div class="nav-item" onclick="showPage('agendador')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-    Agendador
+    Programar Post
   </div>
   <div class="nav-item" onclick="showPage('logs')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -424,7 +436,7 @@ Authorization: Bearer <span class="val">{access_token}</span>
         <div>
           <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Conexão da conta</div>
           <div class="code-block"><span class="comment">// Rota de autenticação no servidor</span>
-GET <span class="val">/auth/kwai</span>?accountName=@perfil&amp;group=Gerais
+GET <span class="val">/auth/kwai</span>?accountName=@perfil&amp;group=Geral
 
 <span class="comment">// Resposta: { connected: true, accountId }</span></div>
         </div>
@@ -488,7 +500,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
 
   <!-- AGENDADOR -->
   <div id="page-agendador" class="section-page">
-    <div class="page-header"><div><div class="page-title">Agendador de posts</div><div class="page-sub">// fila de publicação automática</div></div></div>
+    <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">// fila de publicação automática</div></div></div>
     <div class="sched-grid">
       <div class="sched-form">
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
@@ -503,7 +515,8 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
           </div>
         </div>
         <div class="form-group"><label>Estrelas</label>
-          <select id="post-group"><option value="Todas">Todas as contas</option>
+          <select id="post-group">
+          <option value="Geral">Geral</option>
           <option value="Casais">Casais</option>
           <option value="Apoio">Apoio</option>
           <option value="Apoio Geral">Apoio Geral</option>
@@ -518,34 +531,42 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
           <option value="Fashionistas">Fashionistas</option>
           </select>
         </div>
+        <div class="form-group" id="post-youtube-title-group" style="display:none">
+          <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
+          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube"/>
+        </div>
         <div class="form-group"><label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..."></textarea>
         </div>
         <div class="form-group">
-          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem ou vídeo, opcional)</span></label>
+          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo, opcional — selecione várias para criar um carrossel no Instagram/Facebook)</span></label>
           <div class="media-picker">
             <button type="button" class="btn" onclick="toggleMediaMenu(event)">
               <span>📎 Selecionar mídia</span><span style="font-size:10px;color:var(--muted)">▾</span>
             </button>
             <div class="media-picker-menu" id="media-picker-menu">
-              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">💻 Arquivo do computador</div>
+              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">💻 Arquivo(s) do computador</div>
               <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">📁 Google Drive</div>
             </div>
-            <input type="file" id="post-media" accept="image/*,video/*" onchange="updateMediaPreview()" style="display:none"/>
+            <input type="file" id="post-media" accept="image/*,video/*" multiple onchange="onMediaFilesSelected()" style="display:none"/>
           </div>
           <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
+          <div id="media-list" class="media-list"></div>
         </div>
         <div class="form-group">
           <label>Data e hora</label>
           <div style="position:relative">
-            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer"/>
-            <input type="datetime-local" id="post-date" onchange="updatePostDateDisplay()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer"/>
+            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="document.getElementById('post-date').showPicker ? document.getElementById('post-date').showPicker() : document.getElementById('post-date').focus()"/>
+            <input type="datetime-local" id="post-date" onchange="updatePostDateDisplay()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none"/>
           </div>
         </div>
         <div class="form-group"><label>Repetição</label>
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
-        <button class="btn btn-accent" style="width:100%" onclick="schedulePost()">Agendar post</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-accent" style="flex:1" onclick="schedulePost()">Agendar post</button>
+          <button class="btn" style="flex:1" onclick="schedulePost(true)">Publicar agora</button>
+        </div>
       </div>
       <div class="sched-queue">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
@@ -596,7 +617,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
     </div>
     <div class="form-group"><label>Grupo</label>
       <select id="modal-group">
-        <option>Gerais</option>>
+        <option>Geral</option>
         <option>Casais</option>
         <option>Apoio</option>
         <option>Apoio Geral</option>
@@ -754,9 +775,28 @@ async function apiFetch(path, opts = {}) {
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+// Monta a URL pública do perfil/conta para cada plataforma a partir do handle salvo
+function profileUrl(platform, handle) {
+  if (!handle) return null;
+  const clean = handle.replace(/^@/, '');
+  switch (platform) {
+    // Páginas do Facebook são identificadas por slug/ID, não pelo nome de exibição
+    // salvo aqui — só monta o link se o valor parecer um slug válido (sem espaços).
+    case 'facebook':  return /\s/.test(clean) ? null : `https://www.facebook.com/${encodeURIComponent(clean)}`;
+    case 'instagram': return `https://www.instagram.com/${encodeURIComponent(clean)}`;
+    case 'youtube':   return handle.startsWith('UC')
+      ? `https://www.youtube.com/channel/${encodeURIComponent(handle)}`
+      : `https://www.youtube.com/@${encodeURIComponent(clean)}`;
+    case 'tiktok':    return `https://www.tiktok.com/@${encodeURIComponent(clean)}`;
+    case 'kwai':      return `https://www.kwai.com/@${encodeURIComponent(clean)}`;
+    default: return null;
+  }
+}
+
 async function loadDashboard() {
   try {
     const { platforms, summary } = await apiFetch('/api/accounts/stats');
+    const { data: contas } = await apiFetch('/api/accounts');
 
     document.getElementById('stat-total').textContent    = summary.totalAccounts;
     document.getElementById('stat-total-sub').textContent = `↑ ${platforms.length} plataformas`;
@@ -787,6 +827,19 @@ async function loadDashboard() {
       const health = p.total > 0 ? Math.round((p.active / p.total) * 100) : 0;
       const statusLabel = p.error > 0 ? 'partial' : 'connected';
       const statusText  = p.error > 0 ? 'parcial' : 'conectado';
+
+      // Encontra a primeira conta com link de perfil válido para essa plataforma
+      let link = null;
+      for (const c of contas) {
+        if (!c[p.platform]) continue;
+        if (!(c.tokens || []).some(t => t.platform === p.platform && t.status !== 'expired')) continue;
+        link = profileUrl(p.platform, c[p.platform]);
+        if (link) break;
+      }
+      const openBtn = link
+        ? `<button class="plat-btn" onclick="window.open('${link}', '_blank')">Abrir conta</button>`
+        : `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
+
       grid.innerHTML += `
         <div class="plat-card ${cfg.cls}">
           <div class="plat-header">
@@ -804,6 +857,7 @@ async function loadDashboard() {
             <div style="font-size:11px;color:var(--muted)">${cfg.api}</div>
           </div>
           <div class="plat-actions">
+            ${openBtn}
             <button class="plat-btn" onclick="showPage('tokens')">Ver tokens</button>
             <button class="plat-btn primary" onclick="openModal('nova-conta')">+ Conta</button>
           </div>
@@ -883,7 +937,12 @@ function togglePlat(btn) {
   if (selectedPlats.has(plat)) { selectedPlats.delete(plat); btn.classList.remove('primary'); }
   else { selectedPlats.add(plat); btn.classList.add('primary'); }
   updateMediaAccept();
+  document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
 }
+
+// Lista de mídias selecionadas para o post (carrossel se houver mais de uma).
+// Cada item: { file: File, caption: string }
+let mediaFiles = [];
 
 function updateMediaAccept() {
   const input = document.getElementById('post-media');
@@ -891,28 +950,114 @@ function updateMediaAccept() {
   const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
   input.accept = onlyVideo ? 'video/*' : 'image/*,video/*';
 
-  // Limpa o arquivo selecionado se ele não bater mais com o tipo aceito
-  const file = input.files[0];
-  if (file && onlyVideo && !file.type.startsWith('video/')) {
-    input.value = '';
+  // Remove arquivos que não batem mais com o tipo aceito
+  if (onlyVideo) {
+    mediaFiles = mediaFiles.filter(m => m.file.type.startsWith('video/'));
   }
   updateMediaPreview();
 }
 
-function updateMediaPreview() {
+function addMediaFiles(files) {
+  const plats = [...selectedPlats];
+  const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
+  for (const file of files) {
+    if (onlyVideo && !file.type.startsWith('video/')) continue;
+    mediaFiles.push({ file, caption: '' });
+  }
+  updateMediaPreview();
+}
+
+function onMediaFilesSelected() {
   const input = document.getElementById('post-media');
+  addMediaFiles([...input.files]);
+  input.value = '';
+}
+
+function removeMediaFile(index) {
+  mediaFiles.splice(index, 1);
+  updateMediaPreview();
+}
+
+let dragMediaIndex = null;
+
+function updateMediaPreview() {
   const hint = document.getElementById('post-media-hint');
+  const list = document.getElementById('media-list');
   const plats = [...selectedPlats];
   const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
   const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/TikTok/Kwai).' : '';
 
-  const file = input.files[0];
-  if (!file) {
+  if (!mediaFiles.length) {
     hint.textContent = restriction;
+    list.innerHTML = '';
     return;
   }
-  const kind = file.type.startsWith('video/') ? '🎬 vídeo' : '🖼️ imagem';
-  hint.textContent = `${kind} selecionado: ${file.name}` + (restriction ? ` · ${restriction}` : '');
+
+  if (mediaFiles.length === 1) {
+    const file = mediaFiles[0].file;
+    const kind = file.type.startsWith('video/') ? '🎬 vídeo' : '🖼️ imagem';
+    hint.textContent = `${kind} selecionado: ${file.name}` + (restriction ? ` · ${restriction}` : '');
+    if (file.type.startsWith('video/') && selectedPlats.has('youtube')) {
+      checkYoutubeShortHint(file, hint, restriction);
+    }
+  } else {
+    hint.textContent = `🎞️ Carrossel com ${mediaFiles.length} itens (arraste para reordenar)` + (restriction ? ` · ${restriction}` : '');
+  }
+
+  list.innerHTML = mediaFiles.map((m, i) => {
+    const url = URL.createObjectURL(m.file);
+    const thumb = m.file.type.startsWith('video/')
+      ? `<video class="media-thumb" src="${url}" muted></video>`
+      : `<img class="media-thumb" src="${url}"/>`;
+    const captionInput = mediaFiles.length > 1
+      ? `<input class="media-caption" type="text" placeholder="Texto/nota deste item (uso interno)" value="${escapeHtml(m.caption)}" oninput="mediaFiles[${i}].caption = this.value"/>`
+      : '';
+    return `
+      <div class="media-item" draggable="true" data-index="${i}"
+        ondragstart="dragMediaIndex=${i}; this.classList.add('dragging')"
+        ondragend="this.classList.remove('dragging')"
+        ondragover="event.preventDefault()"
+        ondrop="reorderMedia(${i})">
+        <div class="media-order">${i + 1}</div>
+        ${thumb}
+        <div class="media-fields">
+          <div class="media-name">${escapeHtml(m.file.name)}</div>
+          ${captionInput}
+        </div>
+        <button type="button" class="media-remove" onclick="removeMediaFile(${i})" title="Remover">✕</button>
+      </div>`;
+  }).join('');
+}
+
+// Verifica no navegador se o vídeo será publicado como Short no YouTube:
+// vertical (9:16) ou quadrado (1:1) e com até 3 minutos de duração.
+// Vídeos horizontais (16:9) nunca são Shorts, mesmo que curtos.
+function checkYoutubeShortHint(file, hint, restriction) {
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.src = url;
+  video.onloadedmetadata = () => {
+    const { videoWidth: w, videoHeight: h, duration } = video;
+    URL.revokeObjectURL(url);
+    let msg;
+    if (h >= w && duration <= 180) {
+      msg = '✅ Será publicado como YouTube Shorts (vertical/quadrado, até 3min)';
+    } else if (h < w) {
+      msg = 'ℹ️ Vídeo horizontal (16:9) — será publicado como vídeo tradicional, não como Shorts';
+    } else {
+      msg = `ℹ️ Vídeo vertical com mais de 3min (${Math.round(duration)}s) — será publicado como vídeo tradicional, não como Shorts`;
+    }
+    hint.textContent = hint.textContent + ' · ' + msg + (restriction ? ` · ${restriction}` : '');
+  };
+}
+
+function reorderMedia(targetIndex) {
+  if (dragMediaIndex === null || dragMediaIndex === targetIndex) return;
+  const [moved] = mediaFiles.splice(dragMediaIndex, 1);
+  mediaFiles.splice(targetIndex, 0, moved);
+  dragMediaIndex = null;
+  updateMediaPreview();
 }
 
 // ── Menu de seleção de mídia (arquivo local x Google Drive) ──────────────────
@@ -1009,45 +1154,51 @@ async function handleDrivePicked(data) {
     const blob = await res.blob();
     const file = new File([blob], doc.name, { type: doc.mimeType });
 
-    const input = document.getElementById('post-media');
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    input.files = dt.files;
-    updateMediaAccept();
+    addMediaFiles([file]);
     showToast(`Arquivo "${doc.name}" importado do Google Drive`, 'ok');
   } catch (e) {
     showToast('Erro ao importar do Google Drive: ' + e.message, 'err');
   }
 }
 
-async function schedulePost() {
+async function schedulePost(publishNow = false) {
   const text = document.getElementById('post-text').value.trim();
-  const mediaInput = document.getElementById('post-media');
-  const media = mediaInput.files[0];
-  const scheduledAt = document.getElementById('post-date').value;
+  const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const group = document.getElementById('post-group').value;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
-  if (!text && !media) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
+  let scheduledAt;
+  if (publishNow) {
+    const now = new Date();
+    scheduledAt = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  } else {
+    scheduledAt = document.getElementById('post-date').value;
+    if (!scheduledAt) return showToast('Defina a data e hora', 'err');
+  }
+
+  if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Selecione ao menos uma plataforma', 'err');
   if (!group) return showToast('Selecione a estrela/grupo', 'err');
-  if (!scheduledAt) return showToast('Defina a data e hora', 'err');
+  if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
   const formData = new FormData();
   formData.append('text', text);
+  formData.append('youtubeTitle', youtubeTitle);
   formData.append('platforms', JSON.stringify(platforms));
   formData.append('group', group);
   formData.append('scheduledAt', scheduledAt);
   formData.append('repeat', repeat);
-  if (media) formData.append('media', media);
+  mediaFiles.forEach(m => formData.append('media', m.file));
+  formData.append('captions', JSON.stringify(mediaFiles.map(m => m.caption)));
 
   try {
     await apiFetch('/api/posts', { method: 'POST', body: formData });
-    showToast('Post agendado com sucesso!', 'ok');
+    showToast(publishNow ? 'Post enviado para publicação imediata!' : 'Post agendado com sucesso!', 'ok');
     document.getElementById('post-text').value = '';
-    mediaInput.value = '';
-    updateMediaAccept();
+    document.getElementById('post-youtube-title').value = '';
+    mediaFiles = [];
+    updateMediaPreview();
     loadQueue();
   } catch (e) {
     showToast('Erro ao agendar: ' + e.message, 'err');
@@ -1058,7 +1209,10 @@ async function loadQueue() {
   const list = document.getElementById('queue-list');
   list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">carregando...</div>';
   try {
-    const { posts } = await apiFetch('/api/posts?status=scheduled');
+    const [{ posts }, { data: contas }] = await Promise.all([
+      apiFetch('/api/posts?status=scheduled'),
+      apiFetch('/api/accounts')
+    ]);
     document.getElementById('queue-count').textContent = posts.length + ' posts';
 
     if (posts.length === 0) {
@@ -1066,21 +1220,50 @@ async function loadQueue() {
       return;
     }
 
+    // Acha a conta+token (não expirado) que será usada para publicar nessa
+    // plataforma, para exibir no tooltip do pill. Prioriza a conta da mesma
+    // estrela do post; se não houver, mostra a primeira conta conectada
+    // dessa rede social (em qualquer estrela).
+    function contaParaPublicacao(platform, group) {
+      let fallback = null
+      for (const c of contas) {
+        if (!c.ativo || !c[platform]) continue
+        const token = (c.tokens || []).find(t => t.platform === platform)
+        if (!token || token.status === 'expired') continue
+        const info = { accountName: token.accountName || c[platform], status: token.status, nicho: c.nicho }
+        if (c.nicho === group) return info
+        if (!fallback) fallback = info
+      }
+      return fallback
+    }
+
     const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888', kwai:'var(--kw)' };
     list.innerHTML = posts.map(p => {
       const d = new Date(p.scheduledAt);
-      const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toTimeString().slice(0,5);
+      const fmt = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' ' +
+        d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
       const dotColor = dotColors[p.platforms[0]] || 'var(--accent)';
-      const pills = p.platforms.map(pl => `<span class="mini-pill ${pl}">${escapeHtml(pl)}</span>`).join('');
+      const pills = p.platforms.map(pl => {
+        const conta = contaParaPublicacao(pl, p.group)
+        const tooltip = conta
+          ? `Conta: ${conta.accountName}${conta.status === 'expiring' ? ' (token expirando)' : ''}${conta.nicho !== p.group ? ` (conectada em "${conta.nicho}", não em "${p.group}")` : ''}`
+          : 'Nenhuma conta conectada para esta plataforma'
+        return `<span class="mini-pill ${pl}" title="${escapeHtml(tooltip)}">${escapeHtml(pl)}</span>`
+      }).join('');
       const text = p.text || '';
       const title = text ? escapeHtml(`${text.slice(0,50)}${text.length>50?'…':''}`) : '<span style="color:var(--muted)">(sem texto)</span>';
-      const mediaTag = p.mediaPath ? `<span class="mini-pill" style="background:rgba(91,127,255,0.12);color:var(--accent)">${p.mediaType === 'video' ? '🎬 vídeo' : '🖼️ imagem'}</span>` : '';
+      const mediaTag = p.mediaItems?.length > 1
+        ? `<span class="mini-pill" style="background:rgba(91,127,255,0.12);color:var(--accent)">🎞️ carrossel (${p.mediaItems.length})</span>`
+        : p.mediaPath ? `<span class="mini-pill" style="background:rgba(91,127,255,0.12);color:var(--accent)">${p.mediaType === 'video' ? '🎬 vídeo' : '🖼️ imagem'}</span>` : '';
+      const shortsTag = (p.mediaType === 'video' && p.youtubeIsShort === true)
+        ? `<span class="mini-pill" style="background:rgba(255,68,68,0.12);color:var(--yt)">#shorts</span>`
+        : '';
       return `<div class="queue-item">
         <div class="queue-dot" style="background:${dotColor}"></div>
         <div class="queue-info">
           <div class="queue-title">${title}</div>
           <div class="queue-meta">${fmt} · ${escapeHtml(p.group)}</div>
-          <div class="queue-plats">${pills}${mediaTag}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${escapeHtml(p.repeat)}</span>`:''}</div>
+          <div class="queue-plats">${pills}${mediaTag}${shortsTag}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${escapeHtml(p.repeat)}</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           <span class="queue-status qs-pend">⏳ agendado</span>
@@ -1498,16 +1681,17 @@ function showOAuthConfigError(data) {
 
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(); }));
 
-// Atualiza o campo visível com a data/hora no formato brasileiro (dd/mm/aaaa hh:mm)
+// Atualiza o campo visível com a data/hora no formato brasileiro (dd/mm/aaaa hh:mm).
+// Lê o valor do input "datetime-local" como texto puro (aaaa-mm-ddThh:mm), sem
+// passar por Date, para evitar conversões de timezone do navegador.
 function updatePostDateDisplay() {
   const input = document.getElementById('post-date');
   const display = document.getElementById('post-date-display');
   if (!input || !display) return;
   if (!input.value) { display.value = ''; return; }
-  const d = new Date(input.value);
-  const data = d.toLocaleDateString('pt-BR');
-  const hora = d.toTimeString().slice(0,5);
-  display.value = `${data} ${hora}`;
+  const [data, hora] = input.value.split('T');
+  const [ano, mes, dia] = data.split('-');
+  display.value = `${dia}/${mes}/${ano} ${hora}`;
 }
 
 // ── Inicialização ────────────────────────────────────────────────────────────

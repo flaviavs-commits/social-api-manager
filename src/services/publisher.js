@@ -52,8 +52,38 @@ async function publicarFacebook(token, post) {
   const pageId = token.handle || token.accountName
   if (!pageId) throw new Error('Conta Facebook sem ID/página configurado')
 
-  if (!post.mediaPath) {
+  if (!post.mediaPath && !post.mediaItems?.length) {
     const body = new URLSearchParams({ message: post.text || '', access_token: token.accessToken })
+    const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/feed`, { method: 'POST', body })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
+    return data
+  }
+
+  // ── Várias imagens/vídeos: publica cada um sem divulgar (published=false) e
+  // depois cria um post no feed referenciando todos como attached_media ──
+  if (post.mediaItems?.length > 1) {
+    const attachedMedia = []
+    for (const item of post.mediaItems) {
+      const isVideoItem = item.type === 'video'
+      const endpointItem = isVideoItem ? 'videos' : 'photos'
+      const { buffer, filename } = mediaToBlob(item.path)
+
+      const form = new FormData()
+      form.append('access_token', token.accessToken)
+      form.append('published', 'false')
+      form.append('source', new Blob([buffer]), filename)
+
+      const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/${endpointItem}`, { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status} ao enviar item do carrossel`)
+      attachedMedia.push({ media_fbid: data.id })
+    }
+
+    const body = new URLSearchParams({ access_token: token.accessToken })
+    if (post.text) body.append('message', post.text)
+    attachedMedia.forEach((m, i) => body.append(`attached_media[${i}]`, JSON.stringify(m)))
+
     const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/feed`, { method: 'POST', body })
     const data = await res.json()
     if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
@@ -75,12 +105,66 @@ async function publicarFacebook(token, post) {
   return data
 }
 
+// Aguarda o container de mídia do Instagram terminar de processar (IN_PROGRESS -> FINISHED).
+// Publicar antes de FINISHED retorna "Media ID is not available".
+async function aguardarContainerInstagram(containerId, accessToken) {
+  for (let i = 0; i < 30; i++) {
+    const statusRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`)
+    const statusData = await statusRes.json()
+    if (statusData.status_code === 'FINISHED') return
+    if (statusData.status_code === 'ERROR') throw new Error('Processamento da mídia falhou no Instagram')
+    await new Promise(r => setTimeout(r, 2000))
+  }
+}
+
 // ── Instagram (Graph API - containers de mídia) ──────────────────────────────────
 async function publicarInstagram(token, post) {
-  const igUserId = token.handle || token.accountName
-  if (!igUserId) throw new Error('Conta Instagram sem ID configurado')
-  if (!post.mediaPath) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
+  if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
+  // Tokens do fluxo "Instagram API with Instagram Login" (IGAA...) só funcionam
+  // em graph.instagram.com, e o id da conta precisa ser buscado via /me
+  // (o handle salvo é o @username, não o id numérico).
+  const meRes = await fetch(`https://graph.instagram.com/me?fields=user_id&access_token=${encodeURIComponent(token.accessToken)}`)
+  const meData = await meRes.json()
+  if (!meRes.ok || !meData.user_id) throw new Error(meData?.error?.message || 'Não foi possível obter o ID da conta Instagram')
+  const igUserId = meData.user_id
+
+  // ── Carrossel (múltiplas imagens/vídeos) ──
+  if (post.mediaItems?.length > 1) {
+    const childIds = []
+    for (const item of post.mediaItems) {
+      const childParams = new URLSearchParams({ access_token: token.accessToken, is_carousel_item: 'true' })
+      if (item.type === 'video') {
+        childParams.append('media_type', 'VIDEO')
+        childParams.append('video_url', mediaUrl(item.path))
+      } else {
+        childParams.append('image_url', mediaUrl(item.path))
+      }
+      const childRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: childParams })
+      const childData = await childRes.json()
+      if (!childRes.ok) throw new Error(childData?.error?.message || `Instagram respondeu ${childRes.status} ao criar item do carrossel`)
+      await aguardarContainerInstagram(childData.id, token.accessToken)
+      childIds.push(childData.id)
+    }
+
+    const carouselParams = new URLSearchParams({ access_token: token.accessToken, media_type: 'CAROUSEL', children: childIds.join(',') })
+    if (post.text) carouselParams.append('caption', post.text)
+
+    const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: carouselParams })
+    const createData = await createRes.json()
+    if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status} ao criar carrossel`)
+    await aguardarContainerInstagram(createData.id, token.accessToken)
+
+    const publishRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
+      method: 'POST',
+      body: new URLSearchParams({ creation_id: createData.id, access_token: token.accessToken })
+    })
+    const publishData = await publishRes.json()
+    if (!publishRes.ok) throw new Error(publishData?.error?.message || `Instagram respondeu ${publishRes.status}`)
+    return publishData
+  }
+
+  // ── Imagem/vídeo único ──
   const isVideo = post.mediaType === 'video'
   const params = new URLSearchParams({ access_token: token.accessToken })
   if (post.text) params.append('caption', post.text)
@@ -91,11 +175,12 @@ async function publicarInstagram(token, post) {
     params.append('image_url', mediaUrl(post.mediaPath))
   }
 
-  const createRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: params })
+  const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: params })
   const createData = await createRes.json()
   if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status}`)
+  await aguardarContainerInstagram(createData.id, token.accessToken)
 
-  const publishRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
+  const publishRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
     method: 'POST',
     body: new URLSearchParams({ creation_id: createData.id, access_token: token.accessToken })
   })
@@ -109,12 +194,23 @@ async function publicarYoutube(token, post) {
   if (!post.mediaPath || post.mediaType !== 'video') throw new Error('YouTube exige um vídeo para publicar')
 
   const { buffer } = mediaToBlob(post.mediaPath)
+
+  // Vídeos verticais (9:16) ou quadrados (1:1) com até 3 minutos são elegíveis
+  // como Shorts. A hashtag #Shorts no título/descrição ajuda o YouTube a
+  // classificar o vídeo corretamente nesse formato.
+  const isShort = post.youtubeIsShort === true
+  let title = (post.youtubeTitle || post.text || 'Novo vídeo').slice(0, 100)
+  let description = post.text || ''
+  if (isShort && !/#shorts/i.test(title) && !/#shorts/i.test(description)) {
+    description = description ? `${description}\n\n#Shorts` : '#Shorts'
+  }
+
   const metadata = {
     snippet: {
-      title: (post.text || 'Novo vídeo').slice(0, 100),
-      description: post.text || ''
+      title,
+      description
     },
-    status: { privacyStatus: 'private' }
+    status: { privacyStatus: 'public' }
   }
 
   const form = new FormData()
@@ -215,12 +311,22 @@ async function publishPost(post) {
     try {
       const data = await publisher(token, post)
       results.push({ platform, success: true, account: token.handle || token.accountName, data })
-      await registrarLog({
-        type: 'ok',
-        message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
-        platform,
-        conta_id: token.contaId
-      })
+
+      if (data?.simulado) {
+        await registrarLog({
+          type: 'warn',
+          message: `Publicação simulada [${platform}] na conta "${token.handle || token.accountName}" — ${data.mensagem || 'não foi postado de fato'}`,
+          platform,
+          conta_id: token.contaId
+        })
+      } else {
+        await registrarLog({
+          type: 'ok',
+          message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
+          platform,
+          conta_id: token.contaId
+        })
+      }
     } catch (err) {
       results.push({ platform, success: false, account: token.handle || token.accountName, error: err.message })
       await registrarLog({

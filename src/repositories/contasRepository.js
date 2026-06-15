@@ -123,7 +123,7 @@ async function buscarContaPorId(id) {
 async function criarContaRapida({ name, platform, group, email }) {
   // Resolve nicho_id
   const { rows: [nicho] } = await pool.query(
-    `SELECT id FROM nichos WHERE nome ILIKE $1 LIMIT 1`, [group || 'Gerais']
+    `SELECT id FROM nichos WHERE nome ILIKE $1 LIMIT 1`, [group || 'Geral']
   )
 
   const campos = { facebook:'facebook', instagram:'instagram', youtube:'youtube', tiktok:'tiktok', kwai:'kwai' }

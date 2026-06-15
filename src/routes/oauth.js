@@ -211,7 +211,8 @@ router.get('/google', (req, res) => {
   const state = Buffer.from(JSON.stringify({ accountName, group, email, platform: 'youtube' })).toString('base64');
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtube.readonly'
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube'
   ].join(' ');
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
@@ -292,6 +293,30 @@ router.get('/google/callback', async (req, res) => {
 });
 
 // ─── TikTok ───────────────────────────────────────────────────────────────────
+
+router.get('/tiktok', (req, res) => {
+  const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName, group, email } = req.query;
+  const platform = 'tiktok';
+  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
+  const scopes = [
+    'user.info.basic',
+    'video.publish',
+    'video.upload'
+  ].join(',');
+
+  const url = `https://www.tiktok.com/v2/auth/authorize/` +
+    `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
+    `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
+    `&scope=${scopes}` +
+    `&state=${state}` +
+    `&response_type=code`;
+
+  addLog('info', `OAuth TikTok iniciado para "${accountName}"`, platform);
+  res.json({ authUrl: url });
+});
 
 router.get('/tiktok/callback', async (req, res) => {
   const { code, state, error } = req.query;

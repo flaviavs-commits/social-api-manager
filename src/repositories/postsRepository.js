@@ -1,11 +1,11 @@
 const pool = require('../db/pool')
 
-async function criarPost({ text, platforms, group_name, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null }) {
+async function criarPost({ text, platforms, group_name, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeIsShort = null }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, platforms, group_name, scheduled_at, repeat, media_path, media_type)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO posts (text, platforms, group_name, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_is_short)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING *
-  `, [text, platforms, group_name, scheduledAt, repeat, mediaPath, mediaType])
+  `, [text, platforms, group_name, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeIsShort])
   return rows[0]
 }
 
@@ -16,7 +16,8 @@ async function listarPosts({ status } = {}) {
     SELECT
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status, criado_em,
-      media_path AS "mediaPath", media_type AS "mediaType"
+      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
+      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
     FROM posts
     ${where}
     ORDER BY scheduled_at ASC
@@ -36,7 +37,8 @@ async function buscarPostPorId(id) {
     SELECT
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status, criado_em,
-      media_path AS "mediaPath", media_type AS "mediaType"
+      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
+      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
     FROM posts
     WHERE id = $1
   `, [id])
