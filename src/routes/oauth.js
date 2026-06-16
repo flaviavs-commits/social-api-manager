@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const contasRepo = require('../repositories/contasRepository');
 const tokensRepo = require('../repositories/tokensRepository');
 const { addLog } = require('../middleware/logger');
+
+const tiktokPKCEStore = new Map(); // state -> code_verifier
 
 // Verifica se uma credencial obrigatória foi preenchida no .env.
 // Retorna o erro (formato esperado pelo front-end) ou null se estiver tudo ok.
@@ -307,14 +310,46 @@ router.get('/tiktok', (req, res) => {
     'video.upload'
   ].join(',');
 
+  // PKCE
+  const codeVerifier = crypto.randomBytes(64).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  tiktokPKCEStore.set(state, codeVerifier);
+
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
     `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
     `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
     `&scope=${scopes}` +
     `&state=${state}` +
-    `&response_type=code`;
+    `&response_type=code` +
+    `&code_challenge=${codeChallenge}` +
+    `&code_challenge_method=S256`;
 
   addLog('info', `OAuth TikTok iniciado para "${accountName}"`, platform);
+  res.json({ authUrl: url });
+});
+
+router.get('/tiktok/google', (req, res) => {
+  const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
+  if (configError) return res.status(400).json(configError);
+
+  const platform = 'tiktok';
+  const state = Buffer.from(JSON.stringify({ platform, via: 'google' })).toString('base64');
+  const scopes = ['user.info.basic', 'video.publish', 'video.upload'].join(',');
+
+  const codeVerifier = crypto.randomBytes(64).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  tiktokPKCEStore.set(state, codeVerifier);
+
+  const url = `https://www.tiktok.com/v2/auth/authorize/` +
+    `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
+    `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
+    `&scope=${scopes}` +
+    `&state=${state}` +
+    `&response_type=code` +
+    `&code_challenge=${codeChallenge}` +
+    `&code_challenge_method=S256`;
+
+  addLog('info', `OAuth TikTok (Google) iniciado`, platform);
   res.json({ authUrl: url });
 });
 
@@ -328,6 +363,9 @@ router.get('/tiktok/callback', async (req, res) => {
   let meta = {};
   try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
 
+  const codeVerifier = tiktokPKCEStore.get(state);
+  tiktokPKCEStore.delete(state);
+
   try {
     // Troca o code pelo access_token real
     const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
@@ -338,7 +376,8 @@ router.get('/tiktok/callback', async (req, res) => {
         client_secret: process.env.TIKTOK_CLIENT_SECRET,
         code: code,
         grant_type: 'authorization_code',
-        redirect_uri: process.env.TIKTOK_REDIRECT_URI
+        redirect_uri: process.env.TIKTOK_REDIRECT_URI,
+        ...(codeVerifier ? { code_verifier: codeVerifier } : {})
       })
     });
 
@@ -349,8 +388,21 @@ router.get('/tiktok/callback', async (req, res) => {
       return res.redirect('/?error=token_failed');
     }
 
+    // Se veio via Google sem nome, busca o perfil na API do TikTok
+    let accountName = meta.accountName;
+    if (!accountName) {
+      try {
+        const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username', {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        const profileData = await profileRes.json();
+        accountName = profileData?.data?.user?.username || profileData?.data?.user?.display_name;
+      } catch {}
+    }
+    accountName = accountName || 'Nova Conta TikTok';
+
     const conta = await contasRepo.criarContaRapida({
-      name: meta.accountName || 'Nova Conta TikTok',
+      name: accountName,
       platform: 'tiktok',
       group: meta.group || 'Geral',
       email: meta.email
@@ -362,7 +414,7 @@ router.get('/tiktok/callback', async (req, res) => {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token,
       expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-      accountName: meta.accountName || 'Nova Conta TikTok'
+      accountName
     });
 
     addLog('ok', `Conta TikTok conectada: "${meta.accountName}"`, 'tiktok', conta.id);

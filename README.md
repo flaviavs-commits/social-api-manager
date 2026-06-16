@@ -1,7 +1,7 @@
 # Social API Manager
 
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
-Suporta Facebook, Instagram, YouTube e TikTok via OAuth 2.0.
+Suporta Facebook, Instagram, YouTube, TikTok e Kwai via OAuth 2.0.
 
 ## Estrutura do projeto
 
@@ -120,10 +120,12 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/google/callback
 ### TikTok
 
 1. Acesse: https://developers.tiktok.com
-2. Crie uma conta TikTok for Business
-3. Solicite acesso à **Content Posting API** (requer aprovação manual)
-4. Importante: TikTok **não suporta agendamento nativo** via API — posts vão ao ar imediatamente
-5. Para agendamento no TikTok, use ferramentas certificadas: Buffer, Metricool ou Publer
+2. Crie um app e ative o produto **Login Kit**
+3. Configure a Redirect URI: `http://localhost:3000/oauth/tiktok/callback`
+4. Para testes, use o modo **Sandbox** e adicione usuários em "Sandbox Users"
+5. O fluxo OAuth usa **PKCE (S256)** — obrigatório desde 2024
+6. O dashboard oferece duas formas de conectar: OAuth padrão ou **"Continuar com Google"** (se o usuário tiver conta TikTok vinculada ao Google)
+7. Importante: TikTok **não suporta agendamento nativo** via API — posts vão ao ar imediatamente
 
 ```env
 TIKTOK_CLIENT_KEY=awxxxxxxxxxxxxxxxxxx
@@ -214,7 +216,10 @@ para a conta Instagram Business vinculada à página:
 | GET | `/oauth/instagram/callback` | Callback Instagram |
 | GET | `/auth/google` ou `/oauth/google` | Iniciar OAuth Google |
 | GET | `/oauth/google/callback` | Callback Google |
+| GET | `/auth/tiktok` ou `/oauth/tiktok` | Iniciar OAuth TikTok |
+| GET | `/auth/tiktok/google` | Iniciar OAuth TikTok via Google |
 | GET | `/oauth/tiktok/callback` | Callback TikTok |
+| GET | `/auth/kwai` ou `/oauth/kwai` | Conectar conta Kwai (simulado) |
 
 ### Logs
 | Método | Rota | Descrição |
@@ -237,7 +242,8 @@ usar `postsRepository`/`tokensRepository` antes de ser religado.
 | Facebook | 200 req/hora por token | Tokens duram 60 dias, extensíveis |
 | Instagram | Igual ao Meta | Requer conta Business |
 | YouTube | 10.000 unidades/dia | Upload = 1.600 unidades |
-| TikTok | Sem agendamento nativo | Aprovação prévia necessária |
+| TikTok | Sem agendamento nativo | PKCE obrigatório · Sandbox para testes |
+| Kwai | Token dura 30 dias | Sem OAuth público — conexão simulada |
 
 ## Deploy em produção
 
