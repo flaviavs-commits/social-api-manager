@@ -306,13 +306,15 @@ router.get('/tiktok', (req, res) => {
   const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
   const scopes = [
     'user.info.basic',
+    'user.info.profile',
+    'video.list',
     'video.publish',
     'video.upload'
   ].join(',');
 
-  // PKCE
+  // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
   tiktokPKCEStore.set(state, codeVerifier);
 
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
@@ -337,7 +339,7 @@ router.get('/tiktok/google', (req, res) => {
   const scopes = ['user.info.basic', 'video.publish', 'video.upload'].join(',');
 
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
   tiktokPKCEStore.set(state, codeVerifier);
 
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
@@ -383,8 +385,11 @@ router.get('/tiktok/callback', async (req, res) => {
 
     const tokenData = await tokenRes.json();
 
-    if (tokenData.error) {
-      addLog('err', `Erro ao obter token TikTok: ${tokenData.error_description}`);
+    // TikTok envolve o token em { data: {...}, error: { code: 'ok' } }
+    const token = tokenData.data;
+    if (!token?.access_token) {
+      const errMsg = tokenData.error?.message || tokenData.error_description || 'token_failed';
+      addLog('err', `Erro ao obter token TikTok: ${errMsg}`);
       return res.redirect('/?error=token_failed');
     }
 
@@ -393,7 +398,7 @@ router.get('/tiktok/callback', async (req, res) => {
     if (!accountName) {
       try {
         const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username', {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` }
+          headers: { Authorization: `Bearer ${token.access_token}` }
         });
         const profileData = await profileRes.json();
         accountName = profileData?.data?.user?.username || profileData?.data?.user?.display_name;
@@ -411,9 +416,9 @@ router.get('/tiktok/callback', async (req, res) => {
     await tokensRepo.salvarToken({
       accountId: conta.id,
       platform: 'tiktok',
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
-      expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt: new Date(Date.now() + token.expires_in * 1000).toISOString(),
       accountName
     });
 
