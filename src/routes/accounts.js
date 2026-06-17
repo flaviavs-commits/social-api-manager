@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const repo = require('../repositories/contasRepository')
+const { addLog } = require('../middleware/logger')
 const { PLATFORMS, TIPOS, parseId, serverError } = require('../utils/http')
 
 const router = Router()
@@ -70,6 +71,22 @@ router.post('/', async (req, res) => {
     res.status(201).json({ account: conta })
   } catch (e) {
     serverError(res, e, 'Não foi possível criar a conta')
+  }
+})
+
+// DELETE /api/accounts/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+
+    const ok = await repo.deletarConta(id)
+    if (!ok) return res.status(404).json({ erro: 'Conta não encontrada' })
+
+    addLog('info', `Conta ID ${id} deletada`)
+    res.json({ deleted: true })
+  } catch (e) {
+    serverError(res, e)
   }
 })
 

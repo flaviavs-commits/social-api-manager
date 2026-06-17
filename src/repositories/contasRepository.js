@@ -177,4 +177,10 @@ async function criarContaRapida({ name, platform, group, email }) {
   return rows[0]
 }
 
-module.exports = { getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida }
+async function deletarConta(id) {
+  await pool.query('DELETE FROM tokens WHERE conta_id = $1', [id])
+  const { rowCount } = await pool.query('DELETE FROM contas WHERE id = $1', [id])
+  return rowCount > 0
+}
+
+module.exports = { getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta }

@@ -106,8 +106,8 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     // YouTube exige um título para o vídeo (texto do post é opcional/descrição).
     if (platforms.includes('youtube') && !youtubeTitle?.trim())
       return res.status(400).json({ erro: 'Informe o título do vídeo para publicar no YouTube.' })
-    if (platforms.includes('tiktok') && !temVideo)
-      return res.status(400).json({ erro: 'Falta vídeo para publicar no TikTok. Anexe um vídeo ou desmarque o TikTok.' })
+    if (platforms.includes('tiktok') && !items.length)
+      return res.status(400).json({ erro: 'Falta mídia para publicar no TikTok. Anexe um vídeo ou imagem.' })
 
     // Instagram exige imagem ou vídeo para publicar.
     if (platforms.includes('instagram') && !items.length)

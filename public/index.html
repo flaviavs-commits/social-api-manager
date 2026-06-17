@@ -539,7 +539,7 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
           <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..."></textarea>
         </div>
         <div class="form-group">
-          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo, opcional — selecione várias para criar um carrossel no Instagram/Facebook)</span></label>
+          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
           <div class="media-picker">
             <button type="button" class="btn" onclick="toggleMediaMenu(event)">
               <span>📎 Selecionar mídia</span><span style="font-size:10px;color:var(--muted)">▾</span>
@@ -834,16 +834,25 @@ async function loadDashboard() {
       const statusLabel = p.error > 0 ? 'partial' : 'connected';
       const statusText  = p.error > 0 ? 'parcial' : 'conectado';
 
-      // Encontra a primeira conta com link de perfil válido para essa plataforma
-      let link = null;
+      // Coleta todos os links de perfil válidos para essa plataforma
+      const links = [];
       for (const c of contas) {
         if (!c[p.platform]) continue;
-        link = profileUrl(p.platform, c[p.platform]);
-        if (link) break;
+        const l = profileUrl(p.platform, c[p.platform]);
+        if (l) links.push({ name: c[p.platform], url: l });
       }
-      const openBtn = link
-        ? `<button class="plat-btn" onclick="window.open('${link}', '_blank')">Abrir conta</button>`
-        : `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
+      let openBtn;
+      if (links.length === 0) {
+        openBtn = `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
+      } else if (links.length === 1) {
+        openBtn = `<button class="plat-btn" onclick="window.open('${links[0].url}', '_blank')">Abrir conta</button>`;
+      } else {
+        const opts = links.map(l => `<a href="${l.url}" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;white-space:nowrap;font-size:13px" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background=''">${l.name}</a>`).join('');
+        openBtn = `<div style="position:relative;display:inline-block">
+          <button class="plat-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">Abrir conta ▾</button>
+          <div style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid rgba(255,255,255,0.1);border-radius:8px;min-width:160px;z-index:100;overflow:hidden">${opts}</div>
+        </div>`;
+      }
 
       grid.innerHTML += `
         <div class="plat-card ${cfg.cls}">
@@ -935,7 +944,7 @@ async function renewAll() {
 const selectedPlats = new Set(['facebook', 'instagram']);
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
-const VIDEO_ONLY_PLATS = ['youtube', 'tiktok', 'kwai'];
+const VIDEO_ONLY_PLATS = ['youtube', 'kwai'];
 
 function togglePlat(btn) {
   const plat = btn.dataset.plat;
@@ -990,7 +999,7 @@ function updateMediaPreview() {
   const list = document.getElementById('media-list');
   const plats = [...selectedPlats];
   const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
-  const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/TikTok/Kwai).' : '';
+  const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/Kwai).' : '';
 
   if (!mediaFiles.length) {
     hint.textContent = restriction;
@@ -998,15 +1007,20 @@ function updateMediaPreview() {
     return;
   }
 
+  const hasTikTok = selectedPlats.has('tiktok');
+  const allImages = mediaFiles.every(m => m.file.type.startsWith('image/'));
+
   if (mediaFiles.length === 1) {
     const file = mediaFiles[0].file;
     const kind = file.type.startsWith('video/') ? '🎬 vídeo' : '🖼️ imagem';
-    hint.textContent = `${kind} selecionado: ${file.name}` + (restriction ? ` · ${restriction}` : '');
+    let extra = hasTikTok && file.type.startsWith('image/') ? ' · TikTok: publicará como foto estática' : '';
+    hint.textContent = `${kind} selecionado: ${file.name}${extra}` + (restriction ? ` · ${restriction}` : '');
     if (file.type.startsWith('video/') && selectedPlats.has('youtube')) {
       checkYoutubeShortHint(file, hint, restriction);
     }
   } else {
-    hint.textContent = `🎞️ Carrossel com ${mediaFiles.length} itens (arraste para reordenar)` + (restriction ? ` · ${restriction}` : '');
+    let extra = hasTikTok && allImages ? ' · TikTok: publicará como carrossel de fotos' : '';
+    hint.textContent = `🎞️ Carrossel com ${mediaFiles.length} itens (arraste para reordenar)${extra}` + (restriction ? ` · ${restriction}` : '');
   }
 
   list.innerHTML = mediaFiles.map((m, i) => {
@@ -1619,11 +1633,19 @@ function updatePlatformUI(plat) {
 }
 
 async function startOAuthGoogle() {
+  const name  = resolveInputName('modal-name');
+  const group = document.getElementById('modal-group').value;
+  const email = document.getElementById('modal-email').value.trim();
+
+  if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
+  if (!email) return showToast('Informe o e-mail da pessoa.', 'err');
+
   const btn = document.querySelector('#modal-tiktok-google button');
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
 
   try {
-    const res = await fetch(`/auth/tiktok/google`);
+    const params = new URLSearchParams({ accountName: name, group, email });
+    const res = await fetch(`/auth/tiktok/google?${params}`);
     const data = await res.json();
 
     if (!res.ok || data.error) { showOAuthConfigError(data || { error: `HTTP ${res.status}` }); return; }

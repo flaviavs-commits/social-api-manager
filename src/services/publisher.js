@@ -229,32 +229,74 @@ async function publicarYoutube(token, post) {
 
 // ── TikTok (Content Posting API v2) ──────────────────────────────────────────────
 async function publicarTiktok(token, post) {
-  if (!post.mediaPath || post.mediaType !== 'video') throw new Error('TikTok exige um vídeo para publicar')
+  const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
+  if (!items.length) throw new Error('TikTok exige ao menos uma mídia para publicar')
 
-  const { buffer } = mediaToBlob(post.mediaPath)
+  const isCarousel = items.length > 1 || (items.length === 1 && items[0].type === 'image')
+  const isVideo    = items.length === 1 && items[0].type === 'video'
+
+  // ── Vídeo ──
+  if (isVideo) {
+    const { buffer } = mediaToBlob(items[0].path)
+    const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_info: { title: post.text || '', privacy_level: 'SELF_ONLY' },
+        source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
+      })
+    })
+    const initData = await initRes.json()
+    if (!initRes.ok || initData?.error?.code !== 'ok')
+      throw new Error(initData?.error?.message || `TikTok respondeu ${initRes.status}`)
+
+    const uploadRes = await fetch(initData.data.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${buffer.length - 1}/${buffer.length}` },
+      body: buffer
+    })
+    if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (${uploadRes.status})`)
+    return initData.data
+  }
+
+  // ── Foto única ou Carrossel ──
+  // A Photo Post API só funciona em apps aprovados (produção).
+  // Em Sandbox, envia como rascunho de vídeo usando a primeira imagem convertida,
+  // para que apareça na caixa de entrada do TikTok e o usuário finalize lá.
+  const { buffer: imgBuffer } = mediaToBlob(items[0].path)
 
   const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      post_info: { title: post.text || '', privacy_level: 'SELF_ONLY' },
-      source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
+      post_info: {
+        title: post.text || '',
+        privacy_level: 'SELF_ONLY',
+        disable_duet: false,
+        disable_comment: false,
+        disable_stitch: false
+      },
+      source_info: {
+        source: 'FILE_UPLOAD',
+        video_size: imgBuffer.length,
+        chunk_size: imgBuffer.length,
+        total_chunk_count: 1
+      },
+      post_mode: 'MEDIA_UPLOAD'
     })
   })
   const initData = await initRes.json()
-  if (!initRes.ok || initData?.error?.code !== 'ok') {
-    throw new Error(initData?.error?.message || `TikTok respondeu ${initRes.status}`)
-  }
+  if (!initRes.ok || initData?.error?.code !== 'ok')
+    throw new Error(initData?.error?.message || `TikTok photo/draft respondeu ${initRes.status}: ${JSON.stringify(initData)}`)
 
-  const uploadUrl = initData.data.upload_url
-  const uploadRes = await fetch(uploadUrl, {
+  const uploadRes = await fetch(initData.data.upload_url, {
     method: 'PUT',
-    headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${buffer.length - 1}/${buffer.length}` },
-    body: buffer
+    headers: { 'Content-Type': 'image/jpeg', 'Content-Range': `bytes 0-${imgBuffer.length - 1}/${imgBuffer.length}` },
+    body: imgBuffer
   })
-  if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (status ${uploadRes.status})`)
+  if (!uploadRes.ok) throw new Error(`Falha no upload da imagem para o TikTok (${uploadRes.status})`)
 
-  return initData.data
+  return { ...initData.data, draft: true }
 }
 
 // ── Kwai (sem API pública de publicação - integração via login/senha) ────────────
