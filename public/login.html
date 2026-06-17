@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entrar — Social API Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #eef0f6; --muted: #8b8fa3;
+  --accent: #6c8cff; --red: #fb7185; --green: #4ade80;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 2.25rem 2rem; width: 100%; max-width: 380px; }
+.title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+.subtitle { font-size: 13px; color: var(--muted); margin-bottom: 1.75rem; }
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 11px 12px; font-size: 14px; margin-bottom: 1rem; font-family: var(--sans); }
+input:focus { outline: none; border-color: var(--accent); }
+.btn { width: 100%; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--sans); }
+.btn-primary { background: var(--accent); color: #fff; margin-top: 4px; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-google { background: #fff; color: #1f1f1f; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 0.75rem; }
+.btn-google:hover { opacity: 0.92; }
+.divider { display: flex; align-items: center; gap: 10px; margin: 1.25rem 0; color: var(--muted); font-size: 12px; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+.toggle-link { text-align: center; margin-top: 1.25rem; font-size: 13px; color: var(--muted); }
+.toggle-link a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.msg { font-size: 13px; border-radius: 8px; padding: 10px 12px; margin-bottom: 1rem; display: none; }
+.msg.show.err { display: block; background: rgba(251,113,133,0.12); color: var(--red); border: 1px solid rgba(251,113,133,0.25); }
+.msg.show.ok { display: block; background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.25); }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="title">Bem-vindo de volta</div>
+  <div class="subtitle">Entre para acessar o gerenciador das suas redes sociais</div>
+
+  <div class="msg" id="msg"></div>
+
+  <form id="form-login">
+    <label for="email">E-mail</label>
+    <input type="email" id="email" placeholder="seu@email.com" required>
+    <label for="password">Senha</label>
+    <input type="password" id="password" placeholder="Sua senha" required>
+    <button type="submit" class="btn btn-primary" id="btn-submit">Entrar</button>
+  </form>
+
+  <div class="toggle-link" id="forgot-link-wrap" style="margin-top:0.5rem">
+    <a onclick="toggleForgot()" id="forgot-link">Esqueceu sua senha?</a>
+  </div>
+
+  <form id="form-forgot" style="display:none;margin-top:1rem">
+    <label for="forgot-email">Informe seu e-mail</label>
+    <input type="email" id="forgot-email" placeholder="seu@email.com" required>
+    <button type="submit" class="btn btn-primary">Enviar link de redefinição</button>
+  </form>
+
+  <div class="divider" id="divider-ou">ou</div>
+
+  <a href="/auth/login/google" class="btn btn-google">
+    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+    Continuar com o Google
+  </a>
+
+  <div class="toggle-link">
+    Ainda não tem conta? <a onclick="toggleMode()" id="toggle-link">Criar conta</a>
+  </div>
+</div>
+
+<script>
+let isRegister = false;
+
+const params = new URLSearchParams(window.location.search);
+const erroUrl = params.get('error');
+if (erroUrl) showMsg(erroUrl, 'err');
+
+function toggleMode() {
+  isRegister = !isRegister;
+  document.getElementById('btn-submit').textContent = isRegister ? 'Criar conta' : 'Entrar';
+  document.querySelector('.title').textContent = isRegister ? 'Crie sua conta' : 'Bem-vindo de volta';
+  document.getElementById('toggle-link').parentElement.innerHTML = isRegister
+    ? 'Já tem conta? <a onclick="toggleMode()" id="toggle-link">Entrar</a>'
+    : 'Ainda não tem conta? <a onclick="toggleMode()" id="toggle-link">Criar conta</a>';
+}
+
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg show ' + type;
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(email) {
+  return EMAIL_REGEX.test(email);
+}
+
+function toggleForgot() {
+  const showingForgot = document.getElementById('form-forgot').style.display !== 'none';
+  document.getElementById('form-login').style.display = showingForgot ? 'block' : 'none';
+  document.getElementById('form-forgot').style.display = showingForgot ? 'none' : 'block';
+  document.getElementById('divider-ou').style.display = showingForgot ? '' : 'none';
+  document.querySelector('.btn-google').style.display = showingForgot ? '' : 'none';
+  document.getElementById('forgot-link').textContent = showingForgot ? 'Esqueceu sua senha?' : 'Voltar para o login';
+}
+
+document.getElementById('form-forgot').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!isValidEmail(email)) {
+    showMsg('Informe um e-mail válido.', 'err');
+    return;
+  }
+
+  try {
+    const res = await fetch('/auth/login/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    showMsg(data.mensagem || 'Se esse e-mail tiver uma conta, enviamos um link de redefinição de senha.', 'ok');
+  } catch {
+    showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
+  }
+});
+
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const endpoint = isRegister ? '/auth/login/register' : '/auth/login/login';
+
+  if (!isValidEmail(email)) {
+    showMsg('Informe um e-mail válido.', 'err');
+    return;
+  }
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.erro || 'Não foi possível entrar. Tente novamente.', 'err');
+      return;
+    }
+    window.location.href = '/';
+  } catch {
+    showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
+  }
+});
+</script>
+
+</body>
+</html>

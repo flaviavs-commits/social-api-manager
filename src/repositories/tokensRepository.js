@@ -28,14 +28,24 @@ async function atualizarStatusTokens() {
   `)
 }
 
+// ── Verifica se o usuário é dono da conta associada a um token ───────────────
+async function tokenPertenceAoUsuario(tokenId, userId) {
+  const { rows: [row] } = await pool.query(
+    `SELECT c.user_id FROM tokens t JOIN contas c ON c.id = t.conta_id WHERE t.id = $1`,
+    [tokenId]
+  )
+  return row && row.user_id === userId
+}
+
 // ── Listar tokens com info da conta ───────────────────────────────────────────
-async function listarTokens({ status, platform } = {}) {
+async function listarTokens({ status, platform, userId, isAdmin } = {}) {
   await atualizarStatusTokens()
 
   const conds = []
   const params = []
   if (status)   { params.push(status);   conds.push(`t.status = $${params.length}`) }
   if (platform) { params.push(platform); conds.push(`t.platform = $${params.length}`) }
+  if (!isAdmin) { params.push(userId);   conds.push(`c.user_id = $${params.length}`) }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : ''
 
   const { rows } = await pool.query(`
@@ -163,9 +173,10 @@ async function renovarTokenSimulado(token, dias) {
 }
 
 // ── Renovar um token específico ────────────────────────────────────────────────
-async function renovarToken(id) {
+async function renovarToken(id, userId, isAdmin) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
   if (!token) throw new Error('Token não encontrado')
+  if (!isAdmin && !(await tokenPertenceAoUsuario(id, userId))) throw new Error('Token não encontrado')
 
   try {
     if (token.platform === 'youtube' && token.refresh_token) {
@@ -218,14 +229,20 @@ async function renovarToken(id) {
 }
 
 // ── Renovar todos os tokens expirados/expirando ────────────────────────────────
-async function renovarTodos() {
+async function renovarTodos(userId, isAdmin) {
   await atualizarStatusTokens()
-  const { rows: toRenew } = await pool.query(`SELECT id FROM tokens WHERE status IN ('expired', 'expiring')`)
+  const params = isAdmin ? [] : [userId]
+  const ownerFilter = isAdmin ? '' : `AND c.user_id = $1`
+  const { rows: toRenew } = await pool.query(`
+    SELECT t.id FROM tokens t
+    JOIN contas c ON c.id = t.conta_id
+    WHERE t.status IN ('expired', 'expiring') ${ownerFilter}
+  `, params)
 
   const results = { renewed: [], requiresManual: [], failed: [] }
 
   for (const { id } of toRenew) {
-    const r = await renovarToken(id)
+    const r = await renovarToken(id, userId, isAdmin)
     if (r.success) results.renewed.push(id)
     else if (r.requiresReconnect) results.requiresManual.push(id)
     else results.failed.push(id)
@@ -235,7 +252,8 @@ async function renovarTodos() {
 }
 
 // ── Deletar token ────────────────────────────────────────────────────────────
-async function deletarToken(id) {
+async function deletarToken(id, userId, isAdmin) {
+  if (!isAdmin && !(await tokenPertenceAoUsuario(id, userId))) return false
   const { rowCount } = await pool.query(`DELETE FROM tokens WHERE id = $1`, [id])
   return rowCount > 0
 }

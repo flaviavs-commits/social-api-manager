@@ -3,6 +3,12 @@
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
 Suporta Facebook, Instagram, YouTube, TikTok e Kwai via OAuth 2.0.
 
+Possui login próprio (e-mail/senha ou Google) com **multi-tenancy**: cada
+usuário só vê e gerencia as contas de redes sociais que ele mesmo conectou.
+Usuários com papel de **administrador** ou **administrador principal**
+(`super_admin`) têm acesso a todos os dados do sistema e a um painel de
+gestão de usuários.
+
 ## Estrutura do projeto
 
 ```
@@ -10,23 +16,35 @@ social-api-manager/
 ├── src/
 │   ├── server.js                  # Servidor Express principal
 │   ├── db/
-│   │   └── pool.js                # Pool de conexão PostgreSQL (pg)
+│   │   ├── pool.js                # Pool de conexão PostgreSQL (pg)
+│   │   └── migrations/            # Scripts SQL versionados (rodar manualmente)
 │   ├── middleware/
-│   │   └── logger.js              # addLog/requestLogger (grava em logsRepository)
+│   │   ├── logger.js              # addLog/requestLogger (grava em logsRepository)
+│   │   ├── requireAuth.js         # Exige sessão ativa; carrega req.user (id/email/role)
+│   │   ├── requireAdmin.js        # Exige role 'admin' ou 'super_admin'
+│   │   └── requireSuperAdmin.js   # Exige role 'super_admin' (única que altera papéis)
 │   ├── repositories/
-│   │   ├── contasRepository.js    # CRUD de contas + stats do dashboard
-│   │   ├── tokensRepository.js    # CRUD e renovação de tokens OAuth
-│   │   ├── postsRepository.js     # CRUD de posts agendados
-│   │   └── logsRepository.js      # Histórico de logs + SSE
+│   │   ├── usersRepository.js     # CRUD de usuários + listagem/promoção (admin)
+│   │   ├── credentialsRepository.js # Senha (bcrypt) e token de redefinição, separado de users
+│   │   ├── contasRepository.js    # CRUD de contas + stats do dashboard (filtrado por dono)
+│   │   ├── tokensRepository.js    # CRUD e renovação de tokens OAuth (filtrado por dono)
+│   │   ├── postsRepository.js     # CRUD de posts agendados (filtrado por dono)
+│   │   └── logsRepository.js      # Histórico de logs + SSE (filtrado por dono)
 │   ├── routes/
+│   │   ├── auth.js                # Login/cadastro/logout, "esqueci minha senha", login Google
+│   │   ├── admin.js                # Gestão de usuários e visão global de contas (admin)
 │   │   ├── oauth.js               # Fluxo OAuth: Meta, Google, TikTok
 │   │   ├── accounts.js            # Endpoints de contas
 │   │   ├── tokens.js              # Endpoints de tokens
 │   │   ├── posts.js               # Endpoints de posts agendados
 │   │   └── logs.js                # Logs + SSE stream em tempo real
 │   └── services/
-│       └── scheduler.js           # Cron jobs: publicação + renovação (não ativo)
+│       ├── scheduler.js           # Cron jobs: publicação automática + renovação de tokens (ativo)
+│       └── mailer.js              # Envio de e-mail de redefinição de senha (Gmail SMTP)
 ├── public/
+│   ├── login.html                 # Tela de login / cadastro / "esqueci minha senha"
+│   ├── reset-password.html        # Tela de redefinição de senha (via link por e-mail)
+│   ├── admin.html                 # Painel de administração (somente para admins)
 │   └── index.html                 # Front-end integrado com a API
 ├── docs/
 │   └── app-info.json              # Metadados do app (submissão TikTok)
@@ -56,11 +74,24 @@ npm start
 O sistema usa **PostgreSQL** via `pg` (`src/db/pool.js`), conectado através da
 variável `DATABASE_URL`. As tabelas principais são:
 
+- `users` — perfil dos usuários do sistema (email, nome, `role`: `super_admin`/`admin`/`user`, `google_id`)
+- `credentials` — senha (bcrypt) de cada usuário, separada de `users`; contas criadas via Google não têm linha aqui
+- `session` — sessões de login (gerenciada pelo `connect-pg-simple`)
 - `nichos` — categorias/grupos de contas
-- `contas` — contas conectadas (uma linha por conta, com colunas por plataforma)
+- `contas` — contas conectadas (uma linha por conta, com colunas por plataforma e `user_id` do dono)
 - `tokens` — tokens OAuth de cada conta/plataforma (`access_token`, `refresh_token`, `expires_at`, `status`)
-- `posts` — posts agendados
+- `posts` — posts agendados (com `user_id` do dono)
 - `logs` — histórico de eventos (também usado pelo SSE em `/api/logs/stream`)
+
+As migrations ficam em `src/db/migrations/` e devem ser rodadas manualmente,
+em ordem, contra o banco configurado em `DATABASE_URL`:
+
+```bash
+psql $DATABASE_URL -f src/db/migrations/001_users_and_sessions.sql
+psql $DATABASE_URL -f src/db/migrations/002_credentials.sql
+psql $DATABASE_URL -f src/db/migrations/003_multi_tenancy.sql
+psql $DATABASE_URL -f src/db/migrations/004_super_admin.sql
+```
 
 > Importante: colunas `timestamp` são gravadas e lidas em **UTC**. O parser de
 > tipos do `pg` é configurado em `src/db/pool.js` para tratar
@@ -69,6 +100,89 @@ variável `DATABASE_URL`. As tabelas principais são:
 ```env
 DATABASE_URL=postgresql://usuario:senha@host:porta/banco
 ```
+
+## Login, usuários e administração
+
+### Acesso ao sistema
+
+Toda a aplicação (exceto `/login.html` e `/reset-password.html`) exige sessão
+ativa — sem login, o usuário é redirecionado para `/login.html`
+(`src/middleware/requireAuth.js`). Duas formas de entrar:
+
+- **E-mail e senha**: cadastro e login em `/login.html`, senha com bcrypt
+  guardada em `credentials` (nunca em `users`).
+- **Login com Google**: botão "Continuar com o Google" — reaproveita o
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` já configurados para o YouTube,
+  com uma Redirect URI própria (`GOOGLE_LOGIN_REDIRECT_URI`). Cria a conta
+  automaticamente no primeiro acesso; não gera linha em `credentials`.
+
+### Esqueci minha senha
+
+Fluxo completo em `/login.html` → `/reset-password.html`: gera um token de
+uso único (validade de 1 hora) e envia um link por e-mail via Gmail SMTP
+(`src/services/mailer.js`). Requer configurar no `.env`:
+
+```env
+SESSION_SECRET=defina_um_valor_aleatorio_longo
+GOOGLE_LOGIN_REDIRECT_URI=http://localhost:3000/auth/login/google/callback
+GMAIL_USER=seu_email@gmail.com
+GMAIL_APP_PASSWORD=senha_de_app_de_16_caracteres
+```
+
+> `GMAIL_APP_PASSWORD` é uma "senha de app" gerada em
+> https://myaccount.google.com/apppasswords — não é a senha normal da conta
+> Google. Sem essa configuração, o link de redefinição não é enviado (o
+> restante do fluxo, incluindo a troca de senha em si, continua funcionando
+> caso o token seja obtido por outro meio).
+
+### Multi-tenancy (isolamento por usuário)
+
+Cada conta de rede social conectada (`contas.user_id`) e cada post agendado
+(`posts.user_id`) pertence a um usuário. Todas as rotas de dados
+(`/api/accounts`, `/api/tokens`, `/api/posts`, `/api/logs`) filtram
+automaticamente pelo usuário autenticado — um usuário comum nunca vê contas,
+tokens, posts ou logs de outro usuário.
+
+### Administradores
+
+A coluna `role` em `users` aceita três valores:
+
+| Papel | Vê dados de todos os usuários | Promove/despromove outros usuários |
+|-------|:---:|:---:|
+| `user` (padrão) | ❌ — só as próprias contas | ❌ |
+| `admin` | ✅ | ❌ |
+| `super_admin` (administrador principal) | ✅ | ✅ |
+
+Tanto `admin` quanto `super_admin` têm acesso irrestrito aos dados: as
+mesmas rotas que normalmente filtram por dono (`/api/accounts`,
+`/api/tokens`, `/api/posts`, `/api/logs`) retornam os dados de **todos** os
+usuários para esses dois papéis (`src/utils/http.js#isAdminRole`). A
+diferença entre eles é só a gestão de usuários:
+
+- Painel `/admin.html` (link "Administração" só aparece na sidebar para
+  quem tem `admin` ou `super_admin`; `super_admin` ainda recebe um selo "★
+  principal" ao lado do link): lista todos os usuários do sistema, com ações
+  para promover/despromover papel e ativar/desativar contas, e uma tabela de
+  auditoria com todas as contas de redes sociais conectadas, por dono.
+- Rotas `GET/POST /api/admin/*` (em `src/routes/admin.js`) exigem
+  `src/middleware/requireAdmin.js` (`admin` ou `super_admin`); usuários
+  comuns recebem `403`.
+- **Somente `super_admin`** pode chamar `POST /api/admin/users/:id/role`
+  (protegida por `src/middleware/requireSuperAdmin.js`) — um `admin` comum
+  recebe `403` ao tentar promover ou despromover qualquer usuário. Essa rota
+  só aceita promover para `admin` ou `user`; não é possível conceder
+  `super_admin` por ela (esse papel só é atribuído via migration ou acesso
+  direto ao banco, para não vazar esse nível de privilégio por engano).
+- Proteções: não é possível remover o papel do último `super_admin`
+  restante, nem um admin/super_admin desativar a própria conta.
+
+O primeiro administrador principal é criado via migration
+(`003_multi_tenancy.sql` cria o primeiro `admin`; `004_super_admin.sql`
+eleva e-mails específicos a `super_admin`), que também atribui a ele todas
+as contas/posts que já existiam no banco antes da migration (para nenhum
+dado pré-existente ficar "sem dono"). Para promover outro usuário a `admin`
+depois disso, use o próprio painel `/admin.html` logado como `super_admin`;
+para criar um novo `super_admin`, edite a coluna `role` diretamente no banco.
 
 ## Configuração das APIs
 
@@ -183,6 +297,33 @@ para a conta Instagram Business vinculada à página:
 
 ## Endpoints da API
 
+> Todas as rotas abaixo (exceto `/auth/login/*`) exigem sessão ativa. As de
+> `/api/accounts`, `/api/tokens`, `/api/posts` e `/api/logs` retornam apenas
+> os dados do usuário autenticado, a menos que ele seja administrador.
+
+### Login e conta
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/auth/login/login` | Login com e-mail e senha |
+| POST | `/auth/login/register` | Cadastro de novo usuário |
+| POST | `/auth/login/logout` | Encerrar sessão |
+| GET | `/auth/login/google` | Iniciar login com Google |
+| GET | `/auth/login/google/callback` | Callback do login com Google |
+| POST | `/auth/login/forgot-password` | Solicitar redefinição de senha (envia e-mail) |
+| GET | `/auth/login/reset-password/validar` | Validar token de redefinição (`?token=`) |
+| POST | `/auth/login/reset-password` | Definir nova senha a partir do token |
+| GET | `/api/me` | Dados do usuário logado (`id`, `email`, `role`) |
+
+### Administração (`role = 'admin'` ou `'super_admin'`)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/admin/users` | Lista todos os usuários do sistema |
+| POST | `/api/admin/users/:id/role` | **Somente `super_admin`** — promove/despromove (`{ "role": "admin" \| "user" }`) |
+| POST | `/api/admin/users/:id/ativo` | Ativa/desativa um usuário (`{ "ativo": true \| false }`) |
+| GET | `/api/admin/accounts` | Lista todas as contas de redes sociais, de todos os usuários |
+
 ### Contas
 | Método | Rota | Descrição |
 |--------|------|-----------|
@@ -230,10 +371,15 @@ para a conta Instagram Business vinculada à página:
 
 ## Scheduler (cron jobs)
 
-`src/services/scheduler.js` contém a lógica original de publicação automática
-de posts e renovação automática de tokens, mas **não está ativo** no
-`server.js` atual e ainda usa a API antiga (lowdb). Precisa ser migrado para
-usar `postsRepository`/`tokensRepository` antes de ser religado.
+`src/services/scheduler.js` é iniciado automaticamente com o servidor
+(`scheduler.start()` em `src/server.js`) e roda dois jobs:
+
+- A cada minuto: publica os posts cujo horário agendado já chegou
+  (`postsRepository`/`publisher.js`) e notifica o front-end via SSE.
+- A cada 6 horas (+ uma vez na inicialização): renova proativamente tokens
+  expirados/expirando de todas as contas, de todos os usuários
+  (`tokensRepository.renovarTodos`), para o usuário raramente precisar
+  reconectar manualmente.
 
 ## Limites importantes das APIs
 

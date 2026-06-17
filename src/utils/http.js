@@ -11,6 +11,12 @@ function parseId(value) {
   return Number(value)
 }
 
+// Papéis com acesso administrativo (veem/gerenciam dados de todos os usuários).
+// 'super_admin' é o único que pode promover/despromover outros usuários.
+function isAdminRole(role) {
+  return role === 'admin' || role === 'super_admin'
+}
+
 // Loga o erro completo no servidor e responde com mensagem genérica ao cliente.
 // Erros de validação/constraint do Postgres (códigos 22xxx/23xxx) viram 400
 // com mensagem genérica; o resto vira 500, sem expor detalhes internos.
@@ -23,4 +29,4 @@ function serverError(res, err, message = 'Erro interno do servidor') {
   res.status(500).json({ erro: message })
 }
 
-module.exports = { PLATFORMS, REPEATS, TIPOS, parseId, serverError }
+module.exports = { PLATFORMS, REPEATS, TIPOS, parseId, serverError, isAdminRole }

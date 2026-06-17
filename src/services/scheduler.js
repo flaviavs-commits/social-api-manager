@@ -10,7 +10,7 @@ async function buscarPostsPendentes() {
   const { rows } = await pool.query(`
     SELECT
       id, text, platforms, group_name AS "group",
-      scheduled_at AS "scheduledAt", repeat, status,
+      scheduled_at AS "scheduledAt", repeat, status, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
     FROM posts
@@ -46,13 +46,13 @@ async function processarPost(post) {
     group: post.group,
     text: post.text,
     results
-  })
+  }, post.userId)
 }
 
 // Renova proativamente tokens expirados/expirando, para o usuário nunca precisar reconectar manualmente
 async function renovarTokensProativamente() {
   try {
-    const resultado = await tokensRepo.renovarTodos()
+    const resultado = await tokensRepo.renovarTodos(null, true)
     if (resultado.total > 0) {
       await registrarLog({
         type: resultado.failed.length || resultado.requiresManual.length ? 'warn' : 'ok',

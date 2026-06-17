@@ -7,12 +7,12 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0a0a0f; --surface: #111118; --surface2: #1a1a24;
-  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
-  --text: #e8e8f0; --muted: #6b6b80;
-  --accent: #5b7fff; --accent2: #a78bfa;
-  --green: #34d399; --red: #f87171; --yellow: #fbbf24;
-  --fb: #4f7df0; --ig: #e1306c; --yt: #ff4444; --tt: #e8e8f0; --kw: #ff8800;
+  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #eef0f6; --muted: #8b8fa3;
+  --accent: #6c8cff; --accent2: #b39ddb;
+  --green: #4ade80; --red: #fb7185; --yellow: #fbbf24;
+  --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f6; --kw: #ff9d3d;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,8 +20,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .app { display: flex; min-height: 100vh; }
 .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 1.5rem 0; flex-shrink: 0; position: fixed; height: 100vh; overflow-y: auto; }
 .main { margin-left: 220px; flex: 1; padding: 2rem; max-width: 1100px; }
-.logo { padding: 0 1.25rem 1.5rem; font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.05em; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
-.logo span { color: var(--muted); }
+.logo { padding: 0 1.25rem 1.5rem; font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--text); border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border-left: 2px solid transparent; }
 .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
 .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,127,255,0.06); }
@@ -34,12 +33,43 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .media-picker { position: relative; }
-.media-picker .btn { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
-.media-picker-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; z-index: 20; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.media-picker .btn { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.media-picker .btn.has-media { border-color: var(--accent); color: var(--accent); }
+.media-picker .btn-label { display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-picker-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; z-index: 20; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 .media-picker-menu.open { display: block; }
-.media-picker-option { padding: 10px 12px; font-size: 13px; font-family: var(--sans); cursor: pointer; transition: all 0.15s; }
+.media-picker-option { padding: 11px 14px; font-size: 13px; font-family: var(--sans); cursor: pointer; transition: background 0.15s, color 0.15s; display: flex; align-items: center; gap: 10px; }
+.media-picker-option + .media-picker-option { border-top: 1px solid var(--border); }
 .media-picker-option:hover { background: var(--surface); color: var(--accent); }
+.media-picker-option svg { flex-shrink: 0; opacity: 0.85; }
 .media-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+/* ── Calendário customizado ─────────────────────────────────────────────── */
+.date-picker { position: relative; }
+.date-picker-popover { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); padding: 14px; width: 280px; max-width: 95vw; }
+.date-picker-popover.open { display: block; }
+.date-picker-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.date-picker-header .dp-month { font-size: 13px; font-weight: 500; }
+.date-picker-nav { display: flex; gap: 4px; }
+.date-picker-nav button { background: none; border: 1px solid var(--border2); border-radius: 6px; width: 26px; height: 26px; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.date-picker-nav button:hover { color: var(--accent); border-color: var(--accent); }
+.date-picker-weekdays, .date-picker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.date-picker-weekdays span { font-size: 10px; color: var(--muted); padding: 4px 0; text-transform: uppercase; }
+.date-picker-day { font-size: 12px; padding: 6px 0; border-radius: 6px; cursor: pointer; color: var(--text); transition: all 0.15s; }
+.date-picker-day:hover { background: var(--surface); }
+.date-picker-day.muted { color: var(--muted); opacity: 0.5; }
+.date-picker-day.today { border: 1px solid var(--accent2); }
+.date-picker-day.selected { background: var(--accent); color: #fff; font-weight: 500; }
+.date-picker-time { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 12px 0; }
+.date-picker-time select { background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 6px 8px; }
+.date-picker-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.date-picker-actions .dp-links { display: flex; gap: 12px; }
+.date-picker-actions .dp-links a { font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: none; }
+.date-picker-actions .btn { padding: 6px 14px; font-size: 12px; }
+@media (pointer: coarse) {
+  .date-picker-time select { min-height: 40px; font-size: 16px; }
+  .date-picker-day { min-height: 32px; display: flex; align-items: center; justify-content: center; }
+}
 .media-item { display: flex; gap: 8px; align-items: flex-start; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 6px; cursor: grab; }
 .media-item.dragging { opacity: 0.4; }
 .media-item .media-thumb { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex-shrink: 0; background: #000; }
@@ -91,10 +121,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-btn.primary:hover { background: rgba(91,127,255,0.1); }
 .plat-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .plat-btn:disabled:hover { color: var(--muted); background: transparent; }
-.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
-.tab { padding: 10px 16px; font-size: 13px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.account-dropdown { position: relative; flex: 1; }
+.account-dropdown .plat-btn { width: 100%; }
+.account-dropdown-menu { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; min-width: 180px; z-index: 100; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+.account-dropdown-menu.open { display: block; }
+.account-dropdown-item { display: block; padding: 9px 12px; color: var(--text); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; transition: background 0.15s; }
+.account-dropdown-item:hover { background: var(--surface); color: var(--accent); }
+.account-dropdown-item + .account-dropdown-item { border-top: 1px solid var(--border); }
 .token-table { width: 100%; border-collapse: collapse; }
 .token-table th { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
 .token-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
@@ -103,8 +136,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .expiry-ok { color: var(--green); font-size: 12px; font-family: var(--mono); }
 .expiry-warn { color: var(--yellow); font-size: 12px; font-family: var(--mono); }
 .expiry-bad { color: var(--red); font-size: 12px; font-family: var(--mono); }
-.log-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-family: var(--mono); font-size: 12px; line-height: 1.8; height: 400px; overflow-y: auto; }
+.log-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-family: var(--sans); font-size: 13px; line-height: 1.8; height: 400px; overflow-y: auto; }
 .log-line { display: flex; gap: 12px; }
+.log-line span:nth-child(2) { font-weight: 500; flex-shrink: 0; }
 .log-time { color: var(--muted); flex-shrink: 0; }
 .log-ok { color: var(--green); }
 .log-err { color: var(--red); }
@@ -126,10 +160,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .step-num { font-size: 10px; font-family: var(--mono); color: var(--muted); }
 .step-label { font-size: 12px; margin-top: 2px; }
 .step.active .step-label { color: var(--accent); }
-.code-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: var(--mono); font-size: 12px; line-height: 1.7; color: var(--muted); margin-bottom: 1rem; overflow-x: auto; white-space: pre; }
-.code-block .key { color: var(--accent2); }
-.code-block .val { color: var(--green); }
-.code-block .comment { color: #444460; }
 .sched-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
 .sched-form, .sched-queue { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; }
 .queue-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -166,7 +196,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .sidebar-overlay { display: none; }
 .token-table-wrap { width: 100%; }
 .two-col-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.oauth-flow-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 1.5rem; }
 
 @media (max-width: 1024px) {
   .main { max-width: 100%; }
@@ -174,8 +203,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   .plat-grid { grid-template-columns: 1fr; }
   .sched-grid { grid-template-columns: 1fr; }
   .two-col-grid { grid-template-columns: 1fr; }
-  .oauth-flow-grid { grid-template-columns: 1fr; }
-  .oauth-flow-grid > div[style*="justify-content:center"] { transform: rotate(90deg); padding: 4px 0; }
 }
 
 @media (max-width: 768px) {
@@ -205,8 +232,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   .stat-card { padding: 0.85rem 1rem; }
   .stat-val { font-size: 22px; }
   .modal { padding: 1.25rem; }
-  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
-  .tab { white-space: nowrap; }
   .token-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .token-table { min-width: 640px; }
   .modal-actions { flex-direction: column-reverse; }
@@ -248,7 +273,6 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   .step { min-height: 48px; }
   .menu-toggle { width: 46px; height: 46px; }
   input[type="checkbox"] { width: 20px; height: 20px; }
-  .tabs label { padding: 4px 0; }
   .modal-actions .btn { min-height: 46px; }
   .toast { padding: 14px 20px; font-size: 14px; }
 }
@@ -263,7 +287,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <div class="sidebar" id="sidebar">
-  <div class="logo">api_manager<span>.io</span></div>
+  <div class="logo">Minhas Redes Sociais</div>
   <div class="nav-item active" onclick="showPage('dashboard')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     Dashboard
@@ -274,7 +298,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   </div>
   <div class="nav-item" onclick="showPage('tokens')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    Tokens OAuth
+    Conexões das Contas
   </div>
   <div class="nav-item" onclick="showPage('agendador')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -282,7 +306,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   </div>
   <div class="nav-item" onclick="showPage('logs')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-    Logs de API
+    Histórico de Atividades
   </div>
   <div class="nav-section">Plataformas</div>
   <div class="sidebar-plat"><div class="dot" style="background:var(--fb)"></div> Facebook <span id="sb-fb" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
@@ -290,6 +314,14 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   <div class="sidebar-plat"><div class="dot" style="background:var(--yt)"></div> YouTube <span id="sb-yt" style="margin-left:auto;font-size:11px;color:var(--yellow)">—</span></div>
   <div class="sidebar-plat"><div class="dot" style="background:#888"></div> TikTok <span id="sb-tt" style="margin-left:auto;font-size:11px;color:var(--red)">—</span></div>
   <div class="sidebar-plat"><div class="dot" style="background:var(--kw)"></div> Kwai <span id="sb-kw" style="margin-left:auto;font-size:11px;color:var(--green)">—</span></div>
+  <div class="nav-item" id="nav-admin" onclick="window.location.href='/admin.html'" style="display:none;margin-top:1rem;border-top:1px solid var(--border);padding-top:0.9rem">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
+    <span id="nav-admin-label">Administração</span>
+  </div>
+  <div class="nav-item" onclick="logout()" style="padding-top:0.9rem">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Sair
+  </div>
 </div>
 
 <div class="main">
@@ -297,14 +329,14 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   <!-- DASHBOARD -->
   <div id="page-dashboard" class="section-page active">
     <div class="page-header">
-      <div><div class="page-title">Dashboard</div><div class="page-sub">// visão geral das integrações</div></div>
+      <div><div class="page-title">Início</div><div class="page-sub">Veja como estão suas redes sociais conectadas</div></div>
       <button class="btn btn-accent" onclick="openModal('nova-conta')">+ Conectar conta</button>
     </div>
     <div class="stats-row">
-      <div class="stat-card"><div class="stat-val" id="stat-total" style="color:var(--accent)">—</div><div class="stat-label">Contas ativas</div><div class="stat-sub" id="stat-total-sub">carregando...</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-valid" style="color:var(--green)">—</div><div class="stat-label">Tokens válidos</div><div class="stat-sub" id="stat-valid-sub">—</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-expiring" style="color:var(--yellow)">—</div><div class="stat-label">Expiram em 7 dias</div><div class="stat-sub">⚠ renovar em breve</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-error" style="color:var(--red)">—</div><div class="stat-label">Com erro</div><div class="stat-sub">↓ requer atenção</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-total" style="color:var(--accent)">—</div><div class="stat-label">Contas conectadas</div><div class="stat-sub" id="stat-total-sub">carregando...</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-valid" style="color:var(--green)">—</div><div class="stat-label">Funcionando bem</div><div class="stat-sub" id="stat-valid-sub">—</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-expiring" style="color:var(--yellow)">—</div><div class="stat-label">Vencendo em breve</div><div class="stat-sub">⚠ reconecte em breve</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-error" style="color:var(--red)">—</div><div class="stat-label">Precisam de atenção</div><div class="stat-sub">↓ reconectar agora</div></div>
     </div>
     <div class="plat-grid" id="plat-grid">
       <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-family:var(--mono)">carregando plataformas...</div>
@@ -313,205 +345,72 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 
   <!-- INTEGRAÇÕES -->
   <div id="page-integracoes" class="section-page">
-    <div class="page-header"><div><div class="page-title">Integrações</div><div class="page-sub">// configuração de apps e credenciais</div></div></div>
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab(this,'tab-meta')">Meta (FB + IG)</div>
-      <div class="tab" onclick="switchTab(this,'tab-yt')">YouTube</div>
-      <div class="tab" onclick="switchTab(this,'tab-tt')">TikTok</div>
-      <div class="tab" onclick="switchTab(this,'tab-kw')">Kwai</div>
-      <div class="tab" onclick="switchTab(this,'tab-fluxo')">Fluxo OAuth</div>
-    </div>
-    <div id="tab-meta">
-      <div class="two-col-grid">
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Configuração do App Meta</div>
-          <div class="form-group"><label>App ID</label><input id="cfg-meta-id" type="text" placeholder="do .env: META_APP_ID"/></div>
-          <div class="form-group"><label>App Secret</label><input id="cfg-meta-secret" type="password" placeholder="do .env: META_APP_SECRET"/></div>
-          <div class="form-group"><label>Redirect URI</label><input id="cfg-meta-uri" type="text" placeholder="http://localhost:3000/oauth/meta/callback"/></div>
-          <div class="form-group">
-            <label>Permissões (scopes)</label>
-            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> pages_manage_posts</label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> instagram_content_publish</label>
-              <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" checked> pages_read_engagement</label>
-            </div>
-          </div>
-          <div style="background:rgba(91,127,255,0.08);border:1px solid rgba(91,127,255,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--accent);line-height:1.6">
-            💡 Credenciais ficam no arquivo <code>.env</code> no servidor. Nunca expostas ao browser.
-          </div>
+    <div class="page-header"><div><div class="page-title">Integrações</div><div class="page-sub">Como cada rede social funciona no sistema</div></div></div>
+    <div class="plat-grid">
+      <div class="plat-card fb">
+        <div class="plat-header">
+          <div class="plat-name"><div class="plat-icon fb">f</div>Facebook</div>
         </div>
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Endpoint de publicação</div>
-          <div class="code-block"><span class="comment">// POST para publicar em página FB</span>
-POST /<span class="key">{page-id}</span>/feed
-{
-  <span class="key">"message"</span>: <span class="val">"Texto do post"</span>,
-  <span class="key">"scheduled_publish_time"</span>: <span class="val">1699999999</span>,
-  <span class="key">"published"</span>: <span class="val">false</span>,
-  <span class="key">"access_token"</span>: <span class="val">"EAABx..."</span>
-}
-
-<span class="comment">// POST para Instagram (2 etapas)</span>
-POST /<span class="key">{ig-user-id}</span>/media
-{
-  <span class="key">"image_url"</span>: <span class="val">"https://..."</span>,
-  <span class="key">"caption"</span>: <span class="val">"Legenda #hashtag"</span>
-}
-<span class="comment">// Depois: POST /{id}/media_publish</span></div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">Conecte sua página do Facebook em "Conexões das Contas" e programe posts com texto, imagem ou vídeo. A conexão fica válida por até 60 dias e pode ser renovada com um clique.</div>
+      </div>
+      <div class="plat-card ig">
+        <div class="plat-header">
+          <div class="plat-name"><div class="plat-icon ig">ig</div>Instagram</div>
         </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">Funciona com contas comerciais (Business). Você pode publicar fotos, vídeos e carrosséis. A conexão fica válida por até 60 dias.</div>
+      </div>
+      <div class="plat-card yt">
+        <div class="plat-header">
+          <div class="plat-name"><div class="plat-icon yt">▶</div>YouTube</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">Envie vídeos e agende a publicação direto na plataforma. A renovação da conexão é automática — você não precisa fazer nada.</div>
+      </div>
+      <div class="plat-card tt">
+        <div class="plat-header">
+          <div class="plat-name"><div class="plat-icon tt">tt</div>TikTok</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">Publique vídeos na sua conta do TikTok. Importante: o TikTok publica o vídeo imediatamente ao receber, então use a opção "Publicar agora" para essa rede.</div>
+      </div>
+      <div class="plat-card kw">
+        <div class="plat-header">
+          <div class="plat-name"><div class="plat-icon kw">kw</div>Kwai</div>
+        </div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.6">A conexão com o Kwai é feita automaticamente pelo sistema e fica válida por 30 dias, renovando sozinha quando necessário.</div>
       </div>
     </div>
-    <div id="tab-yt" style="display:none">
-      <div class="two-col-grid">
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Configuração Google / YouTube</div>
-          <div class="form-group"><label>Client ID</label><input type="text" placeholder="do .env: GOOGLE_CLIENT_ID"/></div>
-          <div class="form-group"><label>Client Secret</label><input type="password" placeholder="do .env: GOOGLE_CLIENT_SECRET"/></div>
-          <div class="form-group"><label>Redirect URI</label><input type="text" placeholder="http://localhost:3000/oauth/google/callback"/></div>
-          <div style="background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--green);line-height:1.6">
-            ✅ YouTube suporta <strong>refresh_token</strong> — renovação automática sem intervenção do usuário.
-          </div>
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Agendamento de vídeo</div>
-          <div class="code-block"><span class="comment">// INSERT com agendamento nativo</span>
-POST /youtube/v3/videos?part=snippet,status
-{
-  <span class="key">"snippet"</span>: {
-    <span class="key">"title"</span>: <span class="val">"Título do vídeo"</span>,
-    <span class="key">"categoryId"</span>: <span class="val">"22"</span>
-  },
-  <span class="key">"status"</span>: {
-    <span class="key">"privacyStatus"</span>: <span class="val">"private"</span>,
-    <span class="key">"publishAt"</span>: <span class="val">"2026-06-10T09:00:00Z"</span>
-  }
-}
-<span class="comment">// Cota: 10.000 unidades/dia</span>
-<span class="comment">// Upload consome 1.600 unidades</span></div>
-        </div>
-      </div>
-    </div>
-    <div id="tab-tt" style="display:none">
-      <div class="two-col-grid">
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">TikTok Content Posting API</div>
-          <div class="form-group"><label>Client Key</label><input type="text" placeholder="do .env: TIKTOK_CLIENT_KEY"/></div>
-          <div class="form-group"><label>Client Secret</label><input type="password" placeholder="do .env: TIKTOK_CLIENT_SECRET"/></div>
-          <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--yellow);line-height:1.6">
-            ⚠️ A Content Posting API exige aprovação prévia via TikTok for Business. Solicite em: developers.tiktok.com
-          </div>
-          <div style="margin-top:10px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red);line-height:1.6">
-            🎬 TikTok <strong>não suporta agendamento nativo</strong> via API — o post vai ao ar imediatamente. Use ferramentas certificadas para agendamento.
-          </div>
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Publicação de vídeo</div>
-          <div class="code-block"><span class="comment">// Etapa 1: iniciar upload</span>
-POST /v2/post/publish/video/init/
-Authorization: Bearer <span class="val">{access_token}</span>
-{
-  <span class="key">"post_info"</span>: {
-    <span class="key">"title"</span>: <span class="val">"Título"</span>,
-    <span class="key">"privacy_level"</span>: <span class="val">"PUBLIC_TO_EVERYONE"</span>
-  },
-  <span class="key">"source_info"</span>: {
-    <span class="key">"source"</span>: <span class="val">"PULL_FROM_URL"</span>,
-    <span class="key">"video_url"</span>: <span class="val">"https://..."</span>
-  }
-}</div>
-        </div>
-      </div>
-    </div>
-    <div id="tab-kw" style="display:none">
-      <div class="two-col-grid">
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Kwai (conexão simulada)</div>
-          <div style="background:rgba(255,136,0,0.08);border:1px solid rgba(255,136,0,0.25);border-radius:6px;padding:12px;font-size:12px;color:var(--kw);line-height:1.6">
-            🔑 O Kwai ainda não possui OAuth público. A conta é conectada automaticamente ao clicar em <strong>"Autorizar via OAuth"</strong> no modal "+ Conectar conta", sem precisar informar usuário/senha.
-          </div>
-          <div style="margin-top:10px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:6px;padding:12px;font-size:12px;color:var(--red);line-height:1.6">
-            ⚠️ Token gerado nessa conexão expira em 30 dias — renovação automática estende por mais 30 dias.
-          </div>
-        </div>
-        <div>
-          <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Conexão da conta</div>
-          <div class="code-block"><span class="comment">// Rota de autenticação no servidor</span>
-GET <span class="val">/auth/kwai</span>?accountName=@perfil&amp;group=Geral
-
-<span class="comment">// Resposta: { connected: true, accountId }</span></div>
-        </div>
-      </div>
-    </div>
-    <div id="tab-fluxo" style="display:none">
-      <div style="font-size:13px;font-weight:500;margin-bottom:1.25rem">Fluxo OAuth 2.0 implementado neste servidor</div>
-      <div class="oauth-flow-grid">
-        <div style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">01</div>
-          <div style="font-size:13px;font-weight:500;color:var(--accent)">GET /oauth/{plataforma}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Gera URL de autorização</div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px">→</div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">02</div>
-          <div style="font-size:13px;font-weight:500;color:var(--accent2)">Redirect</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Usuário autoriza na plataforma</div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px">→</div>
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
-          <div style="font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">03</div>
-          <div style="font-size:13px;font-weight:500;color:var(--green)">GET /oauth/{plataforma}/callback</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Troca code → token → salva no DB</div>
-        </div>
-      </div>
-      <div class="code-block"><span class="comment">// Rota de callback no servidor (src/routes/oauth.js)</span>
-router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
-  const { code, state } = req.query;
-  <span class="comment">// Troca code por access_token na API do Facebook</span>
-  const tokenRes = await fetch(<span class="val">'https://graph.facebook.com/oauth/access_token'</span>, {
-    method: <span class="val">'POST'</span>,
-    body: new URLSearchParams({
-      client_id: process.env.META_APP_ID,
-      client_secret: process.env.META_APP_SECRET,
-      redirect_uri: process.env.META_REDIRECT_URI,
-      code
-    })
-  });
-  const { access_token, expires_in } = await tokenRes.json();
-  <span class="comment">// Salvar em data/db.json via lowdb</span>
-  db.get(<span class="val">'tokens'</span>).push({ access_token, expires_in }).write();
-  res.redirect(<span class="val">'/?connected=true'</span>);
-});</div>
+    <div style="margin-top:1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.6">
+      Precisa conectar uma conta nova? Vá até <strong style="color:var(--text)">Conexões das Contas</strong> e clique em "+ Adicionar conexão". Configurações avançadas são feitas pelo administrador do sistema.
     </div>
   </div>
 
   <!-- TOKENS -->
   <div id="page-tokens" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Tokens OAuth</div><div class="page-sub">// gerenciamento de access tokens</div></div>
-      <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Renovar expirados</button><button class="btn btn-accent" onclick="openModal('add-token')">+ Adicionar token</button></div>
+      <div><div class="page-title">Conexões das Contas</div><div class="page-sub">Veja se suas contas estão conectadas e funcionando</div></div>
+      <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Reconectar expiradas</button><button class="btn btn-accent" onclick="openModal('add-token')">+ Adicionar conexão</button></div>
     </div>
     <div class="token-table-wrap">
     <table class="token-table">
-      <thead><tr><th>Conta</th><th>Plataforma</th><th>Token</th><th>Expiração</th><th>Status</th><th></th></tr></thead>
-      <tbody id="token-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">carregando tokens...</td></tr></tbody>
+      <thead><tr><th>Conta</th><th>Rede Social</th><th>Conexão</th><th>Validade</th><th>Situação</th><th></th></tr></thead>
+      <tbody id="token-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">carregando...</td></tr></tbody>
     </table>
     </div>
   </div>
 
   <!-- AGENDADOR -->
   <div id="page-agendador" class="section-page">
-    <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">// fila de publicação automática</div></div></div>
+    <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">Crie uma publicação e escolha quando ela deve ser postada</div></div></div>
     <div class="sched-grid">
       <div class="sched-form">
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
         <div class="form-group">
-          <label>Plataformas</label>
+          <label>Onde publicar</label>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="plat-btn primary" style="flex:0;padding:5px 12px" data-plat="facebook" onclick="togglePlat(this)">FB</button>
-            <button class="plat-btn primary" style="flex:0;padding:5px 12px" data-plat="instagram" onclick="togglePlat(this)">IG</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="youtube" onclick="togglePlat(this)">YT</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="tiktok" onclick="togglePlat(this)">TT</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="kwai" onclick="togglePlat(this)">KW</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="facebook" onclick="togglePlat(this)">Facebook</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="instagram" onclick="togglePlat(this)">Instagram</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="youtube" onclick="togglePlat(this)">YouTube</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="tiktok" onclick="togglePlat(this)">TikTok</button>
+            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="kwai" onclick="togglePlat(this)">Kwai</button>
           </div>
         </div>
         <div class="form-group"><label>Estrelas</label>
@@ -541,23 +440,45 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
         <div class="form-group">
           <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
           <div class="media-picker">
-            <button type="button" class="btn" onclick="toggleMediaMenu(event)">
-              <span>📎 Selecionar mídia</span><span style="font-size:10px;color:var(--muted)">▾</span>
+            <button type="button" class="btn" id="media-trigger-btn" onclick="toggleMediaMenu(event)">
+              <span class="btn-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> <span id="media-trigger-label">Selecionar mídia</span></span><span style="font-size:10px;color:var(--muted)">▾</span>
             </button>
             <div class="media-picker-menu" id="media-picker-menu">
-              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">💻 Arquivo(s) do computador</div>
-              <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">📁 Google Drive</div>
+              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+                Arquivo(s) do computador
+              </div>
+              <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 19H2l4-12h12l4 12z"/><path d="M2 19l3-7h14l3 7"/></svg>
+                Google Drive
+              </div>
             </div>
             <input type="file" id="post-media" accept="image/*,video/*" multiple onchange="onMediaFilesSelected()" style="display:none"/>
           </div>
-          <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
+          <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--sans);margin-top:5px;min-height:16px"></div>
           <div id="media-list" class="media-list"></div>
         </div>
         <div class="form-group">
           <label>Data e hora</label>
-          <div style="position:relative">
-            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="document.getElementById('post-date').showPicker ? document.getElementById('post-date').showPicker() : document.getElementById('post-date').focus()"/>
-            <input type="datetime-local" id="post-date" onchange="updatePostDateDisplay()" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none"/>
+          <div class="date-picker">
+            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="toggleDatePicker(event)"/>
+            <input type="hidden" id="post-date"/>
+            <div class="date-picker-popover" id="date-picker-popover">
+              <div class="date-picker-header">
+                <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(-1)">‹</button></div>
+                <div class="dp-month" id="dp-month-label"></div>
+                <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(1)">›</button></div>
+              </div>
+              <div class="date-picker-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+              <div class="date-picker-grid" id="dp-grid"></div>
+              <div class="date-picker-time">
+                <select id="dp-hour"></select> : <select id="dp-minute"></select>
+              </div>
+              <div class="date-picker-actions">
+                <div class="dp-links"><a onclick="dpClear()">Limpar</a><a onclick="dpToday()">Hoje</a></div>
+                <button type="button" class="btn btn-accent" onclick="dpApply()">Aplicar</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="form-group"><label>Repetição</label>
@@ -570,10 +491,10 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
       </div>
       <div class="sched-queue">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-          <div style="font-size:13px;font-weight:500">Fila de publicação</div>
-          <span id="queue-count" style="font-size:11px;color:var(--muted);font-family:var(--mono)">— posts</span>
+          <div style="font-size:13px;font-weight:500">Próximas publicações</div>
+          <span id="queue-count" style="font-size:11px;color:var(--muted);font-family:var(--sans)">— posts</span>
         </div>
-        <div id="queue-list"><div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">carregando fila...</div></div>
+        <div id="queue-list"><div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div></div>
       </div>
     </div>
   </div>
@@ -581,13 +502,13 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
   <!-- LOGS -->
   <div id="page-logs" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Logs de API</div><div class="page-sub">// stream em tempo real via SSE</div></div>
+      <div><div class="page-title">Histórico de Atividades</div><div class="page-sub">Acompanhe em tempo real o que está acontecendo nas suas contas</div></div>
       <div style="display:flex;gap:8px">
         <button class="btn" onclick="clearLogs()">Limpar</button>
         <button class="btn" id="btn-pause-logs" onclick="toggleLogStream()">⏸ Pausar</button>
       </div>
     </div>
-    <div class="log-box" id="log-box"><div style="color:var(--muted);font-size:12px">aguardando stream...</div></div>
+    <div class="log-box" id="log-box"><div style="color:var(--muted);font-size:12px">aguardando novidades...</div></div>
   </div>
 
 </div><!-- /main -->
@@ -597,10 +518,10 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
 <div class="modal-overlay" id="modal-nova-conta">
   <div class="modal">
     <div class="modal-title">Conectar nova conta</div>
-    <div class="modal-sub">Autorize via OAuth para adicionar uma conta ao sistema.</div>
+    <div class="modal-sub">Autorize o acesso para adicionar essa conta ao sistema.</div>
     <div class="steps">
-      <div class="step active"><div class="step-num">01</div><div class="step-label">Plataforma</div></div>
-      <div class="step"><div class="step-num">02</div><div class="step-label">OAuth</div></div>
+      <div class="step active"><div class="step-num">01</div><div class="step-label">Escolher rede</div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-label">Autorizar</div></div>
       <div class="step"><div class="step-num">03</div><div class="step-label">Confirmar</div></div>
     </div>
     <div class="form-group"><label>Plataforma</label>
@@ -640,15 +561,15 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-accent" id="modal-connect-btn" onclick="startOAuth()">Autorizar via OAuth →</button>
+      <button class="btn btn-accent" id="modal-connect-btn" onclick="startOAuth()">Conectar conta →</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="modal-add-token">
   <div class="modal" style="width:580px;max-width:95vw">
-    <div class="modal-title">Adicionar token manualmente</div>
-    <div class="modal-sub">Preencha os dados do token para a conta e plataforma desejadas.</div>
+    <div class="modal-title">Adicionar conexão manualmente</div>
+    <div class="modal-sub">Use esta opção apenas se já tiver um código de acesso gerado para essa conta.</div>
 
     <div class="two-col-grid" style="gap:12px">
       <div class="form-group">
@@ -688,17 +609,17 @@ router.get(<span class="val">'/meta/callback'</span>, async (req, res) => {
     </div>
 
     <div class="form-group">
-      <label>Access Token</label>
-      <input type="text" id="at-token" placeholder="Cole o token aqui..." style="font-family:var(--mono);font-size:12px"/>
+      <label>Código de acesso</label>
+      <input type="text" id="at-token" placeholder="Cole o código aqui..." style="font-family:var(--mono);font-size:12px"/>
     </div>
 
     <div class="form-group" id="at-refresh-group">
-      <label>Refresh Token <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(apenas YouTube — renovação automática)</span></label>
+      <label>Código de renovação <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(apenas YouTube — permite renovação automática)</span></label>
       <input type="text" id="at-refresh" placeholder="1//0g_xxxxxx..." style="font-family:var(--mono);font-size:12px"/>
     </div>
 
     <div class="form-group">
-      <label id="at-expiry-label">Data de expiração</label>
+      <label id="at-expiry-label">Válido até</label>
       <input type="datetime-local" id="at-expiry"/>
     </div>
 
@@ -752,21 +673,18 @@ function closeSidebar() {
   document.getElementById('sidebar-overlay').classList.remove('open');
 }
 
-function switchTab(el, id) {
-  el.closest('.section-page').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  ['tab-meta','tab-yt','tab-tt','tab-kw','tab-fluxo'].forEach(tid => {
-    const el2 = document.getElementById(tid);
-    if (el2) el2.style.display = (tid === id) ? '' : 'none';
-  });
-}
-
 // ── Toast ────────────────────────────────────────────────────────────────────
 function showToast(msg, type = 'ok') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + type;
   setTimeout(() => t.className = 'toast', 3000);
+}
+
+// ── Sair da conta ────────────────────────────────────────────────────────────
+async function logout() {
+  try { await fetch('/auth/login/logout', { method: 'POST' }); } catch {}
+  window.location.href = '/login.html';
 }
 
 // ── API helpers ──────────────────────────────────────────────────────────────
@@ -776,7 +694,14 @@ async function apiFetch(path, opts = {}) {
     headers: isFormData ? {} : { 'Content-Type': 'application/json' },
     ...opts
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    let mensagem = 'Não foi possível concluir essa ação. Tente novamente.';
+    try {
+      const data = await res.json();
+      if (data && (data.erro || data.error)) mensagem = data.erro || data.error;
+    } catch {}
+    throw new Error(mensagem);
+  }
   return res.json();
 }
 
@@ -807,7 +732,8 @@ async function loadDashboard() {
     document.getElementById('stat-total').textContent    = summary.totalAccounts;
     document.getElementById('stat-total-sub').textContent = `↑ ${platforms.length} plataformas`;
     document.getElementById('stat-valid').textContent    = summary.validTokensTotal;
-    document.getElementById('stat-valid-sub').textContent = `↑ ${Math.round(summary.validTokensTotal/summary.totalAccounts*100)}% do total`;
+    const percentValido = summary.totalAccounts > 0 ? Math.round(summary.validTokensTotal/summary.totalAccounts*100) : 0;
+    document.getElementById('stat-valid-sub').textContent = `↑ ${percentValido}% do total`;
     document.getElementById('stat-expiring').textContent = summary.expiringTokensTotal;
     document.getElementById('stat-error').textContent    = summary.errorTotal;
 
@@ -822,11 +748,11 @@ async function loadDashboard() {
     const grid = document.getElementById('plat-grid');
     grid.innerHTML = '';
     const platCfg = {
-      facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Graph API v18 · Limite: 200 req/hora' },
-      instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Instagram Graph API · Requer Business' },
-      youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'YouTube Data v3 · Cota: 10k unidades/dia' },
-      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Content Posting API · Exige aprovação' },
-      kwai:     { cls:'kw', icon:'kw', label:'Kwai',    api:'Login/senha · Token expira em 30 dias' }
+      facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Conexão válida por até 60 dias' },
+      instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Conexão válida por até 60 dias' },
+      youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'Renovação automática' },
+      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Publica imediatamente ao enviar' },
+      kwai:     { cls:'kw', icon:'kw', label:'Kwai',    api:'Conexão válida por 30 dias' }
     };
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
@@ -847,10 +773,10 @@ async function loadDashboard() {
       } else if (links.length === 1) {
         openBtn = `<button class="plat-btn" onclick="window.open('${links[0].url}', '_blank')">Abrir conta</button>`;
       } else {
-        const opts = links.map(l => `<a href="${l.url}" target="_blank" style="display:block;padding:6px 12px;color:var(--text);text-decoration:none;white-space:nowrap;font-size:13px" onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background=''">${l.name}</a>`).join('');
-        openBtn = `<div style="position:relative;display:inline-block">
-          <button class="plat-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">Abrir conta ▾</button>
-          <div style="display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--card);border:1px solid rgba(255,255,255,0.1);border-radius:8px;min-width:160px;z-index:100;overflow:hidden">${opts}</div>
+        const opts = links.map(l => `<a href="${l.url}" target="_blank" class="account-dropdown-item">${escapeHtml(l.name)}</a>`).join('');
+        openBtn = `<div class="account-dropdown">
+          <button type="button" class="plat-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open')">Abrir conta ▾</button>
+          <div class="account-dropdown-menu">${opts}</div>
         </div>`;
       }
 
@@ -862,17 +788,17 @@ async function loadDashboard() {
           </div>
           <div class="plat-stats">
             <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${cfg.cls})">${p.total}</div><div class="plat-stat-label">Contas</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Ativos</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${p.error>0?'red':'yellow'})">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com erro':'Expiram'}</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${p.error>0?'red':'yellow'})">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com problema':'Vencendo'}</div></div>
           </div>
           <div style="margin-bottom:12px">
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Saúde dos tokens</span><span>${health}%</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Funcionando corretamente</span><span>${health}%</span></div>
             <div class="progress-bar"><div class="progress-fill" style="width:${health}%;background:var(--${cfg.cls})"></div></div>
             <div style="font-size:11px;color:var(--muted)">${cfg.api}</div>
           </div>
           <div class="plat-actions">
             ${openBtn}
-            <button class="plat-btn" onclick="showPage('tokens')">Ver tokens</button>
+            <button class="plat-btn" onclick="showPage('tokens')">Ver conexão</button>
             <button class="plat-btn primary" onclick="openModal('nova-conta')">+ Conta</button>
           </div>
         </div>`;
@@ -889,19 +815,19 @@ async function loadTokens() {
   try {
     const { tokens } = await apiFetch('/api/tokens');
     if (tokens.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">nenhum token cadastrado</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">nenhuma conta conectada ainda</td></tr>';
       return;
     }
     body.innerHTML = tokens.map(t => {
       const expiryClass = t.status === 'valid' ? 'expiry-ok' : t.status === 'expiring' ? 'expiry-warn' : 'expiry-bad';
       const statusClass = t.status === 'valid' ? 'connected' : t.status === 'expiring' ? 'partial' : 'disconnected';
-      const statusLabel = { valid:'válido', expiring:'expirando', expired:'inválido' }[t.status] || t.status;
+      const statusLabel = { valid:'funcionando', expiring:'vencendo', expired:'desconectada' }[t.status] || t.status;
       const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
       const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
       return `<tr>
         <td>${escapeHtml(t.accountName)}</td>
         <td><span class="mini-pill ${t.platform}">${escapeHtml(t.platform)}</span></td>
-        <td><span class="token-val">${escapeHtml(t.accessToken)}</span></td>
+        <td><span class="token-val">conectada</span></td>
         <td class="${expiryClass}">${escapeHtml(t.expiryLabel)}</td>
         <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
         <td><button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${escapeHtml(btnLabel)}</button></td>
@@ -917,9 +843,9 @@ async function renewToken(id, btn) {
   try {
     const data = await apiFetch(`/api/tokens/renew/${id}`, { method: 'POST' });
     if (data.success) {
-      showToast('Token renovado com sucesso!', 'ok');
+      showToast('Conexão renovada com sucesso!', 'ok');
     } else if (data.requiresReconnect) {
-      showToast('Reconexão manual necessária — abrindo OAuth...', 'err');
+      showToast('Essa conta precisa ser reconectada manualmente — abrindo...', 'err');
       setTimeout(() => window.open(data.oauthUrl, '_blank'), 800);
     }
     loadTokens();
@@ -932,16 +858,16 @@ async function renewToken(id, btn) {
 async function renewAll() {
   try {
     const data = await apiFetch('/api/tokens/renew-all', { method: 'POST' });
-    showToast(`Renovados: ${data.renewed.length} | Manual: ${data.requiresManual.length}`, 'ok');
+    showToast(`Renovadas automaticamente: ${data.renewed.length} · Precisam reconectar: ${data.requiresManual.length}`, 'ok');
     loadTokens();
     showPage('logs');
   } catch (e) {
-    showToast('Erro: ' + e.message, 'err');
+    showToast('Não foi possível renovar as conexões: ' + e.message, 'err');
   }
 }
 
 // ── Agendador ────────────────────────────────────────────────────────────────
-const selectedPlats = new Set(['facebook', 'instagram']);
+const selectedPlats = new Set();
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube', 'kwai'];
@@ -997,9 +923,16 @@ let dragMediaIndex = null;
 function updateMediaPreview() {
   const hint = document.getElementById('post-media-hint');
   const list = document.getElementById('media-list');
+  const triggerBtn = document.getElementById('media-trigger-btn');
+  const triggerLabel = document.getElementById('media-trigger-label');
   const plats = [...selectedPlats];
   const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
   const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/Kwai).' : '';
+
+  triggerBtn.classList.toggle('has-media', mediaFiles.length > 0);
+  triggerLabel.textContent = mediaFiles.length === 0 ? 'Selecionar mídia'
+    : mediaFiles.length === 1 ? '1 arquivo selecionado'
+    : `${mediaFiles.length} arquivos selecionados`;
 
   if (!mediaFiles.length) {
     hint.textContent = restriction;
@@ -1087,7 +1020,111 @@ function toggleMediaMenu(e) {
 function closeMediaMenu() {
   document.getElementById('media-picker-menu').classList.remove('open');
 }
-document.addEventListener('click', closeMediaMenu);
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.media-picker')) closeMediaMenu();
+  if (!e.target.closest('.account-dropdown')) {
+    document.querySelectorAll('.account-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  }
+  if (!e.target.closest('.date-picker')) closeDatePicker();
+});
+
+// ── Calendário customizado (Data e hora) ──────────────────────────────────────
+let dpViewYear, dpViewMonth; // mês exibido no calendário (0-11)
+let dpSelected = null; // { year, month, day, hour, minute } ou null se vazio
+
+function toggleDatePicker(e) {
+  e.stopPropagation();
+  const popover = document.getElementById('date-picker-popover');
+  const opening = !popover.classList.contains('open');
+  closeMediaMenu();
+  popover.classList.toggle('open');
+  if (opening) {
+    const base = dpSelected || dpNowParts();
+    dpViewYear = base.year; dpViewMonth = base.month;
+    dpRenderTimeSelects();
+    dpRenderGrid();
+  }
+}
+function closeDatePicker() {
+  document.getElementById('date-picker-popover')?.classList.remove('open');
+}
+
+function dpNowParts() {
+  const now = new Date(); now.setHours(now.getHours() + 1, 0, 0, 0);
+  return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate(), hour: now.getHours(), minute: 0 };
+}
+
+function dpChangeMonth(delta) {
+  dpViewMonth += delta;
+  if (dpViewMonth < 0) { dpViewMonth = 11; dpViewYear--; }
+  if (dpViewMonth > 11) { dpViewMonth = 0; dpViewYear++; }
+  dpRenderGrid();
+}
+
+const DP_MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+function dpRenderGrid() {
+  document.getElementById('dp-month-label').textContent = `${DP_MESES[dpViewMonth]} de ${dpViewYear}`;
+  const grid = document.getElementById('dp-grid');
+  const firstDay = new Date(dpViewYear, dpViewMonth, 1).getDay();
+  const daysInMonth = new Date(dpViewYear, dpViewMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(dpViewYear, dpViewMonth, 0).getDate();
+  const today = dpNowParts();
+
+  let cells = [];
+  for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: daysInPrevMonth - i, muted: true });
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, muted: false });
+  while (cells.length % 7 !== 0) cells.push({ day: cells.length - (firstDay + daysInMonth) + 1, muted: true });
+
+  grid.innerHTML = cells.map(c => {
+    const isToday = !c.muted && dpViewYear === today.year && dpViewMonth === today.month && c.day === today.day;
+    const isSelected = !c.muted && dpSelected && dpViewYear === dpSelected.year && dpViewMonth === dpSelected.month && c.day === dpSelected.day;
+    const cls = ['date-picker-day', c.muted && 'muted', isToday && 'today', isSelected && 'selected'].filter(Boolean).join(' ');
+    return `<div class="${cls}" onclick="${c.muted ? '' : `dpSelectDay(${c.day})`}">${c.day}</div>`;
+  }).join('');
+}
+
+function dpRenderTimeSelects() {
+  const base = dpSelected || dpNowParts();
+  const hourSel = document.getElementById('dp-hour');
+  const minSel = document.getElementById('dp-minute');
+  hourSel.innerHTML = Array.from({length:24}, (_,h) => `<option value="${h}" ${h===base.hour?'selected':''}>${String(h).padStart(2,'0')}</option>`).join('');
+  minSel.innerHTML = Array.from({length:60}, (_,m) => `<option value="${m}" ${m===base.minute?'selected':''}>${String(m).padStart(2,'0')}</option>`).join('');
+}
+
+function dpSelectDay(day) {
+  dpSelected = {
+    year: dpViewYear, month: dpViewMonth, day,
+    hour: Number(document.getElementById('dp-hour').value),
+    minute: Number(document.getElementById('dp-minute').value)
+  };
+  dpRenderGrid();
+}
+
+function dpApply() {
+  if (!dpSelected) { showToast('Selecione um dia no calendário antes de aplicar.', 'err'); return; }
+  dpSelected.hour = Number(document.getElementById('dp-hour').value);
+  dpSelected.minute = Number(document.getElementById('dp-minute').value);
+  const { year, month, day, hour, minute } = dpSelected;
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('post-date').value = `${year}-${pad(month+1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+  updatePostDateDisplay();
+  closeDatePicker();
+}
+
+function dpToday() {
+  dpSelected = dpNowParts();
+  dpViewYear = dpSelected.year; dpViewMonth = dpSelected.month;
+  dpRenderTimeSelects();
+  dpRenderGrid();
+}
+
+function dpClear() {
+  dpSelected = null;
+  document.getElementById('post-date').value = '';
+  updatePostDateDisplay();
+  closeDatePicker();
+}
 
 // ── Importar mídia do Google Drive ────────────────────────────────────────────
 let gDriveConfig = null;
@@ -1226,7 +1263,7 @@ async function schedulePost(publishNow = false) {
 
 async function loadQueue() {
   const list = document.getElementById('queue-list');
-  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">carregando...</div>';
+  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div>';
   try {
     const [{ posts }, { data: contas }] = await Promise.all([
       apiFetch('/api/posts?status=scheduled'),
@@ -1235,7 +1272,7 @@ async function loadQueue() {
     document.getElementById('queue-count').textContent = posts.length + ' posts';
 
     if (posts.length === 0) {
-      list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">fila vazia</div>';
+      list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">nenhuma publicação agendada</div>';
       return;
     }
 
@@ -1257,6 +1294,7 @@ async function loadQueue() {
     }
 
     const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888', kwai:'var(--kw)' };
+    const platLabels = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
     list.innerHTML = posts.map(p => {
       const d = new Date(p.scheduledAt);
       const fmt = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' ' +
@@ -1265,9 +1303,9 @@ async function loadQueue() {
       const pills = p.platforms.map(pl => {
         const conta = contaParaPublicacao(pl, p.group)
         const tooltip = conta
-          ? `Conta: ${conta.accountName}${conta.status === 'expiring' ? ' (token expirando)' : ''}${conta.nicho !== p.group ? ` (conectada em "${conta.nicho}", não em "${p.group}")` : ''}`
-          : 'Nenhuma conta conectada para esta plataforma'
-        return `<span class="mini-pill ${pl}" title="${escapeHtml(tooltip)}">${escapeHtml(pl)}</span>`
+          ? `Conta: ${conta.accountName}${conta.status === 'expiring' ? ' (vencendo em breve)' : ''}${conta.nicho !== p.group ? ` (conectada em "${conta.nicho}", não em "${p.group}")` : ''}`
+          : 'Nenhuma conta conectada para esta rede social'
+        return `<span class="mini-pill ${pl}" title="${escapeHtml(tooltip)}">${escapeHtml(platLabels[pl] || pl)}</span>`
       }).join('');
       const text = p.text || '';
       const title = text ? escapeHtml(`${text.slice(0,50)}${text.length>50?'…':''}`) : '<span style="color:var(--muted)">(sem texto)</span>';
@@ -1285,7 +1323,7 @@ async function loadQueue() {
           <div class="queue-plats">${pills}${mediaTag}${shortsTag}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${escapeHtml(p.repeat)}</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <span class="queue-status qs-pend">⏳ agendado</span>
+          <span class="queue-status qs-pend">⏳ na fila</span>
           <button class="btn" style="padding:3px 8px;font-size:11px" onclick="deletePost('${p.id}', this)">✕</button>
         </div>
       </div>`;
@@ -1331,7 +1369,7 @@ function startLogStream() {
     box.scrollTop = box.scrollHeight;
   };
   logEs.onerror = () => {
-    appendLog(box, { type:'warn', message:'Stream desconectado — reconectando...', timestamp: new Date().toISOString() });
+    appendLog(box, { type:'warn', message:'Conexão perdida — tentando reconectar...', timestamp: new Date().toISOString() });
   };
 
   // Notifica quando um post agendado é publicado
@@ -1356,10 +1394,11 @@ function startLogStream() {
 
 function appendLog(box, log) {
   const clsMap = { ok:'log-ok', err:'log-err', warn:'log-warn', info:'log-info' };
+  const labelMap = { ok:'✓ Sucesso', err:'✕ Erro', warn:'⚠ Atenção', info:'• Aviso' };
   const time = new Date(log.timestamp).toTimeString().slice(0,8);
   const line = document.createElement('div');
   line.className = 'log-line';
-  line.innerHTML = `<span class="log-time">${time}</span><span class="${clsMap[log.type]||''}">[${escapeHtml(String(log.type).toUpperCase())}]</span><span>${escapeHtml(log.message)}</span>`;
+  line.innerHTML = `<span class="log-time">${time}</span><span class="${clsMap[log.type]||''}">${escapeHtml(labelMap[log.type] || log.type)}</span><span>${escapeHtml(log.message)}</span>`;
   box.appendChild(line);
   // Limitar a 300 linhas no DOM
   while (box.children.length > 300) box.removeChild(box.firstChild);
@@ -1374,7 +1413,7 @@ async function clearLogs() {
   try {
     await apiFetch('/api/logs', { method: 'DELETE' });
     document.getElementById('log-box').innerHTML = '';
-    showToast('Logs limpos', 'ok');
+    showToast('Histórico limpo', 'ok');
   } catch (e) {
     showToast('Erro: ' + e.message, 'err');
   }
@@ -1385,33 +1424,33 @@ async function clearLogs() {
 // ── Add Token Modal ─────────────────────────────────────────────────────────
 const AT_CONFIG = {
   facebook: {
-    hint: '<strong>Facebook:</strong> Acesse <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> → gere token com escopo <code>pages_manage_posts</code> + <code>pages_read_engagement</code>. Token de longa duração dura 60 dias.',
+    hint: '<strong>Facebook:</strong> esta conexão costuma durar até 60 dias antes de precisar ser renovada.',
     expiryDays: 60,
-    expiryLabel: 'Expiração (tokens FB duram até 60 dias)',
+    expiryLabel: 'Válido até (Facebook: até 60 dias)',
     showRefresh: false
   },
   instagram: {
-    hint: '<strong>Instagram:</strong> Acesse <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> → selecione seu App → gere token com escopo <code>instagram_content_publish</code> + <code>instagram_basic</code>. Requer conta Business.',
+    hint: '<strong>Instagram:</strong> precisa ser uma conta comercial (Business). A conexão dura até 60 dias.',
     expiryDays: 60,
-    expiryLabel: 'Expiração (tokens IG duram até 60 dias)',
+    expiryLabel: 'Válido até (Instagram: até 60 dias)',
     showRefresh: false
   },
   youtube: {
-    hint: '<strong>YouTube:</strong> Acesse <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--accent)">Google Cloud Console</a> → Credenciais → OAuth 2.0. O Access Token dura 1h — adicione o Refresh Token para renovação automática.',
+    hint: '<strong>YouTube:</strong> com o código de renovação preenchido, a conexão se renova automaticamente sem precisar refazer esse passo.',
     expiryDays: 0,
-    expiryLabel: 'Expiração do Access Token (YouTube: ~1 hora)',
+    expiryLabel: 'Válido até (YouTube: cerca de 1 hora sem renovação)',
     showRefresh: true
   },
   tiktok: {
-    hint: '<strong>TikTok:</strong> Acesse <a href="https://developers.tiktok.com" target="_blank" style="color:var(--accent)">developers.tiktok.com</a> → seu App → Token Management. Scope necessário: <code>video.publish</code>. Token dura 24h.',
+    hint: '<strong>TikTok:</strong> esta conexão dura cerca de 24 horas.',
     expiryDays: 1,
-    expiryLabel: 'Expiração (tokens TikTok duram 24 horas)',
+    expiryLabel: 'Válido até (TikTok: 24 horas)',
     showRefresh: false
   },
   kwai: {
-    hint: '<strong>Kwai:</strong> não possui geração de token via OAuth público. Use o modal "+ Conectar conta" com usuário e senha para gerar o token automaticamente, ou cole aqui um token obtido manualmente.',
+    hint: '<strong>Kwai:</strong> normalmente a conexão é feita automaticamente pelo botão "+ Conectar conta". Use esta opção apenas em casos especiais.',
     expiryDays: 30,
-    expiryLabel: 'Expiração (login Kwai dura 30 dias)',
+    expiryLabel: 'Válido até (Kwai: 30 dias)',
     showRefresh: false
   }
 };
@@ -1628,7 +1667,7 @@ function updatePlatformUI(plat) {
   document.getElementById('modal-tiktok-google').style.display = plat === 'tiktok' ? 'block' : 'none';
 
   const btn = document.getElementById('modal-connect-btn');
-  btn.textContent = 'Autorizar via OAuth →';
+  btn.textContent = 'Conectar conta →';
   btn.onclick = startOAuth;
 }
 
@@ -1694,12 +1733,12 @@ async function startOAuth() {
     }
 
     closeModal();
-    showToast('Abrindo janela de autorização...', 'ok');
+    showToast('Abrindo janela de autorização da conta...', 'ok');
     window.open(data.authUrl, '_blank', 'width=640,height=720');
   } catch (e) {
     showToast('Erro de conexão: ' + e.message, 'err');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Autorizar via OAuth →'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Conectar conta →'; }
   }
 }
 
@@ -1708,19 +1747,14 @@ function showOAuthConfigError(data) {
   const existing = document.getElementById('oauth-error-box');
   if (existing) existing.remove();
 
-  const steps = (data.steps || []).map(s => `<li style="margin:4px 0">${s}</li>`).join('');
   const box = document.createElement('div');
   box.id = 'oauth-error-box';
   box.style.cssText = 'background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:14px 16px;margin-top:12px;font-size:12px;line-height:1.7';
   box.innerHTML = `
     <div style="font-weight:500;color:var(--red);margin-bottom:6px">
-      Credencial não configurada: ${data.error || 'erro desconhecido'}
+      Essa rede social ainda não está configurada
     </div>
-    <div style="color:var(--muted);margin-bottom:${steps ? '10px' : '0'}">${data.detail || ''}</div>
-    ${steps ? `<ol style="padding-left:16px;color:var(--muted)">${steps}</ol>` : ''}
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(248,113,113,0.2);color:var(--muted)">
-      Após preencher o <code style="color:var(--accent2)">.env</code>, reinicie o servidor com <code style="color:var(--accent2)">npm start</code>
-    </div>`;
+    <div style="color:var(--muted)">Fale com o administrador do sistema para liberar essa conexão antes de tentar novamente.</div>`;
 
   // Inserir dentro do modal, após o modal-sub ou antes das modal-actions
   const modal = document.getElementById('modal-nova-conta');
@@ -1744,20 +1778,42 @@ function updatePostDateDisplay() {
 }
 
 // ── Inicialização ────────────────────────────────────────────────────────────
-const now = new Date(); now.setHours(now.getHours()+1, 0, 0, 0);
-const isoLocal = new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16);
-const di = document.getElementById('post-date');
-if (di) di.value = isoLocal;
+dpSelected = dpNowParts();
+{
+  const { year, month, day, hour, minute } = dpSelected;
+  const pad = n => String(n).padStart(2, '0');
+  const di = document.getElementById('post-date');
+  if (di) di.value = `${year}-${pad(month+1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
+}
 updatePostDateDisplay();
 
-// Verificar se voltou de OAuth com sucesso
+// Verificar se voltou de OAuth com sucesso ou com erro
 if (location.search.includes('connected=true')) {
   showToast('Conta conectada com sucesso!', 'ok');
+  history.replaceState({}, '', '/');
+}
+const oauthErrorMessages = {
+  oauth_cancelled: 'Você cancelou a conexão antes de terminar. Tente novamente quando quiser.',
+  token_failed: 'Não foi possível confirmar a conexão com essa rede social agora. Tente novamente em alguns minutos.',
+  oauth_failed: 'Algo deu errado ao conectar essa conta. Tente novamente ou contate o suporte.'
+};
+const oauthErrorCode = new URLSearchParams(location.search).get('error');
+if (oauthErrorCode) {
+  showToast(oauthErrorMessages[oauthErrorCode] || 'Não foi possível conectar essa conta agora. Tente novamente.', 'err');
   history.replaceState({}, '', '/');
 }
 
 loadDashboard();
 startLogStream(); // mantém SSE ativo para notificações de posts publicados em qualquer página
+
+apiFetch('/api/me').then(me => {
+  if (me.role === 'admin' || me.role === 'super_admin') {
+    document.getElementById('nav-admin').style.display = 'flex';
+    if (me.role === 'super_admin') {
+      document.getElementById('nav-admin-label').innerHTML = 'Administração <span style="font-size:10px;color:var(--yellow);margin-left:4px">★ principal</span>';
+    }
+  }
+}).catch(() => {});
 </script>
 </body>
 </html>

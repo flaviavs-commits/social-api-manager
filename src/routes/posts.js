@@ -1,20 +1,28 @@
 const { Router } = require('express')
 const path = require('path')
+const fs = require('fs')
 const crypto = require('crypto')
 const multer = require('multer')
+const FileType = require('file-type')
 const repo = require('../repositories/postsRepository')
 const { publishPost } = require('../services/publisher')
 const { probeVideo, isShortEligible } = require('../services/videoProbe')
-const { PLATFORMS, REPEATS, parseId, serverError } = require('../utils/http')
+const { PLATFORMS, REPEATS, parseId, serverError, isAdminRole } = require('../utils/http')
 
 const router = Router()
 
+// Extensões/mimetypes aceitos, com base na assinatura binária real do arquivo
+// (não no Content-Type declarado pelo cliente, que é facilmente falsificável).
+const ALLOWED_MEDIA_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'
+])
+
+// Salva com nome aleatório e extensão neutra (.bin); a extensão real é
+// corrigida depois que o tipo do arquivo é verificado por assinatura binária.
 const storage = multer.diskStorage({
   destination: path.join(__dirname, '../../public/uploads'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, crypto.randomUUID() + ext)
-  }
+  filename: (req, file, cb) => cb(null, crypto.randomUUID() + '.bin')
 })
 
 const upload = multer({
@@ -26,6 +34,25 @@ const upload = multer({
   }
 })
 
+// Verifica a assinatura binária real de cada arquivo enviado (o Content-Type
+// do multipart é apenas o que o cliente declarou, e pode ser falsificado).
+// Renomeia para a extensão correta só depois de confirmar o tipo real;
+// remove do disco qualquer arquivo cujo conteúdo não seja imagem/vídeo válido.
+async function validarESanitizarUploads(files) {
+  const validados = []
+  for (const f of files) {
+    const tipo = await FileType.fromFile(f.path)
+    if (!tipo || !ALLOWED_MEDIA_TYPES.has(tipo.mime)) {
+      await fs.promises.unlink(f.path).catch(() => {})
+      continue
+    }
+    const novoPath = f.path.replace(/\.bin$/, `.${tipo.ext}`)
+    await fs.promises.rename(f.path, novoPath)
+    validados.push({ ...f, path: novoPath, filename: path.basename(novoPath), mimetype: tipo.mime })
+  }
+  return validados
+}
+
 // GET /api/posts
 router.get('/', async (req, res) => {
   try {
@@ -34,7 +61,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ erro: 'status inválido' })
     }
 
-    const posts = await repo.listarPosts({ status })
+    const posts = await repo.listarPosts({ status, userId: req.user.id, isAdmin: isAdminRole(req.user.role) })
     res.json({ posts })
   } catch (e) {
     serverError(res, e)
@@ -45,6 +72,13 @@ router.get('/', async (req, res) => {
 router.post('/', upload.array('media', 10), async (req, res) => {
   try {
     const { text, group, scheduledAt, repeat = 'none', youtubeTitle } = req.body
+
+    if (text !== undefined && text.length > 5000)
+      return res.status(400).json({ erro: 'O texto do post pode ter no máximo 5000 caracteres.' })
+    if (youtubeTitle !== undefined && youtubeTitle.length > 100)
+      return res.status(400).json({ erro: 'O título do vídeo pode ter no máximo 100 caracteres.' })
+    if (!group || typeof group !== 'string' || group.length > 50)
+      return res.status(400).json({ erro: 'Selecione uma estrela/grupo válida.' })
 
     let platforms
     try {
@@ -75,7 +109,11 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     // convertemos explicitamente para UTC antes de enviar.
     const scheduledAtUTC = new Date(scheduledAtBR).toISOString().replace('Z', '')
 
-    const files = req.files || []
+    const filesEnviados = req.files || []
+    const files = await validarESanitizarUploads(filesEnviados)
+    if (files.length < filesEnviados.length) {
+      return res.status(400).json({ erro: 'Um ou mais arquivos não são imagens ou vídeos válidos.' })
+    }
 
     if (!text?.trim() && !files.length)
       return res.status(400).json({ erro: 'Informe o texto do post ou anexe uma imagem/vídeo' })
@@ -91,7 +129,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     const items = files.map((f, i) => ({
       path: `/uploads/${f.filename}`,
       type: f.mimetype.startsWith('video/') ? 'video' : 'image',
-      caption: captions[i] || ''
+      caption: typeof captions[i] === 'string' ? captions[i].slice(0, 500) : ''
     }))
 
     const mediaPath = items[0]?.path || null
@@ -127,7 +165,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       }
     }
 
-    const post = await repo.criarPost({ text: text?.trim() || null, platforms, group_name: group, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeIsShort })
+    const post = await repo.criarPost({ text: text?.trim() || null, platforms, group_name: group, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeIsShort, userId: req.user.id })
     res.status(201).json(post)
   } catch (e) {
     serverError(res, e, 'Não foi possível agendar o post')
@@ -140,7 +178,7 @@ router.post('/:id/publish', async (req, res) => {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
 
-    const post = await repo.buscarPostPorId(id)
+    const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
     if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
 
     const results = await publishPost(post)
@@ -161,7 +199,7 @@ router.delete('/:id', async (req, res) => {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
 
-    const ok = await repo.deletarPost(id)
+    const ok = await repo.deletarPost(id, req.user.id, isAdminRole(req.user.role))
     if (!ok) return res.status(404).json({ erro: 'Post não encontrado ou já publicado' })
     res.status(204).send()
   } catch (e) {

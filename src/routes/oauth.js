@@ -97,7 +97,8 @@ router.get('/meta/callback', async (req, res) => {
       name: meta.accountName || 'Nova Conta Facebook',
       platform,
       group: meta.group || 'Geral',
-      email: meta.email
+      email: meta.email,
+      userId: req.user.id
     });
 
     await tokensRepo.salvarToken({
@@ -208,7 +209,8 @@ router.get('/instagram/callback', async (req, res) => {
       name: accountName,
       platform,
       group: meta.group || 'Geral',
-      email: meta.email
+      email: meta.email,
+      userId: req.user.id
     });
 
     await tokensRepo.salvarToken({
@@ -295,7 +297,8 @@ router.get('/google/callback', async (req, res) => {
       name: accountName,
       platform: 'youtube',
       group: meta.group || 'Geral',
-      email: meta.email
+      email: meta.email,
+      userId: req.user.id
     });
 
     await tokensRepo.salvarToken({
@@ -431,7 +434,8 @@ router.get('/tiktok/callback', async (req, res) => {
       name: accountName,
       platform: 'tiktok',
       group: meta.group || 'Geral',
-      email: meta.email
+      email: meta.email,
+      userId: req.user.id
     });
 
     await tokensRepo.salvarToken({
@@ -468,7 +472,8 @@ router.get('/kwai', async (req, res) => {
       name,
       platform,
       group: group || 'Geral',
-      email
+      email,
+      userId: req.user.id
     });
 
     await tokensRepo.salvarToken({
