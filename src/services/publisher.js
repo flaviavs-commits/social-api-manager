@@ -7,31 +7,21 @@ const tokensRepo = require('./../repositories/tokensRepository')
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
-const PLATFORM_COLUMNS = {
-  facebook: 'facebook',
-  instagram: 'instagram',
-  youtube: 'youtube',
-  tiktok: 'tiktok',
-  kwai: 'kwai'
-}
-
-// ── Busca a conta+token conectados para a plataforma dentro da estrela/grupo ──
-async function buscarContaToken(platform, groupName) {
-  const coluna = PLATFORM_COLUMNS[platform]
-  if (!coluna) return null
-
+// ── Busca a conta+token conectados para a plataforma, do dono do post ────────
+// Se o usuário tiver mais de uma conta da mesma plataforma conectada, usa a
+// mais recente (não há mais agrupamento por estrela/nicho).
+async function buscarContaToken(platform, userId) {
   const { rows } = await pool.query(`
     SELECT
       t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
-      t.status, t.expires_at AS "expiresAt", c.${coluna} AS handle
+      t.status, t.expires_at AS "expiresAt", c.handle AS handle
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
-    LEFT JOIN nichos n ON n.id = c.nicho_id
-    WHERE t.platform = $1 AND n.nome = $2
+    WHERE t.platform = $1 AND c.user_id = $2
     ORDER BY t.id DESC
     LIMIT 1
-  `, [platform, groupName])
+  `, [platform, userId])
 
   return rows[0] || null
 }
@@ -331,9 +321,9 @@ async function publishPost(post) {
       continue
     }
 
-    let token = await buscarContaToken(platform, post.group)
+    let token = await buscarContaToken(platform, post.userId)
     if (!token) {
-      const msg = `Nenhuma conta de ${platform} conectada na estrela "${post.group}"`
+      const msg = `Nenhuma conta de ${platform} conectada`
       results.push({ platform, success: false, error: msg })
       await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
       continue
@@ -343,7 +333,7 @@ async function publishPost(post) {
     if (token.status !== 'valid') {
       const renewal = await tokensRepo.renovarToken(token.token_id)
       if (renewal.success) {
-        token = await buscarContaToken(platform, post.group)
+        token = await buscarContaToken(platform, post.userId)
       } else {
         results.push({ platform, success: false, account: token.handle || token.accountName, error: renewal.message })
         await registrarLog({

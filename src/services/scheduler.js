@@ -9,7 +9,7 @@ const tokensRepo = require('../repositories/tokensRepository')
 async function buscarPostsPendentes() {
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms, group_name AS "group",
+      id, text, platforms,
       scheduled_at AS "scheduledAt", repeat, status, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
@@ -43,7 +43,6 @@ async function processarPost(post) {
     id: post.id,
     status,
     platforms: post.platforms,
-    group: post.group,
     text: post.text,
     results
   }, post.userId)

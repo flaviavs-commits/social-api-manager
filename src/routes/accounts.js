@@ -19,14 +19,17 @@ router.get('/stats', async (req, res) => {
 // GET /api/accounts
 router.get('/', async (req, res) => {
   try {
-    const { nicho, tipo, ativo } = req.query
+    const { platform, tipo, ativo } = req.query
 
+    if (platform !== undefined && !PLATFORMS.includes(platform)) {
+      return res.status(400).json({ erro: `platform inválida. Use um de: ${PLATFORMS.join(', ')}` })
+    }
     if (tipo !== undefined && !TIPOS.includes(tipo)) {
       return res.status(400).json({ erro: `tipo inválido. Use um de: ${TIPOS.join(', ')}` })
     }
 
     const contas = await repo.listarContas({
-      nicho: nicho || null,
+      platform: platform || null,
       tipo:  tipo  || null,
       ativo: ativo !== undefined ? ativo === 'true' : undefined,
       userId: req.user.id,
@@ -55,25 +58,22 @@ router.get('/:id', async (req, res) => {
 // POST /api/accounts  → criar conta (modal "Conectar conta")
 router.post('/', async (req, res) => {
   try {
-    // Aceita tanto criação rápida (name+platform+group) quanto completa
-    const { name, platform, group, email, tipo, nicho_id, ...rest } = req.body
+    const { name, platform, tipo } = req.body
 
-    if (group !== undefined && (typeof group !== 'string' || group.length > 50))
-      return res.status(400).json({ erro: 'Grupo inválido.' })
     if (name !== undefined && (typeof name !== 'string' || name.length > 200))
       return res.status(400).json({ erro: 'Nome da conta inválido.' })
+    if (!PLATFORMS.includes(platform)) {
+      return res.status(400).json({ erro: `platform inválida. Use um de: ${PLATFORMS.join(', ')}` })
+    }
 
     let conta
-    if (name && platform) {
-      if (!PLATFORMS.includes(platform)) {
-        return res.status(400).json({ erro: `platform inválida. Use um de: ${PLATFORMS.join(', ')}` })
-      }
-      conta = await repo.criarContaRapida({ name, platform, group, email, userId: req.user.id })
+    if (name) {
+      conta = await repo.criarContaRapida({ name, platform, userId: req.user.id })
     } else {
       if (tipo !== undefined && !TIPOS.includes(tipo)) {
         return res.status(400).json({ erro: `tipo inválido. Use um de: ${TIPOS.join(', ')}` })
       }
-      conta = await repo.criarConta({ email, tipo, nicho_id, userId: req.user.id, ...rest })
+      conta = await repo.criarConta({ platform, handle: req.body.handle, tipo, userId: req.user.id })
     }
 
     res.status(201).json({ account: conta })

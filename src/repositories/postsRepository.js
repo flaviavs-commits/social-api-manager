@@ -1,11 +1,11 @@
 const pool = require('../db/pool')
 
-async function criarPost({ text, platforms, group_name, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, userId }) {
+async function criarPost({ text, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, userId }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, platforms, group_name, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, user_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    INSERT INTO posts (text, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, user_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     RETURNING *
-  `, [text, platforms, group_name, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, userId])
+  `, [text, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, userId])
   return rows[0]
 }
 
@@ -18,7 +18,7 @@ async function listarPosts({ status, userId, isAdmin } = {}) {
 
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms, group_name AS "group",
+      id, text, platforms,
       scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
@@ -41,7 +41,7 @@ async function deletarPost(id, userId, isAdmin) {
 async function buscarPostPorId(id, userId, isAdmin) {
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms, group_name AS "group",
+      id, text, platforms,
       scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"

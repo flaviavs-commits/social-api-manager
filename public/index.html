@@ -542,35 +542,15 @@ input, select, textarea, .modal-overlay, .nav-section, label {
     <div class="modal-title">Adicionar conexão manualmente</div>
     <div class="modal-sub">Use esta opção apenas se já tiver um código de acesso gerado para essa conta.</div>
 
-    <div class="two-col-grid" style="gap:12px">
-      <div class="form-group">
-        <label>Plataforma</label>
-        <select id="at-platform" onchange="atChangePlat(this.value)">
-          <option value="facebook">Facebook</option>
-          <option value="instagram">Instagram</option>
-          <option value="youtube">YouTube</option>
-          <option value="tiktok">TikTok</option>
-          <option value="kwai">Kwai</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Estrelas</label>
-        <select id="at-group">
-          <option value="Geral">Geral</option>
-          <option value="Casais">Casais</option>
-          <option value="Apoio">Apoio</option>
-          <option value="Apoio Geral">Apoio Geral</option>
-          <option value="Prova Social">Prova Social</option>
-          <option value="Viajantes">Viajantes</option>
-          <option value="Empreendedores">Empreendedores</option>
-          <option value="Mães">Mães</option>
-          <option value="Fitness">Fitness</option>
-          <option value="Professores">Professores</option>
-          <option value="Revendedores">Revendedores</option>
-          <option value="Estudantes">Estudantes</option>
-          <option value="Fashionistas">Fashionistas</option>
-        </select>
-      </div>
+    <div class="form-group">
+      <label>Plataforma</label>
+      <select id="at-platform" onchange="atChangePlat(this.value)">
+        <option value="facebook">Facebook</option>
+        <option value="instagram">Instagram</option>
+        <option value="youtube">YouTube</option>
+        <option value="tiktok">TikTok</option>
+        <option value="kwai">Kwai</option>
+      </select>
     </div>
 
     <div class="form-group">
@@ -738,9 +718,9 @@ async function loadDashboard() {
       // Coleta todos os links de perfil válidos para essa plataforma
       const links = [];
       for (const c of contas) {
-        if (!c[p.platform]) continue;
-        const l = profileUrl(p.platform, c[p.platform]);
-        if (l) links.push({ name: c[p.platform], url: l });
+        if (c.platform !== p.platform || !c.handle) continue;
+        const l = profileUrl(p.platform, c.handle);
+        if (l) links.push({ name: c.handle, url: l });
       }
       let openBtn;
       if (links.length === 0) {
@@ -1203,7 +1183,6 @@ async function schedulePost(publishNow = false) {
   const text = document.getElementById('post-text').value.trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
-  const group = 'Geral';
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -1225,7 +1204,6 @@ async function schedulePost(publishNow = false) {
   formData.append('youtubeTitle', youtubeTitle);
   formData.append('youtubeVisibility', youtubeVisibility);
   formData.append('platforms', JSON.stringify(platforms));
-  formData.append('group', group);
   formData.append('scheduledAt', scheduledAt);
   formData.append('repeat', repeat);
   mediaFiles.forEach(m => formData.append('media', m.file));
@@ -1261,20 +1239,17 @@ async function loadQueue() {
     }
 
     // Acha a conta+token (não expirado) que será usada para publicar nessa
-    // plataforma, para exibir no tooltip do pill. Prioriza a conta da mesma
-    // estrela do post; se não houver, mostra a primeira conta conectada
-    // dessa rede social (em qualquer estrela).
-    function contaParaPublicacao(platform, group) {
-      let fallback = null
+    // plataforma, para exibir no tooltip do pill. Se houver mais de uma
+    // conta da mesma rede, mostra a mais recente (mesmo critério usado pelo
+    // backend ao publicar).
+    function contaParaPublicacao(platform) {
       for (const c of contas) {
-        if (!c.ativo || !c[platform]) continue
+        if (!c.ativo || c.platform !== platform) continue
         const token = (c.tokens || []).find(t => t.platform === platform)
         if (!token || token.status === 'expired') continue
-        const info = { accountName: token.accountName || c[platform], status: token.status, nicho: c.nicho }
-        if (c.nicho === group) return info
-        if (!fallback) fallback = info
+        return { accountName: token.accountName || c.handle, status: token.status }
       }
-      return fallback
+      return null
     }
 
     const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888', kwai:'var(--kw)' };
@@ -1285,9 +1260,9 @@ async function loadQueue() {
         d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
       const dotColor = dotColors[p.platforms[0]] || 'var(--accent)';
       const pills = p.platforms.map(pl => {
-        const conta = contaParaPublicacao(pl, p.group)
+        const conta = contaParaPublicacao(pl)
         const tooltip = conta
-          ? `Conta: ${conta.accountName}${conta.status === 'expiring' ? ' (vencendo em breve)' : ''}${conta.nicho !== p.group ? ` (conectada em "${conta.nicho}", não em "${p.group}")` : ''}`
+          ? `Conta: ${conta.accountName}${conta.status === 'expiring' ? ' (vencendo em breve)' : ''}`
           : 'Nenhuma conta conectada para esta rede social'
         return `<span class="mini-pill ${pl}" title="${escapeHtml(tooltip)}">${escapeHtml(platLabels[pl] || pl)}</span>`
       }).join('');
@@ -1303,7 +1278,7 @@ async function loadQueue() {
         <div class="queue-dot" style="background:${dotColor}"></div>
         <div class="queue-info">
           <div class="queue-title">${title}</div>
-          <div class="queue-meta">${fmt} · ${escapeHtml(p.group)}</div>
+          <div class="queue-meta">${fmt}</div>
           <div class="queue-plats">${pills}${mediaTag}${shortsTag}${p.repeat!=='none'?`<span style="font-size:10px;color:var(--muted);margin-left:4px">↻ ${escapeHtml(p.repeat)}</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -1361,11 +1336,11 @@ function startLogStream() {
     const data = JSON.parse(e.data);
     const plats = (data.platforms || []).join(', ');
     if (data.status === 'published') {
-      showToast(`✅ Post #${data.id} publicado em ${plats} (${data.group})`, 'ok');
+      showToast(`✅ Post #${data.id} publicado em ${plats}`, 'ok');
     } else if (data.status === 'partial') {
-      showToast(`⚠️ Post #${data.id} publicado parcialmente em ${plats} (${data.group})`, 'warn');
+      showToast(`⚠️ Post #${data.id} publicado parcialmente em ${plats}`, 'warn');
     } else {
-      showToast(`❌ Post #${data.id} falhou ao publicar em ${plats} (${data.group})`, 'err');
+      showToast(`❌ Post #${data.id} falhou ao publicar em ${plats}`, 'err');
     }
     // Atualiza a fila se a página do agendador estiver ativa
     if (document.getElementById('page-agendador')?.classList.contains('active')) {
@@ -1495,7 +1470,6 @@ function openModal(name) {
 
 async function saveToken() {
   const platform    = document.getElementById('at-platform').value;
-  const group       = document.getElementById('at-group').value;
   const name        = resolveInputName('at-name');
   const accessToken = document.getElementById('at-token').value.trim();
   const refreshToken= document.getElementById('at-refresh').value.trim();
@@ -1513,7 +1487,7 @@ async function saveToken() {
     // 1. Criar a conta primeiro
     const accData = await apiFetch('/api/accounts', {
       method: 'POST',
-      body: JSON.stringify({ name, platform, group })
+      body: JSON.stringify({ name, platform })
     });
     const accountId = accData.account.id;
 
@@ -1654,8 +1628,6 @@ function updatePlatformUI(plat) {
 
 async function startOAuthGoogle() {
   const name  = resolveInputName('modal-name');
-  const group = 'Geral';
-  const email = '';
 
   if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
 
@@ -1670,7 +1642,7 @@ async function startOAuthGoogle() {
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
 
   try {
-    const params = new URLSearchParams({ accountName: name, group, email });
+    const params = new URLSearchParams({ accountName: name });
     const res = await fetch(`/auth/tiktok/google?${params}`);
     const data = await res.json();
 
@@ -1690,8 +1662,6 @@ async function startOAuthGoogle() {
 async function startOAuth() {
   const platform = document.getElementById('modal-platform').value;
   const name     = resolveInputName('modal-name');
-  const group    = 'Geral';
-  const email    = '';
 
   if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
 
@@ -1708,7 +1678,7 @@ async function startOAuth() {
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
 
   try {
-    const params = new URLSearchParams({ accountName: name, group, platform, email });
+    const params = new URLSearchParams({ accountName: name, platform });
     const res = await fetch(`/auth/${provider}?${params}`);
     const data = await res.json();
 

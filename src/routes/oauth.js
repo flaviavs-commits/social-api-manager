@@ -121,9 +121,9 @@ router.get('/meta', requireAuth, (req, res) => {
   const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'META_REDIRECT_URI'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName, group, email } = req.query;
+  const { accountName } = req.query;
   const platform = 'facebook';
-  const state = signState({ accountName, group, email, platform, userId: req.user.id });
+  const state = signState({ accountName, platform, userId: req.user.id });
   const scopes = [
     'pages_manage_posts',
     'pages_read_engagement',
@@ -168,8 +168,6 @@ router.get('/meta/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: meta.accountName || 'Nova Conta Facebook',
       platform,
-      group: meta.group || 'Geral',
-      email: meta.email,
       userId: meta.userId
     });
 
@@ -204,9 +202,9 @@ router.get('/instagram', requireAuth, (req, res) => {
     return res.status(400).json(configError);
   }
 
-  const { accountName, group, email } = req.query;
+  const { accountName } = req.query;
   const platform = 'instagram';
-  const state = signState({ accountName, group, email, platform, userId: req.user.id });
+  const state = signState({ accountName, platform, userId: req.user.id });
   const scopes = [
     'instagram_business_basic',
     'instagram_business_content_publish',
@@ -282,8 +280,6 @@ router.get('/instagram/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform,
-      group: meta.group || 'Geral',
-      email: meta.email,
       userId: meta.userId
     });
 
@@ -306,8 +302,8 @@ router.get('/instagram/callback', async (req, res) => {
 // ─── Google / YouTube ──────────────────────────────────────────────────────────
 
 router.get('/google', requireAuth, (req, res) => {
-  const { accountName, group, email } = req.query;
-  const state = signState({ accountName, group, email, platform: 'youtube', userId: req.user.id });
+  const { accountName } = req.query;
+  const state = signState({ accountName, platform: 'youtube', userId: req.user.id });
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly'
@@ -373,8 +369,6 @@ router.get('/google/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform: 'youtube',
-      group: meta.group || 'Geral',
-      email: meta.email,
       userId: meta.userId
     });
 
@@ -401,9 +395,9 @@ router.get('/tiktok', requireAuth, (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName, group, email } = req.query;
+  const { accountName } = req.query;
   const platform = 'tiktok';
-  const state = signState({ accountName, group, email, platform, userId: req.user.id });
+  const state = signState({ accountName, platform, userId: req.user.id });
   const scopes = [
     'user.info.basic',
     'user.info.profile',
@@ -434,9 +428,9 @@ router.get('/tiktok/google', requireAuth, (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName, group, email } = req.query;
+  const { accountName } = req.query;
   const platform = 'tiktok';
-  const state = signState({ platform, via: 'google', accountName, group, email, userId: req.user.id });
+  const state = signState({ platform, via: 'google', accountName, userId: req.user.id });
   const scopes = ['user.info.basic', 'video.publish', 'video.upload'].join(',');
 
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
@@ -514,8 +508,6 @@ router.get('/tiktok/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform: 'tiktok',
-      group: meta.group || 'Geral',
-      email: meta.email,
       userId: meta.userId
     });
 
@@ -539,7 +531,7 @@ router.get('/tiktok/callback', async (req, res) => {
 // ─── Kwai (sem OAuth público - conexão simulada, igual ao Facebook) ──────────
 
 router.get('/kwai', requireAuth, async (req, res) => {
-  const { accountName, group, email } = req.query;
+  const { accountName } = req.query;
   const platform = 'kwai';
 
   try {
@@ -552,8 +544,6 @@ router.get('/kwai', requireAuth, async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name,
       platform,
-      group: group || 'Geral',
-      email,
       userId: req.user.id
     });
 
