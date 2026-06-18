@@ -4,6 +4,7 @@ const fs = require('fs')
 const crypto = require('crypto')
 const multer = require('multer')
 const FileType = require('file-type')
+const sharp = require('sharp')
 const repo = require('../repositories/postsRepository')
 const { publishPost } = require('../services/publisher')
 const { probeVideo, isShortEligible } = require('../services/videoProbe')
@@ -51,6 +52,20 @@ async function validarESanitizarUploads(files) {
     validados.push({ ...f, path: novoPath, filename: path.basename(novoPath), mimetype: tipo.mime })
   }
   return validados
+}
+
+// A API do Instagram só aceita imagens em JPEG — PNG, GIF e WebP são
+// rejeitados na hora de publicar com um erro genérico ("The image format is
+// not supported"). Em vez de bloquear o upload, convertemos a imagem para
+// JPEG aqui, mantendo o arquivo original para as demais plataformas.
+async function converterImagemParaJpegSeNecessario(file) {
+  if (!file.mimetype.startsWith('image/') || file.mimetype === 'image/jpeg') return file
+
+  const novoPath = file.path.replace(/\.\w+$/, '.jpg')
+  await sharp(file.path).jpeg({ quality: 90 }).toFile(novoPath)
+  await fs.promises.unlink(file.path).catch(() => {})
+
+  return { ...file, path: novoPath, filename: path.basename(novoPath), mimetype: 'image/jpeg' }
 }
 
 // GET /api/posts
@@ -110,9 +125,15 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     const scheduledAtUTC = new Date(scheduledAtBR).toISOString().replace('Z', '')
 
     const filesEnviados = req.files || []
-    const files = await validarESanitizarUploads(filesEnviados)
+    let files = await validarESanitizarUploads(filesEnviados)
     if (files.length < filesEnviados.length) {
       return res.status(400).json({ erro: 'Um ou mais arquivos não são imagens ou vídeos válidos.' })
+    }
+
+    // O Instagram só aceita imagens em JPEG — converte PNG/GIF/WebP antes de
+    // publicar, em vez de bloquear o post.
+    if (platforms.includes('instagram')) {
+      files = await Promise.all(files.map(converterImagemParaJpegSeNecessario))
     }
 
     if (!text?.trim() && !files.length)
@@ -150,16 +171,6 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     // Instagram exige imagem ou vídeo para publicar.
     if (platforms.includes('instagram') && !items.length)
       return res.status(400).json({ erro: 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.' })
-
-    // A API do Instagram só aceita imagens em JPEG — PNG, GIF e WebP são
-    // rejeitados pelo Instagram com um erro genérico só na hora de publicar.
-    // Avisamos aqui, no upload, para o usuário entender a causa de imediato.
-    if (platforms.includes('instagram')) {
-      const imagemNaoSuportada = files.some(f => f.mimetype.startsWith('image/') && f.mimetype !== 'image/jpeg')
-      if (imagemNaoSuportada) {
-        return res.status(400).json({ erro: 'O Instagram só aceita imagens no formato JPEG. Converta a imagem para JPEG ou desmarque o Instagram.' })
-      }
-    }
 
     // Detecta se o vídeo do YouTube é elegível como Shorts: vertical (9:16) ou
     // quadrado (1:1) e com até 3 minutos. Vídeos horizontais (16:9) nunca são Shorts,
