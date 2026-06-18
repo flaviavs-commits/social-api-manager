@@ -77,7 +77,7 @@ app.get('/api/config', (req, res) => {
 app.use(requireAuth)
 
 app.get('/api/me', (req, res) => {
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role })
+  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, fullName: req.user.fullName })
 })
 
 app.use('/api/accounts', accountsRoutes)
