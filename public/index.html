@@ -414,23 +414,6 @@ input, select, textarea, .modal-overlay, .nav-section, label {
             <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="kwai" onclick="togglePlat(this)">Kwai</button>
           </div>
         </div>
-        <div class="form-group"><label>Estrelas</label>
-          <select id="post-group">
-          <option value="Geral">Geral</option>
-          <option value="Casais">Casais</option>
-          <option value="Apoio">Apoio</option>
-          <option value="Apoio Geral">Apoio Geral</option>
-          <option value="Prova Social">Prova Social</option>
-          <option value="Viajantes">Viajantes</option>
-          <option value="Empreendedores">Empreendedores</option>
-          <option value="Mães">Mães</option>
-          <option value="Fitness">Fitness</option>
-          <option value="Professores">Professores</option>
-          <option value="Revendedores">Revendedores</option>
-          <option value="Estudantes">Estudantes</option>
-          <option value="Fashionistas">Fashionistas</option>
-          </select>
-        </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
           <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube"/>
@@ -1217,7 +1200,7 @@ async function schedulePost(publishNow = false) {
   const text = document.getElementById('post-text').value.trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
-  const group = document.getElementById('post-group').value;
+  const group = 'Geral';
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -1232,7 +1215,6 @@ async function schedulePost(publishNow = false) {
 
   if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Selecione ao menos uma plataforma', 'err');
-  if (!group) return showToast('Selecione a estrela/grupo', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
   const formData = new FormData();
