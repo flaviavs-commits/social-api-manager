@@ -210,7 +210,7 @@ async function publicarYoutube(token, post) {
       title,
       description
     },
-    status: { privacyStatus: 'public' }
+    status: { privacyStatus: post.youtubeVisibility || 'public' }
   }
 
   const form = new FormData()

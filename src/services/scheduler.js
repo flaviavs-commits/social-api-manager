@@ -12,7 +12,7 @@ async function buscarPostsPendentes() {
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
+      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
     FROM posts
     WHERE status = 'scheduled' AND scheduled_at <= NOW()
   `)

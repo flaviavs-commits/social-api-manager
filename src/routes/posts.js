@@ -71,12 +71,14 @@ router.get('/', async (req, res) => {
 // POST /api/posts
 router.post('/', upload.array('media', 10), async (req, res) => {
   try {
-    const { text, group, scheduledAt, repeat = 'none', youtubeTitle } = req.body
+    const { text, group, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public' } = req.body
 
     if (text !== undefined && text.length > 5000)
       return res.status(400).json({ erro: 'O texto do post pode ter no máximo 5000 caracteres.' })
     if (youtubeTitle !== undefined && youtubeTitle.length > 100)
       return res.status(400).json({ erro: 'O título do vídeo pode ter no máximo 100 caracteres.' })
+    if (!['public', 'unlisted', 'private'].includes(youtubeVisibility))
+      return res.status(400).json({ erro: 'youtubeVisibility inválido. Use public, unlisted ou private.' })
     if (!group || typeof group !== 'string' || group.length > 50)
       return res.status(400).json({ erro: 'Selecione uma estrela/grupo válida.' })
 
@@ -165,7 +167,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       }
     }
 
-    const post = await repo.criarPost({ text: text?.trim() || null, platforms, group_name: group, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeIsShort, userId: req.user.id })
+    const post = await repo.criarPost({ text: text?.trim() || null, platforms, group_name: group, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort, userId: req.user.id })
     res.status(201).json(post)
   } catch (e) {
     serverError(res, e, 'Não foi possível agendar o post')

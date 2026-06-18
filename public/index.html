@@ -435,6 +435,14 @@ input, select, textarea, .modal-overlay, .nav-section, label {
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
           <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube"/>
         </div>
+        <div class="form-group" id="post-youtube-visibility-group" style="display:none">
+          <label>Visibilidade (YouTube)</label>
+          <select id="post-youtube-visibility">
+            <option value="public">Público</option>
+            <option value="unlisted">Não listado</option>
+            <option value="private">Privado</option>
+          </select>
+        </div>
         <div class="form-group"><label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..."></textarea>
         </div>
@@ -880,6 +888,7 @@ function togglePlat(btn) {
   else { selectedPlats.add(plat); btn.classList.add('primary'); }
   updateMediaAccept();
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
+  document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
 }
 
 // Lista de mídias selecionadas para o post (carrossel se houver mais de uma).
@@ -1222,6 +1231,7 @@ async function handleDrivePicked(data) {
 async function schedulePost(publishNow = false) {
   const text = document.getElementById('post-text').value.trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
+  const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const group = document.getElementById('post-group').value;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
@@ -1243,6 +1253,7 @@ async function schedulePost(publishNow = false) {
   const formData = new FormData();
   formData.append('text', text);
   formData.append('youtubeTitle', youtubeTitle);
+  formData.append('youtubeVisibility', youtubeVisibility);
   formData.append('platforms', JSON.stringify(platforms));
   formData.append('group', group);
   formData.append('scheduledAt', scheduledAt);
@@ -1255,6 +1266,7 @@ async function schedulePost(publishNow = false) {
     showToast(publishNow ? 'Post enviado para publicação imediata!' : 'Post agendado com sucesso!', 'ok');
     document.getElementById('post-text').value = '';
     document.getElementById('post-youtube-title').value = '';
+    document.getElementById('post-youtube-visibility').value = 'public';
     mediaFiles = [];
     updateMediaPreview();
     loadQueue();

@@ -1,11 +1,11 @@
 const pool = require('../db/pool')
 
-async function criarPost({ text, platforms, group_name, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeIsShort = null, userId }) {
+async function criarPost({ text, platforms, group_name, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, userId }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, platforms, group_name, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_is_short, user_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    INSERT INTO posts (text, platforms, group_name, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, user_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING *
-  `, [text, platforms, group_name, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeIsShort, userId])
+  `, [text, platforms, group_name, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, userId])
   return rows[0]
 }
 
@@ -21,7 +21,7 @@ async function listarPosts({ status, userId, isAdmin } = {}) {
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
+      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
     FROM posts
     ${where}
     ORDER BY scheduled_at ASC
@@ -44,7 +44,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       id, text, platforms, group_name AS "group",
       scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_is_short AS "youtubeIsShort"
+      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
     FROM posts
     WHERE id = $1
   `, [id])
