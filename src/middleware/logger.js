@@ -1,7 +1,7 @@
 const { registrarLog } = require('../repositories/logsRepository')
 
-function addLog(type, message, platform = null, accountId = null) {
-  return registrarLog({ type, message, platform, conta_id: accountId })
+function addLog(type, message, platform = null, accountId = null, userId = null) {
+  return registrarLog({ type, message, platform, conta_id: accountId, user_id: userId })
     .catch(err => console.error('Erro ao registrar log:', err.message))
 }
 

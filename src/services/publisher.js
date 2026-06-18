@@ -335,7 +335,7 @@ async function publishPost(post) {
     if (!token) {
       const msg = `Nenhuma conta de ${platform} conectada na estrela "${post.group}"`
       results.push({ platform, success: false, error: msg })
-      await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform })
+      await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
       continue
     }
 
@@ -346,6 +346,13 @@ async function publishPost(post) {
         token = await buscarContaToken(platform, post.group)
       } else {
         results.push({ platform, success: false, account: token.handle || token.accountName, error: renewal.message })
+        await registrarLog({
+          type: 'err',
+          message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${renewal.message}`,
+          platform,
+          conta_id: token.contaId,
+          user_id: post.userId
+        })
         continue
       }
     }
@@ -359,14 +366,16 @@ async function publishPost(post) {
           type: 'warn',
           message: `Publicação simulada [${platform}] na conta "${token.handle || token.accountName}" — ${data.mensagem || 'não foi postado de fato'}`,
           platform,
-          conta_id: token.contaId
+          conta_id: token.contaId,
+          user_id: post.userId
         })
       } else {
         await registrarLog({
           type: 'ok',
           message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
           platform,
-          conta_id: token.contaId
+          conta_id: token.contaId,
+          user_id: post.userId
         })
       }
     } catch (err) {
@@ -375,7 +384,8 @@ async function publishPost(post) {
         type: 'err',
         message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${err.message}`,
         platform,
-        conta_id: token.contaId
+        conta_id: token.contaId,
+        user_id: post.userId
       })
     }
   }

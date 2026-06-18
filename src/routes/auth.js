@@ -47,8 +47,9 @@ router.post('/login', loginLimiter, async (req, res) => {
     return res.status(400).json({ erro: 'Informe um e-mail válido.' })
   }
 
+  let user
   try {
-    const user = await usersRepo.buscarPorEmail(email)
+    user = await usersRepo.buscarPorEmail(email)
     if (!user) {
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' })
     }
@@ -60,13 +61,15 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const senhaOk = await bcrypt.compare(password, cred.password_hash)
     if (!senhaOk) {
+      addLog('err', 'Falha no login: senha incorreta', null, null, user.id)
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' })
     }
 
     req.session.userId = user.id
+    addLog('ok', 'Login realizado com sucesso', null, null, user.id)
     res.json({ ok: true })
   } catch (err) {
-    addLog('err', `Falha no login: ${err.message}`)
+    addLog('err', `Falha no login: ${err.message}`, null, null, user?.id)
     res.status(500).json({ erro: 'Não foi possível entrar agora. Tente novamente em alguns instantes.' })
   }
 })
@@ -93,6 +96,7 @@ router.post('/register', loginLimiter, async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10)
     await credentialsRepo.criar(user.id, passwordHash)
     req.session.userId = user.id
+    addLog('ok', 'Conta criada com sucesso', null, null, user.id)
     res.json({ ok: true })
   } catch (err) {
     addLog('err', `Falha ao criar conta: ${err.message}`)
@@ -236,6 +240,7 @@ router.get('/google/callback', async (req, res) => {
     }
 
     req.session.userId = user.id
+    addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
     res.redirect('/')
   } catch (err) {
     addLog('err', `Falha no login com Google: ${err.message}`)

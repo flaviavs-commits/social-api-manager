@@ -137,20 +137,20 @@ router.get('/meta', requireAuth, (req, res) => {
     `&state=${state}` +
     `&response_type=code`;
 
-  addLog('info', `OAuth Facebook iniciado para "${accountName}"`, platform);
+  addLog('info', `OAuth Facebook iniciado para "${accountName}"`, platform, null, req.user.id);
   res.json({ authUrl: url });
 });
 
 router.get('/meta/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
-  if (error) {
-    addLog('err', `OAuth Facebook cancelado pelo usuário: ${error}`);
-    return res.send(popupError('oauth_cancelled'));
-  }
-
   let meta = {};
   try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth Facebook cancelado pelo usuário: ${error}`, null, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
 
   if (!meta.userId) {
     addLog('err', 'Falha no callback Facebook: state inválido ou sem usuário associado');
@@ -181,10 +181,10 @@ router.get('/meta/callback', async (req, res) => {
       accountName: meta.accountName || 'Nova Conta Facebook'
     });
 
-    addLog('ok', `Conta Facebook conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id);
+    addLog('ok', `Conta Facebook conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
-    addLog('err', `Falha no callback Facebook: ${err.message}`);
+    addLog('err', `Falha no callback Facebook: ${err.message}`, null, null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
 });
@@ -221,22 +221,22 @@ router.get('/instagram', requireAuth, (req, res) => {
     `&state=${state}` +
     `&response_type=code`;
 
-  addLog('info', `OAuth Instagram iniciado para "${accountName}"`, platform);
+  addLog('info', `OAuth Instagram iniciado para "${accountName}"`, platform, null, req.user.id);
   res.json({ authUrl: url });
 });
 
 router.get('/instagram/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
-  if (error) {
-    addLog('err', `OAuth Instagram cancelado pelo usuário: ${error}`);
-    return res.send(popupError('oauth_cancelled'));
-  }
-
   let meta = {};
   try { meta = verifyState(state); } catch {}
 
   const platform = 'instagram';
+
+  if (error) {
+    addLog('err', `OAuth Instagram cancelado pelo usuário: ${error}`, platform, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
 
   if (!meta.userId) {
     addLog('err', 'Falha no callback Instagram: state inválido ou sem usuário associado', platform);
@@ -258,7 +258,7 @@ router.get('/instagram/callback', async (req, res) => {
     });
 
     if (shortData.error_message || !shortData.access_token) {
-      addLog('err', `Erro ao obter token Instagram: ${shortData.error_message || JSON.stringify(shortData)}`, platform);
+      addLog('err', `Erro ao obter token Instagram: ${shortData.error_message || JSON.stringify(shortData)}`, platform, null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -269,7 +269,7 @@ router.get('/instagram/callback', async (req, res) => {
       `&access_token=${encodeURIComponent(shortData.access_token)}`);
 
     if (longData.error || !longData.access_token) {
-      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform);
+      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform, null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -295,10 +295,10 @@ router.get('/instagram/callback', async (req, res) => {
       accountName
     });
 
-    addLog('ok', `Conta Instagram conectada: "${accountName}" — token expira em 60 dias`, platform, conta.id);
+    addLog('ok', `Conta Instagram conectada: "${accountName}" — token expira em 60 dias`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
-    addLog('err', `Falha no callback Instagram: ${err.message}`, platform);
+    addLog('err', `Falha no callback Instagram: ${err.message}`, platform, null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
 });
@@ -322,19 +322,20 @@ router.get('/google', requireAuth, (req, res) => {
     `&prompt=consent` +
     `&state=${state}`;
 
-  addLog('info', `OAuth Google iniciado para "${accountName}"`, 'youtube');
+  addLog('info', `OAuth Google iniciado para "${accountName}"`, 'youtube', null, req.user.id);
   res.json({ authUrl: url });
 });
 
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) {
-    addLog('err', `OAuth Google cancelado: ${error}`);
-    return res.send(popupError('oauth_cancelled'));
-  }
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth Google cancelado: ${error}`, 'youtube', null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
 
   if (!meta.userId) {
     addLog('err', 'Falha no callback Google: state inválido ou sem usuário associado', 'youtube');
@@ -356,7 +357,7 @@ router.get('/google/callback', async (req, res) => {
     });
 
     if (tokenData.error || !tokenData.access_token) {
-      addLog('err', `Erro ao obter token Google: ${JSON.stringify(tokenData)}`, 'youtube');
+      addLog('err', `Erro ao obter token Google: ${JSON.stringify(tokenData)}`, 'youtube', null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -386,10 +387,10 @@ router.get('/google/callback', async (req, res) => {
       accountName
     });
 
-    addLog('ok', `Canal YouTube conectado: "${accountName}" — refresh token salvo`, 'youtube', conta.id);
+    addLog('ok', `Canal YouTube conectado: "${accountName}" — refresh token salvo`, 'youtube', conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
-    addLog('err', `Falha no callback Google: ${err.message}`);
+    addLog('err', `Falha no callback Google: ${err.message}`, 'youtube', null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
 });
@@ -425,7 +426,7 @@ router.get('/tiktok', requireAuth, (req, res) => {
     `&code_challenge=${codeChallenge}` +
     `&code_challenge_method=S256`;
 
-  addLog('info', `OAuth TikTok iniciado para "${accountName}"`, platform);
+  addLog('info', `OAuth TikTok iniciado para "${accountName}"`, platform, null, req.user.id);
   res.json({ authUrl: url });
 });
 
@@ -451,19 +452,20 @@ router.get('/tiktok/google', requireAuth, (req, res) => {
     `&code_challenge=${codeChallenge}` +
     `&code_challenge_method=S256`;
 
-  addLog('info', `OAuth TikTok (Google) iniciado`, platform);
+  addLog('info', `OAuth TikTok (Google) iniciado`, platform, null, req.user.id);
   res.json({ authUrl: url });
 });
 
 router.get('/tiktok/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) {
-    addLog('err', `OAuth TikTok cancelado: ${error}`);
-    return res.send(popupError('oauth_cancelled'));
-  }
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth TikTok cancelado: ${error}`, 'tiktok', null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
 
   if (!meta.userId) {
     addLog('err', 'Falha no callback TikTok: state inválido ou sem usuário associado');
@@ -492,7 +494,7 @@ router.get('/tiktok/callback', async (req, res) => {
     const token = tokenData.data ?? tokenData;
     if (!token?.access_token) {
       const errMsg = tokenData.error?.message || tokenData.error_description || 'token_failed';
-      addLog('err', `Erro ao obter token TikTok: ${errMsg}`);
+      addLog('err', `Erro ao obter token TikTok: ${errMsg}`, 'tiktok', null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -526,10 +528,10 @@ router.get('/tiktok/callback', async (req, res) => {
       accountName
     });
 
-    addLog('ok', `Conta TikTok conectada: "${accountName}"`, 'tiktok', conta.id);
+    addLog('ok', `Conta TikTok conectada: "${accountName}"`, 'tiktok', conta.id, meta.userId);
     res.send(popupSuccess(tiktokUsername));
   } catch (err) {
-    addLog('err', `Falha no callback TikTok: ${err.message}`);
+    addLog('err', `Falha no callback TikTok: ${err.message}`, 'tiktok', null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
 });
@@ -563,10 +565,10 @@ router.get('/kwai', requireAuth, async (req, res) => {
       accountName: name
     });
 
-    addLog('ok', `Conta Kwai conectada: "${name}" — token expira em 30 dias`, platform, conta.id);
+    addLog('ok', `Conta Kwai conectada: "${name}" — token expira em 30 dias`, platform, conta.id, req.user.id);
     res.json({ connected: true, accountId: conta.id });
   } catch (err) {
-    addLog('err', `Falha ao conectar Kwai: ${err.message}`, platform);
+    addLog('err', `Falha ao conectar Kwai: ${err.message}`, platform, null, req.user.id);
     res.status(500).json({ error: 'Falha ao conectar conta Kwai' });
   }
 });

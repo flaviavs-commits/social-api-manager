@@ -3,21 +3,24 @@ const pool = require('../db/pool')
 // Clientes SSE conectados: Map<res, { userId, isAdmin }>
 const sseClients = new Map()
 
-// Um log "pertence" a um usuário se a conta associada (conta_id) for dele.
-// Logs sem conta_id (eventos gerais do sistema) só vão para administradores.
+// Um log "pertence" a um usuário se a conta associada (conta_id) for dele,
+// ou se o log foi gravado diretamente com o user_id dele (ex: erro antes de
+// existir uma conta/token, como falha de OAuth ou post sem conta conectada).
+// Logs sem conta_id nem user_id (eventos gerais do sistema) só vão para administradores.
 async function logVisivelPara(log, userId, isAdmin) {
   if (isAdmin) return true
+  if (log.user_id) return log.user_id === userId
   if (!log.conta_id) return false
   const { rows: [row] } = await pool.query(`SELECT user_id FROM contas WHERE id = $1`, [log.conta_id])
   return row && row.user_id === userId
 }
 
-async function registrarLog({ type, message, platform = null, conta_id = null }) {
+async function registrarLog({ type, message, platform = null, conta_id = null, user_id = null }) {
   const { rows: [log] } = await pool.query(`
-    INSERT INTO logs (type, message, platform, conta_id)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO logs (type, message, platform, conta_id, user_id)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *
-  `, [type, message, platform, conta_id])
+  `, [type, message, platform, conta_id, user_id])
 
   // Broadcast só para clientes que podem ver esse log (dono da conta ou admin)
   const payload = JSON.stringify({
@@ -39,7 +42,7 @@ async function registrarLog({ type, message, platform = null, conta_id = null })
 }
 
 async function listarLogs(limit = 50, userId, isAdmin) {
-  const where = isAdmin ? '' : `WHERE l.conta_id IN (SELECT id FROM contas WHERE user_id = $2)`
+  const where = isAdmin ? '' : `WHERE l.user_id = $2 OR l.conta_id IN (SELECT id FROM contas WHERE user_id = $2)`
   const params = isAdmin ? [limit] : [limit, userId]
   const { rows } = await pool.query(`
     SELECT l.id, l.type, l.message, l.platform, l.criado_em AS timestamp
