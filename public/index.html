@@ -1700,9 +1700,11 @@ async function startOAuthGoogle() {
   if (!email) return showToast('Informe o e-mail da pessoa.', 'err');
 
   // Abre a janela em branco já dentro do clique do usuário (gesto síncrono),
-  // senão o navegador bloqueia o popup quando window.open só é chamado após
-  // o await do fetch abaixo.
-  const popup = window.open('', '_blank', 'width=640,height=720');
+  // com nome único — senão o navegador bloqueia o popup quando window.open
+  // só é chamado após o await do fetch abaixo, ou reaproveita uma janela
+  // "_blank" antiga ao reusar o mesmo nome.
+  const popupName = 'oauth_' + Date.now();
+  const popup = window.open('', popupName, 'width=640,height=720');
 
   const btn = document.querySelector('#modal-tiktok-google button');
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
@@ -1715,8 +1717,8 @@ async function startOAuthGoogle() {
     if (!res.ok || data.error) { if (popup) popup.close(); showOAuthConfigError(data || { error: `HTTP ${res.status}` }); return; }
 
     closeModal();
-    if (popup) popup.location = data.authUrl;
-    else window.open(data.authUrl, '_blank', 'width=640,height=720');
+    if (popup && !popup.closed) popup.location.href = data.authUrl;
+    else window.open(data.authUrl, popupName, 'width=640,height=720');
   } catch (e) {
     if (popup) popup.close();
     showToast('Erro de conexão: ' + e.message, 'err');
@@ -1739,7 +1741,9 @@ async function startOAuth() {
 
   // Kwai não usa popup (conecta direto no servidor), então só reservamos a
   // janela em branco para as plataformas que de fato abrem OAuth externo.
-  const popup = platform !== 'kwai' ? window.open('', '_blank', 'width=640,height=720') : null;
+  // Nome único evita reaproveitar/colidir com uma janela "_blank" anterior.
+  const popupName = 'oauth_' + Date.now();
+  const popup = platform !== 'kwai' ? window.open('', popupName, 'width=640,height=720') : null;
 
   const btn = document.querySelector('#modal-nova-conta .btn-accent');
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
@@ -1766,8 +1770,8 @@ async function startOAuth() {
 
     closeModal();
     showToast('Abrindo janela de autorização da conta...', 'ok');
-    if (popup) popup.location = data.authUrl;
-    else window.open(data.authUrl, '_blank', 'width=640,height=720');
+    if (popup && !popup.closed) popup.location.href = data.authUrl;
+    else window.open(data.authUrl, popupName, 'width=640,height=720');
   } catch (e) {
     if (popup) popup.close();
     showToast('Erro de conexão: ' + e.message, 'err');
