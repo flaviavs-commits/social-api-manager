@@ -1210,8 +1210,23 @@ async function schedulePost(publishNow = false) {
   formData.append('captions', JSON.stringify(mediaFiles.map(m => m.caption)));
 
   try {
-    await apiFetch('/api/posts', { method: 'POST', body: formData });
-    showToast(publishNow ? 'Post enviado para publicação imediata!' : 'Post agendado com sucesso!', 'ok');
+    const post = await apiFetch('/api/posts', { method: 'POST', body: formData });
+
+    if (publishNow) {
+      showToast('Publicando agora...', 'ok');
+      const { status, results } = await apiFetch(`/api/posts/${post.id}/publish`, { method: 'POST' });
+      if (status === 'published') {
+        showToast('Post publicado com sucesso!', 'ok');
+      } else if (status === 'partial') {
+        showToast('Post publicado parcialmente — alguma plataforma falhou. Veja o Histórico de Atividades.', 'warn');
+      } else {
+        const erro = results.find(r => !r.success)?.error;
+        showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
+      }
+    } else {
+      showToast('Post agendado com sucesso!', 'ok');
+    }
+
     document.getElementById('post-text').value = '';
     document.getElementById('post-youtube-title').value = '';
     document.getElementById('post-youtube-visibility').value = 'public';
