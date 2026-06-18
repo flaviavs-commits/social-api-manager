@@ -7,10 +7,16 @@ const tokensRepo = require('./../repositories/tokensRepository')
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
-// ── Busca a conta+token conectados para a plataforma, do dono do post ────────
+// ── Busca a conta+token conectados para a plataforma ─────────────────────────
+// Por padrão, restringe ao dono do post. Super admins podem publicar usando
+// qualquer conta conectada no sistema (de qualquer usuário), então para eles
+// a busca ignora o dono e pega a mais recente entre todas.
 // Se o usuário tiver mais de uma conta da mesma plataforma conectada, usa a
 // mais recente (não há mais agrupamento por estrela/nicho).
-async function buscarContaToken(platform, userId) {
+async function buscarContaToken(platform, userId, isSuperAdmin = false) {
+  const ownerFilter = isSuperAdmin ? '' : 'AND c.user_id = $2'
+  const params = isSuperAdmin ? [platform] : [platform, userId]
+
   const { rows } = await pool.query(`
     SELECT
       t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
@@ -18,10 +24,10 @@ async function buscarContaToken(platform, userId) {
       t.status, t.expires_at AS "expiresAt", c.handle AS handle
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
-    WHERE t.platform = $1 AND c.user_id = $2
+    WHERE t.platform = $1 ${ownerFilter}
     ORDER BY t.id DESC
     LIMIT 1
-  `, [platform, userId])
+  `, params)
 
   return rows[0] || null
 }
@@ -313,6 +319,7 @@ const PUBLISHERS = {
 // ── Publica um post (já salvo no banco) em todas as suas plataformas ─────────────
 async function publishPost(post) {
   const results = []
+  const isSuperAdmin = post.userRole === 'super_admin'
 
   for (const platform of post.platforms) {
     const publisher = PUBLISHERS[platform]
@@ -321,7 +328,7 @@ async function publishPost(post) {
       continue
     }
 
-    let token = await buscarContaToken(platform, post.userId)
+    let token = await buscarContaToken(platform, post.userId, isSuperAdmin)
     if (!token) {
       const msg = `Nenhuma conta de ${platform} conectada`
       results.push({ platform, success: false, error: msg })
@@ -336,7 +343,7 @@ async function publishPost(post) {
     if (token.status !== 'valid') {
       const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
       if (renewal.success) {
-        token = await buscarContaToken(platform, post.userId)
+        token = await buscarContaToken(platform, post.userId, isSuperAdmin)
       } else {
         results.push({ platform, success: false, account: token.handle || token.accountName, error: renewal.message })
         await registrarLog({

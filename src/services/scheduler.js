@@ -9,12 +9,14 @@ const tokensRepo = require('../repositories/tokensRepository')
 async function buscarPostsPendentes() {
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms,
-      scheduled_at AS "scheduledAt", repeat, status, user_id AS "userId",
-      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
-    FROM posts
-    WHERE status = 'scheduled' AND scheduled_at <= NOW()
+      p.id, p.text, p.platforms,
+      p.scheduled_at AS "scheduledAt", p.repeat, p.status, p.user_id AS "userId",
+      p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
+      p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_is_short AS "youtubeIsShort",
+      u.role AS "userRole"
+    FROM posts p
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE p.status = 'scheduled' AND p.scheduled_at <= NOW()
   `)
   return rows
 }

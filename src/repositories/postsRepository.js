@@ -41,12 +41,14 @@ async function deletarPost(id, userId, isAdmin) {
 async function buscarPostPorId(id, userId, isAdmin) {
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms,
-      scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
-      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort"
-    FROM posts
-    WHERE id = $1
+      p.id, p.text, p.platforms,
+      p.scheduled_at AS "scheduledAt", p.repeat, p.status, p.criado_em, p.user_id AS "userId",
+      p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
+      p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_is_short AS "youtubeIsShort",
+      u.role AS "userRole"
+    FROM posts p
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE p.id = $1
   `, [id])
   const post = rows[0] || null
   if (!post) return null
