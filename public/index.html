@@ -684,6 +684,7 @@ function showToast(msg, type = 'ok') {
 // ── Sair da conta ────────────────────────────────────────────────────────────
 async function logout() {
   try { await fetch('/auth/login/logout', { method: 'POST' }); } catch {}
+  try { localStorage.setItem('lastLogoutAt', String(Date.now())); } catch {}
   window.location.href = '/login.html';
 }
 

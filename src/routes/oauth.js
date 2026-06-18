@@ -4,8 +4,75 @@ const crypto = require('crypto');
 const contasRepo = require('../repositories/contasRepository');
 const tokensRepo = require('../repositories/tokensRepository');
 const { addLog } = require('../middleware/logger');
+const requireAuth = require('../middleware/requireAuth');
 
 const tiktokPKCEStore = new Map(); // state -> code_verifier
+
+// O callback de OAuth é navegado pelo provedor externo (Instagram/Google/...)
+// de volta para o nosso domínio. Nesse ponto o cookie de sessão pode não
+// chegar de forma confiável (popup + redirect cross-site), então não dá pra
+// depender de req.user ali. Em vez disso, assinamos o userId dentro do
+// próprio "state" (HMAC com SESSION_SECRET) — o provedor devolve esse state
+// inalterado, e validamos a assinatura no callback antes de usá-lo.
+function signState(payload) {
+  const json = JSON.stringify(payload);
+  const sig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(json).digest('hex');
+  return Buffer.from(JSON.stringify({ ...payload, sig })).toString('base64');
+}
+
+function verifyState(state) {
+  const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
+  const { sig, ...payload } = decoded;
+  const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(JSON.stringify(payload)).digest('hex');
+  if (sig !== expectedSig) throw new Error('state inválido ou adulterado');
+  return payload;
+}
+
+// As APIs de OAuth (Meta/Instagram/Google/TikTok) ocasionalmente respondem com
+// falhas transitórias (5xx ou erros instáveis tipo "Unsupported request" da
+// Graph API). Sem retry, isso derruba a conexão da conta mesmo quando uma
+// segunda tentativa teria funcionado.
+async function fetchWithRetry(url, options, { retries = 2, delayMs = 600 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.status >= 500 && attempt < retries) {
+        await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+// Algumas respostas de erro da Graph API (ex: "Unsupported request - method
+// type: get") são falhas momentâneas do lado da Meta, não problemas reais de
+// payload — uma nova tentativa idêntica costuma funcionar.
+function isTransientGraphError(data) {
+  const msg = data?.error?.message || data?.error_message || '';
+  return /unsupported request/i.test(msg);
+}
+
+async function fetchJsonWithRetry(url, options, { retries = 2, delayMs = 600 } = {}) {
+  let lastData;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetchWithRetry(url, options, { retries: 0 });
+    const data = await res.json();
+    if (res.ok && !data.error && !data.error_message) return { res, data };
+    lastData = { res, data };
+    if (attempt < retries && (res.status >= 500 || isTransientGraphError(data))) {
+      await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+      continue;
+    }
+    return lastData;
+  }
+  return lastData;
+}
 
 function popupSuccess(tiktokUser) {
   const profileScript = tiktokUser
@@ -50,13 +117,13 @@ function checkEnv(vars, platform) {
 
 // ─── Facebook ─────────────────────────────────────────────────────────────────
 
-router.get('/meta', (req, res) => {
+router.get('/meta', requireAuth, (req, res) => {
   const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'META_REDIRECT_URI'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, group, email } = req.query;
   const platform = 'facebook';
-  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
+  const state = signState({ accountName, group, email, platform, userId: req.user.id });
   const scopes = [
     'pages_manage_posts',
     'pages_read_engagement',
@@ -83,7 +150,12 @@ router.get('/meta/callback', async (req, res) => {
   }
 
   let meta = {};
-  try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
+  try { meta = verifyState(state); } catch {}
+
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback Facebook: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
 
   try {
     // Em produção: troca code por access_token
@@ -98,7 +170,7 @@ router.get('/meta/callback', async (req, res) => {
       platform,
       group: meta.group || 'Geral',
       email: meta.email,
-      userId: req.user.id
+      userId: meta.userId
     });
 
     await tokensRepo.salvarToken({
@@ -119,7 +191,7 @@ router.get('/meta/callback', async (req, res) => {
 
 // ─── Instagram (Instagram API with Instagram Login) ───────────────────────────
 
-router.get('/instagram', (req, res) => {
+router.get('/instagram', requireAuth, (req, res) => {
   const configError = checkEnv(['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET', 'INSTAGRAM_REDIRECT_URI'], 'instagram');
   if (configError) {
     configError.steps = [
@@ -134,7 +206,7 @@ router.get('/instagram', (req, res) => {
 
   const { accountName, group, email } = req.query;
   const platform = 'instagram';
-  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
+  const state = signState({ accountName, group, email, platform, userId: req.user.id });
   const scopes = [
     'instagram_business_basic',
     'instagram_business_content_publish',
@@ -162,13 +234,18 @@ router.get('/instagram/callback', async (req, res) => {
   }
 
   let meta = {};
-  try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
+  try { meta = verifyState(state); } catch {}
 
   const platform = 'instagram';
 
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback Instagram: state inválido ou sem usuário associado', platform);
+    return res.send(popupError('oauth_failed'));
+  }
+
   try {
     // 1. Troca o code por um token de curta duração
-    const shortRes = await fetch('https://api.instagram.com/oauth/access_token', {
+    const { res: shortRes, data: shortData } = await fetchJsonWithRetry('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -179,7 +256,6 @@ router.get('/instagram/callback', async (req, res) => {
         code
       })
     });
-    const shortData = await shortRes.json();
 
     if (shortData.error_message || !shortData.access_token) {
       addLog('err', `Erro ao obter token Instagram: ${shortData.error_message || JSON.stringify(shortData)}`, platform);
@@ -187,20 +263,18 @@ router.get('/instagram/callback', async (req, res) => {
     }
 
     // 2. Troca o token de curta duração por um long-lived token (60 dias)
-    const longRes = await fetch(`https://graph.instagram.com/access_token` +
+    const { data: longData } = await fetchJsonWithRetry(`https://graph.instagram.com/access_token` +
       `?grant_type=ig_exchange_token` +
       `&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET)}` +
       `&access_token=${encodeURIComponent(shortData.access_token)}`);
-    const longData = await longRes.json();
 
     if (longData.error || !longData.access_token) {
-      addLog('err', `Erro ao gerar long-lived token Instagram (status ${longRes.status}): ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform);
+      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform);
       return res.send(popupError('token_failed'));
     }
 
     // 3. Busca o username da conta conectada
-    const profileRes = await fetch(`https://graph.instagram.com/me?fields=user_id,username&access_token=${longData.access_token}`);
-    const profileData = await profileRes.json();
+    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/me?fields=user_id,username&access_token=${longData.access_token}`);
     const accountName = meta.accountName || profileData.username || 'Nova Conta Instagram';
 
     const expiresAt = new Date(Date.now() + (longData.expires_in || 60 * 86400) * 1000).toISOString();
@@ -210,7 +284,7 @@ router.get('/instagram/callback', async (req, res) => {
       platform,
       group: meta.group || 'Geral',
       email: meta.email,
-      userId: req.user.id
+      userId: meta.userId
     });
 
     await tokensRepo.salvarToken({
@@ -231,9 +305,9 @@ router.get('/instagram/callback', async (req, res) => {
 
 // ─── Google / YouTube ──────────────────────────────────────────────────────────
 
-router.get('/google', (req, res) => {
+router.get('/google', requireAuth, (req, res) => {
   const { accountName, group, email } = req.query;
-  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform: 'youtube' })).toString('base64');
+  const state = signState({ accountName, group, email, platform: 'youtube', userId: req.user.id });
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
@@ -261,11 +335,16 @@ router.get('/google/callback', async (req, res) => {
   }
 
   let meta = {};
-  try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
+  try { meta = verifyState(state); } catch {}
+
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback Google: state inválido ou sem usuário associado', 'youtube');
+    return res.send(popupError('oauth_failed'));
+  }
 
   try {
     // 1. Troca o code pelos tokens reais
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    const { data: tokenData } = await fetchJsonWithRetry('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -276,7 +355,6 @@ router.get('/google/callback', async (req, res) => {
         code
       })
     });
-    const tokenData = await tokenRes.json();
 
     if (tokenData.error || !tokenData.access_token) {
       addLog('err', `Erro ao obter token Google: ${JSON.stringify(tokenData)}`, 'youtube');
@@ -284,10 +362,9 @@ router.get('/google/callback', async (req, res) => {
     }
 
     // 2. Busca o nome do canal conectado
-    const channelRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+    const { data: channelData } = await fetchJsonWithRetry('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
     });
-    const channelData = await channelRes.json();
     const channelTitle = channelData.items?.[0]?.snippet?.title;
     const accountName = meta.accountName || channelTitle || 'Novo Canal YouTube';
 
@@ -298,7 +375,7 @@ router.get('/google/callback', async (req, res) => {
       platform: 'youtube',
       group: meta.group || 'Geral',
       email: meta.email,
-      userId: req.user.id
+      userId: meta.userId
     });
 
     await tokensRepo.salvarToken({
@@ -320,13 +397,13 @@ router.get('/google/callback', async (req, res) => {
 
 // ─── TikTok ───────────────────────────────────────────────────────────────────
 
-router.get('/tiktok', (req, res) => {
+router.get('/tiktok', requireAuth, (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, group, email } = req.query;
   const platform = 'tiktok';
-  const state = Buffer.from(JSON.stringify({ accountName, group, email, platform })).toString('base64');
+  const state = signState({ accountName, group, email, platform, userId: req.user.id });
   const scopes = [
     'user.info.basic',
     'user.info.profile',
@@ -353,13 +430,13 @@ router.get('/tiktok', (req, res) => {
   res.json({ authUrl: url });
 });
 
-router.get('/tiktok/google', (req, res) => {
+router.get('/tiktok/google', requireAuth, (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, group, email } = req.query;
   const platform = 'tiktok';
-  const state = Buffer.from(JSON.stringify({ platform, via: 'google', accountName, group, email })).toString('base64');
+  const state = signState({ platform, via: 'google', accountName, group, email, userId: req.user.id });
   const scopes = ['user.info.basic', 'video.publish', 'video.upload'].join(',');
 
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
@@ -387,14 +464,19 @@ router.get('/tiktok/callback', async (req, res) => {
   }
 
   let meta = {};
-  try { meta = JSON.parse(Buffer.from(state, 'base64').toString()); } catch {}
+  try { meta = verifyState(state); } catch {}
+
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback TikTok: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
 
   const codeVerifier = tiktokPKCEStore.get(state);
   tiktokPKCEStore.delete(state);
 
   try {
     // Troca o code pelo access_token real
-    const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+    const { data: tokenData } = await fetchJsonWithRetry('https://open.tiktokapis.com/v2/oauth/token/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -406,8 +488,6 @@ router.get('/tiktok/callback', async (req, res) => {
         ...(codeVerifier ? { code_verifier: codeVerifier } : {})
       })
     });
-
-    const tokenData = await tokenRes.json();
 
     // TikTok pode retornar o token na raiz ou em { data: {...} }
     const token = tokenData.data ?? tokenData;
@@ -435,7 +515,7 @@ router.get('/tiktok/callback', async (req, res) => {
       platform: 'tiktok',
       group: meta.group || 'Geral',
       email: meta.email,
-      userId: req.user.id
+      userId: meta.userId
     });
 
     await tokensRepo.salvarToken({
@@ -457,7 +537,7 @@ router.get('/tiktok/callback', async (req, res) => {
 
 // ─── Kwai (sem OAuth público - conexão simulada, igual ao Facebook) ──────────
 
-router.get('/kwai', async (req, res) => {
+router.get('/kwai', requireAuth, async (req, res) => {
   const { accountName, group, email } = req.query;
   const platform = 'kwai';
 

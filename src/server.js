@@ -41,6 +41,14 @@ app.use(session({
 
 app.use('/auth/login', authRoutes)
 
+// As rotas de OAuth (incluindo os callbacks navegados pelo provedor externo)
+// ficam fora do requireAuth global: o callback não tem garantia de que o
+// cookie de sessão chega na requisição de retorno (popup + redirect
+// cross-site), então a autenticação é validada por rota dentro de oauth.js
+// via state assinado, não pelo middleware aqui.
+app.use('/auth', oauthRoutes)
+app.use('/oauth', oauthRoutes)
+
 app.get('/admin.html', requireAuth, requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'))
 })
@@ -69,8 +77,6 @@ app.use('/api/tokens',   tokensRoutes)
 app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
-app.use('/auth',         oauthRoutes)
-app.use('/oauth',        oauthRoutes)
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'))

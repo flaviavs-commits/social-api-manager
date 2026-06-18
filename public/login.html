@@ -38,7 +38,7 @@ input:focus { outline: none; border-color: var(--accent); }
 <body>
 
 <div class="card">
-  <div class="title">Bem-vindo de volta</div>
+  <div class="title" id="title">Bem vindo de volta</div>
   <div class="subtitle">Entre para acessar o gerenciador das suas redes sociais</div>
 
   <div class="msg" id="msg"></div>
@@ -80,10 +80,33 @@ const params = new URLSearchParams(window.location.search);
 const erroUrl = params.get('error');
 if (erroUrl) showMsg(erroUrl, 'err');
 
+// Saudação por horário (fuso de Brasília) + "de volta" se o logout foi recente
+const RECENT_LOGOUT_WINDOW_MS = 30 * 60 * 1000;
+
+function greetingByHour() {
+  const hour = Number(new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false
+  }).format(new Date()));
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function isRecentLogout() {
+  const last = Number(localStorage.getItem('lastLogoutAt') || 0);
+  return last > 0 && (Date.now() - last) < RECENT_LOGOUT_WINDOW_MS;
+}
+
+function loginTitle() {
+  return isRecentLogout() ? `${greetingByHour()}, bem vindo de volta` : `${greetingByHour()}, bem vindo`;
+}
+
+document.getElementById('title').textContent = loginTitle();
+
 function toggleMode() {
   isRegister = !isRegister;
   document.getElementById('btn-submit').textContent = isRegister ? 'Criar conta' : 'Entrar';
-  document.querySelector('.title').textContent = isRegister ? 'Crie sua conta' : 'Bem-vindo de volta';
+  document.querySelector('.title').textContent = isRegister ? 'Crie sua conta' : loginTitle();
   document.getElementById('toggle-link').parentElement.innerHTML = isRegister
     ? 'Já tem conta? <a onclick="toggleMode()" id="toggle-link">Entrar</a>'
     : 'Ainda não tem conta? <a onclick="toggleMode()" id="toggle-link">Criar conta</a>';
