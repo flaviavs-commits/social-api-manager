@@ -649,7 +649,10 @@ function showToast(msg, type = 'ok') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + type;
-  setTimeout(() => t.className = 'toast', 3000);
+  // Erros ficam visíveis por mais tempo, para dar tempo de ler e investigar a causa.
+  const duration = type === 'err' ? 8000 : 3000;
+  clearTimeout(t._hideTimeout);
+  t._hideTimeout = setTimeout(() => t.className = 'toast', duration);
 }
 
 // ── Sair da conta ────────────────────────────────────────────────────────────
