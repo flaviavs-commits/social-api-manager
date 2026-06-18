@@ -884,8 +884,14 @@ const VIDEO_ONLY_PLATS = ['youtube', 'kwai'];
 
 function togglePlat(btn) {
   const plat = btn.dataset.plat;
-  if (selectedPlats.has(plat)) { selectedPlats.delete(plat); btn.classList.remove('primary'); }
-  else { selectedPlats.add(plat); btn.classList.add('primary'); }
+  const jaSelecionado = selectedPlats.has(plat);
+
+  // Apenas uma rede social pode ser selecionada por vez
+  selectedPlats.clear();
+  document.querySelectorAll('.plat-btn[data-plat]').forEach(b => b.classList.remove('primary'));
+
+  if (!jaSelecionado) { selectedPlats.add(plat); btn.classList.add('primary'); }
+
   updateMediaAccept();
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
