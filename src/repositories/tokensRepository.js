@@ -54,6 +54,7 @@ async function listarTokens({ status, platform, userId, isAdmin } = {}) {
       t.access_token AS "accessToken",
       t.expires_at AS "expiresAt", t.status,
       COALESCE(t.account_name, c.handle, 'Conta removida') AS "accountName",
+      c.avatar_url AS "avatarUrl",
       CEIL(EXTRACT(EPOCH FROM (t.expires_at - NOW())) / 86400) AS "daysLeft"
     FROM tokens t
     LEFT JOIN contas c ON c.id = t.conta_id

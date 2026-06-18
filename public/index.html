@@ -139,6 +139,15 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .token-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
 .token-table tr:hover td { background: rgba(255,255,255,0.02); }
 .token-val { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--surface2); padding: 4px 8px; border-radius: 4px; }
+.plat-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.plat-row:last-child { border-bottom: none; }
+.plat-row:hover { background: rgba(255,255,255,0.025); }
+.plat-row-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.plat-row-name { font-size: 14px; font-weight: 500; flex: 1; }
+.plat-row-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+.plat-row-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.plat-row-add { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s; font-size: 16px; }
+.plat-row-add:hover { color: var(--accent); border-color: var(--accent); }
 .expiry-ok { color: var(--green); font-size: 12px; font-family: var(--mono); }
 .expiry-warn { color: var(--yellow); font-size: 12px; font-family: var(--mono); }
 .expiry-bad { color: var(--red); font-size: 12px; font-family: var(--mono); }
@@ -374,11 +383,8 @@ input, select, textarea, .modal-overlay, .nav-section, label {
       <div><div class="page-title">Conexões das Contas</div><div class="page-sub">Veja se suas contas estão conectadas e funcionando</div></div>
       <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Reconectar expiradas</button><button class="btn btn-accent" onclick="openModal('add-token')">+ Adicionar conexão</button></div>
     </div>
-    <div class="token-table-wrap">
-    <table class="token-table">
-      <thead><tr><th>Conta</th><th>Rede Social</th><th>Conexão</th><th>Validade</th><th>Situação</th><th></th></tr></thead>
-      <tbody id="token-body"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:2rem">carregando...</td></tr></tbody>
-    </table>
+    <div class="plat-list" id="token-body" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="text-align:center;color:var(--muted);padding:2rem">carregando...</div>
     </div>
   </div>
 
@@ -740,32 +746,52 @@ async function loadDashboard() {
 }
 
 // ── Tokens ───────────────────────────────────────────────────────────────────
+const PLAT_ROW_CFG = {
+  facebook:  { cls:'fb', icon:'f',  label:'Facebook' },
+  instagram: { cls:'ig', icon:'ig', label:'Instagram' },
+  youtube:   { cls:'yt', icon:'▶',  label:'YouTube' },
+  tiktok:    { cls:'tt', icon:'tt', label:'TikTok' },
+  kwai:      { cls:'kw', icon:'kw', label:'Kwai' }
+};
+
 async function loadTokens() {
   const body = document.getElementById('token-body');
-  body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">carregando...</td></tr>';
+  body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem">carregando...</div>';
   try {
     const { tokens } = await apiFetch('/api/tokens');
-    if (tokens.length === 0) {
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">nenhuma conta conectada ainda</td></tr>';
-      return;
-    }
-    body.innerHTML = tokens.map(t => {
-      const expiryClass = t.status === 'valid' ? 'expiry-ok' : t.status === 'expiring' ? 'expiry-warn' : 'expiry-bad';
-      const statusClass = t.status === 'valid' ? 'connected' : t.status === 'expiring' ? 'partial' : 'disconnected';
-      const statusLabel = { valid:'funcionando', expiring:'vencendo', expired:'desconectada' }[t.status] || t.status;
-      const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
-      const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
-      return `<tr>
-        <td>${escapeHtml(t.accountName)}</td>
-        <td><span class="mini-pill ${t.platform}">${escapeHtml(t.platform)}</span></td>
-        <td><span class="token-val">conectada</span></td>
-        <td class="${expiryClass}">${escapeHtml(t.expiryLabel)}</td>
-        <td><span class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</span></td>
-        <td><button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${escapeHtml(btnLabel)}</button></td>
-      </tr>`;
+
+    body.innerHTML = Object.entries(PLAT_ROW_CFG).map(([platform, cfg]) => {
+      const contasDaPlataforma = tokens.filter(t => t.platform === platform);
+
+      if (!contasDaPlataforma.length) {
+        return `<div class="plat-row">
+          <div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>
+          <div class="plat-row-name">${escapeHtml(cfg.label)}</div>
+          <button class="plat-row-add" onclick="openModal('nova-conta','${platform}')" title="Conectar ${escapeHtml(cfg.label)}">+</button>
+        </div>`;
+      }
+
+      return contasDaPlataforma.map(t => {
+        const expiryClass = t.status === 'valid' ? 'expiry-ok' : t.status === 'expiring' ? 'expiry-warn' : 'expiry-bad';
+        const statusLabel = { valid:'funcionando', expiring:'vencendo', expired:'desconectada' }[t.status] || t.status;
+        const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
+        const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
+        const avatar = t.avatarUrl
+          ? `<img class="plat-row-avatar" src="${escapeHtml(t.avatarUrl)}">`
+          : `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>`;
+        return `<div class="plat-row">
+          ${avatar}
+          <div>
+            <div class="plat-row-name">${escapeHtml(cfg.label)} — ${escapeHtml(t.accountName)}</div>
+            <div class="plat-row-meta ${expiryClass}">${escapeHtml(statusLabel)} · ${escapeHtml(t.expiryLabel)}</div>
+          </div>
+          <div style="flex:1"></div>
+          <button class="${btnClass}" style="padding:4px 10px;font-size:12px" onclick="renewToken('${t.id}', this)">${escapeHtml(btnLabel)}</button>
+        </div>`;
+      }).join('');
     }).join('');
   } catch (e) {
-    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</td></tr>`;
+    body.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
   }
 }
 
