@@ -330,8 +330,11 @@ async function publishPost(post) {
     }
 
     // ── Renovação automática do token antes de publicar, se necessário ──
+    // Chamada interna do scheduler (sem requisição HTTP/usuário autenticado),
+    // então passa isAdmin=true para não exigir a checagem de propriedade do
+    // token que só faz sentido quando um usuário pede a renovação pela API.
     if (token.status !== 'valid') {
-      const renewal = await tokensRepo.renovarToken(token.token_id)
+      const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
       if (renewal.success) {
         token = await buscarContaToken(platform, post.userId)
       } else {
