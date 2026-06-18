@@ -153,6 +153,16 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     if (platforms.includes('instagram') && !items.length)
       return res.status(400).json({ erro: 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.' })
 
+    // A API do Instagram só aceita imagens em JPEG — PNG, GIF e WebP são
+    // rejeitados pelo Instagram com um erro genérico só na hora de publicar.
+    // Avisamos aqui, no upload, para o usuário entender a causa de imediato.
+    if (platforms.includes('instagram')) {
+      const imagemNaoSuportada = files.some(f => f.mimetype.startsWith('image/') && f.mimetype !== 'image/jpeg')
+      if (imagemNaoSuportada) {
+        return res.status(400).json({ erro: 'O Instagram só aceita imagens no formato JPEG. Converta a imagem para JPEG ou desmarque o Instagram.' })
+      }
+    }
+
     // Detecta se o vídeo do YouTube é elegível como Shorts: vertical (9:16) ou
     // quadrado (1:1) e com até 3 minutos. Vídeos horizontais (16:9) nunca são Shorts,
     // mesmo que curtos.
