@@ -74,7 +74,7 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
 
   const { rows } = await pool.query(`
     SELECT
-      c.id, c.platform, c.handle, c.tipo, c.ativo, c.criado_em,
+      c.id, c.platform, c.handle, c.tipo, c.ativo, c.criado_em, c.avatar_url AS "avatarUrl",
       c.user_id AS "userId", u.email AS "ownerEmail",
       JSON_AGG(
         JSON_BUILD_OBJECT(
@@ -120,7 +120,7 @@ async function buscarContaPorId(id, userId, isAdmin) {
 // handle), sem agrupamento por e-mail/nicho. Se o usuário já tem essa mesma
 // combinação (mesma plataforma + mesmo handle) conectada, reaproveita a
 // linha existente em vez de duplicar.
-async function criarContaRapida({ name, platform, userId }) {
+async function criarContaRapida({ name, platform, userId, avatarUrl = null }) {
   if (!['facebook', 'instagram', 'youtube', 'tiktok', 'kwai'].includes(platform)) {
     throw new Error('Plataforma inválida')
   }
@@ -129,13 +129,21 @@ async function criarContaRapida({ name, platform, userId }) {
     `SELECT * FROM contas WHERE platform = $1 AND handle = $2 AND user_id = $3 LIMIT 1`,
     [platform, name, userId]
   )
-  if (existente) return existente
+  if (existente) {
+    if (avatarUrl && avatarUrl !== existente.avatar_url) {
+      const { rows: [atualizada] } = await pool.query(
+        `UPDATE contas SET avatar_url = $1 WHERE id = $2 RETURNING *`, [avatarUrl, existente.id]
+      )
+      return atualizada
+    }
+    return existente
+  }
 
   const { rows: [conta] } = await pool.query(`
-    INSERT INTO contas (platform, handle, tipo, user_id)
-    VALUES ($1, $2, 'NICHO', $3)
+    INSERT INTO contas (platform, handle, tipo, user_id, avatar_url)
+    VALUES ($1, $2, 'NICHO', $3, $4)
     RETURNING *
-  `, [platform, name, userId])
+  `, [platform, name, userId, avatarUrl])
 
   return conta
 }

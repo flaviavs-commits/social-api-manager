@@ -271,8 +271,8 @@ router.get('/instagram/callback', async (req, res) => {
       return res.send(popupError('token_failed'));
     }
 
-    // 3. Busca o username da conta conectada
-    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/me?fields=user_id,username&access_token=${longData.access_token}`);
+    // 3. Busca o username e a foto de perfil da conta conectada
+    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/me?fields=user_id,username,profile_picture_url&access_token=${longData.access_token}`);
     const accountName = meta.accountName || profileData.username || 'Nova Conta Instagram';
 
     const expiresAt = new Date(Date.now() + (longData.expires_in || 60 * 86400) * 1000).toISOString();
@@ -280,7 +280,8 @@ router.get('/instagram/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform,
-      userId: meta.userId
+      userId: meta.userId,
+      avatarUrl: profileData.profile_picture_url || null
     });
 
     await tokensRepo.salvarToken({
@@ -361,15 +362,16 @@ router.get('/google/callback', async (req, res) => {
     const { data: channelData } = await fetchJsonWithRetry('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
     });
-    const channelTitle = channelData.items?.[0]?.snippet?.title;
-    const accountName = meta.accountName || channelTitle || 'Novo Canal YouTube';
+    const channelSnippet = channelData.items?.[0]?.snippet;
+    const accountName = meta.accountName || channelSnippet?.title || 'Novo Canal YouTube';
 
     const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
 
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform: 'youtube',
-      userId: meta.userId
+      userId: meta.userId,
+      avatarUrl: channelSnippet?.thumbnails?.default?.url || null
     });
 
     await tokensRepo.salvarToken({
@@ -492,15 +494,17 @@ router.get('/tiktok/callback', async (req, res) => {
       return res.send(popupError('token_failed'));
     }
 
-    // Busca o perfil para obter username
+    // Busca o perfil para obter username e foto de perfil
     let accountName = meta.accountName;
     let tiktokUsername = null;
+    let tiktokAvatarUrl = null;
     try {
-      const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username', {
+      const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username,avatar_url', {
         headers: { Authorization: `Bearer ${token.access_token}` }
       });
       const profileData = await profileRes.json();
       tiktokUsername = profileData?.data?.user?.username;
+      tiktokAvatarUrl = profileData?.data?.user?.avatar_url || null;
       if (!accountName) accountName = tiktokUsername || profileData?.data?.user?.display_name;
     } catch {}
     accountName = accountName || 'Nova Conta TikTok';
@@ -508,7 +512,8 @@ router.get('/tiktok/callback', async (req, res) => {
     const conta = await contasRepo.criarContaRapida({
       name: accountName,
       platform: 'tiktok',
-      userId: meta.userId
+      userId: meta.userId,
+      avatarUrl: tiktokAvatarUrl
     });
 
     await tokensRepo.salvarToken({
