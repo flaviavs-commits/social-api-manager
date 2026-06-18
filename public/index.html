@@ -105,6 +105,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .plat-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .plat-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.plat-icon-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .plat-icon.fb { background: rgba(79,125,240,0.15); color: var(--fb); }
 .plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
 .plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
@@ -697,13 +698,19 @@ async function loadDashboard() {
       const statusLabel = p.error > 0 ? 'partial' : 'connected';
       const statusText  = p.error > 0 ? 'parcial' : 'conectado';
 
-      // Coleta todos os links de perfil válidos para essa plataforma
+      // Coleta todos os links de perfil válidos para essa plataforma, e a
+      // primeira foto de perfil real encontrada (se alguma conta tiver).
       const links = [];
+      let avatarUrl = null;
       for (const c of contas) {
         if (c.platform !== p.platform || !c.handle) continue;
+        if (!avatarUrl && c.avatarUrl) avatarUrl = c.avatarUrl;
         const l = profileUrl(p.platform, c.handle);
         if (l) links.push({ name: c.handle, url: l });
       }
+      const platIcon = avatarUrl
+        ? `<img class="plat-icon-avatar" src="${escapeHtml(avatarUrl)}">`
+        : `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`;
       let openBtn;
       if (links.length === 0) {
         openBtn = `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
@@ -720,7 +727,7 @@ async function loadDashboard() {
       grid.innerHTML += `
         <div class="plat-card ${cfg.cls}">
           <div class="plat-header">
-            <div class="plat-name"><div class="plat-icon ${cfg.cls}">${cfg.icon}</div>${cfg.label}</div>
+            <div class="plat-name">${platIcon}${cfg.label}</div>
             <span class="status-pill ${statusLabel}">${statusText}</span>
           </div>
           <div class="plat-stats">
