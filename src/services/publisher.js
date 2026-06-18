@@ -3,6 +3,7 @@ const path = require('path')
 const pool = require('../db/pool')
 const { registrarLog } = require('../repositories/logsRepository')
 const tokensRepo = require('./../repositories/tokensRepository')
+const { gerarTokenMedia } = require('./mediaToken')
 
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -39,8 +40,13 @@ function mediaToBlob(mediaPath) {
   return { buffer, filename, absPath }
 }
 
+// Gera a URL pública que Instagram/TikTok/etc usam para baixar a mídia
+// diretamente — com um token assinado de curta duração, já que /uploads
+// normalmente exige sessão e essas APIs não enviam nosso cookie.
 function mediaUrl(mediaPath) {
-  return `${BASE_URL}${mediaPath}`
+  const filename = path.basename(mediaPath)
+  const token = gerarTokenMedia(filename)
+  return `${BASE_URL}${mediaPath}?token=${token}`
 }
 
 // ── Facebook (Graph API) ───────────────────────────────────────────────────────

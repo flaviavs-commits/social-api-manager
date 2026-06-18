@@ -15,6 +15,7 @@ const adminRoutes    = require('./routes/admin')
 const requireAuth    = require('./middleware/requireAuth')
 const requireAdmin   = require('./middleware/requireAdmin')
 const scheduler      = require('./services/scheduler')
+const { validarTokenMedia } = require('./services/mediaToken')
 
 const app = express()
 app.disable('x-powered-by')
@@ -53,9 +54,16 @@ app.get('/admin.html', requireAuth, requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'))
 })
 
-// Mídia enviada pelos usuários (fotos/vídeos de posts) só pode ser acessada
-// por quem está autenticado — nunca exposta publicamente sem login.
-app.use('/uploads', requireAuth, express.static(path.join(__dirname, '../public/uploads')))
+// Mídia enviada pelos usuários (fotos/vídeos de posts) normalmente só pode
+// ser acessada por quem está autenticado. Exceção: um link assinado de curta
+// duração (?token=...), gerado só na hora de publicar — é assim que
+// Instagram/TikTok conseguem baixar a imagem/vídeo, já que essas APIs
+// buscam a mídia direto por URL pública, sem enviar nosso cookie de sessão.
+app.use('/uploads', (req, res, next) => {
+  const filename = path.basename(req.path)
+  if (validarTokenMedia(filename, req.query.token)) return next()
+  requireAuth(req, res, next)
+}, express.static(path.join(__dirname, '../public/uploads')))
 
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
