@@ -754,7 +754,7 @@ async function loadDashboard() {
           <div class="plat-actions">
             ${openBtn}
             <button class="plat-btn" onclick="showPage('tokens')">Ver conexão</button>
-            <button class="plat-btn primary" onclick="openModal('nova-conta')">+ Conta</button>
+            <button class="plat-btn primary" onclick="openModal('nova-conta', '${p.platform}')">+ Conta</button>
           </div>
         </div>`;
     });
@@ -1452,9 +1452,16 @@ function atChangePlat(plat) {
   updateNameField('at-name', 'at-name-preview', plat);
 }
 
-function openModal(name) {
+function openModal(name, fixedPlatform) {
   if (name === 'nova-conta') {
-    updatePlatformUI(document.getElementById('modal-platform').value || 'facebook');
+    const select = document.getElementById('modal-platform');
+    if (fixedPlatform) {
+      select.value = fixedPlatform;
+      select.disabled = true;
+    } else {
+      select.disabled = false;
+    }
+    updatePlatformUI(select.value || 'facebook');
   }
   if (name === 'add-token') {
     // Inicializar com Facebook como padrão
@@ -1612,7 +1619,10 @@ function resolveInputName(inputId) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open')); }
+function closeModal() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
+  document.getElementById('modal-platform').disabled = false;
+}
 
 // ── Plataforma selecionada no modal "Conectar nova conta" ──────────────────────
 function updatePlatformUI(plat) {
