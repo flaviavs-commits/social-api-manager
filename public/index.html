@@ -664,8 +664,10 @@ function profileUrl(platform, handle) {
 
 async function loadDashboard() {
   try {
-    const { platforms, summary } = await apiFetch('/api/accounts/stats');
-    const { data: contas } = await apiFetch('/api/accounts');
+    const [{ platforms, summary }, { data: contas }] = await Promise.all([
+      apiFetch('/api/accounts/stats'),
+      apiFetch('/api/accounts')
+    ]);
 
     document.getElementById('stat-total').textContent    = summary.totalAccounts;
     document.getElementById('stat-total-sub').textContent = `↑ ${platforms.length} plataformas`;
