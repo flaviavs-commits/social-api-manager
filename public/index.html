@@ -17,22 +17,33 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; font-size: 14px; }
-.app { display: flex; flex-direction: column; min-height: 100vh; }
-.topbar { display: flex; align-items: center; gap: 4px; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 1.25rem; height: 56px; flex-shrink: 0; position: sticky; top: 0; z-index: 50; overflow-x: auto; }
+.app { display: flex; flex-direction: row; min-height: 100vh; }
+.sidebar { display: flex; flex-direction: column; width: 240px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); height: 100vh; position: sticky; top: 0; overflow-y: auto; }
 .main { flex: 1; padding: 2rem; max-width: 1100px; margin: 0 auto; width: 100%; }
-.logo { font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--text); padding-right: 1.25rem; margin-right: 0.5rem; border-right: 1px solid var(--border); white-space: nowrap; }
-.nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; border-radius: 6px; white-space: nowrap; }
+.logo { font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--text); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 1.25rem; font-size: 13px; color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
-.nav-item.active { color: var(--accent); background: rgba(91,127,255,0.1); }
+.nav-item.active { color: var(--accent); background: rgba(91,127,255,0.1); border-right: 2px solid var(--accent); }
 .nav-spacer { flex: 1; }
-.user-info { display: flex; align-items: center; gap: 8px; padding: 6px 10px; white-space: nowrap; }
+.user-info { display: flex; flex-direction: column; gap: 2px; padding: 10px 1.25rem; white-space: nowrap; border-top: 1px solid var(--border); }
 .user-name { font-size: 12px; color: var(--text); }
-.user-role { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 99px; }
+.user-role { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 99px; width: fit-content; }
 .user-role.user { background: rgba(255,255,255,0.06); color: var(--muted); }
 .user-role.admin { background: rgba(108,140,255,0.15); color: var(--accent); }
 .user-role.super_admin { background: rgba(251,191,36,0.15); color: var(--yellow); }
-.nav-section { display: none; }
-.sidebar-plat { display: none; }
+.nav-section { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 14px 1.25rem 6px; }
+.sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.sidebar-plat-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--text); cursor: pointer; transition: background 0.15s; }
+.sidebar-plat-item:hover { background: rgba(255,255,255,0.03); }
+.sidebar-plat-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; opacity: 0.5; }
+.sidebar-plat-icon.connected { opacity: 1; }
+.sidebar-plat-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.sidebar-plat-name { flex: 1; }
+.sidebar-plat-add { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border2); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 13px; transition: all 0.15s; }
+.sidebar-plat-add:hover { color: var(--accent); border-color: var(--accent); }
+.sidebar-plat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sidebar-plat-dot.connected { background: var(--green); }
+.sidebar-plat-dot.disconnected { background: var(--muted); opacity: 0.4; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; }
 .page-title { font-size: 22px; font-weight: 500; }
 .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
@@ -222,6 +233,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 }
 
 @media (max-width: 768px) {
+  .app { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .logo { border-bottom: none; border-right: 1px solid var(--border); padding: 0.75rem 1rem; }
+  .nav-section, .sidebar-plat-list, .user-info { display: none; }
+  .nav-item.active { border-right: none; border-bottom: 2px solid var(--accent); }
   .main { padding: 1rem; }
   .user-name { display: none; }
   .page-header { flex-direction: column; align-items: stretch; gap: 12px; }
@@ -278,20 +294,24 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="app">
 
-<div class="topbar" id="topbar">
+<div class="sidebar" id="sidebar">
   <div class="logo">Minhas Redes Sociais</div>
+
   <div class="nav-item active" onclick="showPage('dashboard')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     Dashboard
   </div>
-  <div class="nav-item" onclick="showPage('integracoes')">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-    Integrações
+
+  <div class="nav-section">Redes sociais</div>
+  <div class="sidebar-plat-list" id="sidebar-plat-list">
+    <div style="padding:8px 1.25rem;font-size:11px;color:var(--muted);font-family:var(--mono)">carregando...</div>
   </div>
+
   <div class="nav-item" onclick="showPage('tokens')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     Conexões das Contas
@@ -300,15 +320,25 @@ input, select, textarea, .modal-overlay, .nav-section, label {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Programar Post
   </div>
+  <div class="nav-item" onclick="showPage('integracoes')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    Integrações
+  </div>
   <div class="nav-item" onclick="showPage('logs')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
     Histórico de Atividades
+  </div>
+  <div class="nav-item" onclick="showPage('analytics')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
+    Analytics
   </div>
   <div class="nav-item" id="nav-admin" onclick="window.location.href='/admin.html'" style="display:none">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
     <span id="nav-admin-label">Administração</span>
   </div>
+
   <div class="nav-spacer"></div>
+
   <div class="user-info">
     <span class="user-name" id="user-name">—</span>
     <span class="user-role" id="user-role">—</span>
@@ -397,13 +427,10 @@ input, select, textarea, .modal-overlay, .nav-section, label {
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
         <div class="form-group">
           <label>Onde publicar</label>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="facebook" onclick="togglePlat(this)">Facebook</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="instagram" onclick="togglePlat(this)">Instagram</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="youtube" onclick="togglePlat(this)">YouTube</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="tiktok" onclick="togglePlat(this)">TikTok</button>
-            <button class="plat-btn" style="flex:0;padding:5px 12px" data-plat="kwai" onclick="togglePlat(this)">Kwai</button>
-          </div>
+          <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center" onclick="openAccountPickerModal()">
+            <span id="account-picker-label">Escolher rede e conta...</span>
+            <span style="font-size:10px;color:var(--muted)">▾</span>
+          </button>
         </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
@@ -494,6 +521,24 @@ input, select, textarea, .modal-overlay, .nav-section, label {
     <div class="log-box" id="log-box"><div style="color:var(--muted);font-size:12px">aguardando novidades...</div></div>
   </div>
 
+  <!-- ANALYTICS -->
+  <div id="page-analytics" class="section-page">
+    <div class="page-header">
+      <div><div class="page-title">Analytics</div><div class="page-sub">Posts publicados ao longo do tempo e desempenho por rede social</div></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.5rem" id="analytics-platform-filter"></div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-chart-wrap"><canvas id="analytics-chart" height="90"></canvas></div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.75rem">
+      <div style="font-size:13px;font-weight:500">Likes e comentários por post</div>
+      <div id="analytics-last-updated" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+    </div>
+    <div id="analytics-metrics-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>
+    </div>
+  </div>
+
   <div style="text-align:center;margin-top:2rem;padding-top:1rem">
     <a href="https://flaviavs-commits.github.io/social-manager-privacy/privacy.html" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:none">Política de Privacidade</a>
   </div>
@@ -578,7 +623,42 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   </div>
 </div>
 
-<!-- Modal adicionar token -->
+<!-- Modal escolher rede + conta -->
+<div class="modal-overlay" id="modal-account-picker">
+  <div class="modal" style="width:480px">
+    <div class="modal-title">Onde publicar</div>
+    <div class="modal-sub">Escolha a rede social e depois a conta que vai usar.</div>
+
+    <div class="form-group">
+      <label>Rede social</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="ap-platform-list"></div>
+    </div>
+
+    <div class="form-group">
+      <label>Conta</label>
+      <div id="ap-account-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-accent" id="ap-ok-btn" onclick="confirmAccountPicker()" disabled>OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal comentários (ler e responder) -->
+<div class="modal-overlay" id="modal-comments">
+  <div class="modal" style="width:520px;max-height:85vh">
+    <div class="modal-title">Comentários</div>
+    <div class="modal-sub">Leia e responda os comentários reais deste post.</div>
+
+    <div id="comments-list" style="max-height:50vh;overflow-y:auto"></div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -598,13 +678,15 @@ function showPage(name) {
   document.querySelectorAll('.section-page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const map = { dashboard:0, integracoes:1, tokens:2, agendador:3, logs:4 };
+  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5 };
   document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   if (name === 'dashboard') loadDashboard();
   if (name === 'tokens')    loadTokens();
   if (name === 'agendador') loadQueue();
   if (name === 'logs')      startLogStream();
+  if (name === 'analytics') startAnalyticsAutoRefresh();
+  else                      stopAnalyticsAutoRefresh();
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -677,13 +759,6 @@ async function loadDashboard() {
     document.getElementById('stat-expiring').textContent = summary.expiringTokensTotal;
     document.getElementById('stat-error').textContent    = summary.errorTotal;
 
-    // Sidebar counts
-    const platMap = { facebook:'sb-fb', instagram:'sb-ig', youtube:'sb-yt', tiktok:'sb-tt', kwai:'sb-kw' };
-    platforms.forEach(p => {
-      const el = document.getElementById(platMap[p.platform]);
-      if (el) el.textContent = p.total;
-    });
-
     // Platform cards
     const grid = document.getElementById('plat-grid');
     grid.innerHTML = '';
@@ -749,6 +824,30 @@ async function loadDashboard() {
           </div>
         </div>`;
     });
+
+    // Sidebar: lista todas as redes sociais com foto/ícone e indicador de conexão
+    const sidebarList = document.getElementById('sidebar-plat-list');
+    const statsByPlat = Object.fromEntries(platforms.map(p => [p.platform, p]));
+    sidebarList.innerHTML = Object.entries(platCfg).map(([platform, cfg]) => {
+      const stat = statsByPlat[platform];
+      const isConnected = !!stat && stat.active > 0;
+
+      let avatarUrl = null;
+      for (const c of contas) {
+        if (c.platform !== platform || !c.handle) continue;
+        if (c.avatarUrl) { avatarUrl = c.avatarUrl; break; }
+      }
+      const icon = avatarUrl
+        ? `<img class="sidebar-plat-avatar" src="${escapeHtml(avatarUrl)}">`
+        : `<div class="sidebar-plat-icon plat-icon ${cfg.cls} ${isConnected ? 'connected' : ''}">${cfg.icon}</div>`;
+
+      return `<div class="sidebar-plat-item" onclick="showPage('tokens')">
+        ${icon}
+        <span class="sidebar-plat-name">${cfg.label}</span>
+        <span class="sidebar-plat-dot ${isConnected ? 'connected' : 'disconnected'}" title="${isConnected ? 'Conectado' : 'Não conectado'}"></span>
+        ${isConnected ? '' : `<button type="button" class="sidebar-plat-add" title="Conectar ${escapeHtml(cfg.label)}" onclick="event.stopPropagation(); openModal('nova-conta','${platform}')">+</button>`}
+      </div>`;
+    }).join('');
   } catch (e) {
     showToast('Erro ao carregar dashboard: ' + e.message, 'err');
   }
@@ -834,23 +933,93 @@ async function renewAll() {
 
 // ── Agendador ────────────────────────────────────────────────────────────────
 const selectedPlats = new Set();
+let selectedAccountId = null;
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube', 'kwai'];
 
-function togglePlat(btn) {
-  const plat = btn.dataset.plat;
-  const jaSelecionado = selectedPlats.has(plat);
+const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+let apContas = [];
+let apSelectedPlatform = null;
 
-  // Apenas uma rede social pode ser selecionada por vez
+function applyPlatformSelection(plat) {
   selectedPlats.clear();
-  document.querySelectorAll('.plat-btn[data-plat]').forEach(b => b.classList.remove('primary'));
-
-  if (!jaSelecionado) { selectedPlats.add(plat); btn.classList.add('primary'); }
-
+  if (plat) selectedPlats.add(plat);
   updateMediaAccept();
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
+}
+
+async function openAccountPickerModal() {
+  apSelectedPlatform = [...selectedPlats][0] || null;
+  try {
+    const { data } = await apiFetch('/api/accounts');
+    apContas = data;
+  } catch (e) {
+    showToast('Erro ao carregar contas: ' + e.message, 'err');
+    apContas = [];
+  }
+  renderApPlatformList();
+  renderApAccountList();
+  document.getElementById('modal-account-picker').classList.add('open');
+}
+
+function renderApPlatformList() {
+  const list = document.getElementById('ap-platform-list');
+  list.innerHTML = Object.entries(AP_PLAT_LABELS).map(([plat, label]) => {
+    const active = plat === apSelectedPlatform ? 'primary' : '';
+    return `<button type="button" class="plat-btn ${active}" style="flex:0;padding:5px 12px" onclick="apSelectPlatform('${plat}')">${label}</button>`;
+  }).join('');
+}
+
+function apSelectPlatform(plat) {
+  apSelectedPlatform = plat;
+  selectedAccountId = null;
+  renderApPlatformList();
+  renderApAccountList();
+}
+
+function renderApAccountList() {
+  const list = document.getElementById('ap-account-list');
+  const okBtn = document.getElementById('ap-ok-btn');
+
+  if (!apSelectedPlatform) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted)">Escolha uma rede social primeiro.</div>';
+    okBtn.disabled = true;
+    return;
+  }
+
+  const contasDaRede = apContas.filter(c => c.platform === apSelectedPlatform && c.handle);
+  if (!contasDaRede.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--muted)">Nenhuma conta de ${escapeHtml(AP_PLAT_LABELS[apSelectedPlatform])} conectada.</div>`;
+    okBtn.disabled = true;
+    return;
+  }
+
+  list.innerHTML = contasDaRede.map(c => {
+    const active = c.id === selectedAccountId;
+    const avatar = c.avatarUrl
+      ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`
+      : `<div class="plat-icon ${PLAT_ROW_CFG[c.platform]?.cls || ''}" style="width:24px;height:24px;font-size:12px">${escapeHtml(PLAT_ROW_CFG[c.platform]?.icon || '')}</div>`;
+    return `<button type="button" class="plat-btn ${active ? 'primary' : ''}" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:8px 10px" onclick="apSelectAccount(${c.id})">
+      ${avatar}<span>${escapeHtml(c.handle)}</span>
+    </button>`;
+  }).join('');
+
+  okBtn.disabled = !selectedAccountId;
+}
+
+function apSelectAccount(id) {
+  selectedAccountId = id;
+  renderApAccountList();
+}
+
+function confirmAccountPicker() {
+  if (!apSelectedPlatform || !selectedAccountId) return;
+  applyPlatformSelection(apSelectedPlatform);
+  const conta = apContas.find(c => c.id === selectedAccountId);
+  document.getElementById('account-picker-label').textContent = `${AP_PLAT_LABELS[apSelectedPlatform]} — ${conta?.handle || ''}`;
+  closeModal();
 }
 
 // Lista de mídias selecionadas para o post (carrossel se houver mais de uma).
@@ -1207,7 +1376,7 @@ async function schedulePost(publishNow = false) {
   }
 
   if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
-  if (platforms.length === 0) return showToast('Selecione ao menos uma plataforma', 'err');
+  if (platforms.length === 0 || !selectedAccountId) return showToast('Escolha a rede social e a conta em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
   const formData = new FormData();
@@ -1215,15 +1384,22 @@ async function schedulePost(publishNow = false) {
   formData.append('youtubeTitle', youtubeTitle);
   formData.append('youtubeVisibility', youtubeVisibility);
   formData.append('platforms', JSON.stringify(platforms));
+  formData.append('accountId', selectedAccountId);
   formData.append('scheduledAt', scheduledAt);
   formData.append('repeat', repeat);
   mediaFiles.forEach(m => formData.append('media', m.file));
   formData.append('captions', JSON.stringify(mediaFiles.map(m => m.caption)));
 
+  let post;
   try {
-    const post = await apiFetch('/api/posts', { method: 'POST', body: formData });
+    post = await apiFetch('/api/posts', { method: 'POST', body: formData });
+  } catch (e) {
+    showToast('Erro ao agendar: ' + e.message, 'err');
+    return;
+  }
 
-    if (publishNow) {
+  if (publishNow) {
+    try {
       showToast('Publicando agora...', 'ok');
       const { status, results } = await apiFetch(`/api/posts/${post.id}/publish`, { method: 'POST' });
       if (status === 'published') {
@@ -1234,19 +1410,25 @@ async function schedulePost(publishNow = false) {
         const erro = results.find(r => !r.success)?.error;
         showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
       }
-    } else {
-      showToast('Post agendado com sucesso!', 'ok');
+    } catch (e) {
+      showToast('Erro ao publicar agora: ' + e.message, 'err');
     }
-
-    document.getElementById('post-text').value = '';
-    document.getElementById('post-youtube-title').value = '';
-    document.getElementById('post-youtube-visibility').value = 'public';
-    mediaFiles = [];
-    updateMediaPreview();
-    loadQueue();
-  } catch (e) {
-    showToast('Erro ao agendar: ' + e.message, 'err');
+  } else {
+    showToast('Post agendado com sucesso!', 'ok');
   }
+
+  document.getElementById('post-text').value = '';
+  document.getElementById('post-youtube-title').value = '';
+  document.getElementById('post-youtube-visibility').value = 'public';
+  selectedPlats.clear();
+  selectedAccountId = null;
+  apSelectedPlatform = null;
+  document.getElementById('account-picker-label').textContent = 'Escolher rede e conta...';
+  document.getElementById('post-youtube-title-group').style.display = 'none';
+  document.getElementById('post-youtube-visibility-group').style.display = 'none';
+  mediaFiles = [];
+  updateMediaPreview();
+  loadQueue();
 }
 
 async function loadQueue() {
@@ -1401,6 +1583,229 @@ async function clearLogs() {
     showToast('Histórico limpo', 'ok');
   } catch (e) {
     showToast('Erro: ' + e.message, 'err');
+  }
+}
+
+// ── Analytics ────────────────────────────────────────────────────────────────
+const ANALYTICS_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0', kwai:'#ff9d3d' };
+let analyticsChart = null;
+let analyticsRefreshTimer = null;
+const ANALYTICS_REFRESH_MS = 30000;
+
+// Dados brutos da última busca, para poder reaplicar o filtro de rede social
+// sem precisar chamar a API de novo a cada clique.
+let analyticsData = { series: {}, metrics: [] };
+let analyticsFilter = 'all';
+
+// Busca curtidas/comentários direto das APIs das redes sociais a cada
+// chamada (sem cache), e repete automaticamente a cada 30s enquanto a
+// página Analytics estiver aberta — para de buscar ao trocar de página,
+// para não consumir cota das APIs à toa.
+function startAnalyticsAutoRefresh() {
+  loadAnalytics();
+  stopAnalyticsAutoRefresh();
+  analyticsRefreshTimer = setInterval(loadAnalytics, ANALYTICS_REFRESH_MS);
+}
+
+function stopAnalyticsAutoRefresh() {
+  if (analyticsRefreshTimer) { clearInterval(analyticsRefreshTimer); analyticsRefreshTimer = null; }
+}
+
+async function loadAnalytics() {
+  const listEl = document.getElementById('analytics-metrics-list');
+  if (!listEl.dataset.loaded) {
+    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
+  }
+
+  try {
+    const { series, metrics } = await apiFetch('/api/posts/analytics');
+    analyticsData = { series, metrics };
+    renderAnalyticsPlatformFilter();
+    renderAnalyticsView();
+    listEl.dataset.loaded = '1';
+    updateAnalyticsLastUpdated();
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderAnalyticsPlatformFilter() {
+  const wrap = document.getElementById('analytics-platform-filter');
+  const plataformasComDados = [...new Set(Object.values(analyticsData.series).flatMap(d => Object.keys(d)))];
+
+  // Se a rede selecionada deixou de ter dados (ex: após um refresh), volta para "Todas".
+  if (analyticsFilter !== 'all' && !plataformasComDados.includes(analyticsFilter)) analyticsFilter = 'all';
+
+  const botoes = [{ key: 'all', label: 'Todas' }, ...plataformasComDados.map(p => ({ key: p, label: ANALYTICS_PLAT_LABELS[p] || p }))];
+  wrap.innerHTML = botoes.map(b =>
+    `<button type="button" class="plat-btn ${analyticsFilter === b.key ? 'primary' : ''}" style="flex:0;padding:5px 12px" onclick="setAnalyticsFilter('${b.key}')">${escapeHtml(b.label)}</button>`
+  ).join('');
+}
+
+function setAnalyticsFilter(plat) {
+  analyticsFilter = plat;
+  renderAnalyticsPlatformFilter();
+  renderAnalyticsView();
+}
+
+function renderAnalyticsView() {
+  const series = analyticsFilter === 'all'
+    ? analyticsData.series
+    : Object.fromEntries(
+        Object.entries(analyticsData.series)
+          .map(([dia, porPlat]) => [dia, analyticsFilter in porPlat ? { [analyticsFilter]: porPlat[analyticsFilter] } : {}])
+          .filter(([, porPlat]) => Object.keys(porPlat).length)
+      );
+
+  const metrics = analyticsFilter === 'all'
+    ? analyticsData.metrics
+    : analyticsData.metrics.filter(m => m.platform === analyticsFilter);
+
+  renderAnalyticsChart(series);
+  renderAnalyticsMetrics(metrics);
+}
+
+function updateAnalyticsLastUpdated() {
+  const el = document.getElementById('analytics-last-updated');
+  if (!el) return;
+  const agora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.textContent = `Atualizado em tempo real · última busca às ${agora}`;
+}
+
+function renderAnalyticsChart(series) {
+  const dias = Object.keys(series).sort();
+  const wrap = document.getElementById('analytics-chart-wrap');
+
+  if (!dias.length) {
+    if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum post publicado ainda.</div>';
+    return;
+  }
+
+  if (!document.getElementById('analytics-chart')) {
+    wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
+  }
+
+  const plataformas = [...new Set(dias.flatMap(d => Object.keys(series[d])))];
+  const datasets = plataformas.map(p => ({
+    label: ANALYTICS_PLAT_LABELS[p] || p,
+    data: dias.map(d => series[d][p] || 0),
+    borderColor: ANALYTICS_PLAT_COLORS[p] || '#888',
+    backgroundColor: 'transparent',
+    tension: 0.3
+  }));
+
+  if (analyticsChart) analyticsChart.destroy();
+  analyticsChart = new Chart(document.getElementById('analytics-chart'), {
+    type: 'line',
+    data: { labels: dias, datasets },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
+    }
+  });
+}
+
+function renderAnalyticsMetrics(metrics) {
+  const listEl = document.getElementById('analytics-metrics-list');
+
+  if (!metrics.length) {
+    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhuma métrica disponível ainda. Métricas reais só aparecem para posts publicados a partir desta atualização, no Facebook, Instagram ou YouTube.</div>';
+    return;
+  }
+
+  listEl.innerHTML = metrics.map(m => {
+    const data = m.publishedAt ? new Date(m.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
+    const texto = m.text ? escapeHtml(m.text.slice(0, 60)) + (m.text.length > 60 ? '…' : '') : '<span style="color:var(--muted)">(sem texto)</span>';
+    const views = m.metrics?.views != null
+      ? `👁 ${m.metrics.views} visualizações · `
+      : m.metrics ? '<span style="color:var(--muted)">visualizações indisponível</span> · ' : '';
+    const resultado = m.metrics
+      ? `${views}❤ ${m.metrics.likes ?? '—'} curtidas · 💬 ${m.metrics.comments ?? '—'} comentários`
+      : '<span style="color:var(--muted)">métrica indisponível</span>';
+
+    const podeVerComentarios = ANALYTICS_PLAT_COMENTARIOS.includes(m.platform);
+    const botaoComentarios = podeVerComentarios
+      ? `<button type="button" class="plat-btn" style="flex:0;padding:4px 10px;font-size:11px;margin-top:4px" onclick="openCommentsModal(${m.postId})">Ver comentários</button>`
+      : `<div style="font-size:11px;color:var(--muted);margin-top:4px">comentários indisponível</div>`;
+
+    return `<div class="plat-row" style="flex-wrap:wrap">
+      <span class="mini-pill ${escapeHtml(m.platform)}">${escapeHtml(ANALYTICS_PLAT_LABELS[m.platform] || m.platform)}</span>
+      <div style="flex:1">
+        <div class="plat-row-name" style="font-size:13px;font-weight:400">${texto}</div>
+        <div class="plat-row-meta">${escapeHtml(data)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--text);white-space:nowrap">${resultado}</div>
+        ${botaoComentarios}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Comentários (ler e responder) ─────────────────────────────────────────────
+// Hoje só o Instagram tem o escopo OAuth necessário para listar/responder
+// comentários reais. Facebook tem leitura mas falta permissão para
+// responder; YouTube/TikTok/Kwai ainda não têm suporte confirmado.
+const ANALYTICS_PLAT_COMENTARIOS = ['instagram'];
+let commentsModalPostId = null;
+
+async function openCommentsModal(postId) {
+  commentsModalPostId = postId;
+  document.getElementById('modal-comments').classList.add('open');
+  const listEl = document.getElementById('comments-list');
+  listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1.5rem;font-family:var(--mono)">carregando...</div>';
+
+  try {
+    const { comments } = await apiFetch(`/api/posts/${postId}/comments`);
+    renderCommentsList(comments);
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderCommentsList(comments) {
+  const listEl = document.getElementById('comments-list');
+  if (!comments.length) {
+    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1.5rem;font-size:13px">Nenhum comentário ainda.</div>';
+    return;
+  }
+
+  listEl.innerHTML = comments.map(c => {
+    const data = c.createdAt ? new Date(c.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '';
+    return `<div style="border-bottom:1px solid var(--border);padding:10px 0">
+      <div style="font-size:12px;font-weight:500;color:var(--accent)">@${escapeHtml(c.author)}</div>
+      <div style="font-size:13px;margin:2px 0 6px">${escapeHtml(c.text)}</div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:6px">${escapeHtml(data)}</div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="reply-input-${escapeHtml(c.id)}" placeholder="Responder..." style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--sans)"/>
+        <button type="button" class="btn" style="padding:6px 12px;font-size:12px" onclick="sendCommentReply('${escapeHtml(c.id)}', this)">Enviar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function sendCommentReply(commentId, btn) {
+  const input = document.getElementById(`reply-input-${commentId}`);
+  const text = input.value.trim();
+  if (!text) return showToast('Escreva uma resposta antes de enviar', 'err');
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await apiFetch(`/api/posts/${commentsModalPostId}/comments/${commentId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    });
+    showToast('Resposta enviada!', 'ok');
+    input.value = '';
+  } catch (e) {
+    showToast('Erro ao responder: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar';
   }
 }
 

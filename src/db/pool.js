@@ -7,7 +7,12 @@ types.setTypeParser(types.builtins.TIMESTAMP, str => str ? new Date(str + 'Z') :
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  // Default do driver é max=10, o que esgota rápido com várias chamadas
+  // paralelas (dashboard, analytics) concorrendo pela mesma conexão.
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
 })
 
 module.exports = pool

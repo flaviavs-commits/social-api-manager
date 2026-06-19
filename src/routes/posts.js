@@ -6,7 +6,11 @@ const multer = require('multer')
 const FileType = require('file-type')
 const sharp = require('sharp')
 const repo = require('../repositories/postsRepository')
+const contasRepo = require('../repositories/contasRepository')
 const { publishPost } = require('../services/publisher')
+const metricsService = require('../services/metricsService')
+const commentsService = require('../services/commentsService')
+const instagramReconcileService = require('../services/instagramReconcileService')
 const { probeVideo, isShortEligible } = require('../services/videoProbe')
 const { PLATFORMS, REPEATS, parseId, serverError, isAdminRole } = require('../utils/http')
 
@@ -83,6 +87,61 @@ router.get('/', async (req, res) => {
   }
 })
 
+// GET /api/posts/analytics - posts publicados por dia/rede + métricas reais (likes/comentários)
+router.get('/analytics', async (req, res) => {
+  try {
+    // Tenta recuperar o ID externo de posts antigos do Instagram (publicados
+    // antes de existir essa coluna), casando com os posts reais da conta por
+    // data/texto. Roda antes de listar para que esses posts já apareçam com
+    // métricas nesta mesma chamada. Falha silenciosa: se a API do Instagram
+    // estiver fora ou sem permissão, a tela de Analytics continua funcionando
+    // normalmente só com os posts que já tinham o ID salvo.
+    try {
+      await instagramReconcileService.reconciliarPostsInstagram(req.user.id, isAdminRole(req.user.role))
+    } catch {}
+
+    const posts = await repo.listarPosts({ status: 'published', userId: req.user.id, isAdmin: isAdminRole(req.user.role) })
+
+    // Série diária por plataforma, a partir da data real de publicação
+    // (cai para a data de criação se publishedAt ainda não tiver sido salvo).
+    const porDia = {}
+    for (const p of posts) {
+      const base = p.publishedAt || p.criado_em
+      const dia = new Date(base).toISOString().slice(0, 10)
+      porDia[dia] = porDia[dia] || {}
+      for (const plat of p.platforms) {
+        porDia[dia][plat] = (porDia[dia][plat] || 0) + 1
+      }
+    }
+
+    // Métricas reais só existem para posts com external_post_id, ou seja,
+    // publicados a partir desta funcionalidade. Limita aos mais recentes para
+    // não disparar uma chamada de API externa por post em contas com muito
+    // histórico — isso já é paralelizado (Promise.allSettled), mas o tempo
+    // total ainda é limitado pelo timeout individual de cada chamada.
+    const MAX_POSTS_COM_METRICAS = 30
+    const comExternalId = posts
+      .filter(p => p.externalPostId)
+      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+      .slice(0, MAX_POSTS_COM_METRICAS)
+    const metricsResults = await Promise.allSettled(
+      comExternalId.map(p => metricsService.buscarMetricasPost({ ...p, userRole: req.user.role }))
+    )
+
+    const metrics = comExternalId.map((p, i) => ({
+      postId: p.id,
+      platform: p.externalPlatform,
+      text: p.text,
+      publishedAt: p.publishedAt,
+      metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
+    }))
+
+    res.json({ series: porDia, metrics })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
 // POST /api/posts
 router.post('/', upload.array('media', 10), async (req, res) => {
   try {
@@ -104,6 +163,19 @@ router.post('/', upload.array('media', 10), async (req, res) => {
 
     if (!Array.isArray(platforms) || !platforms.length || !platforms.every(p => PLATFORMS.includes(p)))
       return res.status(400).json({ erro: `platforms deve ser uma lista com valores de: ${PLATFORMS.join(', ')}` })
+
+    // Conta específica escolhida pelo usuário para publicar (opcional). Se
+    // informada, precisa existir, pertencer ao usuário e bater com a
+    // plataforma selecionada.
+    let accountId = null
+    if (req.body.accountId) {
+      accountId = parseId(req.body.accountId)
+      if (!accountId) return res.status(400).json({ erro: 'accountId inválido' })
+      const conta = await contasRepo.buscarContaPorId(accountId, req.user.id, isAdminRole(req.user.role))
+      if (!conta) return res.status(400).json({ erro: 'Conta não encontrada' })
+      if (!platforms.includes(conta.platform))
+        return res.status(400).json({ erro: 'A conta escolhida não pertence à plataforma selecionada' })
+    }
 
     if (!REPEATS.includes(repeat))
       return res.status(400).json({ erro: `repeat inválido. Use um de: ${REPEATS.join(', ')}` })
@@ -186,7 +258,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       }
     }
 
-    const post = await repo.criarPost({ text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort, userId: req.user.id })
+    const post = await repo.criarPost({ text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort, accountId, userId: req.user.id })
     res.status(201).json(post)
   } catch (e) {
     serverError(res, e, 'Não foi possível agendar o post')
@@ -211,6 +283,42 @@ router.post('/:id/publish', async (req, res) => {
     res.json({ status, results })
   } catch (e) {
     serverError(res, e)
+  }
+})
+
+// GET /api/posts/:id/comments - lista comentários reais do post na rede social
+router.get('/:id/comments', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+
+    const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
+    if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
+
+    const comments = await commentsService.listarComentariosPost(post)
+    res.json({ comments })
+  } catch (e) {
+    res.status(400).json({ erro: e.message })
+  }
+})
+
+// POST /api/posts/:id/comments/:commentId/reply - responde um comentário do post na rede social
+router.post('/:id/comments/:commentId/reply', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+
+    const text = (req.body.text || '').trim()
+    if (!text) return res.status(400).json({ erro: 'Escreva uma resposta antes de enviar' })
+    if (text.length > 2000) return res.status(400).json({ erro: 'Resposta muito longa (máximo 2000 caracteres)' })
+
+    const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
+    if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
+
+    const reply = await commentsService.responderComentario(post, req.params.commentId, text)
+    res.status(201).json({ reply })
+  } catch (e) {
+    res.status(400).json({ erro: e.message })
   }
 })
 

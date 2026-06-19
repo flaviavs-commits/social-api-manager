@@ -3,6 +3,7 @@ const path = require('path')
 const pool = require('../db/pool')
 const { registrarLog } = require('../repositories/logsRepository')
 const tokensRepo = require('./../repositories/tokensRepository')
+const postsRepo = require('./../repositories/postsRepository')
 const { gerarTokenMedia } = require('./mediaToken')
 
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
@@ -12,11 +13,14 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
 // qualquer conta conectada no sistema (de qualquer usuário), então para eles
 // a busca ignora o dono e pega a mais recente entre todas.
-// Se o usuário tiver mais de uma conta da mesma plataforma conectada, usa a
-// mais recente (não há mais agrupamento por estrela/nicho).
-async function buscarContaToken(platform, userId, isSuperAdmin = false) {
-  const ownerFilter = isSuperAdmin ? '' : 'AND c.user_id = $2'
-  const params = isSuperAdmin ? [platform] : [platform, userId]
+// Se contaId for informado, busca exatamente essa conta (escolhida pelo
+// usuário ao agendar o post); senão usa a mais recente conectada na
+// plataforma (não há mais agrupamento por estrela/nicho).
+async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId = null) {
+  const conds = ['t.platform = $1']
+  const params = [platform]
+  if (!isSuperAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (contaId) { params.push(contaId); conds.push(`c.id = $${params.length}`) }
 
   const { rows } = await pool.query(`
     SELECT
@@ -25,12 +29,46 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false) {
       t.status, t.expires_at AS "expiresAt", c.handle AS handle
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
-    WHERE t.platform = $1 ${ownerFilter}
+    WHERE ${conds.join(' AND ')}
     ORDER BY t.id DESC
     LIMIT 1
   `, params)
 
   return rows[0] || null
+}
+
+// Lista todos os tokens conectados de uma plataforma para o usuário (não só
+// o mais recente). Usado para reconciliar posts antigos com o post real na
+// rede social, quando ainda não se sabe qual conta publicou cada post.
+async function listarContasToken(platform, userId, isSuperAdmin = false) {
+  const conds = ['t.platform = $1']
+  const params = [platform]
+  if (!isSuperAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+
+  const { rows } = await pool.query(`
+    SELECT
+      t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
+      t.refresh_token AS "refreshToken", t.account_name AS "accountName",
+      t.status, t.expires_at AS "expiresAt", c.handle AS handle
+    FROM tokens t
+    JOIN contas c ON c.id = t.conta_id
+    WHERE ${conds.join(' AND ')}
+    ORDER BY t.id DESC
+  `, params)
+
+  return rows
+}
+
+// Extrai o ID do post/mídia na rede social a partir da resposta de cada
+// publisher, para permitir buscar métricas (likes/comentários) depois.
+// TikTok não retorna um ID público utilizável (a Content Posting API
+// devolve só um publish_id interno, assíncrono) e Kwai é simulado — ambos
+// ficam sem métricas.
+function extrairExternalId(platform, data) {
+  if (platform === 'facebook') return data?.id || null
+  if (platform === 'instagram') return data?.id || null
+  if (platform === 'youtube') return data?.id || null
+  return null
 }
 
 function mediaToBlob(mediaPath) {
@@ -334,7 +372,7 @@ async function publishPost(post) {
       continue
     }
 
-    let token = await buscarContaToken(platform, post.userId, isSuperAdmin)
+    let token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
     if (!token) {
       const msg = `Nenhuma conta de ${platform} conectada`
       results.push({ platform, success: false, error: msg })
@@ -349,7 +387,7 @@ async function publishPost(post) {
     if (token.status !== 'valid') {
       const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
       if (renewal.success) {
-        token = await buscarContaToken(platform, post.userId, isSuperAdmin)
+        token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
       } else {
         results.push({ platform, success: false, account: token.handle || token.accountName, error: renewal.message })
         await registrarLog({
@@ -366,6 +404,15 @@ async function publishPost(post) {
     try {
       const data = await publisher(token, post)
       results.push({ platform, success: true, account: token.handle || token.accountName, data })
+
+      const externalId = extrairExternalId(platform, data)
+      if (externalId) {
+        await postsRepo.salvarPublicacaoExterna(post.id, {
+          externalPostId: externalId,
+          externalPlatform: platform,
+          publishedAt: new Date().toISOString()
+        })
+      }
 
       if (data?.simulado) {
         await registrarLog({
@@ -399,4 +446,4 @@ async function publishPost(post) {
   return results
 }
 
-module.exports = { publishPost, buscarContaToken }
+module.exports = { publishPost, buscarContaToken, listarContasToken }

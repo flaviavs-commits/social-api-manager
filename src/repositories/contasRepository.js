@@ -2,7 +2,9 @@ const pool = require('../db/pool')
 
 // ── Stats para o dashboard ────────────────────────────────────────────────────
 async function getDashboardStats(userId, isAdmin) {
-  // Atualiza status dos tokens antes de calcular
+  // Atualiza status dos tokens antes de calcular — só escreve as linhas cujo
+  // status mudou (evita reescrever a tabela inteira a cada carregamento do
+  // dashboard, que antes rodava sem WHERE e tocava toda linha com expires_at).
   await pool.query(`
     UPDATE tokens SET status =
       CASE
@@ -11,6 +13,13 @@ async function getDashboardStats(userId, isAdmin) {
         ELSE 'valid'
       END
     WHERE expires_at IS NOT NULL
+      AND status IS DISTINCT FROM (
+        CASE
+          WHEN expires_at < NOW()                      THEN 'expired'
+          WHEN expires_at < NOW() + INTERVAL '7 days' THEN 'expiring'
+          ELSE 'valid'
+        END
+      )
   `)
 
   const ownerFilter = isAdmin ? '' : `WHERE c.user_id = $1`
