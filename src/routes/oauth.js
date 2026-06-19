@@ -310,7 +310,11 @@ router.get('/google', requireAuth, (req, res) => {
   const state = signState({ accountName, platform: 'youtube', userId: req.user.id });
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtube.readonly'
+    'https://www.googleapis.com/auth/youtube.readonly',
+    // Necessário para o gráfico de tempo de visualização no Analytics
+    // (YouTube Analytics API) — contas conectadas antes deste scope existir
+    // precisam ser reconectadas.
+    'https://www.googleapis.com/auth/yt-analytics.readonly'
   ].join(' ');
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
@@ -406,6 +410,10 @@ router.get('/tiktok', requireAuth, (req, res) => {
   const scopes = [
     'user.info.basic',
     'user.info.profile',
+    // Necessário para o gráfico de seguidores/curtidas totais no Analytics
+    // (endpoint /user/info/ com follower_count, likes_count) — contas
+    // conectadas antes desse scope existir precisam ser reconectadas.
+    'user.info.stats',
     'video.list',
     'video.publish',
     'video.upload'
@@ -436,7 +444,7 @@ router.get('/tiktok/google', requireAuth, (req, res) => {
   const { accountName } = req.query;
   const platform = 'tiktok';
   const state = signState({ platform, via: 'google', accountName, userId: req.user.id });
-  const scopes = ['user.info.basic', 'video.publish', 'video.upload'].join(',');
+  const scopes = ['user.info.basic', 'user.info.stats', 'video.publish', 'video.upload'].join(',');
 
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');

@@ -136,7 +136,42 @@ router.get('/analytics', async (req, res) => {
       metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
     }))
 
-    res.json({ series: porDia, metrics })
+    // Grava um ponto por dia no histórico de cada post (best-effort — não
+    // bloqueia a resposta do Analytics se a escrita falhar).
+    await Promise.allSettled(
+      metrics.filter(m => m.metrics).map(m => repo.registrarSnapshotMetricas(m.postId, m.metrics))
+    )
+
+    // Saldo de seguidores e alcance do Instagram, dia a dia — métrica de
+    // conta, não de post. Falha silenciosa (ex: conta sem o scope de
+    // insights) para não derrubar o restante do Analytics.
+    let instagramFollowers = {}
+    try {
+      instagramFollowers = await metricsService.buscarSeriesSeguidoresInstagram(req.user.id, isAdminRole(req.user.role))
+    } catch {}
+
+    let tiktokStats = {}
+    try {
+      tiktokStats = await metricsService.buscarSeriesStatsTiktok(req.user.id, isAdminRole(req.user.role))
+    } catch {}
+
+    res.json({ series: porDia, metrics, instagramFollowers, tiktokStats })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
+// GET /api/posts/:id/metrics-history - histórico diário de curtidas/comentários/views de um post
+router.get('/:id/metrics-history', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+
+    const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
+    if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
+
+    const history = await repo.buscarHistoricoMetricas(id)
+    res.json({ history })
   } catch (e) {
     serverError(res, e)
   }
@@ -295,8 +330,15 @@ router.get('/:id/comments', async (req, res) => {
     const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
     if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
 
-    const comments = await commentsService.listarComentariosPost(post)
-    res.json({ comments })
+    const { comments } = await commentsService.listarComentariosPost(post)
+    const midiaRemota = await commentsService.buscarMidiaPost(post)
+
+    res.json({
+      comments,
+      post: midiaRemota
+        ? { text: midiaRemota.caption || post.text, mediaItems: midiaRemota.itens }
+        : { text: post.text, mediaPath: post.mediaPath, mediaType: post.mediaType, mediaItems: post.mediaItems }
+    })
   } catch (e) {
     res.status(400).json({ erro: e.message })
   }

@@ -48,6 +48,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
       p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_is_short AS "youtubeIsShort",
       p.account_id AS "accountId",
+      p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole"
     FROM posts p
     LEFT JOIN users u ON u.id = p.user_id
@@ -98,7 +99,32 @@ async function definirAccountIdSeVazio(id, accountId) {
   await pool.query(`UPDATE posts SET account_id = $1 WHERE id = $2 AND account_id IS NULL`, [accountId, id])
 }
 
+// Salva um snapshot diário das métricas de um post (1 ponto por dia), para
+// alimentar o gráfico de curtidas ao longo do tempo — a API da rede social
+// só dá o valor atual, então é o Analytics que constrói o histórico, dia a
+// dia, a cada vez que busca métricas reais.
+async function registrarSnapshotMetricas(postId, { likes, comments, views }) {
+  await pool.query(`
+    INSERT INTO post_metrics_history (post_id, captured_on, likes, comments, views)
+    VALUES ($1, CURRENT_DATE, $2, $3, $4)
+    ON CONFLICT (post_id, captured_on) DO UPDATE SET likes = $2, comments = $3, views = $4
+  `, [postId, likes ?? null, comments ?? null, views ?? null])
+}
+
+// Histórico diário de curtidas/comentários/views de um post, para o gráfico
+// de linha no Analytics.
+async function buscarHistoricoMetricas(postId) {
+  const { rows } = await pool.query(`
+    SELECT captured_on AS "date", likes, comments, views
+    FROM post_metrics_history
+    WHERE post_id = $1
+    ORDER BY captured_on ASC
+  `, [postId])
+  return rows
+}
+
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
-  salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio
+  salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
+  registrarSnapshotMetricas, buscarHistoricoMetricas
 }

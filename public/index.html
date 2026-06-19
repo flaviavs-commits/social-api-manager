@@ -524,10 +524,11 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   <!-- ANALYTICS -->
   <div id="page-analytics" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Analytics</div><div class="page-sub">Posts publicados ao longo do tempo e desempenho por rede social</div></div>
+      <div><div class="page-title">Analytics</div><div class="page-sub" id="analytics-chart-sub">Posts publicados ao longo do tempo e desempenho por rede social</div></div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.5rem" id="analytics-platform-filter"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-period-posts"></div>
       <div id="analytics-chart-wrap"><canvas id="analytics-chart" height="90"></canvas></div>
     </div>
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.75rem">
@@ -536,6 +537,30 @@ input, select, textarea, .modal-overlay, .nav-section, label {
     </div>
     <div id="analytics-metrics-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin:1.5rem 0 0.75rem">Curtidas no Instagram</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-period-igLikes"></div>
+      <div id="analytics-ig-likes-wrap"><canvas id="analytics-ig-likes-chart" height="90"></canvas></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Tempo médio de visualização no YouTube</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-period-ytWatch"></div>
+      <div id="analytics-yt-watchtime-wrap"><canvas id="analytics-yt-watchtime-chart" height="90"></canvas></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Saldo de seguidores no Instagram</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-period-igFollowers"></div>
+      <div id="analytics-ig-followers-wrap"><canvas id="analytics-ig-followers-chart" height="90"></canvas></div>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Seguidores e curtidas totais no TikTok</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+      <div id="analytics-period-tiktok"></div>
+      <div id="analytics-tiktok-stats-wrap"><canvas id="analytics-tiktok-stats-chart" height="90"></canvas></div>
     </div>
   </div>
 
@@ -650,9 +675,10 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 <div class="modal-overlay" id="modal-comments">
   <div class="modal" style="width:520px;max-height:85vh">
     <div class="modal-title">Comentários</div>
-    <div class="modal-sub">Leia e responda os comentários reais deste post.</div>
+    <div class="modal-sub">Leia e responda os comentários reais deste post, sem sair da aplicação.</div>
 
-    <div id="comments-list" style="max-height:50vh;overflow-y:auto"></div>
+    <div id="comments-post-preview"></div>
+    <div id="comments-list" style="max-height:40vh;overflow-y:auto"></div>
 
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Fechar</button>
@@ -1588,6 +1614,14 @@ async function clearLogs() {
 
 // ── Analytics ────────────────────────────────────────────────────────────────
 const ANALYTICS_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+
+// Converte uma data "YYYY-MM-DD" para o padrão brasileiro "DD/MM/AAAA", só
+// para exibição — as chaves internas (ordenação, lookup em objetos) continuam
+// em ISO, que é o formato comparável/ordenável por string.
+function formatDiaBR(isoDate) {
+  const [ano, mes, dia] = isoDate.slice(0, 10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
 const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0', kwai:'#ff9d3d' };
 let analyticsChart = null;
 let analyticsRefreshTimer = null;
@@ -1595,8 +1629,76 @@ const ANALYTICS_REFRESH_MS = 30000;
 
 // Dados brutos da última busca, para poder reaplicar o filtro de rede social
 // sem precisar chamar a API de novo a cada clique.
-let analyticsData = { series: {}, metrics: [] };
+let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {} };
 let analyticsFilter = 'all';
+let analyticsIgLikesChart = null;
+let analyticsYtWatchTimeChart = null;
+let analyticsIgFollowersChart = null;
+let analyticsTiktokStatsChart = null;
+
+// Post selecionado na lista "Likes e comentários por post" — com nada
+// selecionado, o gráfico principal mostra a junção de todos os posts
+// (comportamento padrão); selecionando um post, o gráfico passa a mostrar
+// só o histórico de curtidas daquele post específico.
+let analyticsSelectedPostId = null;
+
+// ── Período por gráfico (regra de negócio: 1 mês por padrão) ──────────────────
+// Cada bloco de métrica (posts, curtidas do Instagram, tempo de visualização
+// do YouTube, seguidores do Instagram, stats do TikTok) tem seu próprio
+// intervalo de datas, independente dos demais — útil para comparar redes
+// sociais em janelas de tempo diferentes.
+function periodoPadraoUmMes() {
+  const ate = new Date();
+  const de = new Date(ate.getTime() - 30 * 86400000);
+  return { de: de.toISOString().slice(0, 10), ate: ate.toISOString().slice(0, 10) };
+}
+
+const analyticsPeriods = {
+  posts: periodoPadraoUmMes(),
+  igLikes: periodoPadraoUmMes(),
+  ytWatch: periodoPadraoUmMes(),
+  igFollowers: periodoPadraoUmMes(),
+  tiktok: periodoPadraoUmMes()
+};
+
+// Renderiza o seletor "de/até" de um bloco e religa o gráfico correspondente
+// quando o usuário muda o intervalo.
+function renderPeriodPicker(key, onChange) {
+  const el = document.getElementById(`analytics-period-${key}`);
+  if (!el) return;
+  const p = analyticsPeriods[key];
+  const inputStyle = 'background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:var(--mono)';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)">Período:</span>
+      <input type="date" value="${p.de}" style="${inputStyle}" onchange="onAnalyticsPeriodChange('${key}', this.value, null)"/>
+      <span style="font-size:11px;color:var(--muted)">até</span>
+      <input type="date" value="${p.ate}" style="${inputStyle}" onchange="onAnalyticsPeriodChange('${key}', null, this.value)"/>
+    </div>`;
+  el._onChange = onChange;
+}
+
+function onAnalyticsPeriodChange(key, de, ate) {
+  if (de) analyticsPeriods[key].de = de;
+  if (ate) analyticsPeriods[key].ate = ate;
+  document.getElementById(`analytics-period-${key}`)._onChange?.();
+}
+
+// Filtra um objeto chaveado por data ISO ("YYYY-MM-DD") para o período do bloco.
+function filtrarPorPeriodo(obj, key) {
+  const { de, ate } = analyticsPeriods[key];
+  return Object.fromEntries(Object.entries(obj).filter(([dia]) => dia >= de && dia <= ate));
+}
+
+// Filtra uma lista de métricas por post (cada item tem publishedAt) para o período do bloco.
+function filtrarMetricasPorPeriodo(metrics, key) {
+  const { de, ate } = analyticsPeriods[key];
+  return metrics.filter(m => {
+    if (!m.publishedAt) return false;
+    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
+    return dia >= de && dia <= ate;
+  });
+}
 
 // Busca curtidas/comentários direto das APIs das redes sociais a cada
 // chamada (sem cache), e repete automaticamente a cada 30s enquanto a
@@ -1619,10 +1721,21 @@ async function loadAnalytics() {
   }
 
   try {
-    const { series, metrics } = await apiFetch('/api/posts/analytics');
-    analyticsData = { series, metrics };
+    const { series, metrics, instagramFollowers, tiktokStats } = await apiFetch('/api/posts/analytics');
+    analyticsData = { series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {} };
+
+    renderPeriodPicker('posts', renderAnalyticsView);
+    renderPeriodPicker('igLikes', () => renderInstagramLikesChart(filtrarMetricasPorPeriodo(analyticsData.metrics, 'igLikes')));
+    renderPeriodPicker('ytWatch', () => renderYoutubeWatchTimeChart(filtrarMetricasPorPeriodo(analyticsData.metrics, 'ytWatch')));
+    renderPeriodPicker('igFollowers', () => renderInstagramFollowersChart(filtrarPorPeriodo(analyticsData.instagramFollowers, 'igFollowers')));
+    renderPeriodPicker('tiktok', () => renderTiktokStatsChart(filtrarPorPeriodo(analyticsData.tiktokStats, 'tiktok')));
+
     renderAnalyticsPlatformFilter();
     renderAnalyticsView();
+    renderInstagramLikesChart(filtrarMetricasPorPeriodo(metrics, 'igLikes'));
+    renderYoutubeWatchTimeChart(filtrarMetricasPorPeriodo(metrics, 'ytWatch'));
+    renderInstagramFollowersChart(filtrarPorPeriodo(analyticsData.instagramFollowers, 'igFollowers'));
+    renderTiktokStatsChart(filtrarPorPeriodo(analyticsData.tiktokStats, 'tiktok'));
     listEl.dataset.loaded = '1';
     updateAnalyticsLastUpdated();
   } catch (e) {
@@ -1650,20 +1763,39 @@ function setAnalyticsFilter(plat) {
 }
 
 function renderAnalyticsView() {
+  const seriesNoPeriodo = filtrarPorPeriodo(analyticsData.series, 'posts');
+
   const series = analyticsFilter === 'all'
-    ? analyticsData.series
+    ? seriesNoPeriodo
     : Object.fromEntries(
-        Object.entries(analyticsData.series)
+        Object.entries(seriesNoPeriodo)
           .map(([dia, porPlat]) => [dia, analyticsFilter in porPlat ? { [analyticsFilter]: porPlat[analyticsFilter] } : {}])
           .filter(([, porPlat]) => Object.keys(porPlat).length)
       );
 
+  const metricsNoPeriodo = filtrarMetricasPorPeriodo(analyticsData.metrics, 'posts');
   const metrics = analyticsFilter === 'all'
-    ? analyticsData.metrics
-    : analyticsData.metrics.filter(m => m.platform === analyticsFilter);
+    ? metricsNoPeriodo
+    : metricsNoPeriodo.filter(m => m.platform === analyticsFilter);
 
-  renderAnalyticsChart(series);
+  // Com um post selecionado, o gráfico principal troca de "junção de todos
+  // os posts" para o histórico daquele post específico.
+  const postSelecionado = metrics.find(m => m.postId === analyticsSelectedPostId);
+  if (postSelecionado) {
+    renderSelectedPostChart(postSelecionado);
+  } else {
+    analyticsSelectedPostId = null;
+    renderAnalyticsChart(series);
+  }
   renderAnalyticsMetrics(metrics);
+}
+
+// Seleciona/deseleciona um post ao clicar na sua linha na lista de
+// métricas. Clicar de novo no mesmo post desfaz a seleção, voltando à
+// junção de todos os posts no gráfico principal.
+function selectAnalyticsPost(postId) {
+  analyticsSelectedPostId = analyticsSelectedPostId === postId ? null : postId;
+  renderAnalyticsView();
 }
 
 function updateAnalyticsLastUpdated() {
@@ -1674,6 +1806,9 @@ function updateAnalyticsLastUpdated() {
 }
 
 function renderAnalyticsChart(series) {
+  const subEl = document.getElementById('analytics-chart-sub');
+  if (subEl) subEl.textContent = 'Posts publicados ao longo do tempo e desempenho por rede social';
+
   const dias = Object.keys(series).sort();
   const wrap = document.getElementById('analytics-chart-wrap');
 
@@ -1683,9 +1818,13 @@ function renderAnalyticsChart(series) {
     return;
   }
 
-  if (!document.getElementById('analytics-chart')) {
-    wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
-  }
+  // Sempre recria o canvas em vez de reaproveitar o existente — se o
+  // gráfico for desenhado enquanto a aba Analytics ainda estava oculta
+  // (display:none), o Chart.js mede largura/altura 0 e o desenho final
+  // fica distorcido (linha cortada, ponto solto), mesmo depois da aba
+  // ficar visível. Um canvas novo força uma medição limpa a cada render.
+  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+  wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
 
   const plataformas = [...new Set(dias.flatMap(d => Object.keys(series[d])))];
   const datasets = plataformas.map(p => ({
@@ -1693,13 +1832,232 @@ function renderAnalyticsChart(series) {
     data: dias.map(d => series[d][p] || 0),
     borderColor: ANALYTICS_PLAT_COLORS[p] || '#888',
     backgroundColor: 'transparent',
-    tension: 0.3
+    tension: 0, pointRadius: 4, pointHoverRadius: 6
   }));
 
-  if (analyticsChart) analyticsChart.destroy();
   analyticsChart = new Chart(document.getElementById('analytics-chart'), {
     type: 'line',
-    data: { labels: dias, datasets },
+    data: { labels: dias.map(formatDiaBR), datasets },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
+    }
+  });
+}
+
+// Mostra, no mesmo gráfico principal, o histórico de curtidas só do post
+// selecionado na lista abaixo (em vez da junção de todos os posts).
+async function renderSelectedPostChart(post) {
+  const subEl = document.getElementById('analytics-chart-sub');
+  const textoPreview = post.text ? post.text.slice(0, 60) + (post.text.length > 60 ? '…' : '') : '(sem texto)';
+  if (subEl) subEl.textContent = `Curtidas de "${textoPreview}" ao longo do tempo · clique novamente no post para voltar à junção`;
+
+  const wrap = document.getElementById('analytics-chart-wrap');
+  wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
+
+  let history;
+  try {
+    ({ history } = await apiFetch(`/api/posts/${post.postId}/metrics-history`));
+  } catch (e) {
+    wrap.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
+    return;
+  }
+
+  // Pode ter trocado a seleção enquanto a busca estava em andamento.
+  if (analyticsSelectedPostId !== post.postId) return;
+
+  if (!history.length) {
+    if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Ainda não há histórico suficiente para este post. Volte em alguns dias — um ponto é salvo por dia.</div>';
+    return;
+  }
+
+  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
+  wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
+
+  analyticsChart = new Chart(document.getElementById('analytics-chart'), {
+    type: 'line',
+    data: {
+      labels: history.map(h => formatDiaBR(h.date)),
+      datasets: [{
+        label: 'Curtidas',
+        data: history.map(h => h.likes),
+        borderColor: ANALYTICS_PLAT_COLORS[post.platform] || '#888',
+        backgroundColor: 'transparent',
+        tension: 0, pointRadius: 4, pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
+    }
+  });
+}
+
+// Agrupa as curtidas dos posts do Instagram por dia de publicação, a partir
+// das métricas já buscadas para a lista "Likes e comentários por post".
+function renderInstagramLikesChart(metrics) {
+  const wrap = document.getElementById('analytics-ig-likes-wrap');
+  const porDia = {};
+  for (const m of metrics) {
+    if (m.platform !== 'instagram' || !m.metrics || m.metrics.likes == null) continue;
+    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
+    porDia[dia] = (porDia[dia] || 0) + m.metrics.likes;
+  }
+  const dias = Object.keys(porDia).sort();
+
+  if (!dias.length) {
+    if (analyticsIgLikesChart) { analyticsIgLikesChart.destroy(); analyticsIgLikesChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhuma curtida do Instagram disponível ainda.</div>';
+    return;
+  }
+  if (!document.getElementById('analytics-ig-likes-chart')) {
+    wrap.innerHTML = '<canvas id="analytics-ig-likes-chart" height="90"></canvas>';
+  }
+
+  if (analyticsIgLikesChart) analyticsIgLikesChart.destroy();
+  analyticsIgLikesChart = new Chart(document.getElementById('analytics-ig-likes-chart'), {
+    type: 'line',
+    data: { labels: dias.map(formatDiaBR), datasets: [{
+      label: 'Curtidas',
+      data: dias.map(d => porDia[d]),
+      borderColor: ANALYTICS_PLAT_COLORS.instagram,
+      backgroundColor: 'transparent',
+      tension: 0, pointRadius: 4, pointHoverRadius: 6
+    }] },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// Agrupa o tempo médio de visualização (em segundos) dos vídeos do YouTube
+// por dia de publicação. Requer o scope yt-analytics.readonly — vídeos de
+// contas conectadas antes desse scope existir aparecem sem esse dado.
+function renderYoutubeWatchTimeChart(metrics) {
+  const wrap = document.getElementById('analytics-yt-watchtime-wrap');
+  const porDia = {};
+  for (const m of metrics) {
+    if (m.platform !== 'youtube' || !m.metrics || m.metrics.watchTimeSeconds == null) continue;
+    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
+    porDia[dia] = porDia[dia] || [];
+    porDia[dia].push(m.metrics.watchTimeSeconds);
+  }
+  const dias = Object.keys(porDia).sort();
+
+  if (!dias.length) {
+    if (analyticsYtWatchTimeChart) { analyticsYtWatchTimeChart.destroy(); analyticsYtWatchTimeChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado de tempo de visualização disponível ainda. Reconecte o canal do YouTube para liberar essa métrica.</div>';
+    return;
+  }
+  if (!document.getElementById('analytics-yt-watchtime-chart')) {
+    wrap.innerHTML = '<canvas id="analytics-yt-watchtime-chart" height="90"></canvas>';
+  }
+
+  const media = dias.map(d => {
+    const valores = porDia[d];
+    return Math.round(valores.reduce((a, b) => a + b, 0) / valores.length);
+  });
+
+  if (analyticsYtWatchTimeChart) analyticsYtWatchTimeChart.destroy();
+  analyticsYtWatchTimeChart = new Chart(document.getElementById('analytics-yt-watchtime-chart'), {
+    type: 'line',
+    data: { labels: dias.map(formatDiaBR), datasets: [{
+      label: 'Tempo médio de visualização (s)',
+      data: media,
+      borderColor: ANALYTICS_PLAT_COLORS.youtube,
+      backgroundColor: 'transparent',
+      tension: 0, pointRadius: 4, pointHoverRadius: 6
+    }] },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// Saldo de seguidores da conta do Instagram, dia a dia — construído a
+// partir de hoje (sem histórico retroativo, já que a API de Insights que
+// daria isso direto não está liberada para este app).
+function renderInstagramFollowersChart(instagramFollowers) {
+  const wrap = document.getElementById('analytics-ig-followers-wrap');
+  const dias = Object.keys(instagramFollowers).sort();
+
+  if (!dias.length) {
+    if (analyticsIgFollowersChart) { analyticsIgFollowersChart.destroy(); analyticsIgFollowersChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado de seguidores disponível ainda.</div>';
+    return;
+  }
+  if (!document.getElementById('analytics-ig-followers-chart')) {
+    wrap.innerHTML = '<canvas id="analytics-ig-followers-chart" height="90"></canvas>';
+  }
+
+  if (analyticsIgFollowersChart) analyticsIgFollowersChart.destroy();
+  analyticsIgFollowersChart = new Chart(document.getElementById('analytics-ig-followers-chart'), {
+    type: 'line',
+    data: {
+      labels: dias.map(formatDiaBR),
+      datasets: [
+        {
+          label: 'Saldo de seguidores',
+          data: dias.map(d => instagramFollowers[d].followerCount),
+          borderColor: ANALYTICS_PLAT_COLORS.instagram,
+          backgroundColor: 'transparent',
+          tension: 0, pointRadius: 4, pointHoverRadius: 6
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
+    }
+  });
+}
+
+// Seguidores e curtidas totais da conta do TikTok, dia a dia — construído a
+// partir de hoje (sem histórico retroativo), via endpoint /user/info/ com
+// o scope user.info.stats.
+function renderTiktokStatsChart(tiktokStats) {
+  const wrap = document.getElementById('analytics-tiktok-stats-wrap');
+  const dias = Object.keys(tiktokStats).sort();
+
+  if (!dias.length) {
+    if (analyticsTiktokStatsChart) { analyticsTiktokStatsChart.destroy(); analyticsTiktokStatsChart = null; }
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado do TikTok disponível ainda. Reconecte a conta para liberar essa métrica.</div>';
+    return;
+  }
+  if (!document.getElementById('analytics-tiktok-stats-chart')) {
+    wrap.innerHTML = '<canvas id="analytics-tiktok-stats-chart" height="90"></canvas>';
+  }
+
+  if (analyticsTiktokStatsChart) analyticsTiktokStatsChart.destroy();
+  analyticsTiktokStatsChart = new Chart(document.getElementById('analytics-tiktok-stats-chart'), {
+    type: 'line',
+    data: {
+      labels: dias.map(formatDiaBR),
+      datasets: [
+        {
+          label: 'Seguidores',
+          data: dias.map(d => tiktokStats[d].followerCount),
+          borderColor: ANALYTICS_PLAT_COLORS.tiktok,
+          backgroundColor: 'transparent',
+          tension: 0, pointRadius: 4, pointHoverRadius: 6
+        },
+        {
+          label: 'Curtidas totais',
+          data: dias.map(d => tiktokStats[d].likesCount),
+          borderColor: '#8b8fa3',
+          backgroundColor: 'transparent',
+          tension: 0, pointRadius: 4, pointHoverRadius: 6
+        }
+      ]
+    },
     options: {
       responsive: true,
       scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
@@ -1731,13 +2089,16 @@ function renderAnalyticsMetrics(metrics) {
       ? `<button type="button" class="plat-btn" style="flex:0;padding:4px 10px;font-size:11px;margin-top:4px" onclick="openCommentsModal(${m.postId})">Ver comentários</button>`
       : `<div style="font-size:11px;color:var(--muted);margin-top:4px">comentários indisponível</div>`;
 
-    return `<div class="plat-row" style="flex-wrap:wrap">
+    const selecionado = m.postId === analyticsSelectedPostId;
+    const estiloSelecionado = selecionado ? `background:rgba(91,127,255,0.08);border-left:2px solid var(--accent)` : '';
+
+    return `<div class="plat-row" style="flex-wrap:wrap;cursor:pointer;${estiloSelecionado}" onclick="selectAnalyticsPost(${m.postId})" title="${selecionado ? 'Clique para voltar à junção de todos os posts' : 'Clique para ver só este post no gráfico'}">
       <span class="mini-pill ${escapeHtml(m.platform)}">${escapeHtml(ANALYTICS_PLAT_LABELS[m.platform] || m.platform)}</span>
       <div style="flex:1">
         <div class="plat-row-name" style="font-size:13px;font-weight:400">${texto}</div>
         <div class="plat-row-meta">${escapeHtml(data)}</div>
       </div>
-      <div style="text-align:right">
+      <div style="text-align:right" onclick="event.stopPropagation()">
         <div style="font-size:12px;color:var(--text);white-space:nowrap">${resultado}</div>
         ${botaoComentarios}
       </div>
@@ -1756,14 +2117,36 @@ async function openCommentsModal(postId) {
   commentsModalPostId = postId;
   document.getElementById('modal-comments').classList.add('open');
   const listEl = document.getElementById('comments-list');
+  const previewEl = document.getElementById('comments-post-preview');
   listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:1.5rem;font-family:var(--mono)">carregando...</div>';
+  previewEl.innerHTML = '';
 
   try {
-    const { comments } = await apiFetch(`/api/posts/${postId}/comments`);
+    const { comments, post } = await apiFetch(`/api/posts/${postId}/comments`);
+    renderCommentsPostPreview(post);
     renderCommentsList(comments);
   } catch (e) {
     listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
   }
+}
+
+// Mostra a mídia e a legenda do post dentro do próprio modal, para dar o
+// contexto do que está sendo comentado sem precisar abrir o Instagram.
+function renderCommentsPostPreview(post) {
+  const previewEl = document.getElementById('comments-post-preview');
+  if (!post) { previewEl.innerHTML = ''; return; }
+
+  const itens = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : []);
+  const midia = itens.length
+    ? `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px">${itens.map(i =>
+        i.type === 'video'
+          ? `<video src="${escapeHtml(i.path)}" controls style="max-height:220px;border-radius:8px;flex:0 0 auto"></video>`
+          : `<img src="${escapeHtml(i.path)}" style="max-height:220px;border-radius:8px;flex:0 0 auto"/>`
+      ).join('')}</div>`
+    : '';
+  const legenda = post.text ? `<div style="font-size:13px;color:var(--text);margin-bottom:10px">${escapeHtml(post.text)}</div>` : '';
+
+  previewEl.innerHTML = `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;background:var(--surface2)">${midia}${legenda}</div>`;
 }
 
 function renderCommentsList(comments) {

@@ -165,4 +165,67 @@ async function deletarConta(id, userId, isAdmin) {
   return rowCount > 0
 }
 
-module.exports = { getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta }
+// Salva o número de seguidores atual de uma conta do Instagram (1 ponto por
+// dia). A API de Insights que daria o histórico direto exige uma permissão
+// extra não aprovada pela Meta para este app, então o saldo é construído
+// aqui mesmo, a partir de hoje, comparando os snapshots diários acumulados.
+async function registrarSnapshotSeguidoresInstagram(contaId, followerCount) {
+  await pool.query(`
+    INSERT INTO instagram_followers_history (conta_id, captured_on, follower_count)
+    VALUES ($1, CURRENT_DATE, $2)
+    ON CONFLICT (conta_id, captured_on) DO UPDATE SET follower_count = $2
+  `, [contaId, followerCount])
+}
+
+// Soma diária de seguidores de todas as contas do Instagram do usuário,
+// a partir do dia em que o snapshot começou a ser coletado.
+async function buscarHistoricoSeguidoresInstagram(userId, isAdmin) {
+  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
+  const params = isAdmin ? [] : [userId]
+
+  const { rows } = await pool.query(`
+    SELECT h.captured_on AS "date", SUM(h.follower_count)::int AS "followerCount"
+    FROM instagram_followers_history h
+    JOIN contas c ON c.id = h.conta_id
+    WHERE c.platform = 'instagram' ${ownerFilter}
+    GROUP BY h.captured_on
+    ORDER BY h.captured_on ASC
+  `, params)
+  return rows
+}
+
+// Salva o snapshot diário de seguidores/curtidas totais/vídeos de uma conta
+// do TikTok — mesmo padrão do Instagram, já que a API do TikTok também não
+// dá histórico retroativo dessas estatísticas.
+async function registrarSnapshotStatsTiktok(contaId, { followerCount, likesCount, videoCount }) {
+  await pool.query(`
+    INSERT INTO tiktok_stats_history (conta_id, captured_on, follower_count, likes_count, video_count)
+    VALUES ($1, CURRENT_DATE, $2, $3, $4)
+    ON CONFLICT (conta_id, captured_on) DO UPDATE SET follower_count = $2, likes_count = $3, video_count = $4
+  `, [contaId, followerCount ?? null, likesCount ?? null, videoCount ?? null])
+}
+
+// Soma diária de seguidores/curtidas de todas as contas do TikTok do
+// usuário, a partir do dia em que o snapshot começou a ser coletado.
+async function buscarHistoricoStatsTiktok(userId, isAdmin) {
+  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
+  const params = isAdmin ? [] : [userId]
+
+  const { rows } = await pool.query(`
+    SELECT h.captured_on AS "date",
+           SUM(h.follower_count)::int AS "followerCount",
+           SUM(h.likes_count)::int AS "likesCount"
+    FROM tiktok_stats_history h
+    JOIN contas c ON c.id = h.conta_id
+    WHERE c.platform = 'tiktok' ${ownerFilter}
+    GROUP BY h.captured_on
+    ORDER BY h.captured_on ASC
+  `, params)
+  return rows
+}
+
+module.exports = {
+  getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
+  registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
+  registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok
+}
