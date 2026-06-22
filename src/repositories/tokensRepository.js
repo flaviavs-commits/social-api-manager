@@ -1,5 +1,6 @@
 const pool = require('../db/pool')
 const { registrarLog } = require('./logsRepository')
+const { encrypt, decrypt } = require('../services/tokenCrypto')
 
 function mask(token) {
   if (!token) return token
@@ -66,7 +67,7 @@ async function listarTokens({ status, platform, userId, isAdmin } = {}) {
     const daysLeft = Number(t.daysLeft) || 0
     return {
       ...t,
-      accessToken: mask(t.accessToken),
+      accessToken: mask(decrypt(t.accessToken)),
       daysLeft: daysLeft > 0 ? daysLeft : 0,
       expiryLabel: daysLeft > 0 ? `${daysLeft} dias` : 'expirado'
     }
@@ -85,7 +86,7 @@ async function salvarToken({ accountId, platform, accessToken, refreshToken, exp
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING id, conta_id AS "accountId", platform, account_name AS "accountName",
       access_token AS "accessToken", expires_at AS "expiresAt", status
-  `, [accountId, platform, accountName || null, accessToken, refreshToken || null, expiry ? expiry.toISOString() : null, status])
+  `, [accountId, platform, accountName || null, encrypt(accessToken), refreshToken ? encrypt(refreshToken) : null, expiry ? expiry.toISOString() : null, status])
 
   await registrarLog({
     type: 'ok',
@@ -94,7 +95,7 @@ async function salvarToken({ accountId, platform, accessToken, refreshToken, exp
     conta_id: accountId
   })
 
-  return { ...token, accessToken: mask(token.accessToken) }
+  return { ...token, accessToken: mask(accessToken) }
 }
 
 // ── Renova o access_token do YouTube via refresh_token (Google OAuth) ─────────
@@ -117,7 +118,7 @@ async function renovarTokenYoutube(token) {
 
   const newExpiry = new Date(Date.now() + (data.expires_in || 3600) * 1000)
   await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
-    [data.access_token, newExpiry.toISOString(), token.id])
+    [encrypt(data.access_token), newExpiry.toISOString(), token.id])
 
   return newExpiry
 }
@@ -134,7 +135,7 @@ async function renovarTokenInstagram(token) {
 
   const newExpiry = new Date(Date.now() + (data.expires_in || 60 * 86400) * 1000)
   await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
-    [data.access_token, newExpiry.toISOString(), token.id])
+    [encrypt(data.access_token), newExpiry.toISOString(), token.id])
 
   return newExpiry
 }
@@ -161,7 +162,7 @@ async function renovarTokenTiktok(token) {
 
   const newExpiry = new Date(Date.now() + (data.expires_in || 86400) * 1000)
   await pool.query(`UPDATE tokens SET access_token = $1, refresh_token = $2, expires_at = $3, status = 'valid', atualizado_em = NOW() WHERE id = $4`,
-    [data.access_token, data.refresh_token || token.refresh_token, newExpiry.toISOString(), token.id])
+    [encrypt(data.access_token), encrypt(data.refresh_token || token.refresh_token), newExpiry.toISOString(), token.id])
 
   return newExpiry
 }
@@ -178,6 +179,11 @@ async function renovarToken(id, userId, isAdmin) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
   if (!token) throw new Error('Token não encontrado')
   if (!isAdmin && !(await tokenPertenceAoUsuario(id, userId))) throw new Error('Token não encontrado')
+
+  // access_token/refresh_token vêm cifrados do banco — decifra antes de usar
+  // nas chamadas de renovação contra a API de cada rede social.
+  token.access_token = decrypt(token.access_token)
+  token.refresh_token = decrypt(token.refresh_token)
 
   try {
     if (token.platform === 'youtube' && token.refresh_token) {

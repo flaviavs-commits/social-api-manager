@@ -5,6 +5,7 @@ const { registrarLog, broadcastEvent } = require('../repositories/logsRepository
 const tokensRepo = require('./../repositories/tokensRepository')
 const postsRepo = require('./../repositories/postsRepository')
 const { gerarTokenMedia } = require('./mediaToken')
+const { decrypt } = require('./tokenCrypto')
 
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -34,7 +35,9 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
     LIMIT 1
   `, params)
 
-  return rows[0] || null
+  const token = rows[0]
+  if (!token) return null
+  return { ...token, accessToken: decrypt(token.accessToken), refreshToken: decrypt(token.refreshToken) }
 }
 
 // Lista todos os tokens conectados de uma plataforma para o usuário (não só
@@ -56,7 +59,7 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
     ORDER BY t.id DESC
   `, params)
 
-  return rows
+  return rows.map(token => ({ ...token, accessToken: decrypt(token.accessToken), refreshToken: decrypt(token.refreshToken) }))
 }
 
 // Extrai o ID do post/mídia na rede social a partir da resposta de cada

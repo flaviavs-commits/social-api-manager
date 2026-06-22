@@ -1,4 +1,5 @@
 const pool = require('../db/pool')
+const { decrypt } = require('../services/tokenCrypto')
 
 // ── Stats para o dashboard ────────────────────────────────────────────────────
 async function getDashboardStats(userId, isAdmin) {
@@ -90,7 +91,7 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
           'id',           t.id,
           'platform',     t.platform,
           'accountName',  t.account_name,
-          'accessToken',  LEFT(t.access_token, 12) || '...',
+          'accessToken',  t.access_token,
           'expiresAt',    t.expires_at,
           'status',       t.status
         )
@@ -103,7 +104,15 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
     ORDER BY c.tipo, c.criado_em DESC
   `, params)
 
-  return rows
+  // accessToken vem cifrado do banco — decifra e só então trunca pra exibição
+  // (truncar o texto cifrado direto no SQL mostraria lixo sem sentido).
+  return rows.map(conta => ({
+    ...conta,
+    tokens: (conta.tokens || []).map(t => {
+      const plain = decrypt(t.accessToken)
+      return { ...t, accessToken: plain ? plain.slice(0, 12) + '...' : plain }
+    })
+  }))
 }
 
 // ── Criar conta ───────────────────────────────────────────────────────────────
