@@ -3,10 +3,8 @@ const path = require('path')
 const os = require('os')
 const fs = require('fs')
 const crypto = require('crypto')
-const multer = require('multer')
-const FileType = require('file-type')
 const sharp = require('sharp')
-const { put } = require('@vercel/blob')
+const { put, presignUrl, issueSignedToken } = require('@vercel/blob')
 const repo = require('../repositories/postsRepository')
 const contasRepo = require('../repositories/contasRepository')
 const { publishPost } = require('../services/publisher')
@@ -25,52 +23,43 @@ const ALLOWED_MEDIA_TYPES = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'
 ])
 
-// Arquivos chegam em memória (req.files[i].buffer) em vez de serem escritos em
-// disco — necessário porque o disco local de uma função serverless (Vercel) é
-// efêmero e some entre invocações. O destino final é o Vercel Blob, mais abaixo.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) return cb(null, true)
-    cb(new Error('Arquivo precisa ser uma imagem ou vídeo'))
+
+// POST /api/posts/upload-url — gera uma URL pré-assinada para o navegador
+// enviar o arquivo direto ao Vercel Blob, sem passar pelo corpo da
+// requisição desta API. Necessário porque funções serverless da Vercel têm
+// limite de tamanho de payload (4.5MB no plano Hobby) — vídeos comuns de
+// celular já excedem isso facilmente, então o upload precisa ir direto do
+// navegador para o storage, não por aqui.
+router.post('/upload-url', async (req, res) => {
+  try {
+    const { filename, mimetype } = req.body || {}
+    if (!filename || !mimetype) return res.status(400).json({ erro: 'filename e mimetype são obrigatórios' })
+    if (!mimetype.startsWith('image/') && !mimetype.startsWith('video/'))
+      return res.status(400).json({ erro: 'Arquivo precisa ser uma imagem ou vídeo' })
+
+    // A checagem de assinatura binária real (que existia no fluxo antigo via
+    // multer+file-type) não é possível aqui — o servidor nunca vê o conteúdo
+    // do arquivo nesse fluxo. allowedContentTypes/maximumSizeInBytes são a
+    // validação equivalente possível num upload direto navegador→Blob.
+    const ext = path.extname(filename) || ''
+    const pathname = `${crypto.randomUUID()}${ext}`
+    const validUntil = Date.now() + 10 * 60 * 1000
+
+    const signed = await issueSignedToken({ pathname, operations: ['put'], validUntil })
+    const { presignedUrl } = await presignUrl(signed, {
+      operation: 'put',
+      pathname,
+      access: 'public',
+      allowedContentTypes: Array.from(ALLOWED_MEDIA_TYPES),
+      maximumSizeInBytes: 200 * 1024 * 1024,
+      validUntil
+    })
+
+    res.json({ uploadUrl: presignedUrl, mimetype })
+  } catch (e) {
+    serverError(res, e, 'Não foi possível gerar a URL de upload')
   }
 })
-
-// Verifica a assinatura binária real de cada arquivo enviado (o Content-Type
-// do multipart é apenas o que o cliente declarou, e pode ser falsificado).
-// Descarta (sem nunca escrever em disco) qualquer arquivo cujo conteúdo não
-// seja imagem/vídeo válido.
-async function validarESanitizarUploads(files) {
-  // Cada arquivo é validado de forma independente — paraleliza para não pagar
-  // o custo de I/O de forma serial quando o post tem várias mídias (carrossel).
-  const validados = await Promise.all(files.map(async f => {
-    const tipo = await FileType.fromBuffer(f.buffer)
-    if (!tipo || !ALLOWED_MEDIA_TYPES.has(tipo.mime)) return null
-    return { ...f, ext: tipo.ext, mimetype: tipo.mime }
-  }))
-  return validados.filter(Boolean)
-}
-
-// A API do Instagram só aceita imagens em JPEG — PNG, GIF e WebP são
-// rejeitados na hora de publicar com um erro genérico ("The image format is
-// not supported"). Em vez de bloquear o upload, convertemos a imagem para
-// JPEG aqui, mantendo o arquivo original para as demais plataformas.
-async function converterImagemParaJpegSeNecessario(file) {
-  if (!file.mimetype.startsWith('image/') || file.mimetype === 'image/jpeg') return file
-
-  const buffer = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer()
-  return { ...file, buffer, ext: 'jpg', mimetype: 'image/jpeg' }
-}
-
-// Envia o buffer já validado/convertido para o Vercel Blob (storage externo,
-// substitui a escrita em public/uploads) e devolve a URL pública gerada —
-// essa URL é o que passa a ser guardado em posts.media_path/media_items.
-async function enviarParaBlob(file) {
-  const filename = `${crypto.randomUUID()}.${file.ext}`
-  const { url } = await put(filename, file.buffer, { access: 'public', contentType: file.mimetype })
-  return { ...file, url, filename }
-}
 
 // GET /api/posts
 router.get('/', async (req, res) => {
@@ -181,7 +170,12 @@ router.get('/:id/metrics-history', async (req, res) => {
 })
 
 // POST /api/posts
-router.post('/', upload.array('media', 10), async (req, res) => {
+// Mídia chega como JSON (array de URLs já enviadas ao Vercel Blob pelo
+// navegador via /upload-url), não mais como multipart binário — uploads
+// grandes (vídeos) excederiam o limite de payload de uma função serverless
+// se passassem por aqui. O parsing do body já é feito pelo express.json()
+// global (server.js).
+router.post('/', async (req, res) => {
   try {
     const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public' } = req.body
 
@@ -234,16 +228,31 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     // convertemos explicitamente para UTC antes de enviar.
     const scheduledAtUTC = new Date(scheduledAtBR).toISOString().replace('Z', '')
 
-    const filesEnviados = req.files || []
-    let files = await validarESanitizarUploads(filesEnviados)
-    if (files.length < filesEnviados.length) {
-      return res.status(400).json({ erro: 'Um ou mais arquivos não são imagens ou vídeos válidos.' })
+    // Mídia já foi enviada ao Blob pelo navegador (POST /upload-url + PUT direto) —
+    // aqui só recebemos a lista de URLs/metadados resultantes, nunca o binário.
+    let media
+    try {
+      media = Array.isArray(req.body.media) ? req.body.media : JSON.parse(req.body.media || '[]')
+    } catch {
+      return res.status(400).json({ erro: 'media inválido' })
     }
+    if (!Array.isArray(media) || media.some(m => !m?.url || !m?.mimetype))
+      return res.status(400).json({ erro: 'Cada item de media precisa ter url e mimetype' })
+
+    let files = media
 
     // O Instagram só aceita imagens em JPEG — converte PNG/GIF/WebP antes de
-    // publicar, em vez de bloquear o post.
+    // publicar, em vez de bloquear o post. Sem o buffer original em mãos (já
+    // que o upload foi direto pro Blob), busca o conteúdo via fetch primeiro.
     if (platforms.includes('instagram')) {
-      files = await Promise.all(files.map(converterImagemParaJpegSeNecessario))
+      files = await Promise.all(files.map(async f => {
+        if (!f.mimetype.startsWith('image/') || f.mimetype === 'image/jpeg') return f
+        const res = await fetch(f.url)
+        const buffer = Buffer.from(await res.arrayBuffer())
+        const jpegBuffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
+        const { url } = await put(`${crypto.randomUUID()}.jpg`, jpegBuffer, { access: 'public', contentType: 'image/jpeg' })
+        return { ...f, url, mimetype: 'image/jpeg' }
+      }))
     }
 
     if (!text?.trim() && !files.length)
@@ -258,14 +267,16 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     }
 
     // Detecta se algum vídeo é elegível como Shorts do YouTube (vertical/quadrado,
-    // até 3min) ANTES de subir pro Blob — ffprobe só funciona com um arquivo
-    // local, então o buffer é escrito num arquivo temporário só para essa leitura
-    // e descartado logo depois (evita ter que rebaixar a mídia do Blob depois).
+    // até 3min) — ffprobe só funciona com um arquivo local, então o vídeo é
+    // baixado da URL do Blob para um arquivo temporário só para essa leitura
+    // de metadados, e descartado logo depois.
     const probes = await Promise.all(files.map(async f => {
       if (!f.mimetype.startsWith('video/')) return null
-      const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${f.ext}`)
+      const ext = f.mimetype === 'video/quicktime' ? 'mov' : 'mp4'
+      const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${ext}`)
       try {
-        await fs.promises.writeFile(tmpPath, f.buffer)
+        const res = await fetch(f.url)
+        await fs.promises.writeFile(tmpPath, Buffer.from(await res.arrayBuffer()))
         return await probeVideo(tmpPath)
       } catch {
         return null
@@ -274,11 +285,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       }
     }))
 
-    // Envia cada arquivo já validado/convertido para o Vercel Blob — substitui
-    // a antiga escrita em public/uploads, que não persiste em ambiente serverless.
-    const enviados = await Promise.all(files.map(enviarParaBlob))
-
-    const items = enviados.map((f, i) => ({
+    const items = files.map((f, i) => ({
       path: f.url,
       type: f.mimetype.startsWith('video/') ? 'video' : 'image',
       caption: typeof captions[i] === 'string' ? captions[i].slice(0, 500) : ''

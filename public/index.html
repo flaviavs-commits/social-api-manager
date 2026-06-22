@@ -1409,6 +1409,23 @@ async function handleDrivePicked(data) {
   }
 }
 
+// Envia um arquivo direto para o Vercel Blob, sem passar pelo corpo da nossa
+// API — funções serverless da Vercel limitam o tamanho do payload (4.5MB no
+// Hobby), o que vídeos comuns de celular excedem facilmente. O servidor só
+// emite uma URL assinada de curta duração (POST /upload-url); o navegador
+// faz o PUT diretamente para o storage.
+async function uploadArquivoDireto(file) {
+  const { uploadUrl, mimetype } = await apiFetch('/api/posts/upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ filename: file.name, mimetype: file.type })
+  });
+
+  const res = await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+  if (!res.ok) throw new Error(`Falha ao enviar "${file.name}" (${res.status})`);
+  const data = await res.json();
+  return { url: data.url, mimetype };
+}
+
 async function schedulePost(publishNow = false) {
   const text = document.getElementById('post-text').value.trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
@@ -1429,23 +1446,30 @@ async function schedulePost(publishNow = false) {
   if (platforms.length === 0 || !selectedAccountId) return showToast('Escolha a rede social e a conta em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
-  const formData = new FormData();
-  formData.append('text', text);
-  formData.append('youtubeTitle', youtubeTitle);
-  formData.append('youtubeVisibility', youtubeVisibility);
-  formData.append('platforms', JSON.stringify(platforms));
-  formData.append('accountId', selectedAccountId);
-  formData.append('scheduledAt', scheduledAt);
-  formData.append('repeat', repeat);
-  formData.append('publishNow', publishNow ? 'true' : 'false');
-  mediaFiles.forEach(m => formData.append('media', m.file));
-  formData.append('captions', JSON.stringify(mediaFiles.map(m => m.caption)));
+  let media;
+  try {
+    if (mediaFiles.length) showToast(mediaFiles.length > 1 ? 'Enviando arquivos...' : 'Enviando arquivo...', 'ok');
+    media = await Promise.all(mediaFiles.map(m => uploadArquivoDireto(m.file)));
+  } catch (e) {
+    showToast('Erro ao enviar mídia: ' + e.message, 'err');
+    return;
+  }
+
+  const body = {
+    text, youtubeTitle, youtubeVisibility,
+    platforms: JSON.stringify(platforms),
+    accountId: selectedAccountId,
+    scheduledAt, repeat,
+    publishNow: publishNow ? 'true' : 'false',
+    media: JSON.stringify(media),
+    captions: JSON.stringify(mediaFiles.map(m => m.caption))
+  };
 
   if (publishNow) showToast('Publicando agora...', 'ok');
 
   let post;
   try {
-    post = await apiFetch('/api/posts', { method: 'POST', body: formData });
+    post = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify(body) });
   } catch (e) {
     showToast((publishNow ? 'Erro ao publicar: ' : 'Erro ao agendar: ') + e.message, 'err');
     return;
