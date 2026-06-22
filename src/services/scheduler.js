@@ -82,4 +82,4 @@ function start() {
   renovarTokensProativamente()
 }
 
-module.exports = { start }
+module.exports = { start, processarPendentes, renovarTokensProativamente }

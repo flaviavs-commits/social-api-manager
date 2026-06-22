@@ -1,5 +1,9 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/api/cron/process-posts", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/renew-tokens", "schedule": "0 10 * * *" }
   ]
 }

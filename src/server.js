@@ -14,6 +14,7 @@ const authRoutes     = require('./routes/auth')
 const adminRoutes    = require('./routes/admin')
 const requireAuth    = require('./middleware/requireAuth')
 const requireAdmin   = require('./middleware/requireAdmin')
+const cronRoutes     = require('./routes/cron')
 const scheduler      = require('./services/scheduler')
 const { validarTokenMedia } = require('./services/mediaToken')
 
@@ -63,6 +64,11 @@ app.use('/auth/login', authRoutes)
 // via state assinado, não pelo middleware aqui.
 app.use('/auth', oauthRoutes)
 app.use('/oauth', oauthRoutes)
+
+// Disparado pela infra de cron da Vercel (vercel.json) via requisição HTTP
+// comum — autenticado pelo header Authorization (CRON_SECRET), não por
+// sessão de usuário, então fica fora do requireAuth global.
+app.use('/api/cron', cronRoutes)
 
 app.get('/admin.html', requireAuth, requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'))
