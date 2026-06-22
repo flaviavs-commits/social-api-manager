@@ -2140,6 +2140,13 @@ function renderTiktokStatsChart(tiktokStats) {
 // Miniatura do primeiro item de mídia do post (imagem, frame do vídeo, ou
 // ícone de carrossel quando há mais de um item), para dar contexto visual do
 // que foi publicado sem precisar abrir a rede social.
+// Ícone mostrado no lugar da miniatura quando a mídia não carrega — acontece
+// para posts publicados antes da migração para o Vercel Blob, cujos arquivos
+// ficavam em disco local (público/uploads) e não existem mais no ambiente
+// serverless atual. Sem isso, o navegador mostra o ícone padrão de imagem
+// quebrada no lugar.
+const ANALYTICS_THUMB_FALLBACK = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted)" title="Mídia não disponível">🖼️</div>`.replace(/"/g, '&quot;');
+
 function renderAnalyticsMediaThumb(m) {
   const itens = m.mediaItems?.length ? m.mediaItems : (m.mediaPath ? [{ path: m.mediaPath, type: m.mediaType }] : []);
   if (!itens.length) {
@@ -2148,8 +2155,8 @@ function renderAnalyticsMediaThumb(m) {
   const primeiro = itens[0];
   const badgeCarrossel = itens.length > 1 ? `<span style="position:absolute;bottom:-2px;right:-2px;background:var(--accent);color:#fff;font-size:9px;border-radius:6px;padding:1px 4px;line-height:1.4">${itens.length}</span>` : '';
   const conteudo = primeiro.type === 'video'
-    ? `<video src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover"></video>`
-    : `<img src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover"/>`;
+    ? `<video src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.outerHTML='${ANALYTICS_THUMB_FALLBACK}'"></video>`
+    : `<img src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.outerHTML='${ANALYTICS_THUMB_FALLBACK}'"/>`;
   return `<div style="position:relative;flex:0 0 auto">${conteudo}${badgeCarrossel}</div>`;
 }
 
@@ -2234,11 +2241,12 @@ function renderCommentsPostPreview(post) {
   if (!post) { previewEl.innerHTML = ''; return; }
 
   const itens = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : []);
+  const previewFallback = `<div style="max-height:220px;min-height:120px;min-width:160px;border-radius:8px;flex:0 0 auto;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)">Mídia não disponível</div>`.replace(/"/g, '&quot;');
   const midia = itens.length
     ? `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px">${itens.map(i =>
         i.type === 'video'
-          ? `<video src="${escapeHtml(i.path)}" controls style="max-height:220px;border-radius:8px;flex:0 0 auto"></video>`
-          : `<img src="${escapeHtml(i.path)}" style="max-height:220px;border-radius:8px;flex:0 0 auto"/>`
+          ? `<video src="${escapeHtml(i.path)}" controls style="max-height:220px;border-radius:8px;flex:0 0 auto" onerror="this.outerHTML='${previewFallback}'"></video>`
+          : `<img src="${escapeHtml(i.path)}" style="max-height:220px;border-radius:8px;flex:0 0 auto" onerror="this.outerHTML='${previewFallback}'"/>`
       ).join('')}</div>`
     : '';
   const legenda = post.text ? `<div style="font-size:13px;color:var(--text);margin-bottom:10px">${escapeHtml(post.text)}</div>` : '';
