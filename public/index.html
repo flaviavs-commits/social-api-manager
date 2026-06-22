@@ -828,8 +828,12 @@ async function loadDashboard() {
         const l = profileUrl(p.platform, c.handle);
         if (l) links.push({ name: c.handle, url: l });
       }
+      // Algumas redes (TikTok) dão URLs de avatar assinadas com validade curta —
+      // quando expira, a imagem falha ao carregar; o onerror troca pelo ícone
+      // genérico da rede em vez de deixar a imagem quebrada visível.
+      const fallbackIcon = `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
       const platIcon = avatarUrl
-        ? `<img class="plat-icon-avatar" src="${escapeHtml(avatarUrl)}">`
+        ? `<img class="plat-icon-avatar" src="${escapeHtml(avatarUrl)}" onerror="this.outerHTML='${fallbackIcon}'">`
         : `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`;
       let openBtn;
       if (links.length === 0) {
@@ -880,8 +884,9 @@ async function loadDashboard() {
         if (c.platform !== platform || !c.handle) continue;
         if (c.avatarUrl) { avatarUrl = c.avatarUrl; break; }
       }
+      const sidebarFallback = `<div class="sidebar-plat-icon plat-icon ${cfg.cls} ${isConnected ? 'connected' : ''}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
       const icon = avatarUrl
-        ? `<img class="sidebar-plat-avatar" src="${escapeHtml(avatarUrl)}">`
+        ? `<img class="sidebar-plat-avatar" src="${escapeHtml(avatarUrl)}" onerror="this.outerHTML='${sidebarFallback}'">`
         : `<div class="sidebar-plat-icon plat-icon ${cfg.cls} ${isConnected ? 'connected' : ''}">${cfg.icon}</div>`;
 
       return `<div class="sidebar-plat-item" onclick="showPage('tokens')">
@@ -927,8 +932,9 @@ async function loadTokens() {
         const statusLabel = { valid:'funcionando', expiring:'vencendo', expired:'desconectada' }[t.status] || t.status;
         const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
         const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
+        const rowFallback = `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;')
         const avatar = t.avatarUrl
-          ? `<img class="plat-row-avatar" src="${escapeHtml(t.avatarUrl)}">`
+          ? `<img class="plat-row-avatar" src="${escapeHtml(t.avatarUrl)}" onerror="this.outerHTML='${rowFallback}'">`
           : `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>`;
         return `<div class="plat-row">
           ${avatar}
@@ -1041,8 +1047,9 @@ function renderApAccountList() {
 
   list.innerHTML = contasDaRede.map(c => {
     const active = c.id === selectedAccountId;
+    const apFallback = `<div class="plat-icon ${PLAT_ROW_CFG[c.platform]?.cls || ''}" style="width:24px;height:24px;font-size:12px">${escapeHtml(PLAT_ROW_CFG[c.platform]?.icon || '')}</div>`.replace(/"/g, '&quot;')
     const avatar = c.avatarUrl
-      ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover">`
+      ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover" onerror="this.outerHTML='${apFallback}'">`
       : `<div class="plat-icon ${PLAT_ROW_CFG[c.platform]?.cls || ''}" style="width:24px;height:24px;font-size:12px">${escapeHtml(PLAT_ROW_CFG[c.platform]?.icon || '')}</div>`;
     return `<button type="button" class="plat-btn ${active ? 'primary' : ''}" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:8px 10px" onclick="apSelectAccount(${c.id})">
       ${avatar}<span>${escapeHtml(c.handle)}</span>
