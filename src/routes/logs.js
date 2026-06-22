@@ -18,21 +18,31 @@ router.get('/', async (req, res) => {
   }
 })
 
-// GET /api/logs/stream  → SSE em tempo real
-router.get('/stream', (req, res) => {
-  res.setHeader('Content-Type',  'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection',    'keep-alive')
-  res.flushHeaders()
+// GET /api/logs/since/:lastId  → logs novos desde o último id visto (polling)
+// Substitui o antigo SSE (/stream): sem conexão persistente, o frontend chama
+// isso a cada poucos segundos para buscar só o que ainda não viu.
+router.get('/since/:lastId', async (req, res) => {
+  try {
+    const lastId = Number(req.params.lastId)
+    if (!Number.isInteger(lastId) || lastId < 0) return res.status(400).json({ erro: 'lastId inválido' })
+    const logs = await repo.listarLogsDesde(lastId, req.user.id, isAdminRole(req.user.role))
+    res.json({ logs })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
 
-  repo.adicionarClienteSSE(res, req.user.id, isAdminRole(req.user.role))
-
-  // Heartbeat a cada 25s para manter conexão viva
-  const hb = setInterval(() => {
-    try { res.write(': ping\n\n') } catch { clearInterval(hb) }
-  }, 25000)
-
-  req.on('close', () => clearInterval(hb))
+// GET /api/logs/events/since/:lastId  → eventos nomeados novos (post_published,
+// youtube_video_ready) desde o último id visto — mesmo modelo de polling.
+router.get('/events/since/:lastId', async (req, res) => {
+  try {
+    const lastId = Number(req.params.lastId)
+    if (!Number.isInteger(lastId) || lastId < 0) return res.status(400).json({ erro: 'lastId inválido' })
+    const events = await repo.listarEventosDesde(lastId, req.user.id, isAdminRole(req.user.role))
+    res.json({ events })
+  } catch (e) {
+    serverError(res, e)
+  }
 })
 
 // DELETE /api/logs

@@ -1553,35 +1553,58 @@ async function deletePost(id, btn) {
 }
 
 // ── Logs SSE stream ──────────────────────────────────────────────────────────
-let logEs = null;
+// Substitui o antigo SSE (conexão persistente, incompatível com serverless)
+// por polling: busca logs/eventos novos a cada poucos segundos, usando o id
+// do último item recebido como cursor para nunca reprocessar o mesmo dado.
 let logPaused = false;
+let logPollTimer = null;
+let lastLogId = 0;
+let lastEventId = 0;
 
 function startLogStream() {
-  if (logEs) return;
+  if (logPollTimer) return;
   const box = document.getElementById('log-box');
   box.innerHTML = '';
 
-  // Carregar logs históricos primeiro
+  // Carrega o histórico primeiro, e usa o id mais recente como ponto de
+  // partida do polling (evita reexibir tudo de novo no primeiro poll).
   apiFetch('/api/logs?limit=50').then(({ logs }) => {
     logs.reverse().forEach(l => appendLog(box, l));
     box.scrollTop = box.scrollHeight;
+    lastLogId = logs.length ? Math.max(...logs.map(l => l.id)) : 0;
   });
 
-  // Conectar ao SSE
-  logEs = new EventSource(API + '/api/logs/stream');
-  logEs.onmessage = (e) => {
+  const poll = async () => {
     if (logPaused) return;
-    const log = JSON.parse(e.data);
-    appendLog(box, log);
-    box.scrollTop = box.scrollHeight;
-  };
-  logEs.onerror = () => {
-    appendLog(box, { type:'warn', message:'Conexão perdida — tentando reconectar...', timestamp: new Date().toISOString() });
+    try {
+      const [{ logs }, { events }] = await Promise.all([
+        apiFetch(`/api/logs/since/${lastLogId}`),
+        apiFetch(`/api/logs/events/since/${lastEventId}`)
+      ]);
+
+      for (const l of logs) {
+        appendLog(box, l);
+        lastLogId = l.id;
+      }
+      if (logs.length) box.scrollTop = box.scrollHeight;
+
+      for (const ev of events) {
+        handleAppEvent(ev.event_name, ev.payload);
+        lastEventId = ev.id;
+      }
+    } catch {
+      // Falha pontual de rede não interrompe o polling — tenta de novo no próximo ciclo.
+    }
   };
 
-  // Notifica quando um post agendado é publicado
-  logEs.addEventListener('post_published', (e) => {
-    const data = JSON.parse(e.data);
+  logPollTimer = setInterval(poll, 4000);
+  document.getElementById('btn-pause-logs').textContent = '⏸ Pausar';
+}
+
+// Mesma lógica que antes vivia nos listeners do EventSource — agora disparada
+// a partir do evento lido via polling, em vez de recebido via stream.
+function handleAppEvent(eventName, data) {
+  if (eventName === 'post_published') {
     const plats = (data.platforms || []).join(', ');
     if (data.status === 'published') {
       showToast(`✅ Post #${data.id} publicado em ${plats}`, 'ok');
@@ -1595,21 +1618,13 @@ function startLogStream() {
     // (já publicado/com erro, mas exibido como "agendado") até a próxima
     // navegação manual para a página do agendador.
     loadQueue();
-  });
-
-  // O upload no YouTube "termina" rápido, mas o vídeo continua processando lá
-  // (transcoding) antes de ficar disponível de fato — esse evento chega quando
-  // o YouTube confirma que o vídeo já está pronto/publicado de verdade.
-  logEs.addEventListener('youtube_video_ready', (e) => {
-    const data = JSON.parse(e.data);
+  } else if (eventName === 'youtube_video_ready') {
     if (data.status === 'ready') {
       showToast(`✅ Vídeo do post #${data.postId} já está disponível no YouTube`, 'ok');
     } else {
       showToast(`❌ Vídeo do post #${data.postId} falhou ao processar no YouTube${data.reason ? ': ' + data.reason : ''}`, 'err');
     }
-  });
-
-  document.getElementById('btn-pause-logs').textContent = '⏸ Pausar';
+  }
 }
 
 function appendLog(box, log) {
@@ -2666,7 +2681,7 @@ if (oauthErrorCode) {
 }
 
 loadDashboard();
-startLogStream(); // mantém SSE ativo para notificações de posts publicados em qualquer página
+startLogStream(); // mantém o polling ativo para notificações de posts publicados em qualquer página
 
 const roleLabels = { user: 'Usuário', admin: 'Admin', super_admin: 'Super Admin' };
 
