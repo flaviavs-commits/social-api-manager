@@ -2713,7 +2713,7 @@ if (location.search.includes('connected=true')) {
   history.replaceState({}, '', '/');
 }
 const oauthErrorMessages = {
-  oauth_cancelled: 'Você cancelou a conexão antes de terminar. Tente novamente quando quiser.',
+  oauth_cancelled: 'Você cancelou a conexão antes de terminar, ou o código de autorização expirou (ex: a página do popup foi recarregada). Tente novamente.',
   token_failed: 'O Instagram/Facebook ficou instável por alguns segundos e não confirmou a conexão. Isso é comum e passa rápido — clique em "Conectar conta" e tente de novo.',
   oauth_failed: 'Algo deu errado ao conectar essa conta. Tente novamente ou contate o suporte.'
 };

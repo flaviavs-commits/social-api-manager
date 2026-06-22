@@ -479,24 +479,16 @@ router.get('/google/callback', async (req, res) => {
 
 // ─── TikTok ───────────────────────────────────────────────────────────────────
 
-router.get('/tiktok', requireAuth, async (req, res) => {
+// Monta a URL de autorização do TikTok e persiste o PKCE — compartilhado pelas
+// duas rotas de início de OAuth (/tiktok e /tiktok/google), que só diferem no
+// conjunto de scopes pedido e em metadados extras gravados no state.
+async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessage }) {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
   const { accountName } = req.query;
   const platform = 'tiktok';
-  const state = signState({ accountName, platform, userId: req.user.id });
-  const scopes = [
-    'user.info.basic',
-    'user.info.profile',
-    // Necessário para o gráfico de seguidores/curtidas totais no Analytics
-    // (endpoint /user/info/ com follower_count, likes_count) — contas
-    // conectadas antes desse scope existir precisam ser reconectadas.
-    'user.info.stats',
-    'video.list',
-    'video.publish',
-    'video.upload'
-  ].join(',');
+  const state = signState({ accountName, platform, userId: req.user.id, ...stateExtra });
 
   // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
@@ -506,40 +498,39 @@ router.get('/tiktok', requireAuth, async (req, res) => {
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
     `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
     `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
-    `&scope=${scopes}` +
+    `&scope=${scopes.join(',')}` +
     `&state=${state}` +
     `&response_type=code` +
     `&code_challenge=${codeChallenge}` +
     `&code_challenge_method=S256`;
 
-  addLog('info', `OAuth TikTok iniciado para "${accountName}"`, platform, null, req.user.id);
+  addLog('info', logMessage, platform, null, req.user.id);
   res.json({ authUrl: url });
+}
+
+router.get('/tiktok', requireAuth, async (req, res) => {
+  await iniciarOAuthTiktok(req, res, {
+    scopes: [
+      'user.info.basic',
+      'user.info.profile',
+      // Necessário para o gráfico de seguidores/curtidas totais no Analytics
+      // (endpoint /user/info/ com follower_count, likes_count) — contas
+      // conectadas antes desse scope existir precisam ser reconectadas.
+      'user.info.stats',
+      'video.list',
+      'video.publish',
+      'video.upload'
+    ],
+    logMessage: `OAuth TikTok iniciado para "${req.query.accountName}"`
+  });
 });
 
 router.get('/tiktok/google', requireAuth, async (req, res) => {
-  const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
-  if (configError) return res.status(400).json(configError);
-
-  const { accountName } = req.query;
-  const platform = 'tiktok';
-  const state = signState({ platform, via: 'google', accountName, userId: req.user.id });
-  const scopes = ['user.info.basic', 'user.info.stats', 'video.publish', 'video.upload'].join(',');
-
-  const codeVerifier = crypto.randomBytes(64).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
-  await salvarPkceVerifier(state, codeVerifier);
-
-  const url = `https://www.tiktok.com/v2/auth/authorize/` +
-    `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
-    `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
-    `&scope=${scopes}` +
-    `&state=${state}` +
-    `&response_type=code` +
-    `&code_challenge=${codeChallenge}` +
-    `&code_challenge_method=S256`;
-
-  addLog('info', `OAuth TikTok (Google) iniciado`, platform, null, req.user.id);
-  res.json({ authUrl: url });
+  await iniciarOAuthTiktok(req, res, {
+    scopes: ['user.info.basic', 'user.info.stats', 'video.publish', 'video.upload'],
+    stateExtra: { via: 'google' },
+    logMessage: 'OAuth TikTok (Google) iniciado'
+  });
 });
 
 router.get('/tiktok/callback', async (req, res) => {
@@ -578,9 +569,19 @@ router.get('/tiktok/callback', async (req, res) => {
     // TikTok pode retornar o token na raiz ou em { data: {...} }
     const token = tokenData.data ?? tokenData;
     if (!token?.access_token) {
-      const errMsg = tokenData.error?.message || tokenData.error_description || 'token_failed';
-      addLog('err', `Erro ao obter token TikTok: ${errMsg}`, 'tiktok', null, meta.userId);
-      return res.send(popupError('token_failed'));
+      const errMsg = tokenData.error?.message || tokenData.error_description || tokenData.error || 'Resposta sem access_token'
+      addLog('err', `Erro ao obter token TikTok: ${errMsg}`, 'tiktok', null, meta.userId)
+      // invalid_grant: code expirado/já usado (ex: usuário recarregou a página do
+      // callback) — diferente de uma falha real de configuração/credenciais.
+      const popupCode = tokenData.error === 'invalid_grant' ? 'oauth_cancelled' : 'token_failed'
+      return res.send(popupError(popupCode))
+    }
+
+    // expires_in é obrigatório para calcular a expiração do token — sem ele,
+    // `Date.now() + undefined * 1000` vira NaN, salvando "Invalid Date" no banco.
+    if (!token.expires_in) {
+      addLog('err', `Token TikTok sem expires_in na resposta: ${JSON.stringify(token)}`, 'tiktok', null, meta.userId)
+      return res.send(popupError('token_failed'))
     }
 
     // Busca o perfil para obter username e foto de perfil
