@@ -113,9 +113,16 @@ app.use((err, req, res, next) => {
   res.status(status).json({ erro: err.message || 'Requisição inválida' })
 })
 
-const PORT = process.env.PORT || 3000
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
-  console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
-  scheduler.start()
-})
+// Em serverless (Vercel) não há app.listen() — o api/index.js importa "app"
+// direto e a plataforma cuida de invocar a função por requisição. Local
+// (npm start) continua chamando .listen() normalmente.
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
+    console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
+    scheduler.start()
+  })
+}
+
+module.exports = app
