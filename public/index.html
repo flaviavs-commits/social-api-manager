@@ -2580,9 +2580,11 @@ function updatePlatformUI(plat) {
 }
 
 async function startOAuthGoogle() {
-  const name  = resolveInputName('modal-name');
-
-  if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
+  // O nome da conta é opcional aqui: se não for informado, o backend usa o
+  // @usuario/nome de exibição que o próprio TikTok devolve depois que o
+  // usuário autoriza — não precisa saber o @usuario de antemão para conectar.
+  const typed = resolveInputName('modal-name');
+  const name = (typed && typed !== 'Nova Conta') ? typed : '';
 
   // Abre a janela em branco já dentro do clique do usuário (gesto síncrono),
   // com nome único — senão o navegador bloqueia o popup quando window.open
