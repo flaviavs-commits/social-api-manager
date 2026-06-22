@@ -20,6 +20,15 @@ const { validarTokenMedia } = require('./services/mediaToken')
 const app = express()
 app.disable('x-powered-by')
 
+// O app fica atrás do túnel ngrok (HTTPS termina no ngrok, e o tráfego chega
+// ao processo Node como HTTP puro com o header X-Forwarded-Proto/X-Forwarded-For).
+// Sem isso, o Express não confia nesses headers: req.secure fica sempre false
+// (quebrando cookies com secure:true) e o express-rate-limit rejeita a
+// requisição inteira por ver X-Forwarded-For sem confiar nele
+// (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). trust proxy = 1 confia no primeiro
+// proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
+app.set('trust proxy', 1)
+
 // Cabeçalhos básicos de segurança (sem dependências extras)
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
@@ -37,7 +46,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
+  proxy: true,
+  // secure:true exige HTTPS para o navegador enviar o cookie de volta — com
+  // trust proxy=1, req.secure passa a refletir corretamente o X-Forwarded-Proto
+  // do ngrok, então isso agora é seguro de habilitar (antes, sem trust proxy,
+  // o cookie secure nunca seria reenviado e a sessão "expirava" a cada request).
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax', secure: 'auto' }
 }))
 
 app.use('/auth/login', authRoutes)

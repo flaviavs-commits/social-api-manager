@@ -1,10 +1,14 @@
 const { buscarContaToken } = require('./publisher')
 
-// Redes onde já é possível listar e responder comentários reais com o
-// escopo OAuth que a conexão atual já solicita. Facebook tem leitura mas
-// falta a permissão pages_manage_engagement para responder; YouTube e
-// TikTok/Kwai não têm suporte confirmado — ficam de fora por agora.
-const PLATAFORMAS_COM_COMENTARIOS = ['instagram']
+// Redes onde já é possível listar comentários reais com o escopo OAuth que
+// a conexão atual já solicita. TikTok (Content Posting API) não expõe
+// leitura de comentários de terceiros e Kwai não tem API pública — ficam
+// de fora por agora.
+const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube']
+
+// Só Instagram tem permissão (pages_manage_engagement faltando no Facebook,
+// YouTube exige moderação manual) para responder comentários por API.
+const PLATAFORMAS_COM_RESPOSTA = ['instagram']
 
 const COMMENTS_FETCH_TIMEOUT_MS = 4000
 
@@ -32,6 +36,37 @@ async function listarComentariosInstagram(token, externalPostId) {
   }))
 }
 
+
+async function listarComentariosFacebook(token, externalPostId) {
+  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,message,from{name,username},created_time&access_token=${encodeURIComponent(token.accessToken)}`
+  const res = await fetchComTimeout(url)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
+
+  return (data.data || []).map(c => ({
+    id: c.id,
+    author: c.from?.username || c.from?.name || 'desconhecido',
+    text: c.message || '',
+    createdAt: c.created_time || null
+  }))
+}
+
+async function listarComentariosYoutube(token, externalPostId) {
+  const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(externalPostId)}&access_token=${encodeURIComponent(token.accessToken)}`
+  const res = await fetchComTimeout(url)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
+
+  return (data.items || []).map(item => {
+    const snippet = item.snippet?.topLevelComment?.snippet
+    return {
+      id: item.id,
+      author: snippet?.authorDisplayName || 'desconhecido',
+      text: snippet?.textDisplay || '',
+      createdAt: snippet?.publishedAt || null
+    }
+  })
+}
 
 async function responderComentarioInstagram(token, commentId, text) {
   const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(commentId)}/replies`
@@ -65,7 +100,11 @@ async function buscarMidiaInstagram(token, externalPostId) {
   return { caption: data.caption || '', itens }
 }
 
-const LISTERS = { instagram: listarComentariosInstagram }
+const LISTERS = {
+  instagram: listarComentariosInstagram,
+  facebook: listarComentariosFacebook,
+  youtube: listarComentariosYoutube
+}
 const REPLIERS = { instagram: responderComentarioInstagram }
 const MIDIA_FETCHERS = { instagram: buscarMidiaInstagram }
 
@@ -105,7 +144,7 @@ async function buscarMidiaPost(post) {
 }
 
 async function responderComentario(post, commentId, text) {
-  if (!PLATAFORMAS_COM_COMENTARIOS.includes(post.externalPlatform)) {
+  if (!PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform)) {
     throw new Error(`Responder comentários ainda não disponível para ${post.externalPlatform}`)
   }
 

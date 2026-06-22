@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const pool = require('../db/pool')
-const { registrarLog } = require('../repositories/logsRepository')
+const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const tokensRepo = require('./../repositories/tokensRepository')
 const postsRepo = require('./../repositories/postsRepository')
 const { gerarTokenMedia } = require('./mediaToken')
@@ -103,8 +103,9 @@ async function publicarFacebook(token, post) {
   // ── Várias imagens/vídeos: publica cada um sem divulgar (published=false) e
   // depois cria um post no feed referenciando todos como attached_media ──
   if (post.mediaItems?.length > 1) {
-    const attachedMedia = []
-    for (const item of post.mediaItems) {
+    // Cada item é enviado para um endpoint independente (published=false), sem
+    // dependência entre eles — paraleliza para reduzir o tempo total do carrossel.
+    const attachedMedia = await Promise.all(post.mediaItems.map(async item => {
       const isVideoItem = item.type === 'video'
       const endpointItem = isVideoItem ? 'videos' : 'photos'
       const { buffer, filename } = mediaToBlob(item.path)
@@ -117,8 +118,8 @@ async function publicarFacebook(token, post) {
       const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/${endpointItem}`, { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status} ao enviar item do carrossel`)
-      attachedMedia.push({ media_fbid: data.id })
-    }
+      return { media_fbid: data.id }
+    }))
 
     const body = new URLSearchParams({ access_token: token.accessToken })
     if (post.text) body.append('message', post.text)
@@ -147,13 +148,21 @@ async function publicarFacebook(token, post) {
 
 // Aguarda o container de mídia do Instagram terminar de processar (IN_PROGRESS -> FINISHED).
 // Publicar antes de FINISHED retorna "Media ID is not available".
+// Backoff: a maioria dos containers de imagem termina em poucos segundos, então as
+// primeiras tentativas são rápidas (500ms/1s) e o intervalo cresce até 2s — reduz a
+// espera média sem aumentar o número de chamadas em casos lentos (~60s de budget total).
+const INSTAGRAM_POLL_DELAYS_MS = [500, 1000, 1500, 2000]
 async function aguardarContainerInstagram(containerId, accessToken) {
-  for (let i = 0; i < 30; i++) {
+  const inicio = Date.now()
+  let tentativa = 0
+  while (Date.now() - inicio < 60000) {
     const statusRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`)
     const statusData = await statusRes.json()
     if (statusData.status_code === 'FINISHED') return
     if (statusData.status_code === 'ERROR') throw new Error('Processamento da mídia falhou no Instagram')
-    await new Promise(r => setTimeout(r, 2000))
+    const delay = INSTAGRAM_POLL_DELAYS_MS[Math.min(tentativa, INSTAGRAM_POLL_DELAYS_MS.length - 1)]
+    await new Promise(r => setTimeout(r, delay))
+    tentativa++
   }
 }
 
@@ -171,8 +180,10 @@ async function publicarInstagram(token, post) {
 
   // ── Carrossel (múltiplas imagens/vídeos) ──
   if (post.mediaItems?.length > 1) {
-    const childIds = []
-    for (const item of post.mediaItems) {
+    // Cada item do carrossel é independente (container próprio na Graph API), então
+    // criar + aguardar o processamento de todos em paralelo reduz o tempo total de
+    // N × tempo-por-item para o máximo entre eles.
+    const childIds = await Promise.all(post.mediaItems.map(async item => {
       const childParams = new URLSearchParams({ access_token: token.accessToken, is_carousel_item: 'true' })
       if (item.type === 'video') {
         childParams.append('media_type', 'VIDEO')
@@ -184,8 +195,8 @@ async function publicarInstagram(token, post) {
       const childData = await childRes.json()
       if (!childRes.ok) throw new Error(childData?.error?.message || `Instagram respondeu ${childRes.status} ao criar item do carrossel`)
       await aguardarContainerInstagram(childData.id, token.accessToken)
-      childIds.push(childData.id)
-    }
+      return childData.id
+    }))
 
     const carouselParams = new URLSearchParams({ access_token: token.accessToken, media_type: 'CAROUSEL', children: childIds.join(',') })
     if (post.text) carouselParams.append('caption', post.text)
@@ -229,11 +240,51 @@ async function publicarInstagram(token, post) {
   return publishData
 }
 
-// ── YouTube (Data API v3 - upload de vídeo) ──────────────────────────────────────
+// Consulta o status de processamento do vídeo (uploadStatus/processingStatus) até
+// ele ficar pronto ou falhar, e notifica o frontend via SSE quando isso acontece —
+// sem isso, o vídeo passa minutos com status "publicado" no app mas ainda
+// "processando" de fato no YouTube, sem nenhuma confirmação de quando fica
+// disponível. Roda em background (não bloqueia a resposta da publicação).
+async function aguardarProcessamentoYoutube(videoId, accessToken, post) {
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, i === 0 ? 3000 : 5000))
+    try {
+      const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id=${encodeURIComponent(videoId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+      const data = await res.json()
+      const status = data.items?.[0]?.status
+      const processing = data.items?.[0]?.processingDetails
+      if (!status) continue
+
+      if (status.uploadStatus === 'processed' && (!processing || processing.processingStatus === 'succeeded')) {
+        broadcastEvent('youtube_video_ready', { postId: post.id, videoId, status: 'ready' }, post.userId)
+        await registrarLog({ type: 'ok', message: `Vídeo do YouTube processado e disponível: ${videoId}`, platform: 'youtube', user_id: post.userId })
+        return
+      }
+      if (status.uploadStatus === 'failed' || status.uploadStatus === 'rejected') {
+        broadcastEvent('youtube_video_ready', { postId: post.id, videoId, status: 'failed', reason: status.failureReason || status.rejectionReason }, post.userId)
+        await registrarLog({ type: 'err', message: `Processamento do vídeo no YouTube falhou: ${status.failureReason || status.rejectionReason || 'motivo desconhecido'}`, platform: 'youtube', user_id: post.userId })
+        return
+      }
+    } catch {
+      // Falha pontual de polling não é crítica — tenta de novo no próximo ciclo
+    }
+  }
+}
+
+// ── YouTube (Data API v3 - upload resumable de vídeo) ─────────────────────────────
+// Upload resumable em vez de multipart: envia o vídeo em um PUT único de stream
+// (em vez de montar um multipart/form-data com o arquivo todo em memória),
+// permite retomar em caso de falha de rede a meio do envio, e os primeiros bytes
+// começam a subir antes do buffer inteiro estar pronto — reduz o tempo de envio,
+// especialmente para vídeos grandes.
 async function publicarYoutube(token, post) {
   if (!post.mediaPath || post.mediaType !== 'video') throw new Error('YouTube exige um vídeo para publicar')
 
-  const { buffer } = mediaToBlob(post.mediaPath)
+  const filename = path.basename(post.mediaPath)
+  const absPath = path.join(UPLOADS_DIR, filename)
+  const { size } = fs.statSync(absPath)
 
   // Vídeos verticais (9:16) ou quadrados (1:1) com até 3 minutos são elegíveis
   // como Shorts. A hashtag #Shorts no título/descrição ajuda o YouTube a
@@ -246,24 +297,42 @@ async function publicarYoutube(token, post) {
   }
 
   const metadata = {
-    snippet: {
-      title,
-      description
-    },
+    snippet: { title, description },
     status: { privacyStatus: post.youtubeVisibility || 'public' }
   }
 
-  const form = new FormData()
-  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }))
-  form.append('media', new Blob([buffer]), 'video.mp4')
-
-  const res = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
+  // 1. Inicia a sessão resumable — devolve a upload_url onde o vídeo deve ser enviado
+  const initRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token.accessToken}` },
-    body: form
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': 'video/mp4',
+      'X-Upload-Content-Length': String(size)
+    },
+    body: JSON.stringify(metadata)
   })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
+  if (!initRes.ok) {
+    const errData = await initRes.json().catch(() => null)
+    throw new Error(errData?.error?.message || `YouTube respondeu ${initRes.status} ao iniciar upload`)
+  }
+  const uploadUrl = initRes.headers.get('location')
+  if (!uploadUrl) throw new Error('YouTube não retornou a URL de upload resumable')
+
+  // 2. Envia o vídeo via stream direto do disco (sem carregar tudo em memória)
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size) },
+    body: fs.createReadStream(absPath),
+    duplex: 'half'
+  })
+  const data = await uploadRes.json()
+  if (!uploadRes.ok) throw new Error(data?.error?.message || `YouTube respondeu ${uploadRes.status} ao enviar o vídeo`)
+
+  // 3. Acompanha o processamento em background e notifica o frontend quando
+  // o vídeo realmente ficar disponível — não bloqueia a resposta da publicação.
+  if (data.id) aguardarProcessamentoYoutube(data.id, token.accessToken, post).catch(() => {})
+
   return data
 }
 
@@ -300,43 +369,33 @@ async function publicarTiktok(token, post) {
   }
 
   // ── Foto única ou Carrossel ──
-  // A Photo Post API só funciona em apps aprovados (produção).
-  // Em Sandbox, envia como rascunho de vídeo usando a primeira imagem convertida,
-  // para que apareça na caixa de entrada do TikTok e o usuário finalize lá.
-  const { buffer: imgBuffer } = mediaToBlob(items[0].path)
+  // Usa o endpoint de Content Posting API dedicado a fotos (media_type: PHOTO),
+  // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
+  const photoImages = items.map(item => mediaUrl(item.path))
 
-  const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+  const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       post_info: {
         title: post.text || '',
         privacy_level: 'SELF_ONLY',
-        disable_duet: false,
-        disable_comment: false,
-        disable_stitch: false
+        disable_comment: false
       },
       source_info: {
-        source: 'FILE_UPLOAD',
-        video_size: imgBuffer.length,
-        chunk_size: imgBuffer.length,
-        total_chunk_count: 1
+        source: 'PULL_FROM_URL',
+        photo_cover_index: 0,
+        photo_images: photoImages
       },
-      post_mode: 'MEDIA_UPLOAD'
+      post_mode: 'DIRECT_POST',
+      media_type: 'PHOTO'
     })
   })
   const initData = await initRes.json()
   if (!initRes.ok || initData?.error?.code !== 'ok')
-    throw new Error(initData?.error?.message || `TikTok photo/draft respondeu ${initRes.status}: ${JSON.stringify(initData)}`)
+    throw new Error(initData?.error?.message || `TikTok photo respondeu ${initRes.status}: ${JSON.stringify(initData)}`)
 
-  const uploadRes = await fetch(initData.data.upload_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'image/jpeg', 'Content-Range': `bytes 0-${imgBuffer.length - 1}/${imgBuffer.length}` },
-    body: imgBuffer
-  })
-  if (!uploadRes.ok) throw new Error(`Falha no upload da imagem para o TikTok (${uploadRes.status})`)
-
-  return { ...initData.data, draft: true }
+  return initData.data
 }
 
 // ── Kwai (sem API pública de publicação - integração via login/senha) ────────────
@@ -360,90 +419,91 @@ const PUBLISHERS = {
   kwai: publicarKwai
 }
 
-// ── Publica um post (já salvo no banco) em todas as suas plataformas ─────────────
-async function publishPost(post) {
-  const results = []
-  const isSuperAdmin = post.userRole === 'super_admin'
+// Publica em uma única plataforma e retorna o resultado (registrando o log
+// correspondente) — extraído para permitir publicar em todas as plataformas
+// do post em paralelo, em vez de uma por vez.
+async function publicarNaPlataforma(platform, post, isSuperAdmin) {
+  const publisher = PUBLISHERS[platform]
+  if (!publisher) {
+    return { platform, success: false, error: `Plataforma "${platform}" não suportada` }
+  }
 
-  for (const platform of post.platforms) {
-    const publisher = PUBLISHERS[platform]
-    if (!publisher) {
-      results.push({ platform, success: false, error: `Plataforma "${platform}" não suportada` })
-      continue
-    }
+  let token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
+  if (!token) {
+    const msg = `Nenhuma conta de ${platform} conectada`
+    await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
+    return { platform, success: false, error: msg }
+  }
 
-    let token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
-    if (!token) {
-      const msg = `Nenhuma conta de ${platform} conectada`
-      results.push({ platform, success: false, error: msg })
-      await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
-      continue
-    }
-
-    // ── Renovação automática do token antes de publicar, se necessário ──
-    // Chamada interna do scheduler (sem requisição HTTP/usuário autenticado),
-    // então passa isAdmin=true para não exigir a checagem de propriedade do
-    // token que só faz sentido quando um usuário pede a renovação pela API.
-    if (token.status !== 'valid') {
-      const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
-      if (renewal.success) {
-        token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
-      } else {
-        results.push({ platform, success: false, account: token.handle || token.accountName, error: renewal.message })
-        await registrarLog({
-          type: 'err',
-          message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${renewal.message}`,
-          platform,
-          conta_id: token.contaId,
-          user_id: post.userId
-        })
-        continue
-      }
-    }
-
-    try {
-      const data = await publisher(token, post)
-      results.push({ platform, success: true, account: token.handle || token.accountName, data })
-
-      const externalId = extrairExternalId(platform, data)
-      if (externalId) {
-        await postsRepo.salvarPublicacaoExterna(post.id, {
-          externalPostId: externalId,
-          externalPlatform: platform,
-          publishedAt: new Date().toISOString()
-        })
-      }
-
-      if (data?.simulado) {
-        await registrarLog({
-          type: 'warn',
-          message: `Publicação simulada [${platform}] na conta "${token.handle || token.accountName}" — ${data.mensagem || 'não foi postado de fato'}`,
-          platform,
-          conta_id: token.contaId,
-          user_id: post.userId
-        })
-      } else {
-        await registrarLog({
-          type: 'ok',
-          message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
-          platform,
-          conta_id: token.contaId,
-          user_id: post.userId
-        })
-      }
-    } catch (err) {
-      results.push({ platform, success: false, account: token.handle || token.accountName, error: err.message })
+  // ── Renovação automática do token antes de publicar, se necessário ──
+  // Chamada interna do scheduler (sem requisição HTTP/usuário autenticado),
+  // então passa isAdmin=true para não exigir a checagem de propriedade do
+  // token que só faz sentido quando um usuário pede a renovação pela API.
+  if (token.status !== 'valid') {
+    const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
+    if (renewal.success) {
+      token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
+    } else {
       await registrarLog({
         type: 'err',
-        message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${err.message}`,
+        message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${renewal.message}`,
+        platform,
+        conta_id: token.contaId,
+        user_id: post.userId
+      })
+      return { platform, success: false, account: token.handle || token.accountName, error: renewal.message }
+    }
+  }
+
+  try {
+    const data = await publisher(token, post)
+
+    const externalId = extrairExternalId(platform, data)
+    if (externalId) {
+      await postsRepo.salvarPublicacaoExterna(post.id, {
+        externalPostId: externalId,
+        externalPlatform: platform,
+        publishedAt: new Date().toISOString()
+      })
+    }
+
+    if (data?.simulado) {
+      await registrarLog({
+        type: 'warn',
+        message: `Publicação simulada [${platform}] na conta "${token.handle || token.accountName}" — ${data.mensagem || 'não foi postado de fato'}`,
+        platform,
+        conta_id: token.contaId,
+        user_id: post.userId
+      })
+    } else {
+      await registrarLog({
+        type: 'ok',
+        message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
       })
     }
-  }
 
-  return results
+    return { platform, success: true, account: token.handle || token.accountName, data }
+  } catch (err) {
+    await registrarLog({
+      type: 'err',
+      message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${err.message}`,
+      platform,
+      conta_id: token.contaId,
+      user_id: post.userId
+    })
+    return { platform, success: false, account: token.handle || token.accountName, error: err.message }
+  }
+}
+
+// ── Publica um post (já salvo no banco) em todas as suas plataformas ─────────────
+// As plataformas são independentes entre si (contas/tokens/APIs distintas), então
+// publicar em paralelo reduz o tempo total da soma dos tempos para o máximo entre elas.
+async function publishPost(post) {
+  const isSuperAdmin = post.userRole === 'super_admin'
+  return Promise.all(post.platforms.map(platform => publicarNaPlataforma(platform, post, isSuperAdmin)))
 }
 
 module.exports = { publishPost, buscarContaToken, listarContasToken }

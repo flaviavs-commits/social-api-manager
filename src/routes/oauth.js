@@ -158,28 +158,51 @@ router.get('/meta/callback', async (req, res) => {
   }
 
   try {
-    // Em produção: troca code por access_token
-    // const tokenRes = await axios.post('https://graph.facebook.com/oauth/access_token', ...)
-    // Simulando resposta para fins de desenvolvimento:
-    const fakeToken = 'EAABx_' + Math.random().toString(36).slice(2, 18).toUpperCase();
-    const expiresAt = new Date(Date.now() + 60 * 86400000).toISOString();
     const platform = 'facebook';
 
+    // 1. Troca o code por um access_token real
+    const { data: tokenData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/oauth/access_token` +
+      `?client_id=${process.env.META_APP_ID}` +
+      `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
+      `&redirect_uri=${encodeURIComponent(process.env.META_REDIRECT_URI)}` +
+      `&code=${encodeURIComponent(code)}`);
+
+    if (tokenData.error || !tokenData.access_token) {
+      addLog('err', `Erro ao obter token Facebook: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      return res.send(popupError('token_failed'));
+    }
+
+    // 2. Troca o token de curta duração por um long-lived token (60 dias)
+    const { data: longData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/oauth/access_token` +
+      `?grant_type=fb_exchange_token` +
+      `&client_id=${process.env.META_APP_ID}` +
+      `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
+      `&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`);
+
+    const accessToken = longData.access_token || tokenData.access_token;
+    const expiresIn = longData.expires_in || tokenData.expires_in || 60 * 86400;
+
+    // 3. Busca o ID e o nome do usuário/página conectada
+    const { data: profileData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
+    const accountName = meta.accountName || profileData.name || 'Nova Conta Facebook';
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
     const conta = await contasRepo.criarContaRapida({
-      name: meta.accountName || 'Nova Conta Facebook',
+      name: accountName,
       platform,
-      userId: meta.userId
+      userId: meta.userId,
+      externalUserId: profileData.id ? String(profileData.id) : null
     });
 
     await tokensRepo.salvarToken({
       accountId: conta.id,
       platform,
-      accessToken: fakeToken,
+      accessToken,
       expiresAt,
-      accountName: meta.accountName || 'Nova Conta Facebook'
+      accountName
     });
 
-    addLog('ok', `Conta Facebook conectada: "${meta.accountName}" — token expira em 60 dias`, platform, conta.id, meta.userId);
+    addLog('ok', `Conta Facebook conectada: "${accountName}" — token expira em ${Math.round(expiresIn / 86400)} dias`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
     addLog('err', `Falha no callback Facebook: ${err.message}`, null, null, meta.userId);
@@ -263,11 +286,55 @@ router.get('/instagram/callback', async (req, res) => {
       return res.send(popupError('token_failed'));
     }
 
-    // 2. Troca o token de curta duração por um long-lived token (60 dias)
-    const { data: longData } = await fetchJsonWithRetry(`https://graph.instagram.com/access_token` +
+    // 2. Troca o token de curta duração por um long-lived token (60 dias).
+    // A doc oficial da Meta diz que esse endpoint é GET, mas alguns tokens
+    // (ou contas) vêm respondendo "Unsupported request - method type: get" —
+    // erro consistente, não transitório, então insistir com retry no mesmo
+    // método só atrasa sem resolver. Tenta GET (padrão da doc); se vier
+    // exatamente esse erro, tenta POST uma vez na sequência, sem esperar
+    // o backoff — mais rápido que aumentar o número de tentativas no GET.
+    const exchangeUrl = `https://graph.instagram.com/access_token` +
       `?grant_type=ig_exchange_token` +
       `&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET)}` +
-      `&access_token=${encodeURIComponent(shortData.access_token)}`);
+      `&access_token=${encodeURIComponent(shortData.access_token)}`;
+
+    let { data: longData } = await fetchJsonWithRetry(exchangeUrl, {}, { retries: 1, delayMs: 500 });
+
+    // ─── DIAGNÓSTICO TEMPORÁRIO ───────────────────────────────────────────────
+    // Captura o token fresco e testa hipóteses contra a API enquanto ele ainda
+    // está vivo, para descobrir a causa raiz do "Unsupported request" (code 100).
+    if (longData.error) {
+      console.log('\n═══════════ DIAGNÓSTICO INSTAGRAM TOKEN EXCHANGE ═══════════')
+      console.log('shortToken prefix:', shortData.access_token.slice(0, 6))
+      console.log('shortToken (full):', shortData.access_token)
+      console.log('GET ig_exchange_token →', JSON.stringify(longData.error))
+
+      // H1: graph.facebook.com em vez de graph.instagram.com (fluxo Business usa FB graph)
+      try {
+        const fbUrl = `https://graph.facebook.com/v19.0/access_token?grant_type=fb_exchange_token&client_id=${process.env.INSTAGRAM_APP_ID}&client_secret=${process.env.INSTAGRAM_APP_SECRET}&fb_exchange_token=${encodeURIComponent(shortData.access_token)}`
+        const r = await fetch(fbUrl); console.log('H1 graph.facebook fb_exchange →', JSON.stringify(await r.json()))
+      } catch (e) { console.log('H1 erro:', e.message) }
+
+      // H2: o token de curta duração já é usável diretamente em /me?
+      try {
+        const r = await fetch(`https://graph.instagram.com/me?fields=user_id,username&access_token=${encodeURIComponent(shortData.access_token)}`)
+        console.log('H2 short token em /me →', JSON.stringify(await r.json()))
+      } catch (e) { console.log('H2 erro:', e.message) }
+
+      // H3: endpoint com versão explícita
+      try {
+        const r = await fetch(`https://graph.instagram.com/v23.0/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${encodeURIComponent(shortData.access_token)}`)
+        console.log('H3 com /v23.0 →', JSON.stringify(await r.json()))
+      } catch (e) { console.log('H3 erro:', e.message) }
+
+      console.log('═══════════════════════════════════════════════════════════\n')
+    }
+    // ─── FIM DIAGNÓSTICO ──────────────────────────────────────────────────────
+
+    if (isTransientGraphError(longData) || longData?.error?.message === 'Unsupported request - method type: get') {
+      const postRes = await fetchWithRetry(exchangeUrl, { method: 'POST' }, { retries: 1, delayMs: 500 });
+      longData = await postRes.json();
+    }
 
     if (longData.error || !longData.access_token) {
       addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform, null, meta.userId);
@@ -284,7 +351,8 @@ router.get('/instagram/callback', async (req, res) => {
       name: accountName,
       platform,
       userId: meta.userId,
-      avatarUrl: profileData.profile_picture_url || null
+      avatarUrl: profileData.profile_picture_url || null,
+      externalUserId: profileData.user_id ? String(profileData.user_id) : null
     });
 
     await tokensRepo.salvarToken({
@@ -542,6 +610,63 @@ router.get('/tiktok/callback', async (req, res) => {
     addLog('err', `Falha no callback TikTok: ${err.message}`, 'tiktok', null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
+});
+
+// ─── Data Deletion Callback (exigido pela Meta para apps em modo Live) ──────────
+// Quando um usuário remove o app pelas configurações do Facebook/Instagram, a
+// Meta chama esta URL com um signed_request contendo o user_id dele — temos
+// que apagar (ou agendar a exclusão de) os dados associados e responder no
+// formato exigido: { url, confirmation_code }.
+// https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback
+
+function decodificarSignedRequest(signedRequest, appSecret) {
+  const [encodedSig, encodedPayload] = signedRequest.split('.');
+  if (!encodedSig || !encodedPayload) throw new Error('signed_request malformado');
+
+  const expectedSig = crypto.createHmac('sha256', appSecret)
+    .update(encodedPayload)
+    .digest('base64url');
+
+  if (expectedSig !== encodedSig) throw new Error('Assinatura do signed_request inválida');
+
+  return JSON.parse(Buffer.from(encodedPayload, 'base64url').toString());
+}
+
+async function processarExclusaoDados(platform, externalUserId) {
+  const contas = await contasRepo.buscarContasPorExternalUserId(platform, externalUserId);
+  for (const conta of contas) {
+    await contasRepo.apagarDadosDaConta(conta.id);
+    addLog('ok', `Dados apagados via Data Deletion Callback [${platform}] — external_user_id=${externalUserId}`, platform, null, conta.userId);
+  }
+  return contas.length;
+}
+
+router.post('/meta/data-deletion', express.urlencoded({ extended: false }), async (req, res) => {
+  try {
+    const payload = decodificarSignedRequest(req.body.signed_request, process.env.META_APP_SECRET);
+    const confirmationCode = crypto.randomBytes(16).toString('hex');
+
+    // A exclusão roda em background: a Meta exige resposta imediata com o
+    // status_url de acompanhamento, sem esperar o apagamento terminar.
+    processarExclusaoDados('facebook', payload.user_id).catch(err => {
+      addLog('err', `Falha ao processar Data Deletion Callback: ${err.message}`, 'facebook');
+    });
+
+    res.json({
+      url: `${process.env.BASE_URL}/oauth/meta/data-deletion/status?id=${confirmationCode}`,
+      confirmation_code: confirmationCode
+    });
+  } catch (err) {
+    addLog('err', `Data Deletion Callback rejeitado: ${err.message}`, 'facebook');
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Página simples de status exigida pela Meta para acompanhar a confirmação —
+// como a exclusão é imediata (sem fila assíncrona de longa duração), sempre
+// responde como concluída.
+router.get('/meta/data-deletion/status', (req, res) => {
+  res.send(`<!DOCTYPE html><html><body>Solicitação ${req.query.id || ''} processada: os dados foram apagados.</body></html>`);
 });
 
 // ─── Kwai (sem OAuth público - conexão simulada, igual ao Facebook) ──────────

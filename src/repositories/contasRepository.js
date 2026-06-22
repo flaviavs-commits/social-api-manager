@@ -129,7 +129,7 @@ async function buscarContaPorId(id, userId, isAdmin) {
 // handle), sem agrupamento por e-mail/nicho. Se o usuário já tem essa mesma
 // combinação (mesma plataforma + mesmo handle) conectada, reaproveita a
 // linha existente em vez de duplicar.
-async function criarContaRapida({ name, platform, userId, avatarUrl = null }) {
+async function criarContaRapida({ name, platform, userId, avatarUrl = null, externalUserId = null }) {
   if (!['facebook', 'instagram', 'youtube', 'tiktok', 'kwai'].includes(platform)) {
     throw new Error('Plataforma inválida')
   }
@@ -139,9 +139,10 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null }) {
     [platform, name, userId]
   )
   if (existente) {
-    if (avatarUrl && avatarUrl !== existente.avatar_url) {
+    if ((avatarUrl && avatarUrl !== existente.avatar_url) || (externalUserId && externalUserId !== existente.external_user_id)) {
       const { rows: [atualizada] } = await pool.query(
-        `UPDATE contas SET avatar_url = $1 WHERE id = $2 RETURNING *`, [avatarUrl, existente.id]
+        `UPDATE contas SET avatar_url = COALESCE($1, avatar_url), external_user_id = COALESCE($2, external_user_id) WHERE id = $3 RETURNING *`,
+        [avatarUrl, externalUserId, existente.id]
       )
       return atualizada
     }
@@ -149,12 +150,30 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null }) {
   }
 
   const { rows: [conta] } = await pool.query(`
-    INSERT INTO contas (platform, handle, tipo, user_id, avatar_url)
-    VALUES ($1, $2, 'NICHO', $3, $4)
+    INSERT INTO contas (platform, handle, tipo, user_id, avatar_url, external_user_id)
+    VALUES ($1, $2, 'NICHO', $3, $4, $5)
     RETURNING *
-  `, [platform, name, userId, avatarUrl])
+  `, [platform, name, userId, avatarUrl, externalUserId])
 
   return conta
+}
+
+// Localiza todas as contas conectadas (de qualquer usuário) cujo ID externo
+// na rede social bate com o informado — usado pelo Data Deletion Callback da
+// Meta, que identifica o usuário pelo facebook_user_id, não pelo handle.
+async function buscarContasPorExternalUserId(platform, externalUserId) {
+  const { rows } = await pool.query(
+    `SELECT id, user_id AS "userId" FROM contas WHERE platform = $1 AND external_user_id = $2`,
+    [platform, externalUserId]
+  )
+  return rows
+}
+
+// Apaga uma conta conectada e seus tokens (usado pelo Data Deletion Callback —
+// remove só a conexão da rede social, não o usuário/cadastro do próprio sistema).
+async function apagarDadosDaConta(contaId) {
+  await pool.query('DELETE FROM tokens WHERE conta_id = $1', [contaId])
+  await pool.query('DELETE FROM contas WHERE id = $1', [contaId])
 }
 
 async function deletarConta(id, userId, isAdmin) {
@@ -226,6 +245,7 @@ async function buscarHistoricoStatsTiktok(userId, isAdmin) {
 
 module.exports = {
   getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
+  buscarContasPorExternalUserId, apagarDadosDaConta,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
   registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok
 }

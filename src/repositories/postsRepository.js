@@ -1,11 +1,11 @@
 const pool = require('../db/pool')
 
-async function criarPost({ text, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, accountId = null, userId }) {
+async function criarPost({ text, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, account_id, user_id)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    INSERT INTO posts (text, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, account_id, user_id, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     RETURNING *
-  `, [text, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, accountId, userId])
+  `, [text, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, accountId, userId, status])
   return rows[0]
 }
 
@@ -62,6 +62,34 @@ async function buscarPostPorId(id, userId, isAdmin) {
 
 async function atualizarStatusPost(id, status) {
   await pool.query(`UPDATE posts SET status = $1 WHERE id = $2`, [status, id])
+}
+
+// Marca atomicamente os posts agendados como "processing" antes de publicar,
+// para que dois ciclos do cron sobrepostos (ex: publicação lenta do Instagram)
+// nunca peguem e publiquem o mesmo post duas vezes.
+async function reservarPostsPendentes() {
+  const { rows } = await pool.query(`
+    WITH reservados AS (
+      UPDATE posts SET status = 'processing'
+      WHERE id IN (
+        SELECT id FROM posts WHERE status = 'scheduled' AND scheduled_at <= NOW()
+      )
+      RETURNING
+        id, text, platforms, scheduled_at, repeat, status, user_id,
+        media_path, media_type, media_items,
+        youtube_title, youtube_visibility, youtube_is_short, account_id
+    )
+    SELECT
+      r.id, r.text, r.platforms,
+      r.scheduled_at AS "scheduledAt", r.repeat, r.status, r.user_id AS "userId",
+      r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems",
+      r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_is_short AS "youtubeIsShort",
+      r.account_id AS "accountId",
+      u.role AS "userRole"
+    FROM reservados r
+    LEFT JOIN users u ON u.id = r.user_id
+  `)
+  return rows
 }
 
 // Guarda o ID do post/mídia retornado pela rede social ao publicar, para
@@ -125,6 +153,7 @@ async function buscarHistoricoMetricas(postId) {
 
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
+  reservarPostsPendentes,
   salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   registrarSnapshotMetricas, buscarHistoricoMetricas
 }

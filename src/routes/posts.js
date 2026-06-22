@@ -44,18 +44,20 @@ const upload = multer({
 // Renomeia para a extensão correta só depois de confirmar o tipo real;
 // remove do disco qualquer arquivo cujo conteúdo não seja imagem/vídeo válido.
 async function validarESanitizarUploads(files) {
-  const validados = []
-  for (const f of files) {
+  // Cada arquivo é validado/renomeado de forma independente — paraleliza para não
+  // pagar o custo de I/O (leitura de assinatura binária + rename) de forma serial
+  // quando o post tem várias mídias (carrossel).
+  const validados = await Promise.all(files.map(async f => {
     const tipo = await FileType.fromFile(f.path)
     if (!tipo || !ALLOWED_MEDIA_TYPES.has(tipo.mime)) {
       await fs.promises.unlink(f.path).catch(() => {})
-      continue
+      return null
     }
     const novoPath = f.path.replace(/\.bin$/, `.${tipo.ext}`)
     await fs.promises.rename(f.path, novoPath)
-    validados.push({ ...f, path: novoPath, filename: path.basename(novoPath), mimetype: tipo.mime })
-  }
-  return validados
+    return { ...f, path: novoPath, filename: path.basename(novoPath), mimetype: tipo.mime }
+  }))
+  return validados.filter(Boolean)
 }
 
 // A API do Instagram só aceita imagens em JPEG — PNG, GIF e WebP são
@@ -133,6 +135,9 @@ router.get('/analytics', async (req, res) => {
       platform: p.externalPlatform,
       text: p.text,
       publishedAt: p.publishedAt,
+      mediaPath: p.mediaPath,
+      mediaType: p.mediaType,
+      mediaItems: p.mediaItems,
       metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
     }))
 
@@ -293,31 +298,24 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       }
     }
 
-    const post = await repo.criarPost({ text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort, accountId, userId: req.user.id })
-    res.status(201).json(post)
-  } catch (e) {
-    serverError(res, e, 'Não foi possível agendar o post')
-  }
-})
+    // "Publicar agora" cria o post já como 'processing' (em vez de
+    // 'scheduled') para que o cron do agendamento nunca o veja e dispare uma
+    // segunda publicação concorrente — quem publica é só esta requisição,
+    // na sequência, abaixo.
+    const publishNow = req.body.publishNow === 'true' || req.body.publishNow === true
+    const post = await repo.criarPost({ text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat, mediaPath, mediaType, mediaItems, youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort, accountId, userId: req.user.id, status: publishNow ? 'processing' : 'scheduled' })
 
-// POST /api/posts/:id/publish - dispara a publicação imediatamente (teste manual)
-router.post('/:id/publish', async (req, res) => {
-  try {
-    const id = parseId(req.params.id)
-    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    if (!publishNow) return res.status(201).json(post)
 
-    const post = await repo.buscarPostPorId(id, req.user.id, isAdminRole(req.user.role))
-    if (!post) return res.status(404).json({ erro: 'Post não encontrado' })
-
-    const results = await publishPost(post)
+    const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accountId, userId: req.user.id, userRole: req.user.role })
     const status = results.every(r => r.success) ? 'published'
       : results.some(r => r.success) ? 'partial'
       : 'error'
     await repo.atualizarStatusPost(post.id, status)
 
-    res.json({ status, results })
+    res.status(201).json({ ...post, status, results })
   } catch (e) {
-    serverError(res, e)
+    serverError(res, e, 'Não foi possível agendar o post')
   }
 })
 

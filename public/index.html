@@ -104,6 +104,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .stat-val { font-size: 26px; font-weight: 500; font-family: var(--mono); margin-bottom: 2px; }
 .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 .stat-sub { font-size: 11px; color: var(--green); margin-top: 4px; }
+.stat-sub.trend-success { color: #68D391; }
+.stat-sub.trend-warning { color: #F6AD55; font-weight: 500; }
+.stat-sub.trend-danger { color: #FC8181; font-weight: 500; }
 .plat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 2rem; }
 .plat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; position: relative; overflow: hidden; transition: border-color 0.2s; }
 .plat-card:hover { border-color: var(--border2); }
@@ -127,16 +130,18 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .status-pill.partial { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
 .status-pill.disconnected { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
 .plat-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 1.25rem; }
-.plat-stat { background: var(--surface2); border-radius: 6px; padding: 10px; text-align: center; }
+.plat-stat { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; text-align: center; }
 .plat-stat-val { font-size: 18px; font-weight: 500; font-family: var(--mono); }
 .plat-stat-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.plat-stat.warning { border-color: rgba(246,173,85,0.35); }
+.plat-stat.warning .plat-stat-val { font-weight: 700; }
 .progress-bar { height: 3px; background: var(--border); border-radius: 99px; margin-bottom: 6px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
 .plat-actions { display: flex; gap: 8px; }
 .plat-btn { flex: 1; padding: 7px 0; border-radius: 6px; border: 1px solid var(--border2); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.15s; text-align: center; font-family: var(--sans); }
 .plat-btn:hover { color: var(--text); background: var(--surface2); }
-.plat-btn.primary { border-color: var(--accent); color: var(--accent); }
-.plat-btn.primary:hover { background: rgba(91,127,255,0.1); }
+.plat-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+.plat-btn.primary:hover { background: #4a6ee0; border-color: #4a6ee0; color: #fff; }
 .plat-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .plat-btn:disabled:hover { color: var(--muted); background: transparent; }
 .account-dropdown { position: relative; flex: 1; }
@@ -180,6 +185,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .form-group label { display: block; font-size: 12px; font-family: var(--mono); color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 9px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group input::placeholder, .form-group textarea::placeholder,
+.form-group input::-webkit-input-placeholder, .form-group textarea::-webkit-input-placeholder { color: #A0AEC0; opacity: 1; }
+.form-group label { color: var(--accent2); font-weight: 500; letter-spacing: 0.08em; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem; }
 .steps { display: flex; gap: 8px; margin-bottom: 1.5rem; }
 .step { flex: 1; padding: 10px; background: var(--surface2); border-radius: 6px; text-align: center; border: 1px solid var(--border); }
@@ -283,6 +291,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   .nav-item { min-height: 46px; padding: 12px 1.25rem; }
   .tab { min-height: 44px; display: flex; align-items: center; }
   .form-group input, .form-group select, .form-group textarea { min-height: 44px; font-size: 16px; }
+  .form-group select, #media-trigger-btn, #account-picker-btn { min-height: 48px; }
   .token-table td .btn { min-height: 38px; padding: 8px 14px; }
   .queue-item .btn { min-height: 38px; min-width: 38px; padding: 8px 14px; }
   .step { min-height: 48px; }
@@ -358,10 +367,10 @@ input, select, textarea, .modal-overlay, .nav-section, label {
       <button class="btn btn-accent" onclick="openModal('nova-conta')">+ Conectar conta</button>
     </div>
     <div class="stats-row">
-      <div class="stat-card"><div class="stat-val" id="stat-total" style="color:var(--accent)">—</div><div class="stat-label">Contas conectadas</div><div class="stat-sub" id="stat-total-sub">carregando...</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-valid" style="color:var(--green)">—</div><div class="stat-label">Funcionando bem</div><div class="stat-sub" id="stat-valid-sub">—</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-expiring" style="color:var(--yellow)">—</div><div class="stat-label">Vencendo em breve</div><div class="stat-sub">⚠ reconecte em breve</div></div>
-      <div class="stat-card"><div class="stat-val" id="stat-error" style="color:var(--red)">—</div><div class="stat-label">Precisam de atenção</div><div class="stat-sub">↓ reconectar agora</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-total" style="color:var(--accent)">—</div><div class="stat-label">Contas conectadas</div><div class="stat-sub trend-success" id="stat-total-sub">carregando...</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-valid" style="color:var(--green)">—</div><div class="stat-label">Funcionando bem</div><div class="stat-sub trend-success" id="stat-valid-sub">—</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-expiring" style="color:var(--yellow)">—</div><div class="stat-label">Vencendo em breve</div><div class="stat-sub trend-warning">⚠ reconecte em breve</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-error" style="color:var(--red)">—</div><div class="stat-label">Precisam de atenção</div><div class="stat-sub trend-danger">↓ reconectar agora</div></div>
     </div>
     <div class="plat-grid" id="plat-grid">
       <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-family:var(--mono)">carregando plataformas...</div>
@@ -539,28 +548,36 @@ input, select, textarea, .modal-overlay, .nav-section, label {
       <div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;margin:1.5rem 0 0.75rem">Curtidas no Instagram</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-      <div id="analytics-period-igLikes"></div>
-      <div id="analytics-ig-likes-wrap"><canvas id="analytics-ig-likes-chart" height="90"></canvas></div>
+    <div data-analytics-section="instagram">
+      <div style="font-size:13px;font-weight:500;margin:1.5rem 0 0.75rem">Curtidas no Instagram</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+        <div id="analytics-period-igLikes"></div>
+        <div id="analytics-ig-likes-wrap"><canvas id="analytics-ig-likes-chart" height="90"></canvas></div>
+      </div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Tempo médio de visualização no YouTube</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-      <div id="analytics-period-ytWatch"></div>
-      <div id="analytics-yt-watchtime-wrap"><canvas id="analytics-yt-watchtime-chart" height="90"></canvas></div>
+    <div data-analytics-section="youtube">
+      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Tempo médio de visualização no YouTube</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+        <div id="analytics-period-ytWatch"></div>
+        <div id="analytics-yt-watchtime-wrap"><canvas id="analytics-yt-watchtime-chart" height="90"></canvas></div>
+      </div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Saldo de seguidores no Instagram</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-      <div id="analytics-period-igFollowers"></div>
-      <div id="analytics-ig-followers-wrap"><canvas id="analytics-ig-followers-chart" height="90"></canvas></div>
+    <div data-analytics-section="instagram">
+      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Saldo de seguidores no Instagram</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+        <div id="analytics-period-igFollowers"></div>
+        <div id="analytics-ig-followers-wrap"><canvas id="analytics-ig-followers-chart" height="90"></canvas></div>
+      </div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Seguidores e curtidas totais no TikTok</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-      <div id="analytics-period-tiktok"></div>
-      <div id="analytics-tiktok-stats-wrap"><canvas id="analytics-tiktok-stats-chart" height="90"></canvas></div>
+    <div data-analytics-section="tiktok">
+      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Seguidores e curtidas totais no TikTok</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
+        <div id="analytics-period-tiktok"></div>
+        <div id="analytics-tiktok-stats-wrap"><canvas id="analytics-tiktok-stats-chart" height="90"></canvas></div>
+      </div>
     </div>
   </div>
 
@@ -835,8 +852,8 @@ async function loadDashboard() {
           </div>
           <div class="plat-stats">
             <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${cfg.cls})">${p.total}</div><div class="plat-stat-label">Contas</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${p.error>0?'red':'yellow'})">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com problema':'Vencendo'}</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:#68D391">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
+            <div class="plat-stat${p.error===0 ? ' warning' : ''}"><div class="plat-stat-val" style="color:${p.error>0?'#FC8181':'#F6AD55'}">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com problema':'⚠️ Vencendo'}</div></div>
           </div>
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Funcionando corretamente</span><span>${health}%</span></div>
@@ -1413,31 +1430,28 @@ async function schedulePost(publishNow = false) {
   formData.append('accountId', selectedAccountId);
   formData.append('scheduledAt', scheduledAt);
   formData.append('repeat', repeat);
+  formData.append('publishNow', publishNow ? 'true' : 'false');
   mediaFiles.forEach(m => formData.append('media', m.file));
   formData.append('captions', JSON.stringify(mediaFiles.map(m => m.caption)));
+
+  if (publishNow) showToast('Publicando agora...', 'ok');
 
   let post;
   try {
     post = await apiFetch('/api/posts', { method: 'POST', body: formData });
   } catch (e) {
-    showToast('Erro ao agendar: ' + e.message, 'err');
+    showToast((publishNow ? 'Erro ao publicar: ' : 'Erro ao agendar: ') + e.message, 'err');
     return;
   }
 
   if (publishNow) {
-    try {
-      showToast('Publicando agora...', 'ok');
-      const { status, results } = await apiFetch(`/api/posts/${post.id}/publish`, { method: 'POST' });
-      if (status === 'published') {
-        showToast('Post publicado com sucesso!', 'ok');
-      } else if (status === 'partial') {
-        showToast('Post publicado parcialmente — alguma plataforma falhou. Veja o Histórico de Atividades.', 'warn');
-      } else {
-        const erro = results.find(r => !r.success)?.error;
-        showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
-      }
-    } catch (e) {
-      showToast('Erro ao publicar agora: ' + e.message, 'err');
+    if (post.status === 'published') {
+      showToast('Post publicado com sucesso!', 'ok');
+    } else if (post.status === 'partial') {
+      showToast('Post publicado parcialmente — alguma plataforma falhou. Veja o Histórico de Atividades.', 'warn');
+    } else {
+      const erro = post.results?.find(r => !r.success)?.error;
+      showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
     }
   } else {
     showToast('Post agendado com sucesso!', 'ok');
@@ -1576,9 +1590,22 @@ function startLogStream() {
     } else {
       showToast(`❌ Post #${data.id} falhou ao publicar em ${plats}`, 'err');
     }
-    // Atualiza a fila se a página do agendador estiver ativa
-    if (document.getElementById('page-agendador')?.classList.contains('active')) {
-      loadQueue();
+    // Atualiza a fila sempre que um post é publicado, mesmo se o usuário
+    // estiver em outra página — sem isso, a fila ficava com o status antigo
+    // (já publicado/com erro, mas exibido como "agendado") até a próxima
+    // navegação manual para a página do agendador.
+    loadQueue();
+  });
+
+  // O upload no YouTube "termina" rápido, mas o vídeo continua processando lá
+  // (transcoding) antes de ficar disponível de fato — esse evento chega quando
+  // o YouTube confirma que o vídeo já está pronto/publicado de verdade.
+  logEs.addEventListener('youtube_video_ready', (e) => {
+    const data = JSON.parse(e.data);
+    if (data.status === 'ready') {
+      showToast(`✅ Vídeo do post #${data.postId} já está disponível no YouTube`, 'ok');
+    } else {
+      showToast(`❌ Vídeo do post #${data.postId} falhou ao processar no YouTube${data.reason ? ': ' + data.reason : ''}`, 'err');
     }
   });
 
@@ -1623,6 +1650,17 @@ function formatDiaBR(isoDate) {
   return `${dia}/${mes}/${ano}`;
 }
 const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0', kwai:'#ff9d3d' };
+
+// Regra de métricas de cada rede social: o que a API de cada uma realmente
+// expõe hoje, usada para explicar (em vez de simplesmente omitir) por que
+// uma métrica aparece como "indisponível" para certas plataformas.
+const ANALYTICS_PLAT_RULES = {
+  facebook:  'Curtidas e comentários reais. Visualizações não são expostas pela Graph API para posts comuns de feed (só vídeos, com permissão extra).',
+  instagram: 'Curtidas, comentários e visualizações reais (Insights). Comentários podem ser respondidos direto por aqui.',
+  youtube:   'Curtidas, comentários e visualizações reais, mais tempo médio de visualização (gráfico abaixo).',
+  tiktok:    'Sem ID público de post — métricas por post não disponíveis. Estatísticas da conta (seguidores/curtidas) aparecem no gráfico abaixo.',
+  kwai:      'Sem API pública de publicação/métricas — posts ficam só registrados, sem dados reais de desempenho.'
+};
 let analyticsChart = null;
 let analyticsRefreshTimer = null;
 const ANALYTICS_REFRESH_MS = 30000;
@@ -1745,12 +1783,8 @@ async function loadAnalytics() {
 
 function renderAnalyticsPlatformFilter() {
   const wrap = document.getElementById('analytics-platform-filter');
-  const plataformasComDados = [...new Set(Object.values(analyticsData.series).flatMap(d => Object.keys(d)))];
 
-  // Se a rede selecionada deixou de ter dados (ex: após um refresh), volta para "Todas".
-  if (analyticsFilter !== 'all' && !plataformasComDados.includes(analyticsFilter)) analyticsFilter = 'all';
-
-  const botoes = [{ key: 'all', label: 'Todas' }, ...plataformasComDados.map(p => ({ key: p, label: ANALYTICS_PLAT_LABELS[p] || p }))];
+  const botoes = [{ key: 'all', label: 'Todas' }, ...Object.keys(ANALYTICS_PLAT_LABELS).map(p => ({ key: p, label: ANALYTICS_PLAT_LABELS[p] }))];
   wrap.innerHTML = botoes.map(b =>
     `<button type="button" class="plat-btn ${analyticsFilter === b.key ? 'primary' : ''}" style="flex:0;padding:5px 12px" onclick="setAnalyticsFilter('${b.key}')">${escapeHtml(b.label)}</button>`
   ).join('');
@@ -1762,7 +1796,18 @@ function setAnalyticsFilter(plat) {
   renderAnalyticsView();
 }
 
+// Os blocos extras (curtidas/seguidores do Instagram, watch time do
+// YouTube, stats do TikTok) só fazem sentido para a rede social a que
+// pertencem — escondidos quando o filtro está em "Todas" ou em outra rede,
+// para não misturar dados de redes diferentes na mesma tela.
+function aplicarFiltroSecoesExtra() {
+  document.querySelectorAll('[data-analytics-section]').forEach(el => {
+    el.style.display = el.dataset.analyticsSection === analyticsFilter ? '' : 'none';
+  });
+}
+
 function renderAnalyticsView() {
+  aplicarFiltroSecoesExtra();
   const seriesNoPeriodo = filtrarPorPeriodo(analyticsData.series, 'posts');
 
   const series = analyticsFilter === 'all'
@@ -2066,22 +2111,45 @@ function renderTiktokStatsChart(tiktokStats) {
   });
 }
 
+// Miniatura do primeiro item de mídia do post (imagem, frame do vídeo, ou
+// ícone de carrossel quando há mais de um item), para dar contexto visual do
+// que foi publicado sem precisar abrir a rede social.
+function renderAnalyticsMediaThumb(m) {
+  const itens = m.mediaItems?.length ? m.mediaItems : (m.mediaPath ? [{ path: m.mediaPath, type: m.mediaType }] : []);
+  if (!itens.length) {
+    return `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted)">📝</div>`;
+  }
+  const primeiro = itens[0];
+  const badgeCarrossel = itens.length > 1 ? `<span style="position:absolute;bottom:-2px;right:-2px;background:var(--accent);color:#fff;font-size:9px;border-radius:6px;padding:1px 4px;line-height:1.4">${itens.length}</span>` : '';
+  const conteudo = primeiro.type === 'video'
+    ? `<video src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover"></video>`
+    : `<img src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover"/>`;
+  return `<div style="position:relative;flex:0 0 auto">${conteudo}${badgeCarrossel}</div>`;
+}
+
 function renderAnalyticsMetrics(metrics) {
   const listEl = document.getElementById('analytics-metrics-list');
 
+  const regraRede = analyticsFilter !== 'all' && ANALYTICS_PLAT_RULES[analyticsFilter]
+    ? `<div style="padding:8px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface2)">ℹ️ <strong style="color:var(--text)">${escapeHtml(ANALYTICS_PLAT_LABELS[analyticsFilter])}:</strong> ${escapeHtml(ANALYTICS_PLAT_RULES[analyticsFilter])}</div>`
+    : '';
+
   if (!metrics.length) {
-    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhuma métrica disponível ainda. Métricas reais só aparecem para posts publicados a partir desta atualização, no Facebook, Instagram ou YouTube.</div>';
+    listEl.innerHTML = regraRede + '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhuma métrica disponível ainda. Métricas reais só aparecem para posts publicados a partir desta atualização, no Facebook, Instagram ou YouTube.</div>';
     return;
   }
 
-  listEl.innerHTML = metrics.map(m => {
+  const linhas = metrics.map(m => {
     const data = m.publishedAt ? new Date(m.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
     const texto = m.text ? escapeHtml(m.text.slice(0, 60)) + (m.text.length > 60 ? '…' : '') : '<span style="color:var(--muted)">(sem texto)</span>';
     const views = m.metrics?.views != null
       ? `👁 ${m.metrics.views} visualizações · `
       : m.metrics ? '<span style="color:var(--muted)">visualizações indisponível</span> · ' : '';
+    const watchTime = m.metrics?.watchTimeSeconds != null
+      ? ` · ⏱ ${Math.round(m.metrics.watchTimeSeconds)}s médios`
+      : '';
     const resultado = m.metrics
-      ? `${views}❤ ${m.metrics.likes ?? '—'} curtidas · 💬 ${m.metrics.comments ?? '—'} comentários`
+      ? `${views}❤ ${m.metrics.likes ?? '—'} curtidas · 💬 ${m.metrics.comments ?? '—'} comentários${watchTime}`
       : '<span style="color:var(--muted)">métrica indisponível</span>';
 
     const podeVerComentarios = ANALYTICS_PLAT_COMENTARIOS.includes(m.platform);
@@ -2093,6 +2161,7 @@ function renderAnalyticsMetrics(metrics) {
     const estiloSelecionado = selecionado ? `background:rgba(91,127,255,0.08);border-left:2px solid var(--accent)` : '';
 
     return `<div class="plat-row" style="flex-wrap:wrap;cursor:pointer;${estiloSelecionado}" onclick="selectAnalyticsPost(${m.postId})" title="${selecionado ? 'Clique para voltar à junção de todos os posts' : 'Clique para ver só este post no gráfico'}">
+      ${renderAnalyticsMediaThumb(m)}
       <span class="mini-pill ${escapeHtml(m.platform)}">${escapeHtml(ANALYTICS_PLAT_LABELS[m.platform] || m.platform)}</span>
       <div style="flex:1">
         <div class="plat-row-name" style="font-size:13px;font-weight:400">${texto}</div>
@@ -2104,6 +2173,8 @@ function renderAnalyticsMetrics(metrics) {
       </div>
     </div>`;
   }).join('');
+
+  listEl.innerHTML = regraRede + linhas;
 }
 
 // ── Comentários (ler e responder) ─────────────────────────────────────────────

@@ -44,19 +44,18 @@ async function metricsFacebook(token, externalPostId) {
 // fica null).
 async function metricsInstagram(token, externalPostId) {
   const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}?fields=like_count,comments_count&access_token=${encodeURIComponent(token.accessToken)}`
-  const res = await fetchComTimeout(url)
+  const insightsUrl = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/insights?metric=views&access_token=${encodeURIComponent(token.accessToken)}`
+
+  // likes/comments e views são endpoints independentes — busca em paralelo em vez
+  // de sequencial, já que um não depende do resultado do outro.
+  const [res, viewsResult] = await Promise.all([
+    fetchComTimeout(url),
+    fetchComTimeout(insightsUrl).then(async r => ({ ok: r.ok, data: await r.json() })).catch(() => null)
+  ])
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `Instagram respondeu ${res.status}`)
 
-  let views = null
-  try {
-    const insightsUrl = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/insights?metric=views&access_token=${encodeURIComponent(token.accessToken)}`
-    const insightsRes = await fetchComTimeout(insightsUrl)
-    const insightsData = await insightsRes.json()
-    if (insightsRes.ok) views = insightsData.data?.[0]?.values?.[0]?.value ?? null
-  } catch {
-    views = null
-  }
+  const views = viewsResult?.ok ? (viewsResult.data.data?.[0]?.values?.[0]?.value ?? null) : null
 
   return { likes: data.like_count ?? null, comments: data.comments_count ?? null, views }
 }
@@ -83,11 +82,16 @@ async function metricsYoutubeWatchTime(token, videoId) {
 
 async function metricsYoutube(token, externalPostId) {
   const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(externalPostId)}`
-  const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
+
+  // Estatísticas básicas (Data API) e tempo médio de visualização (Analytics API)
+  // são chamadas a APIs distintas e independentes — busca em paralelo.
+  const [res, watchTimeSeconds] = await Promise.all([
+    fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } }),
+    metricsYoutubeWatchTime(token, externalPostId)
+  ])
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
   const stats = data.items?.[0]?.statistics
-  const watchTimeSeconds = await metricsYoutubeWatchTime(token, externalPostId)
   if (!stats) return { likes: null, comments: null, views: null, watchTimeSeconds }
   return {
     likes: Number(stats.likeCount) || 0,

@@ -57,15 +57,22 @@ async function reconciliarPostsInstagram(userId, isSuperAdmin) {
     publishedAtEstimado: p.criado_em || p.scheduledAt
   }))
 
+  // Busca a mídia recente de cada conta em paralelo (chamadas de rede independentes);
+  // o casamento com os posts do banco continua sequencial por conta, já que precisa
+  // marcar `jaCasado` para não reusar a mesma mídia em duas contas processadas ao
+  // mesmo tempo.
+  const mediasPorConta = await Promise.all(contas.map(async conta => {
+    try {
+      return { conta, medias: await buscarMediaRecente(conta) }
+    } catch {
+      return { conta, medias: null } // conta sem permissão/token inválido — pula, não derruba a reconciliação das outras
+    }
+  }))
+
   let reconciliados = 0
 
-  for (const conta of contas) {
-    let medias
-    try {
-      medias = await buscarMediaRecente(conta)
-    } catch {
-      continue // conta sem permissão/token inválido — pula, não derruba a reconciliação das outras
-    }
+  for (const { conta, medias } of mediasPorConta) {
+    if (!medias) continue
 
     for (const media of medias) {
       // Evita reusar a mesma mídia real para dois posts diferentes do banco.
