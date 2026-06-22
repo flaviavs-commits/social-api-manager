@@ -1,12 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const pool = require('../db/pool');
 const contasRepo = require('../repositories/contasRepository');
 const tokensRepo = require('../repositories/tokensRepository');
 const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
 
-const tiktokPKCEStore = new Map(); // state -> code_verifier
+// Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
+// memória — entre o início do OAuth e o callback, a requisição pode cair numa
+// instância de função serverless diferente, perdendo qualquer Map em memória.
+async function salvarPkceVerifier(state, codeVerifier) {
+  await pool.query(`INSERT INTO oauth_pkce_state (state, code_verifier) VALUES ($1, $2)`, [state, codeVerifier]);
+}
+
+async function consumirPkceVerifier(state) {
+  const { rows: [row] } = await pool.query(`DELETE FROM oauth_pkce_state WHERE state = $1 RETURNING code_verifier`, [state]);
+  return row?.code_verifier || null;
+}
 
 // O callback de OAuth é navegado pelo provedor externo (Instagram/Google/...)
 // de volta para o nosso domínio. Nesse ponto o cookie de sessão pode não
@@ -468,7 +479,7 @@ router.get('/google/callback', async (req, res) => {
 
 // ─── TikTok ───────────────────────────────────────────────────────────────────
 
-router.get('/tiktok', requireAuth, (req, res) => {
+router.get('/tiktok', requireAuth, async (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
@@ -490,7 +501,7 @@ router.get('/tiktok', requireAuth, (req, res) => {
   // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
-  tiktokPKCEStore.set(state, codeVerifier);
+  await salvarPkceVerifier(state, codeVerifier);
 
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
     `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
@@ -505,7 +516,7 @@ router.get('/tiktok', requireAuth, (req, res) => {
   res.json({ authUrl: url });
 });
 
-router.get('/tiktok/google', requireAuth, (req, res) => {
+router.get('/tiktok/google', requireAuth, async (req, res) => {
   const configError = checkEnv(['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_REDIRECT_URI'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
@@ -516,7 +527,7 @@ router.get('/tiktok/google', requireAuth, (req, res) => {
 
   const codeVerifier = crypto.randomBytes(64).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
-  tiktokPKCEStore.set(state, codeVerifier);
+  await salvarPkceVerifier(state, codeVerifier);
 
   const url = `https://www.tiktok.com/v2/auth/authorize/` +
     `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
@@ -547,8 +558,7 @@ router.get('/tiktok/callback', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
-  const codeVerifier = tiktokPKCEStore.get(state);
-  tiktokPKCEStore.delete(state);
+  const codeVerifier = await consumirPkceVerifier(state);
 
   try {
     // Troca o code pelo access_token real
