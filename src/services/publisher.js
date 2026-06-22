@@ -165,27 +165,25 @@ async function publicarFacebook(token, post) {
   return data
 }
 
-// Aguarda o container de mídia do Instagram terminar de processar (IN_PROGRESS -> FINISHED).
-// Publicar antes de FINISHED retorna "Media ID is not available".
-// Backoff: a maioria dos containers de imagem termina em poucos segundos, então as
-// primeiras tentativas são rápidas (500ms/1s) e o intervalo cresce até 2s — reduz a
-// espera média sem aumentar o número de chamadas em casos lentos (~60s de budget total).
-const INSTAGRAM_POLL_DELAYS_MS = [500, 1000, 1500, 2000]
-async function aguardarContainerInstagram(containerId, accessToken) {
-  const inicio = Date.now()
-  let tentativa = 0
-  while (Date.now() - inicio < 60000) {
-    const statusRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`)
-    const statusData = await statusRes.json()
-    if (statusData.status_code === 'FINISHED') return
-    if (statusData.status_code === 'ERROR') throw new Error('Processamento da mídia falhou no Instagram')
-    const delay = INSTAGRAM_POLL_DELAYS_MS[Math.min(tentativa, INSTAGRAM_POLL_DELAYS_MS.length - 1)]
-    await new Promise(r => setTimeout(r, delay))
-    tentativa++
-  }
+// Consulta o status_code de um container do Instagram (IN_PROGRESS, FINISHED,
+// ERROR) — usada pela finalização via cron (finalizarInstagramPendentes), sem
+// bloquear a função esperando: cada chamada é "uma olhada", não um loop.
+async function statusContainerInstagram(containerId, accessToken) {
+  const res = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`)
+  const data = await res.json()
+  // Resposta de erro da API (token expirado, container inválido etc.) não tem
+  // status_code — sem essa checagem, o post ficaria pendente para sempre, já
+  // que nem 'FINISHED' nem 'ERROR' seriam retornados.
+  if (!res.ok || data.error) throw new Error(data?.error?.message || `Instagram respondeu ${res.status} ao consultar status do container`)
+  return data.status_code
 }
 
 // ── Instagram (Graph API - containers de mídia) ──────────────────────────────────
+// Cria o(s) container(s) e devolve um estado "pending" em vez de esperar o
+// processamento terminar (que pode levar até 60s+) — publicar de fato
+// (media_publish) acontece depois, via finalizarInstagramPendentes(), chamada
+// pelo cron. Isso evita bloquear a função/request por tempo demais, o que em
+// ambiente serverless arrisca exceder o timeout da invocação.
 async function publicarInstagram(token, post) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
@@ -199,9 +197,8 @@ async function publicarInstagram(token, post) {
 
   // ── Carrossel (múltiplas imagens/vídeos) ──
   if (post.mediaItems?.length > 1) {
-    // Cada item do carrossel é independente (container próprio na Graph API), então
-    // criar + aguardar o processamento de todos em paralelo reduz o tempo total de
-    // N × tempo-por-item para o máximo entre eles.
+    // Cada item do carrossel tem seu próprio container na Graph API — criados
+    // em paralelo, sem esperar o processamento de nenhum deles aqui.
     const childIds = await Promise.all(post.mediaItems.map(async item => {
       const childParams = new URLSearchParams({ access_token: token.accessToken, is_carousel_item: 'true' })
       if (item.type === 'video') {
@@ -213,25 +210,16 @@ async function publicarInstagram(token, post) {
       const childRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: childParams })
       const childData = await childRes.json()
       if (!childRes.ok) throw new Error(childData?.error?.message || `Instagram respondeu ${childRes.status} ao criar item do carrossel`)
-      await aguardarContainerInstagram(childData.id, token.accessToken)
       return childData.id
     }))
 
-    const carouselParams = new URLSearchParams({ access_token: token.accessToken, media_type: 'CAROUSEL', children: childIds.join(',') })
-    if (post.text) carouselParams.append('caption', post.text)
-
-    const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: carouselParams })
-    const createData = await createRes.json()
-    if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status} ao criar carrossel`)
-    await aguardarContainerInstagram(createData.id, token.accessToken)
-
-    const publishRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
-      method: 'POST',
-      body: new URLSearchParams({ creation_id: createData.id, access_token: token.accessToken })
-    })
-    const publishData = await publishRes.json()
-    if (!publishRes.ok) throw new Error(publishData?.error?.message || `Instagram respondeu ${publishRes.status}`)
-    return publishData
+    return {
+      pending: true,
+      stage: 'carousel_children',
+      igUserId,
+      childIds,
+      caption: post.text || null
+    }
   }
 
   // ── Imagem/vídeo único ──
@@ -248,15 +236,13 @@ async function publicarInstagram(token, post) {
   const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: params })
   const createData = await createRes.json()
   if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status}`)
-  await aguardarContainerInstagram(createData.id, token.accessToken)
 
-  const publishRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
-    method: 'POST',
-    body: new URLSearchParams({ creation_id: createData.id, access_token: token.accessToken })
-  })
-  const publishData = await publishRes.json()
-  if (!publishRes.ok) throw new Error(publishData?.error?.message || `Instagram respondeu ${publishRes.status}`)
-  return publishData
+  return {
+    pending: true,
+    stage: 'single_media',
+    igUserId,
+    containerId: createData.id
+  }
 }
 
 // Consulta o status de processamento do vídeo (uploadStatus/processingStatus) até
@@ -489,6 +475,22 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
   try {
     const data = await publisher(token, post)
 
+    // Instagram: o container foi criado, mas ainda precisa terminar de
+    // processar antes de poder ser publicado de fato — isso é confirmado
+    // depois, via finalizarInstagramPendentes() (chamada pelo cron), não
+    // bloqueando esta requisição/invocação à espera do Instagram.
+    if (data?.pending) {
+      await postsRepo.salvarInstagramPending(post.id, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId })
+      await registrarLog({
+        type: 'info',
+        message: `Publicação no Instagram em processamento na conta "${token.handle || token.accountName}" — confirmação em até ~1min`,
+        platform,
+        conta_id: token.contaId,
+        user_id: post.userId
+      })
+      return { platform, success: 'pending', account: token.handle || token.accountName, data }
+    }
+
     const externalId = extrairExternalId(platform, data)
     if (externalId) {
       await postsRepo.salvarPublicacaoExterna(post.id, {
@@ -537,4 +539,75 @@ async function publishPost(post) {
   return Promise.all(post.platforms.map(platform => publicarNaPlataforma(platform, post, isSuperAdmin)))
 }
 
-module.exports = { publishPost, buscarContaToken, listarContasToken }
+// Cria o container final (single media ou carrossel) e publica de fato —
+// chamado só depois que o(s) container(s) já estão FINISHED, então não há
+// espera bloqueante aqui além de duas chamadas HTTP rápidas e sequenciais.
+async function finalizarPublicacaoInstagram(pending) {
+  const { igUserId, accessToken } = pending
+
+  let creationId
+  if (pending.stage === 'carousel_children') {
+    const carouselParams = new URLSearchParams({ access_token: accessToken, media_type: 'CAROUSEL', children: pending.childIds.join(',') })
+    if (pending.caption) carouselParams.append('caption', pending.caption)
+    const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: carouselParams })
+    const createData = await createRes.json()
+    if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status} ao criar carrossel`)
+    creationId = createData.id
+    // O container do carrossel também precisa processar antes de publicar —
+    // como os filhos já estavam FINISHED, isso costuma ser rápido, mas ainda
+    // exige uma espera curta e limitada (bem menor que o ciclo completo).
+    for (let i = 0; i < 10; i++) {
+      const status = await statusContainerInstagram(creationId, accessToken)
+      if (status === 'FINISHED') break
+      if (status === 'ERROR') throw new Error('Processamento do carrossel falhou no Instagram')
+      await new Promise(r => setTimeout(r, 1000))
+    }
+  } else {
+    creationId = pending.containerId
+  }
+
+  const publishRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media_publish`, {
+    method: 'POST',
+    body: new URLSearchParams({ creation_id: creationId, access_token: accessToken })
+  })
+  const publishData = await publishRes.json()
+  if (!publishRes.ok) throw new Error(publishData?.error?.message || `Instagram respondeu ${publishRes.status}`)
+  return publishData
+}
+
+// Verifica, uma vez por post, se o(s) container(s) pendentes do Instagram já
+// terminaram de processar — e se sim, publica de fato e atualiza o status do
+// post. Chamada pelo cron (mesmo tick de processarPendentes), substituindo o
+// polling bloqueante que existia antes dentro da própria publicação.
+async function finalizarInstagramPendentes() {
+  const pendentes = await postsRepo.listarPostsComInstagramPendente()
+
+  await Promise.all(pendentes.map(async post => {
+    const pending = post.instagramPending
+    try {
+      const containerIds = pending.stage === 'carousel_children' ? pending.childIds : [pending.containerId]
+      const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, pending.accessToken)))
+
+      if (statuses.some(s => s === 'ERROR')) throw new Error('Processamento da mídia falhou no Instagram')
+      if (!statuses.every(s => s === 'FINISHED')) return // ainda processando — tenta de novo no próximo tick
+
+      const data = await finalizarPublicacaoInstagram(pending)
+      const externalId = extrairExternalId('instagram', data)
+      if (externalId) {
+        await postsRepo.salvarPublicacaoExterna(post.id, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString() })
+      }
+      await postsRepo.limparInstagramPending(post.id)
+      await postsRepo.atualizarStatusPost(post.id, 'published')
+
+      await registrarLog({ type: 'ok', message: `Post publicado [instagram] na conta "${pending.accountName}"`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
+      broadcastEvent('post_published', { id: post.id, status: 'published', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: true, data }] }, post.userId)
+    } catch (err) {
+      await postsRepo.limparInstagramPending(post.id)
+      await postsRepo.atualizarStatusPost(post.id, 'error')
+      await registrarLog({ type: 'err', message: `Falha ao publicar [instagram] em "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
+      broadcastEvent('post_published', { id: post.id, status: 'error', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: false, error: err.message }] }, post.userId)
+    }
+  }))
+}
+
+module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes }

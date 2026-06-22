@@ -127,6 +127,28 @@ async function definirAccountIdSeVazio(id, accountId) {
   await pool.query(`UPDATE posts SET account_id = $1 WHERE id = $2 AND account_id IS NULL`, [accountId, id])
 }
 
+// Guarda os containers do Instagram ainda em processamento (status_code
+// IN_PROGRESS) — a publicação real (media_publish) só acontece num próximo
+// tick do cron, quando finalizarInstagramPendentes() confirmar FINISHED.
+async function salvarInstagramPending(id, pendingState) {
+  await pool.query(`UPDATE posts SET instagram_pending = $1 WHERE id = $2`, [JSON.stringify(pendingState), id])
+}
+
+async function limparInstagramPending(id) {
+  await pool.query(`UPDATE posts SET instagram_pending = NULL WHERE id = $1`, [id])
+}
+
+// Posts com containers do Instagram aguardando confirmação de processamento —
+// candidatos a serem finalizados (media_publish) no próximo tick do cron.
+async function listarPostsComInstagramPendente() {
+  const { rows } = await pool.query(`
+    SELECT id, text, platforms, status, user_id AS "userId", account_id AS "accountId", instagram_pending AS "instagramPending"
+    FROM posts
+    WHERE instagram_pending IS NOT NULL
+  `)
+  return rows
+}
+
 // Salva um snapshot diário das métricas de um post (1 ponto por dia), para
 // alimentar o gráfico de curtidas ao longo do tempo — a API da rede social
 // só dá o valor atual, então é o Analytics que constrói o histórico, dia a
@@ -155,5 +177,6 @@ module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes,
   salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
+  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente,
   registrarSnapshotMetricas, buscarHistoricoMetricas
 }

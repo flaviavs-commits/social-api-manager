@@ -315,10 +315,16 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     if (!publishNow) return res.status(201).json(post)
 
     const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accountId, userId: req.user.id, userRole: req.user.role })
-    const status = results.every(r => r.success) ? 'published'
-      : results.some(r => r.success) ? 'partial'
+    // success: 'pending' (Instagram aguardando processamento) não conta como
+    // sucesso nem falha ainda — o post fica em 'processing' até o cron
+    // confirmar o resultado real via finalizarInstagramPendentes().
+    const pendente = results.some(r => r.success === 'pending')
+    const sucesso = r => r.success === true
+    const status = pendente ? 'processing'
+      : results.every(sucesso) ? 'published'
+      : results.some(sucesso) ? 'partial'
       : 'error'
-    await repo.atualizarStatusPost(post.id, status)
+    if (!pendente) await repo.atualizarStatusPost(post.id, status)
 
     res.status(201).json({ ...post, status, results })
   } catch (e) {

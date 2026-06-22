@@ -1454,10 +1454,14 @@ async function schedulePost(publishNow = false) {
   if (publishNow) {
     if (post.status === 'published') {
       showToast('Post publicado com sucesso!', 'ok');
+    } else if (post.status === 'processing') {
+      // Instagram cria o container e confirma a publicação de fato em até ~1min
+      // (via cron) — não é erro, só ainda não terminou de processar a mídia.
+      showToast('Post em processamento no Instagram — confirmação em até 1 minuto.', 'ok');
     } else if (post.status === 'partial') {
       showToast('Post publicado parcialmente — alguma plataforma falhou. Veja o Histórico de Atividades.', 'warn');
     } else {
-      const erro = post.results?.find(r => !r.success)?.error;
+      const erro = post.results?.find(r => r.success === false)?.error;
       showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
     }
   } else {

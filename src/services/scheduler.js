@@ -1,5 +1,5 @@
 const cron = require('node-cron')
-const { publishPost } = require('./publisher')
+const { publishPost, finalizarInstagramPendentes } = require('./publisher')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const postsRepo = require('../repositories/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
@@ -12,11 +12,24 @@ async function processarPost(post) {
   let status
   try {
     const results = await publishPost(post)
-    status = results.every(r => r.success) ? 'published'
-      : results.some(r => r.success) ? 'partial'
-      : 'error'
+    // success: 'pending' (Instagram aguardando processamento) não é sucesso
+    // nem falha ainda — só conta como "tudo certo" quando for true de fato.
+    const pendente = results.some(r => r.success === 'pending')
+    const sucesso = r => r.success === true
 
-    await postsRepo.atualizarStatusPost(post.id, status)
+    if (pendente) {
+      // Post fica em 'processing' até finalizarInstagramPendentes() (via cron)
+      // confirmar o resultado real — sem isso, marcaríamos como published/error
+      // antes do Instagram sequer terminar de processar a mídia.
+      status = 'processing'
+    } else {
+      status = results.every(sucesso) ? 'published'
+        : results.some(sucesso) ? 'partial'
+        : 'error'
+      await postsRepo.atualizarStatusPost(post.id, status)
+    }
+
+    if (pendente) return // log/evento de conclusão só quando o Instagram confirmar
 
     const resumo = status === 'published' ? 'publicado com sucesso em todas as plataformas'
       : status === 'partial' ? 'publicado parcialmente (algumas plataformas falharam)'
@@ -66,6 +79,14 @@ async function processarPendentes() {
     await Promise.all(pendentes.map(processarPost))
   } catch (err) {
     await registrarLog({ type: 'err', message: `Erro ao programar post: ${err.message}`, platform: null })
+  }
+
+  // Verifica posts do Instagram que ficaram aguardando confirmação de
+  // processamento em um tick anterior — mesmo cron, sem agendamento extra.
+  try {
+    await finalizarInstagramPendentes()
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao finalizar publicações pendentes do Instagram: ${err.message}`, platform: 'instagram' })
   }
 }
 
