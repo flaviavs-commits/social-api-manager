@@ -9,13 +9,7 @@ const router = Router()
 // cron da Vercel fazendo uma requisição HTTP comum, não mais um timer interno.
 function requireCronSecret(req, res, next) {
   const auth = req.headers.authorization
-  // TEMPORÁRIO: aceita o secret via ?secret=... só para permitir testar o
-  // endpoint direto no navegador durante a validação da migração — remover
-  // depois de confirmado que o Vercel Cron real (header Authorization) funciona.
-  const viaQuery = req.query.secret
-  const autorizado = (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) ||
-    (process.env.CRON_SECRET && viaQuery === process.env.CRON_SECRET)
-  if (!autorizado) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ erro: 'Não autorizado' })
   }
   next()
