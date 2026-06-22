@@ -71,17 +71,36 @@ function extrairExternalId(platform, data) {
   return null
 }
 
-function mediaToBlob(mediaPath) {
+// Mídias novas são salvas no Vercel Blob — mediaPath já vem como uma URL
+// pública completa (https://...blob.vercel-storage.com/...). Mantém suporte a
+// posts antigos ainda com path relativo (/uploads/...), criados antes da
+// migração para o Blob, para não quebrar nada que já estivesse na fila no
+// momento do deploy.
+function isUrlExterna(mediaPath) {
+  return /^https?:\/\//i.test(mediaPath)
+}
+
+async function mediaToBlob(mediaPath) {
+  if (isUrlExterna(mediaPath)) {
+    const res = await fetch(mediaPath)
+    if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status}): ${mediaPath}`)
+    const buffer = Buffer.from(await res.arrayBuffer())
+    return { buffer, filename: path.basename(new URL(mediaPath).pathname) }
+  }
+
   const filename = path.basename(mediaPath)
   const absPath = path.join(UPLOADS_DIR, filename)
   const buffer = fs.readFileSync(absPath)
   return { buffer, filename, absPath }
 }
 
-// Gera a URL pública que Instagram/TikTok/etc usam para baixar a mídia
-// diretamente — com um token assinado de curta duração, já que /uploads
-// normalmente exige sessão e essas APIs não enviam nosso cookie.
+// URL que Instagram/TikTok/etc usam para baixar a mídia diretamente. Mídias
+// no Blob já têm URL pública própria — usa direto. Posts antigos com path
+// relativo (/uploads/...) continuam usando o token assinado de curta duração,
+// já que /uploads normalmente exige sessão e essas APIs não enviam cookie.
 function mediaUrl(mediaPath) {
+  if (isUrlExterna(mediaPath)) return mediaPath
+
   const filename = path.basename(mediaPath)
   const token = gerarTokenMedia(filename)
   return `${BASE_URL}${mediaPath}?token=${token}`
@@ -108,7 +127,7 @@ async function publicarFacebook(token, post) {
     const attachedMedia = await Promise.all(post.mediaItems.map(async item => {
       const isVideoItem = item.type === 'video'
       const endpointItem = isVideoItem ? 'videos' : 'photos'
-      const { buffer, filename } = mediaToBlob(item.path)
+      const { buffer, filename } = await mediaToBlob(item.path)
 
       const form = new FormData()
       form.append('access_token', token.accessToken)
@@ -133,7 +152,7 @@ async function publicarFacebook(token, post) {
 
   const isVideo = post.mediaType === 'video'
   const endpoint = isVideo ? 'videos' : 'photos'
-  const { buffer, filename } = mediaToBlob(post.mediaPath)
+  const { buffer, filename } = await mediaToBlob(post.mediaPath)
 
   const form = new FormData()
   form.append('access_token', token.accessToken)
@@ -282,9 +301,21 @@ async function aguardarProcessamentoYoutube(videoId, accessToken, post) {
 async function publicarYoutube(token, post) {
   if (!post.mediaPath || post.mediaType !== 'video') throw new Error('YouTube exige um vídeo para publicar')
 
-  const filename = path.basename(post.mediaPath)
-  const absPath = path.join(UPLOADS_DIR, filename)
-  const { size } = fs.statSync(absPath)
+  // Mídia no Blob: precisa baixar o vídeo antes de poder fazer o upload
+  // resumable a partir de um stream/tamanho conhecido. Posts antigos (path
+  // relativo /uploads/...) continuam lendo direto do disco local.
+  const usandoBlob = isUrlExterna(post.mediaPath)
+  let size, bodyStream
+  if (usandoBlob) {
+    const { buffer } = await mediaToBlob(post.mediaPath)
+    size = buffer.length
+    bodyStream = buffer
+  } else {
+    const filename = path.basename(post.mediaPath)
+    const absPath = path.join(UPLOADS_DIR, filename)
+    size = fs.statSync(absPath).size
+    bodyStream = fs.createReadStream(absPath)
+  }
 
   // Vídeos verticais (9:16) ou quadrados (1:1) com até 3 minutos são elegíveis
   // como Shorts. A hashtag #Shorts no título/descrição ajuda o YouTube a
@@ -319,12 +350,12 @@ async function publicarYoutube(token, post) {
   const uploadUrl = initRes.headers.get('location')
   if (!uploadUrl) throw new Error('YouTube não retornou a URL de upload resumable')
 
-  // 2. Envia o vídeo via stream direto do disco (sem carregar tudo em memória)
+  // 2. Envia o vídeo via stream (path local) ou buffer (mídia no Blob)
   const uploadRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(size) },
-    body: fs.createReadStream(absPath),
-    duplex: 'half'
+    body: bodyStream,
+    ...(usandoBlob ? {} : { duplex: 'half' })
   })
   const data = await uploadRes.json()
   if (!uploadRes.ok) throw new Error(data?.error?.message || `YouTube respondeu ${uploadRes.status} ao enviar o vídeo`)
@@ -346,7 +377,7 @@ async function publicarTiktok(token, post) {
 
   // ── Vídeo ──
   if (isVideo) {
-    const { buffer } = mediaToBlob(items[0].path)
+    const { buffer } = await mediaToBlob(items[0].path)
     const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },

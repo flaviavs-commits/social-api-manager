@@ -1,10 +1,12 @@
 const { Router } = require('express')
 const path = require('path')
+const os = require('os')
 const fs = require('fs')
 const crypto = require('crypto')
 const multer = require('multer')
 const FileType = require('file-type')
 const sharp = require('sharp')
+const { put } = require('@vercel/blob')
 const repo = require('../repositories/postsRepository')
 const contasRepo = require('../repositories/contasRepository')
 const { publishPost } = require('../services/publisher')
@@ -23,15 +25,11 @@ const ALLOWED_MEDIA_TYPES = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'
 ])
 
-// Salva com nome aleatório e extensão neutra (.bin); a extensão real é
-// corrigida depois que o tipo do arquivo é verificado por assinatura binária.
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../public/uploads'),
-  filename: (req, file, cb) => cb(null, crypto.randomUUID() + '.bin')
-})
-
+// Arquivos chegam em memória (req.files[i].buffer) em vez de serem escritos em
+// disco — necessário porque o disco local de uma função serverless (Vercel) é
+// efêmero e some entre invocações. O destino final é o Vercel Blob, mais abaixo.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) return cb(null, true)
@@ -41,21 +39,15 @@ const upload = multer({
 
 // Verifica a assinatura binária real de cada arquivo enviado (o Content-Type
 // do multipart é apenas o que o cliente declarou, e pode ser falsificado).
-// Renomeia para a extensão correta só depois de confirmar o tipo real;
-// remove do disco qualquer arquivo cujo conteúdo não seja imagem/vídeo válido.
+// Descarta (sem nunca escrever em disco) qualquer arquivo cujo conteúdo não
+// seja imagem/vídeo válido.
 async function validarESanitizarUploads(files) {
-  // Cada arquivo é validado/renomeado de forma independente — paraleliza para não
-  // pagar o custo de I/O (leitura de assinatura binária + rename) de forma serial
-  // quando o post tem várias mídias (carrossel).
+  // Cada arquivo é validado de forma independente — paraleliza para não pagar
+  // o custo de I/O de forma serial quando o post tem várias mídias (carrossel).
   const validados = await Promise.all(files.map(async f => {
-    const tipo = await FileType.fromFile(f.path)
-    if (!tipo || !ALLOWED_MEDIA_TYPES.has(tipo.mime)) {
-      await fs.promises.unlink(f.path).catch(() => {})
-      return null
-    }
-    const novoPath = f.path.replace(/\.bin$/, `.${tipo.ext}`)
-    await fs.promises.rename(f.path, novoPath)
-    return { ...f, path: novoPath, filename: path.basename(novoPath), mimetype: tipo.mime }
+    const tipo = await FileType.fromBuffer(f.buffer)
+    if (!tipo || !ALLOWED_MEDIA_TYPES.has(tipo.mime)) return null
+    return { ...f, ext: tipo.ext, mimetype: tipo.mime }
   }))
   return validados.filter(Boolean)
 }
@@ -67,11 +59,17 @@ async function validarESanitizarUploads(files) {
 async function converterImagemParaJpegSeNecessario(file) {
   if (!file.mimetype.startsWith('image/') || file.mimetype === 'image/jpeg') return file
 
-  const novoPath = file.path.replace(/\.\w+$/, '.jpg')
-  await sharp(file.path).jpeg({ quality: 90 }).toFile(novoPath)
-  await fs.promises.unlink(file.path).catch(() => {})
+  const buffer = await sharp(file.buffer).jpeg({ quality: 90 }).toBuffer()
+  return { ...file, buffer, ext: 'jpg', mimetype: 'image/jpeg' }
+}
 
-  return { ...file, path: novoPath, filename: path.basename(novoPath), mimetype: 'image/jpeg' }
+// Envia o buffer já validado/convertido para o Vercel Blob (storage externo,
+// substitui a escrita em public/uploads) e devolve a URL pública gerada —
+// essa URL é o que passa a ser guardado em posts.media_path/media_items.
+async function enviarParaBlob(file) {
+  const filename = `${crypto.randomUUID()}.${file.ext}`
+  const { url } = await put(filename, file.buffer, { access: 'public', contentType: file.mimetype })
+  return { ...file, url, filename }
 }
 
 // GET /api/posts
@@ -259,8 +257,29 @@ router.post('/', upload.array('media', 10), async (req, res) => {
       return res.status(400).json({ erro: 'captions inválido' })
     }
 
-    const items = files.map((f, i) => ({
-      path: `/uploads/${f.filename}`,
+    // Detecta se algum vídeo é elegível como Shorts do YouTube (vertical/quadrado,
+    // até 3min) ANTES de subir pro Blob — ffprobe só funciona com um arquivo
+    // local, então o buffer é escrito num arquivo temporário só para essa leitura
+    // e descartado logo depois (evita ter que rebaixar a mídia do Blob depois).
+    const probes = await Promise.all(files.map(async f => {
+      if (!f.mimetype.startsWith('video/')) return null
+      const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${f.ext}`)
+      try {
+        await fs.promises.writeFile(tmpPath, f.buffer)
+        return await probeVideo(tmpPath)
+      } catch {
+        return null
+      } finally {
+        await fs.promises.unlink(tmpPath).catch(() => {})
+      }
+    }))
+
+    // Envia cada arquivo já validado/convertido para o Vercel Blob — substitui
+    // a antiga escrita em public/uploads, que não persiste em ambiente serverless.
+    const enviados = await Promise.all(files.map(enviarParaBlob))
+
+    const items = enviados.map((f, i) => ({
+      path: f.url,
       type: f.mimetype.startsWith('video/') ? 'video' : 'image',
       caption: typeof captions[i] === 'string' ? captions[i].slice(0, 500) : ''
     }))
@@ -284,19 +303,7 @@ router.post('/', upload.array('media', 10), async (req, res) => {
     if (platforms.includes('instagram') && !items.length)
       return res.status(400).json({ erro: 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.' })
 
-    // Detecta se o vídeo do YouTube é elegível como Shorts: vertical (9:16) ou
-    // quadrado (1:1) e com até 3 minutos. Vídeos horizontais (16:9) nunca são Shorts,
-    // mesmo que curtos.
-    let youtubeIsShort = null
-    if (platforms.includes('youtube') && mediaType === 'video') {
-      const absPath = path.join(__dirname, '../../public', mediaPath)
-      try {
-        const info = await probeVideo(absPath)
-        youtubeIsShort = isShortEligible(info)
-      } catch {
-        youtubeIsShort = null
-      }
-    }
+    const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
 
     // "Publicar agora" cria o post já como 'processing' (em vez de
     // 'scheduled') para que o cron do agendamento nunca o veja e dispare uma
