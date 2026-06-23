@@ -374,9 +374,10 @@ async function aguardarStatusPublicacaoTiktok(publishId, accessToken) {
     })
     const data = await res.json()
     const status = data?.data?.status
-    if (status && status !== 'PROCESSING_UPLOAD' && status !== 'PROCESSING_DOWNLOAD') return status
+    if (status && status !== 'PROCESSING_UPLOAD' && status !== 'PROCESSING_DOWNLOAD')
+      return { status, failReason: data?.data?.fail_reason || null }
   }
-  return 'PROCESSING'
+  return { status: 'PROCESSING', failReason: null }
 }
 
 // ── TikTok (Content Posting API v2) ──────────────────────────────────────────────
@@ -419,8 +420,8 @@ async function publicarTiktok(token, post) {
     })
     if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (${uploadRes.status})`)
 
-    const status = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
-    if (status === 'FAILED') throw new Error(`TikTok rejeitou o vídeo após o upload (publish_id: ${initData.data.publish_id})`)
+    const { status, failReason } = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
+    if (status === 'FAILED') throw new Error(`TikTok rejeitou o vídeo após o upload (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
 
     return { ...initData.data, status }
   }
@@ -456,8 +457,8 @@ async function publicarTiktok(token, post) {
   if (!initRes.ok || initData?.error?.code !== 'ok')
     throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
 
-  const status = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
-  if (status === 'FAILED') throw new Error(`TikTok rejeitou a foto após o envio (publish_id: ${initData.data.publish_id})`)
+  const { status, failReason } = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
+  if (status === 'FAILED') throw new Error(`TikTok rejeitou a foto após o envio (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
 
   return { ...initData.data, status }
 }
