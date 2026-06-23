@@ -182,4 +182,51 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
   return Object.fromEntries(historico.map(h => [h.date.toISOString().slice(0, 10), { followerCount: h.followerCount, likesCount: h.likesCount }]))
 }
 
-module.exports = { buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, PLATAFORMAS_COM_METRICAS }
+// Lista os vídeos publicados na conta do TikTok (mais recentes primeiro),
+// usado para exibir o histórico de posts diretamente no nosso painel sem
+// precisar abrir o app do TikTok. Exige o scope video.list.
+async function metricsVideosTiktok(token, cursor) {
+  const url = 'https://open.tiktokapis.com/v2/video/list/?fields=id,title,cover_image_url,share_url,create_time,view_count,like_count,comment_count,share_count'
+  const res = await fetchComTimeout(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ max_count: 20, ...(cursor ? { cursor } : {}) })
+  })
+  const data = await res.json()
+  if (!res.ok || data.error?.code !== 'ok') throw new Error(data?.error?.message || `TikTok respondeu ${res.status}`)
+  return {
+    videos: (data.data?.videos || []).map(v => ({
+      id: v.id,
+      title: v.title,
+      coverImageUrl: v.cover_image_url,
+      shareUrl: v.share_url,
+      createTime: v.create_time,
+      viewCount: v.view_count,
+      likeCount: v.like_count,
+      commentCount: v.comment_count,
+      shareCount: v.share_count
+    })),
+    cursor: data.data?.cursor ?? null,
+    hasMore: data.data?.has_more ?? false
+  }
+}
+
+// Busca os vídeos publicados em cada conta do TikTok do usuário e devolve a
+// lista combinada (mais recentes primeiro), com o nome da conta de origem.
+async function buscarVideosTiktok(userId, isAdmin) {
+  const tokens = await listarContasToken('tiktok', userId, isAdmin)
+
+  const resultados = await Promise.allSettled(
+    tokens.map(async t => {
+      const { videos } = await metricsVideosTiktok({ accessToken: t.accessToken })
+      return videos.map(v => ({ ...v, accountId: t.contaId, accountName: t.accountName }))
+    })
+  )
+
+  return resultados
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value)
+    .sort((a, b) => b.createTime - a.createTime)
+}
+
+module.exports = { buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, PLATAFORMAS_COM_METRICAS }

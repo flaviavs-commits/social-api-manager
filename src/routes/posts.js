@@ -153,6 +153,16 @@ router.get('/analytics', async (req, res) => {
   }
 })
 
+// GET /api/posts/tiktok-videos - lista os vídeos publicados nas contas do TikTok conectadas
+router.get('/tiktok-videos', async (req, res) => {
+  try {
+    const videos = await metricsService.buscarVideosTiktok(req.user.id, isAdminRole(req.user.role))
+    res.json({ videos })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
 // GET /api/posts/:id/metrics-history - histórico diário de curtidas/comentários/views de um post
 router.get('/:id/metrics-history', async (req, res) => {
   try {

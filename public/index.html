@@ -579,6 +579,11 @@ input, select, textarea, .modal-overlay, .nav-section, label {
         <div id="analytics-tiktok-stats-wrap"><canvas id="analytics-tiktok-stats-chart" height="90"></canvas></div>
       </div>
     </div>
+
+    <div data-analytics-section="tiktok">
+      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Vídeos publicados no TikTok</div>
+      <div id="analytics-tiktok-videos-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.5rem"></div>
+    </div>
   </div>
 
   <div style="text-align:center;margin-top:2rem;padding-top:1rem">
@@ -1826,6 +1831,39 @@ async function loadAnalytics() {
     renderTiktokStatsChart(filtrarPorPeriodo(analyticsData.tiktokStats, 'tiktok'));
     listEl.dataset.loaded = '1';
     updateAnalyticsLastUpdated();
+  } catch (e) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
+  }
+
+  loadTiktokVideos();
+}
+
+async function loadTiktokVideos() {
+  const listEl = document.getElementById('analytics-tiktok-videos-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
+
+  try {
+    const { videos } = await apiFetch('/api/posts/tiktok-videos');
+    if (!videos.length) {
+      listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhum vídeo publicado ainda.</div>';
+      return;
+    }
+
+    listEl.innerHTML = videos.map(v => {
+      const data = new Date(v.createTime * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const titulo = v.title ? escapeHtml(v.title.slice(0, 60)) + (v.title.length > 60 ? '…' : '') : '<span style="color:var(--muted)">(sem título)</span>';
+      return `<a class="plat-row" href="${escapeHtml(v.shareUrl)}" target="_blank" rel="noopener" style="flex-wrap:wrap;text-decoration:none;color:inherit">
+        ${v.coverImageUrl ? `<img src="${escapeHtml(v.coverImageUrl)}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;flex:0 0 40px"/>` : ''}
+        <div style="flex:1">
+          <div class="plat-row-name" style="font-size:13px;font-weight:400">${titulo}</div>
+          <div class="plat-row-meta">${escapeHtml(v.accountName || '')} · ${escapeHtml(data)}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--text);white-space:nowrap">
+          👁 ${v.viewCount ?? '—'} · ❤ ${v.likeCount ?? '—'} · 💬 ${v.commentCount ?? '—'}
+        </div>
+      </a>`;
+    }).join('');
   } catch (e) {
     listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
   }
