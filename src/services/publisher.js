@@ -71,6 +71,10 @@ function extrairExternalId(platform, data) {
   if (platform === 'facebook') return data?.id || null
   if (platform === 'instagram') return data?.id || null
   if (platform === 'youtube') return data?.id || null
+  // O Content Posting API só devolve um publish_id (identificador da
+  // operação de publicação) — não o ID do vídeo em si, que a API não expõe
+  // de volta nessa chamada. Serve para rastrear o post via /v2/post/publish/status/fetch/.
+  if (platform === 'tiktok') return data?.publish_id || null
   return null
 }
 
@@ -356,6 +360,25 @@ async function publicarYoutube(token, post) {
   return data
 }
 
+// Consulta o status real do processamento depois do upload — o /init/ só
+// confirma que o TikTok aceitou o envio, não que o vídeo já foi publicado de
+// fato. Poucas tentativas com delay curto: o suficiente pro caso comum
+// (alguns segundos), sem bloquear a resposta por muito tempo se demorar mais.
+async function aguardarStatusPublicacaoTiktok(publishId, accessToken) {
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    await new Promise(r => setTimeout(r, 2000))
+    const res = await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publish_id: publishId })
+    })
+    const data = await res.json()
+    const status = data?.data?.status
+    if (status && status !== 'PROCESSING_UPLOAD' && status !== 'PROCESSING_DOWNLOAD') return status
+  }
+  return 'PROCESSING'
+}
+
 // ── TikTok (Content Posting API v2) ──────────────────────────────────────────────
 async function publicarTiktok(token, post) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
@@ -395,7 +418,11 @@ async function publicarTiktok(token, post) {
       body: buffer
     })
     if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (${uploadRes.status})`)
-    return initData.data
+
+    const status = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
+    if (status === 'FAILED') throw new Error(`TikTok rejeitou o vídeo após o upload (publish_id: ${initData.data.publish_id})`)
+
+    return { ...initData.data, status }
   }
 
   // ── Foto única ou Carrossel ──
@@ -429,7 +456,10 @@ async function publicarTiktok(token, post) {
   if (!initRes.ok || initData?.error?.code !== 'ok')
     throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
 
-  return initData.data
+  const status = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
+  if (status === 'FAILED') throw new Error(`TikTok rejeitou a foto após o envio (publish_id: ${initData.data.publish_id})`)
+
+  return { ...initData.data, status }
 }
 
 // ── Kwai (sem API pública de publicação - integração via login/senha) ────────────
@@ -526,9 +556,14 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
         user_id: post.userId
       })
     } else {
+      // TikTok não retorna o ID público do vídeo nem o share_url no momento
+      // do publish (só o publish_id, usado pra consultar o status depois) —
+      // por isso vai no log para facilitar achar o post sem precisar abrir o
+      // app do TikTok manualmente.
+      const detalheTiktok = platform === 'tiktok' && data?.publish_id ? ` (publish_id: ${data.publish_id}, status: ${data.status})` : ''
       await registrarLog({
         type: 'ok',
-        message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"`,
+        message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"${detalheTiktok}`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
