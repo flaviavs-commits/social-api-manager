@@ -113,6 +113,19 @@ function mediaUrl(mediaPath) {
   return `${BASE_URL}${mediaPath}?token=${token}`
 }
 
+// O TikTok (pull_by_url) exige que a URL da mídia esteja num domínio
+// verificado em "Verify domains" — mas o Blob usa um domínio próprio
+// (*.public.blob.vercel-storage.com) que não temos como verificar (DNS de
+// terceiro). Por isso, só para o TikTok, a URL do Blob passa por um proxy
+// no nosso próprio domínio (já verificado), assinado por token de curta
+// duração — as demais plataformas continuam usando a URL do Blob direto.
+function mediaUrlTiktok(mediaPath) {
+  if (!isUrlExterna(mediaPath)) return mediaUrl(mediaPath)
+
+  const token = gerarTokenMedia(mediaPath)
+  return `${BASE_URL}/media-proxy?url=${encodeURIComponent(mediaPath)}&token=${token}`
+}
+
 // ── Facebook (Graph API) ───────────────────────────────────────────────────────
 async function publicarFacebook(token, post) {
   const pageId = token.handle || token.accountName
@@ -429,7 +442,7 @@ async function publicarTiktok(token, post) {
   // ── Foto única ou Carrossel ──
   // Usa o endpoint de Content Posting API dedicado a fotos (media_type: PHOTO),
   // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
-  const photoImages = items.map(item => mediaUrl(item.path))
+  const photoImages = items.map(item => mediaUrlTiktok(item.path))
 
   const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
     method: 'POST',

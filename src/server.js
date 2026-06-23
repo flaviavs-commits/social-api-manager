@@ -92,6 +92,24 @@ app.use('/uploads', (req, res, next) => {
   requireAuth(req, res, next)
 }, express.static(path.join(__dirname, '../public/uploads')))
 
+// Repassa um arquivo do Vercel Blob através do nosso próprio domínio (já
+// verificado no TikTok) — necessário porque o domínio do Blob
+// (*.public.blob.vercel-storage.com) não pode ser verificado em "Verify
+// domains" (DNS de terceiro, fora do nosso controle). Só usado para enviar
+// fotos ao TikTok via pull_by_url; outras plataformas continuam recebendo a
+// URL do Blob direto.
+app.get('/media-proxy', async (req, res) => {
+  const { url, token } = req.query
+  if (typeof url !== 'string' || !validarTokenMedia(url, token)) return res.status(403).end()
+
+  const upstream = await fetch(url)
+  if (!upstream.ok) return res.status(502).end()
+
+  res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream')
+  const buffer = Buffer.from(await upstream.arrayBuffer())
+  res.send(buffer)
+})
+
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
 app.get('/api/config', (req, res) => {
