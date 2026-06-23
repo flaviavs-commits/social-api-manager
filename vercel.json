@@ -1,4 +1,12 @@
 {
+  "headers": [
+    {
+      "source": "/tiktok-developers-site-verification=OmQtGQblarLSaeh7GBz95OjoP0bC1vI4.txt",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ],
