@@ -11,7 +11,7 @@ const { publishPost } = require('../services/publisher')
 const metricsService = require('../services/metricsService')
 const commentsService = require('../services/commentsService')
 const instagramReconcileService = require('../services/instagramReconcileService')
-const { probeVideo, isShortEligible } = require('../services/videoProbe')
+const { probeVideo, isShortEligible, isAspectRatioValidForTiktok } = require('../services/videoProbe')
 const { PLATFORMS, REPEATS, parseId, serverError, isAdminRole } = require('../utils/http')
 
 const router = Router()
@@ -315,6 +315,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ erro: 'Informe o título do vídeo para publicar no YouTube.' })
     if (platforms.includes('tiktok') && !items.length)
       return res.status(400).json({ erro: 'Falta mídia para publicar no TikTok. Anexe um vídeo ou imagem.' })
+    if (platforms.includes('tiktok') && mediaType === 'video' && probes[0] && !isAspectRatioValidForTiktok(probes[0]))
+      return res.status(400).json({ erro: 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.' })
 
     // Instagram exige imagem ou vídeo para publicar.
     if (platforms.includes('instagram') && !items.length)

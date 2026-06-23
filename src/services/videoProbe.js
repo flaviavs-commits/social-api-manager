@@ -33,4 +33,14 @@ function isShortEligible({ width, height, duration }) {
   return height >= width // vertical (9:16) ou quadrado (1:1)
 }
 
-module.exports = { probeVideo, isShortEligible }
+// O TikTok rejeita o vídeo após o upload (fail_reason: picture_size_check_failed)
+// quando a proporção está fora da faixa aceita para gerar a capa automática —
+// entre 9:16 (vertical) e 16:9 (horizontal), aproximadamente. Checar antes do
+// upload evita gastar uma chamada de API só para descobrir isso depois.
+function isAspectRatioValidForTiktok({ width, height }) {
+  if (!width || !height) return false
+  const ratio = width / height
+  return ratio >= 9 / 16 && ratio <= 16 / 9
+}
+
+module.exports = { probeVideo, isShortEligible, isAspectRatioValidForTiktok }
