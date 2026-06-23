@@ -623,6 +623,15 @@ router.get('/tiktok/callback', async (req, res) => {
   }
 });
 
+// O TikTok envia eventos assíncronos (ex: revogação de autorização) via POST
+// para este endpoint, separado do redirect_uri do login (que só recebe GET
+// do navegador do usuário). Só precisamos responder 200 rapidamente — o
+// TikTok reenvia com backoff se não receber confirmação.
+router.post('/tiktok/webhook', (req, res) => {
+  addLog('info', `Webhook TikTok recebido: ${req.body?.event || 'evento desconhecido'}`, 'tiktok');
+  res.status(200).json({ received: true });
+});
+
 // ─── Data Deletion Callback (exigido pela Meta para apps em modo Live) ──────────
 // Quando um usuário remove o app pelas configurações do Facebook/Instagram, a
 // Meta chama esta URL com um signed_request contendo o user_id dele — temos
