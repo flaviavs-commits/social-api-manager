@@ -387,7 +387,7 @@ async function publicarTiktok(token, post) {
     })
     const initData = await initRes.json()
     if (!initRes.ok || initData?.error?.code !== 'ok')
-      throw new Error(initData?.error?.message || `TikTok respondeu ${initRes.status}`)
+      throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
 
     const uploadRes = await fetch(initData.data.upload_url, {
       method: 'PUT',
@@ -427,7 +427,7 @@ async function publicarTiktok(token, post) {
   })
   const initData = await initRes.json()
   if (!initRes.ok || initData?.error?.code !== 'ok')
-    throw new Error(initData?.error?.message || `TikTok photo respondeu ${initRes.status}: ${JSON.stringify(initData)}`)
+    throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
 
   return initData.data
 }
