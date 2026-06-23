@@ -371,7 +371,17 @@ async function publicarTiktok(token, post) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        post_info: { title: post.text || '', privacy_level: 'SELF_ONLY' },
+        // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
+        // diretrizes de integração do TikTok para apps não auditados — sem
+        // eles, o post/publish/video/init/ responde "Please review our
+        // integration guidelines".
+        post_info: {
+          title: post.text || '',
+          privacy_level: 'SELF_ONLY',
+          disable_duet: false,
+          disable_comment: false,
+          disable_stitch: false
+        },
         source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
       })
     })
@@ -400,7 +410,11 @@ async function publicarTiktok(token, post) {
       post_info: {
         title: post.text || '',
         privacy_level: 'SELF_ONLY',
-        disable_comment: false
+        disable_comment: false,
+        // disable_duet/disable_stitch só fazem sentido para vídeo, mas o
+        // TikTok também exige presença desses campos no media_type: PHOTO.
+        disable_duet: false,
+        disable_stitch: false
       },
       source_info: {
         source: 'PULL_FROM_URL',
