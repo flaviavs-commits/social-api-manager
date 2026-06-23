@@ -683,4 +683,4 @@ async function finalizarInstagramPendentes() {
   }))
 }
 
-module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes }
+module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, mediaUrlTiktok }

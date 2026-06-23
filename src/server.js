@@ -144,6 +144,16 @@ app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
 
+// DEBUG TEMPORÁRIO: gera a URL exata do proxy que seria enviada ao TikTok,
+// para testar manualmente no navegador se a imagem carrega em produção.
+// Remover após diagnosticar o url_ownership_unverified.
+app.get('/api/debug-tiktok-url', requireAdmin, (req, res) => {
+  const { mediaUrlTiktok } = require('./services/publisher')
+  const blobUrl = req.query.url
+  if (typeof blobUrl !== 'string' || !/^https?:\/\//.test(blobUrl)) return res.status(400).json({ erro: 'passe ?url=<url do blob>' })
+  res.json({ tiktokUrl: mediaUrlTiktok(blobUrl) })
+})
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'))
 })
