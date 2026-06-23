@@ -623,11 +623,43 @@ router.get('/tiktok/callback', async (req, res) => {
   }
 });
 
+// Header TikTok-Signature no formato "t=<timestamp>,s=<hex_signature>" —
+// a assinatura é HMAC-SHA256("<timestamp>.<raw_body>") usando o client secret.
+// MAX_SIGNATURE_AGE_MS limita o replay de uma requisição antiga capturada por
+// um atacante (a comparação usa epoch UTC, igual ao timestamp do header).
+const MAX_SIGNATURE_AGE_MS = 5 * 60 * 1000;
+
+function verificarAssinaturaWebhookTiktok(rawBody, signatureHeader) {
+  if (!rawBody || !signatureHeader) return false;
+
+  const parts = Object.fromEntries(signatureHeader.split(',').map(p => p.split('=')));
+  const { t: timestamp, s: signature } = parts;
+  if (!timestamp || !signature) return false;
+
+  if (Math.abs(Date.now() - Number(timestamp) * 1000) > MAX_SIGNATURE_AGE_MS) return false;
+
+  const payload = `${timestamp}.${rawBody.toString('utf8')}`;
+  const expectedSignature = crypto.createHmac('sha256', process.env.TIKTOK_CLIENT_SECRET).update(payload).digest('hex');
+
+  // timingSafeEqual exige buffers do mesmo tamanho — comparar hashes de
+  // tamanho fixo evita expor por timing se a assinatura está parcialmente correta.
+  const sigBuf = Buffer.from(signature);
+  const expectedBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expectedBuf);
+}
+
 // O TikTok envia eventos assíncronos (ex: revogação de autorização) via POST
 // para este endpoint, separado do redirect_uri do login (que só recebe GET
-// do navegador do usuário). Só precisamos responder 200 rapidamente — o
-// TikTok reenvia com backoff se não receber confirmação.
+// do navegador do usuário). req.rawBody é capturado em server.js, antes do
+// express.json() global consumir o stream, e é exigido para validar a
+// assinatura antes de confiar no conteúdo.
 router.post('/tiktok/webhook', (req, res) => {
+  if (!verificarAssinaturaWebhookTiktok(req.rawBody, req.header('TikTok-Signature'))) {
+    addLog('err', 'Webhook TikTok rejeitado: assinatura inválida ou ausente', 'tiktok');
+    return res.status(401).json({ erro: 'Assinatura inválida' });
+  }
+
   addLog('info', `Webhook TikTok recebido: ${req.body?.event || 'evento desconhecido'}`, 'tiktok');
   res.status(200).json({ received: true });
 });

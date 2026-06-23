@@ -40,6 +40,13 @@ app.use((req, res, next) => {
   next()
 })
 
+// O webhook do TikTok precisa do corpo bruto (raw body) para validar a
+// assinatura HMAC antes do parse — capturado aqui, antes do express.json()
+// global consumir o stream, e reusado em oauthRoutes via req.rawBody.
+app.use('/oauth/tiktok/webhook', express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf }
+}))
+
 app.use(express.json({ limit: '1mb' }))
 
 app.use(session({
