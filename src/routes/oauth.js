@@ -512,26 +512,32 @@ async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessag
   res.json({ authUrl: url });
 }
 
+// Scopes solicitados no OAuth do TikTok — os mesmos pedidos no App Review.
+// Mantidos numa constante única para os dois fluxos (direto e via Google) não
+// divergirem: pedir um scope não aprovado faz o TikTok rejeitar o login.
+// - user.info.basic/profile: identificar a conta conectada (nome, avatar)
+// - user.info.stats: gráfico de seguidores/curtidas no Analytics
+// - video.list: listar os vídeos publicados no painel
+// - video.publish/upload: publicar vídeos/fotos na conta do usuário
+const TIKTOK_SCOPES = [
+  'user.info.basic',
+  'user.info.profile',
+  'user.info.stats',
+  'video.list',
+  'video.publish',
+  'video.upload'
+];
+
 router.get('/tiktok', requireAuth, async (req, res) => {
   await iniciarOAuthTiktok(req, res, {
-    scopes: [
-      'user.info.basic',
-      'user.info.profile',
-      // Necessário para o gráfico de seguidores/curtidas totais no Analytics
-      // (endpoint /user/info/ com follower_count, likes_count) — contas
-      // conectadas antes desse scope existir precisam ser reconectadas.
-      'user.info.stats',
-      'video.list',
-      'video.publish',
-      'video.upload'
-    ],
+    scopes: TIKTOK_SCOPES,
     logMessage: `OAuth TikTok iniciado para "${req.query.accountName}"`
   });
 });
 
 router.get('/tiktok/google', requireAuth, async (req, res) => {
   await iniciarOAuthTiktok(req, res, {
-    scopes: ['user.info.basic', 'user.info.stats', 'video.publish', 'video.upload'],
+    scopes: TIKTOK_SCOPES,
     stateExtra: { via: 'google' },
     logMessage: 'OAuth TikTok (Google) iniciado'
   });
