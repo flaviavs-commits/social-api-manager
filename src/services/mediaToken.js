@@ -4,7 +4,12 @@ const crypto = require('crypto')
 // arquivo específico em /uploads, sem exigir sessão — necessário porque as
 // APIs de Instagram/TikTok/etc baixam a mídia direto de uma URL pública, sem
 // enviar nosso cookie de sessão.
-const EXPIRACAO_MS = 10 * 60 * 1000 // 10 minutos
+// 6 horas: o TikTok (e outras APIs) pode buscar a mídia por pull com atraso
+// — especialmente em posts agendados e carrosséis, onde cada imagem é
+// baixada de forma assíncrona. Com 10 min, o token expirava antes do pull e
+// o TikTok rejeitava com url_ownership_unverified (não conseguia acessar a
+// URL). O token segue restrito a uma mídia específica e assinado por HMAC.
+const EXPIRACAO_MS = 6 * 60 * 60 * 1000 // 6 horas
 
 function gerarTokenMedia(filename) {
   const expira = Date.now() + EXPIRACAO_MS
