@@ -251,10 +251,12 @@ router.post('/', async (req, res) => {
 
     let files = media
 
-    // O Instagram só aceita imagens em JPEG — converte PNG/GIF/WebP antes de
-    // publicar, em vez de bloquear o post. Sem o buffer original em mãos (já
-    // que o upload foi direto pro Blob), busca o conteúdo via fetch primeiro.
-    if (platforms.includes('instagram')) {
+    // Instagram e TikTok só aceitam imagens em JPEG — Instagram bloqueia
+    // outros formatos; o TikTok rejeita o post depois do envio com
+    // file_format_check_failed. Converte PNG/GIF/WebP antes de publicar, em
+    // vez de bloquear o post. Sem o buffer original em mãos (já que o upload
+    // foi direto pro Blob), busca o conteúdo via fetch primeiro.
+    if (platforms.includes('instagram') || platforms.includes('tiktok')) {
       files = await Promise.all(files.map(async f => {
         if (!f.mimetype.startsWith('image/') || f.mimetype === 'image/jpeg') return f
         const res = await fetch(f.url)
