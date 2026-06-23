@@ -50,7 +50,11 @@ async function processarPost(post) {
     }, post.userId)
   } catch (err) {
     await postsRepo.atualizarStatusPost(post.id, 'error')
-    await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${err.message}`, platform: null })
+    // err.message às vezes vem vazio (ex: erro sem mensagem) — inclui o nome
+    // do erro e a primeira linha do stack para não perder a causa real de
+    // falhas que acontecem fora do try/catch por-plataforma do publisher.
+    const detalhe = err.message || `${err.name || 'Erro'}: ${(err.stack || '').split('\n')[1]?.trim() || 'sem detalhes'}`
+    await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${detalhe}`, platform: null })
   }
 }
 
