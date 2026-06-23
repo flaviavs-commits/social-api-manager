@@ -1,4 +1,5 @@
 const pool = require('../db/pool')
+const { encrypt, decrypt } = require('../services/tokenCrypto')
 
 // Normaliza e-mails antes de gravar/consultar: remove espaços nas pontas e
 // força minúsculas, evitando que " a@b.com " e "a@b.com" sejam tratados
@@ -66,6 +67,49 @@ async function vincularGoogleId(userId, googleId) {
   await pool.query(`UPDATE users SET google_id = $1 WHERE id = $2`, [googleId, userId])
 }
 
+// ── 2FA (TOTP) ─────────────────────────────────────────────────────────────
+// Guarda o segredo cifrado e (durante o setup) ainda não habilitado — só vira
+// enabled depois que o usuário confirma o primeiro código (ativarTotp).
+async function salvarSegredoTotp(userId, segredo) {
+  await pool.query(
+    `UPDATE users SET totp_secret = $1, totp_enabled = FALSE WHERE id = $2`,
+    [encrypt(segredo), userId]
+  )
+}
+
+async function ativarTotp(userId) {
+  await pool.query(`UPDATE users SET totp_enabled = TRUE WHERE id = $1`, [userId])
+}
+
+async function desativarTotp(userId) {
+  await pool.query(`UPDATE users SET totp_secret = NULL, totp_enabled = FALSE WHERE id = $1`, [userId])
+}
+
+// Retorna o segredo TOTP decifrado e se está habilitado. Usado tanto na
+// confirmação do setup quanto na validação durante o reset de senha.
+async function buscarTotp(userIdOrEmail, porEmail = false) {
+  const campo = porEmail ? 'email' : 'id'
+  const valor = porEmail ? String(userIdOrEmail).trim().toLowerCase() : userIdOrEmail
+  const { rows: [row] } = await pool.query(
+    `SELECT id, totp_secret, totp_enabled FROM users WHERE ${campo} = $1 AND ativo = TRUE`,
+    [valor]
+  )
+  if (!row) return null
+  return {
+    userId: row.id,
+    secret: row.totp_secret ? decrypt(row.totp_secret) : null,
+    enabled: row.totp_enabled
+  }
+}
+
+async function atualizarAvatar(userId, avatarUrl) {
+  const { rows: [user] } = await pool.query(
+    `UPDATE users SET avatar_url = $1 WHERE id = $2 RETURNING id, avatar_url AS "avatarUrl"`,
+    [avatarUrl, userId]
+  )
+  return user || null
+}
+
 // ── Administração ────────────────────────────────────────────────────────────
 
 async function listarTodos() {
@@ -109,5 +153,6 @@ async function atualizarAtivo(id, ativo) {
 
 module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
+  atualizarAvatar, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
   listarTodos, contarAdmins, contarSuperAdmins, atualizarRole, atualizarAtivo
 }

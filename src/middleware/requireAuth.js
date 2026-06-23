@@ -18,7 +18,7 @@ async function requireAuth(req, res, next) {
       return res.redirect('/login.html')
     }
 
-    req.user = { id: user.id, email: user.email, role: user.role, fullName: user.full_name }
+    req.user = { id: user.id, email: user.email, role: user.role, fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
     next()
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })

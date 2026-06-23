@@ -12,6 +12,7 @@ const postsRoutes    = require('./routes/posts')
 const oauthRoutes    = require('./routes/oauth')
 const authRoutes     = require('./routes/auth')
 const adminRoutes    = require('./routes/admin')
+const meRoutes       = require('./routes/me')
 const requireAuth    = require('./middleware/requireAuth')
 const requireAdmin   = require('./middleware/requireAdmin')
 const cronRoutes     = require('./routes/cron')
@@ -149,9 +150,10 @@ app.get('/api/config', (req, res) => {
 app.use(requireAuth)
 
 app.get('/api/me', (req, res) => {
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, fullName: req.user.fullName })
+  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
 })
 
+app.use('/api/me',       meRoutes)
 app.use('/api/accounts', accountsRoutes)
 app.use('/api/tokens',   tokensRoutes)
 app.use('/api/logs',     logsRoutes)

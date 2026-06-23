@@ -58,8 +58,16 @@ input:focus { outline: none; border-color: var(--accent); }
   <form id="form-forgot" style="display:none;margin-top:1rem">
     <label for="forgot-email">Informe seu e-mail</label>
     <input type="email" id="forgot-email" placeholder="seu@email.com" required>
-    <button type="submit" class="btn btn-primary">Enviar link de redefinição</button>
+    <button type="submit" class="btn btn-primary">Continuar</button>
   </form>
+
+  <div id="forgot-confirm" style="display:none;margin-top:1rem">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 0.25rem">Digite o código de 6 dígitos do seu app autenticador (Google Authenticator) para <b id="forgot-masked-email" style="color:var(--text);font-family:var(--mono)">—</b>:</p>
+    <input type="text" id="forgot-code" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:0.3em;font-family:var(--mono);margin-top:0.5rem">
+    <button type="button" class="btn btn-primary" id="forgot-send-btn" onclick="verificarCodigo2FA()">Verificar código</button>
+    <button type="button" class="btn" style="margin-top:0.5rem;background:none;border:1px solid var(--border,#2a2a2a)" onclick="voltarParaEmail()">Corrigir e-mail</button>
+    <p style="font-size:11px;color:var(--muted);margin:0.75rem 0 0;text-align:center">Só funciona se você ativou o 2FA antes, no seu perfil.</p>
+  </div>
 
   <div class="divider" id="divider-ou">ou</div>
 
@@ -128,15 +136,43 @@ function isValidEmail(email) {
 }
 
 function toggleForgot() {
-  const showingForgot = document.getElementById('form-forgot').style.display !== 'none';
+  const confirmVisivel = document.getElementById('forgot-confirm').style.display === 'block';
+  const showingForgot = document.getElementById('form-forgot').style.display !== 'none' || confirmVisivel;
   document.getElementById('form-login').style.display = showingForgot ? 'block' : 'none';
   document.getElementById('form-forgot').style.display = showingForgot ? 'none' : 'block';
+  document.getElementById('forgot-confirm').style.display = 'none';
   document.getElementById('divider-ou').style.display = showingForgot ? '' : 'none';
   document.querySelector('.btn-google').style.display = showingForgot ? '' : 'none';
   document.getElementById('forgot-link').textContent = showingForgot ? 'Esqueceu sua senha?' : 'Voltar para o login';
 }
 
-document.getElementById('form-forgot').addEventListener('submit', async (e) => {
+// Mascara o e-mail preservando início e fim de cada parte, para a pessoa
+// confirmar visualmente que é o e-mail dela sem expor o endereço completo.
+// Ex: breno.augusto@gmail.com → br***********to@gm***l.com
+function mascararEmail(email) {
+  const [local, dominio] = email.split('@');
+  if (!dominio) return email;
+  const mascarar = (s, manterFim) => {
+    if (s.length <= 2) return s[0] + '*'.repeat(Math.max(1, s.length - 1));
+    const ini = s.slice(0, 2);
+    const fim = manterFim ? s.slice(-2) : '';
+    const meio = '*'.repeat(Math.max(1, s.length - ini.length - fim.length));
+    return ini + meio + fim;
+  };
+  // No domínio, preserva o TLD final (.com, .com.br) para não confundir.
+  const partesDom = dominio.split('.');
+  const nomeDom = mascararEmail._maskPart(partesDom[0]);
+  const resto = partesDom.slice(1).join('.');
+  return mascarar(local, true) + '@' + nomeDom + (resto ? '.' + resto : '');
+}
+mascararEmail._maskPart = function(s) {
+  if (s.length <= 2) return s[0] + '*'.repeat(Math.max(1, s.length - 1));
+  return s.slice(0, 2) + '*'.repeat(Math.max(1, s.length - 3)) + s.slice(-1);
+};
+
+let emailParaRedefinir = '';
+
+document.getElementById('form-forgot').addEventListener('submit', (e) => {
   e.preventDefault();
   const email = document.getElementById('forgot-email').value.trim();
   if (!isValidEmail(email)) {
@@ -144,18 +180,47 @@ document.getElementById('form-forgot').addEventListener('submit', async (e) => {
     return;
   }
 
+  // Próxima etapa: pedir o código do app autenticador (2FA) para esse e-mail.
+  emailParaRedefinir = email;
+  document.getElementById('forgot-masked-email').textContent = mascararEmail(email);
+  document.getElementById('forgot-code').value = '';
+  document.getElementById('form-forgot').style.display = 'none';
+  document.getElementById('forgot-confirm').style.display = 'block';
+  document.getElementById('forgot-code').focus();
+});
+
+function voltarParaEmail() {
+  document.getElementById('forgot-confirm').style.display = 'none';
+  document.getElementById('form-forgot').style.display = 'block';
+}
+
+async function verificarCodigo2FA() {
+  const code = document.getElementById('forgot-code').value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    showMsg('Digite o código de 6 dígitos do app autenticador.', 'err');
+    return;
+  }
+  const btn = document.getElementById('forgot-send-btn');
+  btn.disabled = true;
   try {
-    const res = await fetch('/auth/login/forgot-password', {
+    const res = await fetch('/auth/login/reset-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email: emailParaRedefinir, code })
     });
     const data = await res.json();
-    showMsg(data.mensagem || 'Se esse e-mail tiver uma conta, enviamos um link de redefinição de senha.', 'ok');
+    if (!res.ok || !data.token) {
+      showMsg(data.erro || 'Não foi possível verificar o código.', 'err');
+      return;
+    }
+    // Código válido — leva para a página de redefinição com o token emitido.
+    window.location.href = '/reset-password.html?token=' + encodeURIComponent(data.token);
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
+  } finally {
+    btn.disabled = false;
   }
-});
+}
 
 document.getElementById('form-login').addEventListener('submit', async (e) => {
   e.preventDefault();

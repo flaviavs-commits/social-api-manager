@@ -6,6 +6,8 @@ const usersRepo = require('../repositories/usersRepository')
 const credentialsRepo = require('../repositories/credentialsRepository')
 const mailer = require('../services/mailer')
 const { addLog } = require('../middleware/logger')
+const { validarComplexidadeSenha } = require('../utils/http')
+const totp = require('../services/totp')
 
 function friendlyAuthError(msg) {
   return `<!DOCTYPE html><html><body><script>
@@ -82,8 +84,9 @@ router.post('/register', loginLimiter, async (req, res) => {
   if (!isValidEmail(email)) {
     return res.status(400).json({ erro: 'Informe um e-mail válido.' })
   }
-  if (password.length < 6 || password.length > 72) {
-    return res.status(400).json({ erro: 'A senha precisa ter entre 6 e 72 caracteres.' })
+  const erroComplexidade = validarComplexidadeSenha(password)
+  if (erroComplexidade) {
+    return res.status(400).json({ erro: erroComplexidade })
   }
 
   try {
@@ -139,6 +142,41 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   }
 })
 
+// Reset por 2FA (TOTP): alternativa ao link por e-mail para quem ativou o 2FA.
+// A pessoa informa o e-mail + o código do app autenticador e, se baterem,
+// recebe o mesmo tipo de token de reset usado pela página reset-password.html.
+//
+// Anti-enumeração: a resposta NÃO revela se a conta existe nem se tem 2FA —
+// só diferencia "código aceito" de "não foi possível", para um atacante não
+// conseguir mapear quais e-mails têm conta/2FA. O rate limit reforça isso.
+router.post('/reset-2fa', forgotPasswordLimiter, async (req, res) => {
+  const { email, code } = req.body || {}
+  if (!email || !code) return res.status(400).json({ erro: 'Informe o e-mail e o código do aplicativo.' })
+  if (!isValidEmail(email)) return res.status(400).json({ erro: 'Informe um e-mail válido.' })
+
+  const erroGenerico = { erro: 'E-mail ou código inválido, ou 2FA não está ativo para esta conta.' }
+
+  try {
+    const info = await usersRepo.buscarTotp(email, true)
+    if (!info?.enabled || !info.secret || !totp.validarCodigo(info.secret, String(code))) {
+      return res.status(400).json(erroGenerico)
+    }
+
+    // Reset de senha só faz sentido para quem tem senha local — contas só do
+    // Google não têm credencial para redefinir (gerarTokenReset não persistiria
+    // o token). Responde o mesmo erro genérico para não vazar essa distinção.
+    const cred = await credentialsRepo.buscarPorUserId(info.userId)
+    if (!cred) return res.status(400).json(erroGenerico)
+
+    const token = await credentialsRepo.gerarTokenReset(info.userId)
+    addLog('ok', 'Token de redefinição gerado via 2FA', null, null, info.userId)
+    res.json({ ok: true, token })
+  } catch (err) {
+    addLog('err', `Falha no reset via 2FA: ${err.message}`)
+    res.status(500).json({ erro: 'Não foi possível verificar agora. Tente novamente em alguns instantes.' })
+  }
+})
+
 router.get('/reset-password/validar', async (req, res) => {
   const { token } = req.query
   if (!token) return res.json({ valido: false })
@@ -157,8 +195,9 @@ router.post('/reset-password', loginLimiter, async (req, res) => {
   if (!token || !password) {
     return res.status(400).json({ erro: 'Preencha a nova senha.' })
   }
-  if (password.length < 6 || password.length > 72) {
-    return res.status(400).json({ erro: 'A senha precisa ter entre 6 e 72 caracteres.' })
+  const erroComplexidade = validarComplexidadeSenha(password)
+  if (erroComplexidade) {
+    return res.status(400).json({ erro: erroComplexidade })
   }
 
   try {

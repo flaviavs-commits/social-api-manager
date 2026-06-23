@@ -17,6 +17,19 @@ function isAdminRole(role) {
   return role === 'admin' || role === 'super_admin'
 }
 
+// Regra de complexidade de senha, compartilhada por todos os fluxos que
+// definem senha (troca no perfil e redefinição por e-mail), para que não
+// fiquem inconsistentes — alguém poderia burlar a regra forte usando o fluxo
+// mais fraco. Retorna a mensagem de erro ou null se a senha for válida.
+function validarComplexidadeSenha(senha) {
+  if (typeof senha !== 'string' || senha.length < 6 || senha.length > 72)
+    return 'A senha precisa ter entre 6 e 72 caracteres.'
+  if (!/[A-Z]/.test(senha)) return 'A senha precisa ter ao menos 1 letra maiúscula.'
+  if (!/[0-9]/.test(senha)) return 'A senha precisa ter ao menos 1 número.'
+  if (!/[^A-Za-z0-9]/.test(senha)) return 'A senha precisa ter ao menos 1 caractere especial.'
+  return null
+}
+
 // Loga o erro completo no servidor e responde com mensagem genérica ao cliente.
 // Erros de validação/constraint do Postgres (códigos 22xxx/23xxx) viram 400
 // com mensagem genérica; o resto vira 500, sem expor detalhes internos.
@@ -29,4 +42,4 @@ function serverError(res, err, message = 'Erro interno do servidor') {
   res.status(500).json({ erro: message })
 }
 
-module.exports = { PLATFORMS, REPEATS, TIPOS, parseId, serverError, isAdminRole }
+module.exports = { PLATFORMS, REPEATS, TIPOS, parseId, serverError, isAdminRole, validarComplexidadeSenha }

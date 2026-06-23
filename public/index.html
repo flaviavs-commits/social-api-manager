@@ -189,6 +189,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .form-group input::-webkit-input-placeholder, .form-group textarea::-webkit-input-placeholder { color: #A0AEC0; opacity: 1; }
 .form-group label { color: var(--accent2); font-weight: 500; letter-spacing: 0.08em; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem; }
+.pwd-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 15px; opacity: 0.5; padding: 6px 8px; line-height: 1; transition: opacity 0.15s; }
+.pwd-toggle:hover { opacity: 0.9; }
+.hint-icon { font-size: 12px; width: 13px; display: inline-block; text-align: center; }
 .steps { display: flex; gap: 8px; margin-bottom: 1.5rem; }
 .step { flex: 1; padding: 10px; background: var(--surface2); border-radius: 6px; text-align: center; border: 1px solid var(--border); }
 .step.active { border-color: var(--accent); background: rgba(91,127,255,0.08); }
@@ -304,6 +307,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -348,9 +352,13 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 
   <div class="nav-spacer"></div>
 
-  <div class="user-info">
-    <span class="user-name" id="user-name">—</span>
-    <span class="user-role" id="user-role">—</span>
+  <div class="user-info" style="flex-direction:row;align-items:center;gap:10px;cursor:pointer" onclick="openProfileModal()" title="Meu perfil">
+    <img id="user-avatar" src="" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;display:none;flex:0 0 32px"/>
+    <div id="user-avatar-placeholder" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:0 0 32px">—</div>
+    <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+      <span class="user-name" id="user-name">—</span>
+      <span class="user-role" id="user-role">—</span>
+    </div>
   </div>
   <div class="nav-item" onclick="logout()">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -620,6 +628,99 @@ input, select, textarea, .modal-overlay, .nav-section, label {
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-accent" id="modal-connect-btn" onclick="startOAuth()">Conectar conta →</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-profile">
+  <div class="modal">
+    <div class="modal-title">Meu perfil</div>
+    <div class="modal-sub">Altere sua foto e sua senha de acesso.</div>
+
+    <div class="form-group">
+      <label>Foto de perfil</label>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="position:relative;flex:0 0 64px">
+          <img id="profile-avatar-preview" src="" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:none;border:2px solid var(--border2)"/>
+          <div id="profile-avatar-placeholder" style="width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600">—</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn" style="flex:0;padding:7px 14px;white-space:nowrap" onclick="document.getElementById('profile-avatar-input').click()">Enviar foto</button>
+            <button type="button" class="btn" id="profile-avatar-remove" style="flex:0;padding:7px 14px;white-space:nowrap;display:none;color:var(--red);border-color:rgba(251,113,133,0.3)" onclick="removeAvatar()">Remover</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">JPG ou PNG, até 10MB.</div>
+        </div>
+        <input type="file" id="profile-avatar-input" accept="image/*" style="display:none" onchange="onAvatarSelected(this)"/>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:1.5rem 0 1.25rem"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:0.5rem">
+      <div>
+        <div style="font-size:13px;font-weight:500">Autenticação em 2 fatores</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Permite redefinir a senha pelo app autenticador se você esquecê-la.</div>
+      </div>
+      <span id="twofa-status" style="font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:99px;white-space:nowrap">—</span>
+    </div>
+
+    <div id="twofa-disabled-actions" style="display:none;margin-top:8px">
+      <button type="button" class="btn" style="flex:0;padding:7px 14px" onclick="startTwoFASetup()">Ativar 2FA</button>
+    </div>
+
+    <div id="twofa-setup" style="display:none;margin-top:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">1. Escaneie o QR code no Google Authenticator (ou app similar):</div>
+      <div style="display:flex;justify-content:center;margin-bottom:10px"><canvas id="twofa-qr"></canvas></div>
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:12px">Ou digite a chave manualmente:<br><code id="twofa-secret" style="font-family:var(--mono);color:var(--text);font-size:11px;word-break:break-all"></code></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">2. Digite o código de 6 dígitos gerado pelo app:</div>
+      <input type="text" id="twofa-code" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:0.3em;font-family:var(--mono)"/>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button type="button" class="btn" style="flex:1" onclick="cancelTwoFASetup()">Cancelar</button>
+        <button type="button" class="btn btn-accent" style="flex:1" id="twofa-confirm-btn" onclick="confirmTwoFA()">Confirmar e ativar</button>
+      </div>
+    </div>
+
+    <div id="twofa-enabled-actions" style="display:none;margin-top:8px">
+      <button type="button" class="btn" style="flex:0;padding:7px 14px;color:var(--red);border-color:rgba(251,113,133,0.3)" onclick="startTwoFADisable()">Desativar 2FA</button>
+      <div id="twofa-disable-confirm" style="display:none;margin-top:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:1rem">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Digite um código do app autenticador para confirmar:</div>
+        <input type="text" id="twofa-disable-code" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:0.3em;font-family:var(--mono)"/>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" class="btn" style="flex:1" onclick="document.getElementById('twofa-disable-confirm').style.display='none'">Cancelar</button>
+          <button type="button" class="btn" style="flex:1;color:var(--red);border-color:rgba(251,113,133,0.3)" onclick="confirmTwoFADisable()">Desativar</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:1.5rem 0 1.25rem"></div>
+
+    <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Alterar senha</div>
+
+    <div class="form-group" id="profile-current-password-group">
+      <label>Senha atual</label>
+      <div style="position:relative">
+        <input type="password" id="profile-current-password" autocomplete="current-password" placeholder="Sua senha atual" style="padding-right:44px"/>
+        <button type="button" class="pwd-toggle" onclick="togglePwd('profile-current-password', this)" aria-label="Mostrar senha">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nova senha</label>
+      <div style="position:relative">
+        <input type="password" id="profile-new-password" autocomplete="new-password" placeholder="Nova senha" oninput="updatePasswordHints()" style="padding-right:44px"/>
+        <button type="button" class="pwd-toggle" onclick="togglePwd('profile-new-password', this)" aria-label="Mostrar senha">👁</button>
+      </div>
+      <div id="profile-password-hints" style="font-size:11.5px;margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
+        <div data-rule="len" style="display:flex;align-items:center;gap:6px"><span class="hint-icon">○</span> mínimo 6 caracteres</div>
+        <div data-rule="upper" style="display:flex;align-items:center;gap:6px"><span class="hint-icon">○</span> 1 letra maiúscula</div>
+        <div data-rule="num" style="display:flex;align-items:center;gap:6px"><span class="hint-icon">○</span> 1 número</div>
+        <div data-rule="special" style="display:flex;align-items:center;gap:6px"><span class="hint-icon">○</span> 1 caractere especial</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeProfileModal()">Fechar</button>
+      <button class="btn btn-accent" id="profile-save-password-btn" onclick="saveNewPassword()">Salvar nova senha</button>
     </div>
   </div>
 </div>
@@ -2768,11 +2869,201 @@ startLogStream(); // mantém o polling ativo para notificações de posts public
 
 const roleLabels = { user: 'Usuário', admin: 'Admin', super_admin: 'Super Admin' };
 
+// ── Perfil (foto + senha) ──────────────────────────────────────────────────
+let currentUser = null;
+
+function renderAvatar(me) {
+  const inicial = (me.fullName || me.email || '?').trim().charAt(0).toUpperCase();
+  // Avatar na sidebar
+  const img = document.getElementById('user-avatar');
+  const ph = document.getElementById('user-avatar-placeholder');
+  if (me.avatarUrl) {
+    img.src = me.avatarUrl; img.style.display = ''; ph.style.display = 'none';
+  } else {
+    img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = inicial;
+  }
+  // Avatar no modal
+  const pImg = document.getElementById('profile-avatar-preview');
+  const pPh = document.getElementById('profile-avatar-placeholder');
+  const removeBtn = document.getElementById('profile-avatar-remove');
+  if (me.avatarUrl) {
+    pImg.src = me.avatarUrl; pImg.style.display = ''; pPh.style.display = 'none'; removeBtn.style.display = '';
+  } else {
+    pImg.style.display = 'none'; pPh.style.display = 'flex'; pPh.textContent = inicial; removeBtn.style.display = 'none';
+  }
+}
+
+function openProfileModal() {
+  if (!currentUser) return;
+  renderAvatar(currentUser);
+  renderTwoFAStatus();
+  document.getElementById('profile-current-password').value = '';
+  document.getElementById('profile-new-password').value = '';
+  updatePasswordHints();
+  document.getElementById('modal-profile').classList.add('open');
+}
+
+function closeProfileModal() {
+  document.getElementById('modal-profile').classList.remove('open');
+}
+
+// Espelha as regras de complexidade validadas no backend (me.js).
+function avaliarSenha(senha) {
+  return {
+    len: senha.length >= 6 && senha.length <= 72,
+    upper: /[A-Z]/.test(senha),
+    num: /[0-9]/.test(senha),
+    special: /[^A-Za-z0-9]/.test(senha)
+  };
+}
+
+function updatePasswordHints() {
+  const senha = document.getElementById('profile-new-password').value;
+  const r = avaliarSenha(senha);
+  document.querySelectorAll('#profile-password-hints [data-rule]').forEach(el => {
+    const ok = senha && r[el.dataset.rule];
+    el.style.color = ok ? 'var(--green)' : 'var(--muted)';
+    const icon = el.querySelector('.hint-icon');
+    if (icon) icon.textContent = ok ? '✓' : '○';
+  });
+}
+
+// Alterna entre mostrar/ocultar o conteúdo de um campo de senha.
+function togglePwd(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const mostrar = input.type === 'password';
+  input.type = mostrar ? 'text' : 'password';
+  btn.style.opacity = mostrar ? '0.9' : '0.5';
+}
+
+async function saveNewPassword() {
+  const currentPassword = document.getElementById('profile-current-password').value;
+  const newPassword = document.getElementById('profile-new-password').value;
+  const r = avaliarSenha(newPassword);
+  if (!r.len || !r.upper || !r.num || !r.special)
+    return showToast('A nova senha não atende a todos os requisitos', 'err');
+
+  const btn = document.getElementById('profile-save-password-btn');
+  btn.disabled = true;
+  try {
+    await apiFetch('/api/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
+    showToast('Senha alterada com sucesso', 'ok');
+    document.getElementById('profile-current-password').value = '';
+    document.getElementById('profile-new-password').value = '';
+    updatePasswordHints();
+  } catch (e) {
+    showToast(e.message || 'Não foi possível alterar a senha', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function onAvatarSelected(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) return showToast('Selecione um arquivo de imagem', 'err');
+  if (file.size > 10 * 1024 * 1024) return showToast('A imagem precisa ter no máximo 10MB', 'err');
+
+  try {
+    showToast('Enviando foto...', 'info');
+    const { url } = await uploadArquivoDireto(file);
+    const { avatarUrl } = await apiFetch('/api/me/avatar', { method: 'POST', body: JSON.stringify({ avatarUrl: url }) });
+    currentUser.avatarUrl = avatarUrl;
+    renderAvatar(currentUser);
+    showToast('Foto de perfil atualizada', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Não foi possível enviar a foto', 'err');
+  }
+}
+
+async function removeAvatar() {
+  try {
+    await apiFetch('/api/me/avatar', { method: 'POST', body: JSON.stringify({ avatarUrl: null }) });
+    currentUser.avatarUrl = null;
+    renderAvatar(currentUser);
+    showToast('Foto de perfil removida', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Não foi possível remover a foto', 'err');
+  }
+}
+
+// ── 2FA (TOTP) ──────────────────────────────────────────────────────────────
+function renderTwoFAStatus() {
+  const ativo = !!currentUser?.totpEnabled;
+  const badge = document.getElementById('twofa-status');
+  badge.textContent = ativo ? 'ATIVO' : 'INATIVO';
+  badge.style.background = ativo ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)';
+  badge.style.color = ativo ? 'var(--green)' : 'var(--muted)';
+  document.getElementById('twofa-disabled-actions').style.display = ativo ? 'none' : 'block';
+  document.getElementById('twofa-enabled-actions').style.display = ativo ? 'block' : 'none';
+  document.getElementById('twofa-setup').style.display = 'none';
+  document.getElementById('twofa-disable-confirm').style.display = 'none';
+}
+
+async function startTwoFASetup() {
+  try {
+    const { otpauthUri, secret } = await apiFetch('/api/me/2fa/setup', { method: 'POST' });
+    document.getElementById('twofa-secret').textContent = secret;
+    document.getElementById('twofa-code').value = '';
+    document.getElementById('twofa-disabled-actions').style.display = 'none';
+    document.getElementById('twofa-setup').style.display = 'block';
+    // Renderiza o QR code do otpauth:// no canvas.
+    QRCode.toCanvas(document.getElementById('twofa-qr'), otpauthUri, { width: 180, margin: 1 }, (err) => {
+      if (err) showToast('Não foi possível gerar o QR code', 'err');
+    });
+  } catch (e) {
+    showToast(e.message || 'Não foi possível iniciar a configuração', 'err');
+  }
+}
+
+function cancelTwoFASetup() {
+  document.getElementById('twofa-setup').style.display = 'none';
+  document.getElementById('twofa-disabled-actions').style.display = 'block';
+}
+
+async function confirmTwoFA() {
+  const code = document.getElementById('twofa-code').value.trim();
+  if (!/^\d{6}$/.test(code)) return showToast('Digite o código de 6 dígitos', 'err');
+  const btn = document.getElementById('twofa-confirm-btn');
+  btn.disabled = true;
+  try {
+    await apiFetch('/api/me/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+    currentUser.totpEnabled = true;
+    renderTwoFAStatus();
+    showToast('Autenticação em 2 fatores ativada', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Código inválido', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function startTwoFADisable() {
+  document.getElementById('twofa-disable-code').value = '';
+  document.getElementById('twofa-disable-confirm').style.display = 'block';
+}
+
+async function confirmTwoFADisable() {
+  const code = document.getElementById('twofa-disable-code').value.trim();
+  if (!/^\d{6}$/.test(code)) return showToast('Digite o código de 6 dígitos', 'err');
+  try {
+    await apiFetch('/api/me/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) });
+    currentUser.totpEnabled = false;
+    renderTwoFAStatus();
+    showToast('Autenticação em 2 fatores desativada', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Não foi possível desativar', 'err');
+  }
+}
+
 apiFetch('/api/me').then(me => {
+  currentUser = me;
   document.getElementById('user-name').textContent = me.fullName || me.email;
   const roleEl = document.getElementById('user-role');
   roleEl.textContent = roleLabels[me.role] || me.role;
   roleEl.className = 'user-role ' + me.role;
+  renderAvatar(me);
 
   if (me.role === 'admin' || me.role === 'super_admin') {
     document.getElementById('nav-admin').style.display = 'flex';

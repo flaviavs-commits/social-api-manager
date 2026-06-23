@@ -22,11 +22,24 @@ async function fetchComTimeout(url, opts = {}) {
   }
 }
 
+// A Meta responde "Object with ID ... does not exist, cannot be loaded due to
+// missing permissions..." (code 100) quando o post foi removido na rede, ou
+// quando o token atual não tem acesso a ele (ex: conta reconectada, post de
+// antes da conexão atual). Traduz para uma mensagem amigável, em vez de expor
+// o texto técnico cru da API ao usuário.
+function traduzirErroMeta(data, status, rede) {
+  const erro = data?.error
+  if (erro?.code === 100 || /does not exist|cannot be loaded|missing permissions/i.test(erro?.message || '')) {
+    return 'Não foi possível carregar os comentários: o post pode ter sido removido na rede social, ou esta conta não tem mais acesso a ele. Tente reconectar a conta.'
+  }
+  return erro?.message || `${rede} respondeu ${status}`
+}
+
 async function listarComentariosInstagram(token, externalPostId) {
   const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,text,username,timestamp&access_token=${encodeURIComponent(token.accessToken)}`
   const res = await fetchComTimeout(url)
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `Instagram respondeu ${res.status}`)
+  if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Instagram'))
 
   return (data.data || []).map(c => ({
     id: c.id,
@@ -41,7 +54,7 @@ async function listarComentariosFacebook(token, externalPostId) {
   const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,message,from{name,username},created_time&access_token=${encodeURIComponent(token.accessToken)}`
   const res = await fetchComTimeout(url)
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
+  if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Facebook'))
 
   return (data.data || []).map(c => ({
     id: c.id,
