@@ -86,8 +86,12 @@ async function fetchJsonWithRetry(url, options, { retries = 2, delayMs = 600 } =
 }
 
 function popupSuccess(tiktokUser) {
+  // tiktokUser vem do username retornado pela API do TikTok (input externo) —
+  // interpolá-lo direto na string JS permitiria XSS via username malicioso
+  // (ex: "');alert(document.cookie);('"). JSON.stringify escapa o valor com
+  // segurança para o contexto JS, e encodeURIComponent o sanitiza para a URL.
   const profileScript = tiktokUser
-    ? `window.open('https://www.tiktok.com/@${tiktokUser}', '_blank');`
+    ? `window.open('https://www.tiktok.com/@' + encodeURIComponent(${JSON.stringify(String(tiktokUser))}), '_blank');`
     : '';
   return `<!DOCTYPE html><html><body><script>
     if (window.opener) {

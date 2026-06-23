@@ -23,6 +23,17 @@ async function buscarPorId(id) {
   return user || null
 }
 
+// Busca incluindo contas desativadas — usado em checagens de autorização
+// administrativas, onde precisamos saber o papel do alvo mesmo se ele já
+// estiver inativo (ex: impedir que um admin comum reative outro admin).
+async function buscarPorIdIncluindoInativo(id) {
+  const { rows: [user] } = await pool.query(
+    `SELECT * FROM users WHERE id = $1`,
+    [id]
+  )
+  return user || null
+}
+
 async function buscarPorGoogleId(googleId) {
   const { rows: [user] } = await pool.query(
     `SELECT * FROM users WHERE google_id = $1 AND ativo = TRUE`,
@@ -97,6 +108,6 @@ async function atualizarAtivo(id, ativo) {
 }
 
 module.exports = {
-  buscarPorEmail, buscarPorId, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
+  buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
   listarTodos, contarAdmins, contarSuperAdmins, atualizarRole, atualizarAtivo
 }

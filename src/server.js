@@ -113,7 +113,21 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
     return res.status(400).end()
   }
 
-  if (!/^https?:\/\//.test(url) || !validarTokenMedia(url, token)) return res.status(403).end()
+  if (!validarTokenMedia(url, token)) return res.status(403).end()
+
+  // Defense-in-depth contra SSRF: além do token HMAC (que só nós assinamos),
+  // restringe o destino a HTTPS no domínio do Vercel Blob. Sem isso, se o
+  // SESSION_SECRET vazasse ou houvesse bug na validação, o proxy viraria um
+  // SSRF capaz de alcançar localhost/metadata interna da infra.
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    return res.status(400).end()
+  }
+  if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.public.blob.vercel-storage.com')) {
+    return res.status(403).end()
+  }
 
   const upstream = await fetch(url)
   if (!upstream.ok) return res.status(502).end()

@@ -2,7 +2,7 @@ const { Router } = require('express')
 const usersRepo = require('../repositories/usersRepository')
 const contasRepo = require('../repositories/contasRepository')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
-const { parseId, serverError } = require('../utils/http')
+const { parseId, serverError, isAdminRole } = require('../utils/http')
 
 const router = Router()
 
@@ -55,6 +55,14 @@ router.post('/users/:id/ativo', async (req, res) => {
 
     if (ativo === false && id === req.user.id) {
       return res.status(400).json({ erro: 'Você não pode desativar sua própria conta.' })
+    }
+
+    // Sem esta checagem, um admin comum poderia desativar outro admin ou o
+    // super_admin (a rota só exige requireAdmin), tomando controle do sistema.
+    // Só o super_admin pode ativar/desativar contas com papel administrativo.
+    const alvo = await usersRepo.buscarPorIdIncluindoInativo(id)
+    if (alvo && isAdminRole(alvo.role) && req.user.role !== 'super_admin') {
+      return res.status(403).json({ erro: 'Apenas o administrador principal pode alterar contas administrativas.' })
     }
 
     const user = await usersRepo.atualizarAtivo(id, ativo)

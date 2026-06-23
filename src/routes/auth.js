@@ -181,20 +181,35 @@ router.get('/google', (req, res) => {
   const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI
   const scopes = ['openid', 'email', 'profile'].join(' ')
 
+  // state CSRF: nonce aleatório guardado na sessão e devolvido pelo Google no
+  // callback. Sem ele, um atacante poderia forjar o callback (login CSRF),
+  // logando a vítima numa conta controlada por ele.
+  const state = require('crypto').randomBytes(16).toString('hex')
+  req.session.googleOAuthState = state
+
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_type=code` +
     `&scope=${encodeURIComponent(scopes)}` +
+    `&state=${state}` +
     `&prompt=select_account`
 
   res.redirect(url)
 })
 
 router.get('/google/callback', async (req, res) => {
-  const { code, error } = req.query
+  const { code, error, state } = req.query
   if (error) {
     return res.send(friendlyAuthError('Login com Google cancelado.'))
+  }
+
+  // Valida o state contra o nonce guardado na sessão (proteção CSRF) e o
+  // consome em seguida, para não permitir reuso. Falha se ausente ou diferente.
+  const expectedState = req.session.googleOAuthState
+  delete req.session.googleOAuthState
+  if (!state || !expectedState || state !== expectedState) {
+    return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.'))
   }
 
   try {
