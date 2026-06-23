@@ -122,8 +122,15 @@ function mediaUrl(mediaPath) {
 function mediaUrlTiktok(mediaPath) {
   if (!isUrlExterna(mediaPath)) return mediaUrl(mediaPath)
 
+  // O TikTok valida o url_prefix de forma estrita: a URL precisa começar com
+  // o prefixo verificado e (na prática) terminar num arquivo, sem query
+  // string — URLs com ?params caem em url_ownership_unverified. Por isso a
+  // URL do Blob vai codificada no próprio path (base64url), preservando a
+  // extensão real no fim para o TikTok reconhecer o tipo de imagem.
   const token = gerarTokenMedia(mediaPath)
-  return `${BASE_URL}/media-proxy?url=${encodeURIComponent(mediaPath)}&token=${token}`
+  const encoded = Buffer.from(mediaPath).toString('base64url')
+  const ext = path.extname(new URL(mediaPath).pathname) || '.jpg'
+  return `${BASE_URL}/media-proxy/${token}/${encoded}${ext}`
 }
 
 // ── Facebook (Graph API) ───────────────────────────────────────────────────────

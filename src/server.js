@@ -98,9 +98,22 @@ app.use('/uploads', (req, res, next) => {
 // domains" (DNS de terceiro, fora do nosso controle). Só usado para enviar
 // fotos ao TikTok via pull_by_url; outras plataformas continuam recebendo a
 // URL do Blob direto.
-app.get('/media-proxy', async (req, res) => {
-  const { url, token } = req.query
-  if (typeof url !== 'string' || !validarTokenMedia(url, token)) return res.status(403).end()
+// A URL real do Blob vem codificada em base64url no path (não em query
+// string), porque o TikTok rejeita URLs com ?params na validação de
+// pull_from_url. O último segmento carrega a extensão real do arquivo (.jpg
+// etc) só para o TikTok reconhecer o tipo — o que importa é o base64url antes
+// dela.
+app.get('/media-proxy/:token/:encoded', async (req, res) => {
+  const { token, encoded } = req.params
+  const base64 = encoded.replace(/\.[^.]+$/, '') // remove a extensão do fim
+  let url
+  try {
+    url = Buffer.from(base64, 'base64url').toString('utf8')
+  } catch {
+    return res.status(400).end()
+  }
+
+  if (!/^https?:\/\//.test(url) || !validarTokenMedia(url, token)) return res.status(403).end()
 
   const upstream = await fetch(url)
   if (!upstream.ok) return res.status(502).end()
