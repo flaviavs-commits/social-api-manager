@@ -167,7 +167,7 @@ async function renovarTokenTiktok(token) {
   return newExpiry
 }
 
-// ── Renova (estende) sessões simuladas: Facebook (fake OAuth) e Kwai (login/senha) ──
+// ── Renova (estende) sessões simuladas: Facebook (fake OAuth) ──────────────────
 async function renovarTokenSimulado(token, dias) {
   const newExpiry = new Date(Date.now() + dias * 86400000)
   await pool.query(`UPDATE tokens SET expires_at = $1, status = 'valid', atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
@@ -210,11 +210,6 @@ async function renovarToken(id, userId, isAdmin) {
       return { success: true, message: 'Token estendido por mais 60 dias', newExpiry }
     }
 
-    if (token.platform === 'kwai') {
-      const newExpiry = await renovarTokenSimulado(token, 30)
-      await registrarLog({ type: 'ok', message: 'Sessão Kwai renovada por mais 30 dias', platform: 'kwai', conta_id: token.conta_id })
-      return { success: true, message: 'Sessão estendida por mais 30 dias', newExpiry }
-    }
   } catch (err) {
     await pool.query(`UPDATE tokens SET status = 'error', atualizado_em = NOW() WHERE id = $1`, [token.id])
     await registrarLog({ type: 'err', message: `Falha ao renovar token ${token.platform}: ${err.message}`, platform: token.platform, conta_id: token.conta_id })

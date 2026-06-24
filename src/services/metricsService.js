@@ -2,7 +2,7 @@ const { buscarContaToken, listarContasToken } = require('./publisher')
 const contasRepo = require('../repositories/contasRepository')
 
 // Plataformas com API de métricas acessível com os escopos já usados na conexão.
-// TikTok (sem ID público de vídeo) e Kwai (sem API pública) não são suportados.
+// TikTok (sem ID público de vídeo) não é suportado.
 const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube']
 
 // Sem timeout, um fetch a uma API externa lenta ou travada bloqueia

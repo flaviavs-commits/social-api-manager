@@ -731,39 +731,4 @@ router.get('/meta/data-deletion/status', (req, res) => {
   res.send(`<!DOCTYPE html><html><body>Solicitação ${req.query.id || ''} processada: os dados foram apagados.</body></html>`);
 });
 
-// ─── Kwai (sem OAuth público - conexão simulada, igual ao Facebook) ──────────
-
-router.get('/kwai', requireAuth, async (req, res) => {
-  const { accountName } = req.query;
-  const platform = 'kwai';
-
-  try {
-    // O Kwai não disponibiliza OAuth público; a conta é conectada de forma
-    // simulada (mesmo padrão usado no callback do Facebook).
-    const fakeToken = 'KWAI_' + Math.random().toString(36).slice(2, 18).toUpperCase();
-    const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
-    const name = accountName || 'Nova Conta Kwai';
-
-    const conta = await contasRepo.criarContaRapida({
-      name,
-      platform,
-      userId: req.user.id
-    });
-
-    await tokensRepo.salvarToken({
-      accountId: conta.id,
-      platform,
-      accessToken: fakeToken,
-      expiresAt,
-      accountName: name
-    });
-
-    addLog('ok', `Conta Kwai conectada: "${name}" — token expira em 30 dias`, platform, conta.id, req.user.id);
-    res.json({ connected: true, accountId: conta.id });
-  } catch (err) {
-    addLog('err', `Falha ao conectar Kwai: ${err.message}`, platform, null, req.user.id);
-    res.status(500).json({ error: 'Falha ao conectar conta Kwai' });
-  }
-});
-
 module.exports = router;

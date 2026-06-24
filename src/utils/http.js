@@ -1,7 +1,7 @@
 // Helpers compartilhados pelas rotas: parsing seguro de parâmetros e respostas de erro
 // que não expõem detalhes internos (mensagens de erro do Postgres, stack traces etc.)
 
-const PLATFORMS = ['facebook', 'instagram', 'youtube', 'tiktok', 'kwai']
+const PLATFORMS = ['facebook', 'instagram', 'youtube', 'tiktok']
 const REPEATS = ['none', 'daily', 'weekly', 'monthly']
 const TIPOS = ['ESTRELA', 'NICHO', 'APOIO', 'PROVA SOCIAL']
 

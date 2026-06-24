@@ -65,8 +65,7 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
 // Extrai o ID do post/mídia na rede social a partir da resposta de cada
 // publisher, para permitir buscar métricas (likes/comentários) depois.
 // TikTok não retorna um ID público utilizável (a Content Posting API
-// devolve só um publish_id interno, assíncrono) e Kwai é simulado — ambos
-// ficam sem métricas.
+// devolve só um publish_id interno, assíncrono) — fica sem métricas.
 function extrairExternalId(platform, data) {
   if (platform === 'facebook') return data?.id || null
   if (platform === 'instagram') return data?.id || null
@@ -483,25 +482,11 @@ async function publicarTiktok(token, post) {
   return { ...initData.data, status }
 }
 
-// ── Kwai (sem API pública de publicação - integração via login/senha) ────────────
-async function publicarKwai(token, post) {
-  // O Kwai não disponibiliza uma API pública/oficial para publicação de conteúdo
-  // por aplicações de terceiros. A conexão é feita via login/senha (simulada),
-  // então a publicação aqui também é simulada para fins de teste do fluxo.
-  return {
-    simulado: true,
-    conta: token.handle || token.accountName,
-    mediaType: post.mediaType,
-    mensagem: 'Kwai não possui API pública de publicação - resultado simulado'
-  }
-}
-
 const PUBLISHERS = {
   facebook: publicarFacebook,
   instagram: publicarInstagram,
   youtube: publicarYoutube,
-  tiktok: publicarTiktok,
-  kwai: publicarKwai
+  tiktok: publicarTiktok
 }
 
 // Publica em uma única plataforma e retorna o resultado (registrando o log

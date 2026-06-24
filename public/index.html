@@ -12,7 +12,7 @@
   --text: #eef0f6; --muted: #8b8fa3;
   --accent: #6c8cff; --accent2: #b39ddb;
   --green: #4ade80; --red: #fb7185; --yellow: #fbbf24;
-  --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f6; --kw: #ff9d3d;
+  --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f6;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -115,7 +115,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-card.ig::before { background: linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
 .plat-card.yt::before { background: var(--yt); }
 .plat-card.tt::before { background: linear-gradient(90deg,#69C9D0,#EE1D52); }
-.plat-card.kw::before { background: var(--kw); }
 .plat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .plat-name { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .plat-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
@@ -124,7 +123,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
 .plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
 .plat-icon.tt { background: rgba(232,232,240,0.1); color: var(--tt); }
-.plat-icon.kw { background: rgba(255,136,0,0.15); color: var(--kw); }
 .status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px; border-radius: 99px; }
 .status-pill.connected { background: rgba(52,211,153,0.1); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
 .status-pill.partial { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.2); }
@@ -212,7 +210,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .mini-pill.instagram { background: rgba(225,48,108,0.15); color: var(--ig); }
 .mini-pill.youtube { background: rgba(255,68,68,0.15); color: var(--yt); }
 .mini-pill.tiktok { background: rgba(232,232,240,0.1); color: #a0a0b0; }
-.mini-pill.kwai { background: rgba(255,136,0,0.15); color: var(--kw); }
 .queue-status { font-size: 10px; font-family: var(--mono); white-space: nowrap; }
 .qs-ok { color: var(--green); }
 .qs-pend { color: var(--yellow); }
@@ -412,12 +409,6 @@ input, select, textarea, .modal-overlay, .nav-section, label {
         </div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6">Publique vídeos na sua conta do TikTok. Importante: o TikTok publica o vídeo imediatamente ao receber, então use a opção "Publicar agora" para essa rede.</div>
       </div>
-      <div class="plat-card kw">
-        <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon kw">kw</div>Kwai</div>
-        </div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.6">A conexão com o Kwai é feita automaticamente pelo sistema e fica válida por 30 dias, renovando sozinha quando necessário.</div>
-      </div>
     </div>
     <div style="margin-top:1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.6">
       Precisa conectar uma conta nova? Vá até <strong style="color:var(--text)">Conexões das Contas</strong> e clique em "+ Adicionar conexão". Configurações avançadas são feitas pelo administrador do sistema.
@@ -611,7 +602,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
       <div class="step"><div class="step-num">03</div><div class="step-label">Confirmar</div></div>
     </div>
     <div class="form-group"><label>Plataforma</label>
-      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="kwai">Kwai</option></select>
+      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option></select>
     </div>
     <div class="form-group">
       <label>Nome ou link da conta</label>
@@ -753,7 +744,6 @@ input, select, textarea, .modal-overlay, .nav-section, label {
         <option value="instagram">Instagram</option>
         <option value="youtube">YouTube</option>
         <option value="tiktok">TikTok</option>
-        <option value="kwai">Kwai</option>
       </select>
     </div>
 
@@ -904,7 +894,6 @@ function profileUrl(platform, handle) {
       ? `https://www.youtube.com/channel/${encodeURIComponent(handle)}`
       : `https://www.youtube.com/@${encodeURIComponent(clean)}`;
     case 'tiktok':    return `https://www.tiktok.com/@${encodeURIComponent(clean)}`;
-    case 'kwai':      return `https://www.kwai.com/@${encodeURIComponent(clean)}`;
     default: return null;
   }
 }
@@ -931,8 +920,7 @@ async function loadDashboard() {
       facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Conexão válida por até 60 dias' },
       instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Conexão válida por até 60 dias' },
       youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'Renovação automática' },
-      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Publica imediatamente ao enviar' },
-      kwai:     { cls:'kw', icon:'kw', label:'Kwai',    api:'Conexão válida por 30 dias' }
+      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Publica imediatamente ao enviar' }
     };
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
@@ -1028,8 +1016,7 @@ const PLAT_ROW_CFG = {
   facebook:  { cls:'fb', icon:'f',  label:'Facebook' },
   instagram: { cls:'ig', icon:'ig', label:'Instagram' },
   youtube:   { cls:'yt', icon:'▶',  label:'YouTube' },
-  tiktok:    { cls:'tt', icon:'tt', label:'TikTok' },
-  kwai:      { cls:'kw', icon:'kw', label:'Kwai' }
+  tiktok:    { cls:'tt', icon:'tt', label:'TikTok' }
 };
 
 async function loadTokens() {
@@ -1150,9 +1137,9 @@ const selectedPlats = new Set();
 let selectedAccountId = null;
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
-const VIDEO_ONLY_PLATS = ['youtube', 'kwai'];
+const VIDEO_ONLY_PLATS = ['youtube'];
 
-const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 let apContas = [];
 let apSelectedPlatform = null;
 
@@ -1284,7 +1271,7 @@ function updateMediaPreview() {
   const triggerLabel = document.getElementById('media-trigger-label');
   const plats = [...selectedPlats];
   const onlyVideo = plats.length > 0 && plats.every(p => VIDEO_ONLY_PLATS.includes(p));
-  const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube/Kwai).' : '';
+  const restriction = onlyVideo ? 'Apenas vídeo para as plataformas selecionadas (YouTube).' : '';
 
   triggerBtn.classList.toggle('has-media', mediaFiles.length > 0);
   triggerLabel.textContent = mediaFiles.length === 0 ? 'Selecionar mídia'
@@ -1700,8 +1687,8 @@ async function loadQueue() {
       return null
     }
 
-    const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888', kwai:'var(--kw)' };
-    const platLabels = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+    const dotColors = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#888' };
+    const platLabels = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
     list.innerHTML = posts.map(p => {
       const d = new Date(p.scheduledAt);
       const fmt = d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' ' +
@@ -1865,7 +1852,7 @@ async function clearLogs() {
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────────
-const ANALYTICS_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', kwai:'Kwai' };
+const ANALYTICS_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 
 // Converte uma data "YYYY-MM-DD" para o padrão brasileiro "DD/MM/AAAA", só
 // para exibição — as chaves internas (ordenação, lookup em objetos) continuam
@@ -1874,7 +1861,7 @@ function formatDiaBR(isoDate) {
   const [ano, mes, dia] = isoDate.slice(0, 10).split('-');
   return `${dia}/${mes}/${ano}`;
 }
-const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0', kwai:'#ff9d3d' };
+const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0' };
 
 // Regra de métricas de cada rede social: o que a API de cada uma realmente
 // expõe hoje, usada para explicar (em vez de simplesmente omitir) por que
@@ -1883,8 +1870,7 @@ const ANALYTICS_PLAT_RULES = {
   facebook:  'Curtidas e comentários reais. Visualizações não são expostas pela Graph API para posts comuns de feed (só vídeos, com permissão extra).',
   instagram: 'Curtidas, comentários e visualizações reais (Insights). Comentários podem ser respondidos direto por aqui.',
   youtube:   'Curtidas, comentários e visualizações reais, mais tempo médio de visualização (gráfico abaixo).',
-  tiktok:    'Sem ID público de post — métricas por post não disponíveis. Estatísticas da conta (seguidores/curtidas) aparecem no gráfico abaixo.',
-  kwai:      'Sem API pública de publicação/métricas — posts ficam só registrados, sem dados reais de desempenho.'
+  tiktok:    'Sem ID público de post — métricas por post não disponíveis. Estatísticas da conta (seguidores/curtidas) aparecem no gráfico abaixo.'
 };
 let analyticsChart = null;
 let analyticsRefreshTimer = null;
@@ -2445,7 +2431,7 @@ function renderAnalyticsMetrics(metrics) {
 // ── Comentários (ler e responder) ─────────────────────────────────────────────
 // Hoje só o Instagram tem o escopo OAuth necessário para listar/responder
 // comentários reais. Facebook tem leitura mas falta permissão para
-// responder; YouTube/TikTok/Kwai ainda não têm suporte confirmado.
+// responder; YouTube/TikTok ainda não têm suporte confirmado.
 const ANALYTICS_PLAT_COMENTARIOS = ['instagram'];
 let commentsModalPostId = null;
 
@@ -2556,12 +2542,6 @@ const AT_CONFIG = {
     expiryDays: 1,
     expiryLabel: 'Válido até (TikTok: 24 horas)',
     showRefresh: false
-  },
-  kwai: {
-    hint: '<strong>Kwai:</strong> normalmente a conexão é feita automaticamente pelo botão "+ Conectar conta". Use esta opção apenas em casos especiais.',
-    expiryDays: 30,
-    expiryLabel: 'Válido até (Kwai: 30 dias)',
-    showRefresh: false
   }
 };
 
@@ -2573,8 +2553,8 @@ function atChangePlat(plat) {
   const hint = document.getElementById('at-hint');
   if (hint) {
     hint.innerHTML = cfg.hint;
-    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)', kwai:'rgba(255,136,0,0.1)' };
-    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)', kwai:'rgba(255,136,0,0.3)' };
+    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)' };
+    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)' };
     hint.style.background = colors[plat];
     hint.style.border = `1px solid ${borders[plat]}`;
     hint.style.color = 'var(--text)';
@@ -2699,12 +2679,6 @@ const PLAT_FIELD_CFG = {
     pattern: /tiktok\.com\/@?([^/?#\s]+)/i,
     label: 'TikTok',
     example: 'ex: @marca.tiktok'
-  },
-  kwai: {
-    placeholder: '@usuario ou https://kwai.com/@seuperfil',
-    pattern: /kwai\.com\/(?:u\/|profile\/)?@?([^/?#\s]+)/i,
-    label: 'Kwai',
-    example: 'ex: @marca.kwai'
   }
 };
 
@@ -2828,14 +2802,12 @@ async function startOAuth() {
 
   if (!name || name === 'Nova Conta') return showToast('Informe o nome ou link da conta.', 'err');
 
-  const oauthMap = { facebook:'meta', instagram:'instagram', youtube:'google', tiktok:'tiktok', kwai:'kwai' };
+  const oauthMap = { facebook:'meta', instagram:'instagram', youtube:'google', tiktok:'tiktok' };
   const provider = oauthMap[platform];
 
-  // Kwai não usa popup (conecta direto no servidor), então só reservamos a
-  // janela em branco para as plataformas que de fato abrem OAuth externo.
   // Nome único evita reaproveitar/colidir com uma janela "_blank" anterior.
   const popupName = 'oauth_' + Date.now();
-  const popup = platform !== 'kwai' ? window.open('', popupName, 'width=640,height=720') : null;
+  const popup = window.open('', popupName, 'width=640,height=720');
 
   const btn = document.querySelector('#modal-nova-conta .btn-accent');
   if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
@@ -2849,14 +2821,6 @@ async function startOAuth() {
     if (!res.ok || data.error) {
       if (popup) popup.close();
       showOAuthConfigError(data);
-      return;
-    }
-
-    // Kwai conecta direto no servidor (sem OAuth público), sem precisar de popup
-    if (data.connected) {
-      closeModal();
-      showToast('Conta Kwai conectada com sucesso!', 'ok');
-      loadDashboard();
       return;
     }
 

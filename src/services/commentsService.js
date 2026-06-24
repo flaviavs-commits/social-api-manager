@@ -2,8 +2,7 @@ const { buscarContaToken } = require('./publisher')
 
 // Redes onde já é possível listar comentários reais com o escopo OAuth que
 // a conexão atual já solicita. TikTok (Content Posting API) não expõe
-// leitura de comentários de terceiros e Kwai não tem API pública — ficam
-// de fora por agora.
+// leitura de comentários de terceiros — fica de fora por agora.
 const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube']
 
 // Só Instagram tem permissão (pages_manage_engagement faltando no Facebook,

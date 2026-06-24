@@ -95,7 +95,7 @@ async function reservarPostsPendentes() {
 // Guarda o ID do post/mídia retornado pela rede social ao publicar, para
 // permitir buscar métricas (likes/comentários) depois. Posts publicados
 // antes desta coluna existir, ou em redes sem ID público utilizável
-// (TikTok, Kwai), ficam com esses campos nulos.
+// (TikTok), ficam com esses campos nulos.
 async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt }) {
   await pool.query(
     `UPDATE posts SET external_post_id = $1, external_platform = $2, published_at = $3 WHERE id = $4`,

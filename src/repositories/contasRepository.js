@@ -139,7 +139,7 @@ async function buscarContaPorId(id, userId, isAdmin) {
 // combinação (mesma plataforma + mesmo handle) conectada, reaproveita a
 // linha existente em vez de duplicar.
 async function criarContaRapida({ name, platform, userId, avatarUrl = null, externalUserId = null }) {
-  if (!['facebook', 'instagram', 'youtube', 'tiktok', 'kwai'].includes(platform)) {
+  if (!['facebook', 'instagram', 'youtube', 'tiktok'].includes(platform)) {
     throw new Error('Plataforma inválida')
   }
 
