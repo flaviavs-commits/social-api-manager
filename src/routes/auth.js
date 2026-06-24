@@ -67,6 +67,14 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' })
     }
 
+    if (user.totp_enabled) {
+      // Senha confere, mas falta o segundo fator — não abre sessão ainda,
+      // só marca quem está pendente de confirmar o código no app autenticador.
+      req.session.pending2faUserId = user.id
+      addLog('ok', 'Senha confirmada, aguardando código 2FA', null, null, user.id)
+      return res.json({ ok: true, requires2fa: true })
+    }
+
     req.session.userId = user.id
     addLog('ok', 'Login realizado com sucesso', null, null, user.id)
     res.json({ ok: true })
@@ -109,6 +117,33 @@ router.post('/register', loginLimiter, async (req, res) => {
 
 router.post('/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }))
+})
+
+// Completa o login depois que a senha já foi confirmada e a conta tem 2FA
+// ativo (ver pending2faUserId em /login). Reaproveita o mesmo rate limit do
+// login para não abrir uma porta de brute-force separada no código TOTP.
+router.post('/verify-2fa', loginLimiter, async (req, res) => {
+  const { code } = req.body || {}
+  const userId = req.session.pending2faUserId
+  if (!userId) {
+    return res.status(400).json({ erro: 'Nenhum login pendente de confirmação. Faça login novamente.' })
+  }
+
+  try {
+    const info = await usersRepo.buscarTotp(userId)
+    if (!info?.enabled || !info.secret || !totp.validarCodigo(info.secret, String(code || ''))) {
+      addLog('err', 'Falha no login: código 2FA inválido', null, null, userId)
+      return res.status(400).json({ erro: 'Código inválido. Verifique o app autenticador e tente de novo.' })
+    }
+
+    delete req.session.pending2faUserId
+    req.session.userId = userId
+    addLog('ok', 'Login com 2FA concluído', null, null, userId)
+    res.json({ ok: true })
+  } catch (err) {
+    addLog('err', `Falha no login com 2FA: ${err.message}`, null, null, userId)
+    res.status(500).json({ erro: 'Não foi possível verificar o código agora. Tente novamente.' })
+  }
 })
 
 // ─── Esqueci minha senha ────────────────────────────────────────────────────
@@ -291,6 +326,12 @@ router.get('/google/callback', async (req, res) => {
           googleId: profile.id
         })
       }
+    }
+
+    if (user.totp_enabled) {
+      req.session.pending2faUserId = user.id
+      addLog('ok', 'Login com Google confirmado, aguardando código 2FA', null, null, user.id)
+      return res.redirect('/verify-2fa.html')
     }
 
     req.session.userId = user.id

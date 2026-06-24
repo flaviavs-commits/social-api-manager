@@ -51,6 +51,12 @@ input:focus { outline: none; border-color: var(--accent); }
     <button type="submit" class="btn btn-primary" id="btn-submit">Entrar</button>
   </form>
 
+  <div id="login-2fa-confirm" style="display:none">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 0.25rem">Digite o código de 6 dígitos do seu app autenticador:</p>
+    <input type="text" id="login-2fa-code" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:0.3em;font-family:var(--mono);margin-top:0.5rem">
+    <button type="button" class="btn btn-primary" id="login-2fa-btn" onclick="verificarCodigo2FALogin()">Confirmar</button>
+  </div>
+
   <div class="toggle-link" id="forgot-link-wrap" style="margin-top:0.5rem">
     <a onclick="toggleForgot()" id="forgot-link">Esqueceu sua senha?</a>
   </div>
@@ -244,11 +250,44 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
       showMsg(data.erro || 'Não foi possível entrar. Tente novamente.', 'err');
       return;
     }
+    if (data.requires2fa) {
+      document.getElementById('form-login').style.display = 'none';
+      document.getElementById('login-2fa-confirm').style.display = 'block';
+      document.getElementById('login-2fa-code').focus();
+      return;
+    }
     window.location.href = '/';
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
   }
 });
+
+async function verificarCodigo2FALogin() {
+  const code = document.getElementById('login-2fa-code').value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    showMsg('Digite o código de 6 dígitos do app autenticador.', 'err');
+    return;
+  }
+  const btn = document.getElementById('login-2fa-btn');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/auth/login/verify-2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.erro || 'Não foi possível verificar o código.', 'err');
+      return;
+    }
+    window.location.href = '/';
+  } catch {
+    showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
 </script>
 
 </body>

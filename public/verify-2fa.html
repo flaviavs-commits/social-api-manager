@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificação em 2 fatores — Social API Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #eef0f6; --muted: #8b8fa3;
+  --accent: #6c8cff; --red: #fb7185; --green: #4ade80;
+  --sans: 'IBM Plex Sans', sans-serif; --mono: 'IBM Plex Sans', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 2.25rem 2rem; width: 100%; max-width: 380px; }
+.title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
+.subtitle { font-size: 13px; color: var(--muted); margin-bottom: 1.75rem; }
+input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: 8px; padding: 11px 12px; font-size: 14px; margin-bottom: 1rem; font-family: var(--mono); text-align: center; letter-spacing: 0.3em; }
+input:focus { outline: none; border-color: var(--accent); }
+.btn { width: 100%; padding: 11px; border-radius: 8px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--sans); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+.msg { font-size: 13px; border-radius: 8px; padding: 10px 12px; margin-bottom: 1rem; display: none; }
+.msg.show.err { display: block; background: rgba(251,113,133,0.12); color: var(--red); border: 1px solid rgba(251,113,133,0.25); }
+.toggle-link { text-align: center; margin-top: 1.25rem; font-size: 13px; color: var(--muted); }
+.toggle-link a { color: var(--accent); cursor: pointer; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="title">Verificação em 2 fatores</div>
+  <div class="subtitle">Digite o código de 6 dígitos do seu app autenticador para concluir o login.</div>
+
+  <div class="msg" id="msg"></div>
+
+  <form id="form-2fa">
+    <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="000000" required autofocus>
+    <button type="submit" class="btn btn-primary" id="btn-submit">Confirmar</button>
+  </form>
+
+  <div class="toggle-link">
+    <a href="/login.html">Voltar para o login</a>
+  </div>
+</div>
+
+<script>
+function showMsg(text) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.className = 'msg show err';
+}
+
+document.getElementById('form-2fa').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = document.getElementById('code').value.trim();
+  if (!/^\d{6}$/.test(code)) {
+    showMsg('Digite o código de 6 dígitos do app autenticador.');
+    return;
+  }
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/auth/login/verify-2fa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.erro || 'Não foi possível verificar o código.');
+      return;
+    }
+    window.location.href = '/';
+  } catch {
+    showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+
+</body>
+</html>
