@@ -256,12 +256,20 @@ router.post('/', async (req, res) => {
     // file_format_check_failed. Converte PNG/GIF/WebP antes de publicar, em
     // vez de bloquear o post. Sem o buffer original em mãos (já que o upload
     // foi direto pro Blob), busca o conteúdo via fetch primeiro.
+    //
+    // Para o TikTok, também redimensiona para 1080x1920 (9:16) — o app
+    // adiciona barras pretas em fotos horizontais, então usamos fit "cover"
+    // centralizado pra preencher a tela toda.
     if (platforms.includes('instagram') || platforms.includes('tiktok')) {
+      const resizeForTiktok = platforms.includes('tiktok')
       files = await Promise.all(files.map(async f => {
-        if (!f.mimetype.startsWith('image/') || f.mimetype === 'image/jpeg') return f
+        if (!f.mimetype.startsWith('image/')) return f
+        if (f.mimetype === 'image/jpeg' && !resizeForTiktok) return f
         const res = await fetch(f.url)
         const buffer = Buffer.from(await res.arrayBuffer())
-        const jpegBuffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
+        let pipeline = sharp(buffer)
+        if (resizeForTiktok) pipeline = pipeline.resize(1080, 1920, { fit: 'cover', position: 'centre' })
+        const jpegBuffer = await pipeline.jpeg({ quality: 90 }).toBuffer()
         const { url } = await put(`${crypto.randomUUID()}.jpg`, jpegBuffer, { access: 'public', contentType: 'image/jpeg' })
         return { ...f, url, mimetype: 'image/jpeg' }
       }))
