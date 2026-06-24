@@ -1,5 +1,10 @@
 # Modo de revisão do TikTok — instruções e lembrete
 
+> 🔴 **DEPOIS DE APROVADO PELO TIKTOK: VOLTAR COM O LOGIN.**
+> Desligar `TIKTOK_REVIEW_MODE` na Vercel (= `false` ou deletar) + Redeploy.
+> Enquanto a flag estiver ligada, qualquer pessoa entra no app sem senha.
+> Detalhes na seção "Como DESATIVAR" abaixo.
+
 O TikTok exigiu que o app abrisse direto no painel, sem tela de login, para a
 revisão. Isso é atendido por um auto-login numa **conta demo isolada**,
 controlado por variáveis de ambiente. Ver implementação em
