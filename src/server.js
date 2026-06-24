@@ -144,6 +144,17 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
 // válida vai direto para o painel, sem precisar passar por ela de novo.
 app.get('/', (req, res) => {
   if (req.session?.userId) return res.redirect('/index.html')
+
+  // Modo de revisão (TikTok): quando TIKTOK_REVIEW_MODE=true e há um usuário
+  // demo configurado, o app abre direto no painel sem tela de login — o
+  // avaliador acessa a URL e já vê o dashboard funcionando, como exigido pela
+  // revisão. O auto-login entra SOMENTE na conta demo isolada (nunca em dados
+  // reais de outros usuários), e a flag deve ser desligada após a aprovação.
+  if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
+    req.session.userId = Number(process.env.TIKTOK_REVIEW_USER_ID)
+    return res.redirect('/index.html')
+  }
+
   res.sendFile(path.join(__dirname, '../public/sobre.html'))
 })
 
