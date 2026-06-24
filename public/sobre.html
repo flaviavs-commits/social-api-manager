@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Social API Manager — Gerenciador de redes sociais</title>
+<meta name="description" content="Social API Manager: agende e publique conteúdo no YouTube, Instagram, TikTok, Facebook e Kwai a partir de um único painel.">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #eef0f6; --muted: #8b8fa3;
+  --accent: #6c8cff; --red: #fb7185; --green: #4ade80;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
+.logo { font-size: 18px; font-weight: 700; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+h1 { font-size: 30px; font-weight: 700; margin-bottom: 0.75rem; }
+.subtitle { color: var(--muted); font-size: 16px; margin-bottom: 2.5rem; max-width: 560px; }
+section { margin-bottom: 2.25rem; }
+h2 { font-size: 16px; font-weight: 600; margin-bottom: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+.platforms { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0.5rem; }
+.platform-pill { background: var(--surface2); border: 1px solid var(--border2); border-radius: 99px; padding: 6px 14px; font-size: 13px; color: var(--muted); }
+ul { margin: 0.5rem 0 0 1.1rem; color: var(--text); font-size: 15px; }
+li { margin-bottom: 0.4rem; }
+footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
+footer a { color: var(--muted); text-decoration: none; }
+footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">Social API Manager</div>
+    <a href="/login.html" class="btn btn-primary">Entrar</a>
+  </header>
+
+  <h1>Gerencie suas redes sociais em um só lugar</h1>
+  <p class="subtitle">
+    O Social API Manager é um painel que permite agendar, publicar e
+    acompanhar o desempenho de conteúdo em várias redes sociais a partir de
+    uma única interface, sem precisar abrir cada aplicativo separadamente.
+  </p>
+
+  <section class="card">
+    <h2>O que o aplicativo faz</h2>
+    <p>
+      Você conecta suas próprias contas de redes sociais e, a partir do
+      painel, escreve um post, anexa fotos ou vídeos e escolhe em quais
+      plataformas ele deve ser publicado — imediatamente ou em uma data
+      agendada. O aplicativo também mostra o status de cada publicação e
+      métricas básicas de desempenho (curtidas, comentários, visualizações).
+    </p>
+    <div class="platforms">
+      <span class="platform-pill">YouTube</span>
+      <span class="platform-pill">Instagram</span>
+      <span class="platform-pill">TikTok</span>
+      <span class="platform-pill">Facebook</span>
+      <span class="platform-pill">Kwai</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Como funciona</h2>
+    <ul>
+      <li>Você cria uma conta no aplicativo com seu e-mail e senha.</li>
+      <li>Conecta as redes sociais que quiser, autorizando o acesso diretamente pelo fluxo oficial de login de cada plataforma (OAuth).</li>
+      <li>Cria um post uma única vez e publica nas redes conectadas.</li>
+      <li>Acompanha o histórico de publicações e métricas em um painel central.</li>
+      <li>Pode desconectar qualquer conta a qualquer momento, removendo o acesso imediatamente.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Quem mantém este projeto</h2>
+    <p>
+      O Social API Manager é mantido e operado por Tiago, como uma ferramenta
+      própria de gestão de redes sociais. O contato para dúvidas, suporte ou
+      solicitações relacionadas a dados é
+      <a href="mailto:tiago@vitissouls.com" style="color:var(--accent)">tiago@vitissouls.com</a>.
+    </p>
+  </section>
+
+  <footer>
+    <a href="/login.html">Entrar</a>
+    <a href="https://flaviavs-commits.github.io/social-manager-privacy/privacy.html" target="_blank" rel="noopener">Política de Privacidade</a>
+    <a href="https://flaviavs-commits.github.io/social-manager-privacy/terms.html" target="_blank" rel="noopener">Termos de Uso</a>
+  </footer>
+</div>
+
+</body>
+</html>

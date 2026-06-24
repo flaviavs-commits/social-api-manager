@@ -138,6 +138,15 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
   res.send(buffer)
 })
 
+// Página pública explicando o que o app faz, quem mantém e como funciona —
+// acessível sem login (exigência de revisores como o TikTok for Developers,
+// que precisam entender o app sem precisar de uma conta). Quem já tem sessão
+// válida vai direto para o painel, sem precisar passar por ela de novo.
+app.get('/', (req, res) => {
+  if (req.session?.userId) return res.redirect('/index.html')
+  res.sendFile(path.join(__dirname, '../public/sobre.html'))
+})
+
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
 app.get('/api/config', (req, res) => {
