@@ -307,7 +307,6 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -671,7 +670,7 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 
     <div id="twofa-setup" style="display:none;margin-top:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:1rem">
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px">1. Escaneie o QR code no Google Authenticator (ou app similar):</div>
-      <div style="display:flex;justify-content:center;margin-bottom:10px"><canvas id="twofa-qr"></canvas></div>
+      <div style="display:flex;justify-content:center;margin-bottom:10px"><img id="twofa-qr" width="180" height="180" alt="QR code do 2FA"></div>
       <div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:12px">Ou digite a chave manualmente:<br><code id="twofa-secret" style="font-family:var(--mono);color:var(--text);font-size:11px;word-break:break-all"></code></div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px">2. Digite o código de 6 dígitos gerado pelo app:</div>
       <input type="text" id="twofa-code" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;letter-spacing:0.3em;font-family:var(--mono)"/>
@@ -3003,15 +3002,12 @@ function renderTwoFAStatus() {
 
 async function startTwoFASetup() {
   try {
-    const { otpauthUri, secret } = await apiFetch('/api/me/2fa/setup', { method: 'POST' });
+    const { secret, qrCodeDataUrl } = await apiFetch('/api/me/2fa/setup', { method: 'POST' });
     document.getElementById('twofa-secret').textContent = secret;
     document.getElementById('twofa-code').value = '';
     document.getElementById('twofa-disabled-actions').style.display = 'none';
     document.getElementById('twofa-setup').style.display = 'block';
-    // Renderiza o QR code do otpauth:// no canvas.
-    QRCode.toCanvas(document.getElementById('twofa-qr'), otpauthUri, { width: 180, margin: 1 }, (err) => {
-      if (err) showToast('Não foi possível gerar o QR code', 'err');
-    });
+    document.getElementById('twofa-qr').src = qrCodeDataUrl;
   } catch (e) {
     showToast(e.message || 'Não foi possível iniciar a configuração', 'err');
   }

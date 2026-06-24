@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const bcrypt = require('bcrypt')
+const QRCode = require('qrcode')
 const usersRepo = require('../repositories/usersRepository')
 const credentialsRepo = require('../repositories/credentialsRepository')
 const { serverError, validarComplexidadeSenha } = require('../utils/http')
@@ -80,7 +81,8 @@ router.post('/2fa/setup', async (req, res) => {
     const segredo = totp.gerarSegredo()
     await usersRepo.salvarSegredoTotp(req.user.id, segredo)
     const otpauthUri = totp.gerarOtpauthUri(segredo, req.user.email)
-    res.json({ otpauthUri, secret: segredo })
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri, { width: 180, margin: 1 })
+    res.json({ otpauthUri, secret: segredo, qrCodeDataUrl })
   } catch (e) {
     serverError(res, e, 'Não foi possível iniciar a configuração do 2FA.')
   }
