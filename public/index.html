@@ -1737,7 +1737,17 @@ function startLogStream() {
     }
   };
 
-  logPollTimer = setInterval(poll, 4000);
+  // Mesma lógica para eventos (post_published etc): sem isso, todo login ou
+  // reload reexibia como toast cada evento já ocorrido desde o início dos
+  // tempos, incluindo falhas de posts antigos que nada têm a ver com a
+  // sessão atual. Busca só o id mais recente, sem processar os eventos, e
+  // só então inicia o polling (evita uma corrida em que o poll dispara
+  // antes do lastEventId ser ajustado e reexibe o histórico mesmo assim).
+  apiFetch('/api/logs/events/since/0').then(({ events }) => {
+    lastEventId = events.length ? Math.max(...events.map(e => e.id)) : 0;
+    logPollTimer = setInterval(poll, 4000);
+  });
+
   document.getElementById('btn-pause-logs').textContent = '⏸ Pausar';
 }
 
