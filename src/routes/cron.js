@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const scheduler = require('../services/scheduler')
+const logsRepo = require('../repositories/logsRepository')
 
 const router = Router()
 
@@ -22,9 +23,13 @@ router.get('/process-posts', async (req, res) => {
   res.json({ ok: true })
 })
 
+// Aproveita o mesmo agendamento de renovação de tokens para também limpar
+// logs/eventos antigos — o plano da Vercel limita o número de cron jobs, e
+// não há motivo para a limpeza ter um horário próprio.
 router.get('/renew-tokens', async (req, res) => {
   await scheduler.renovarTokensProativamente()
-  res.json({ ok: true })
+  const limpeza = await logsRepo.limparAntigos()
+  res.json({ ok: true, limpeza })
 })
 
 module.exports = router

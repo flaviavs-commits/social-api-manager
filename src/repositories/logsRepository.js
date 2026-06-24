@@ -86,7 +86,21 @@ async function listarEventosDesde(lastId, userId, isAdmin) {
   return rows
 }
 
+// Remove logs e eventos com mais de 30 dias — sem isso, as tabelas crescem
+// indefinidamente (todo post, toda renovação de token, todo erro gera uma
+// linha) e pesam cada vez mais a base. Chamado pelo cron diário; mantém só o
+// histórico recente, que é o que de fato importa para depuração.
+async function limparAntigos() {
+  const { rowCount: logsRemovidos } = await pool.query(
+    `DELETE FROM logs WHERE criado_em < NOW() - INTERVAL '30 days'`
+  )
+  const { rowCount: eventosRemovidos } = await pool.query(
+    `DELETE FROM app_events WHERE criado_em < NOW() - INTERVAL '30 days'`
+  )
+  return { logsRemovidos, eventosRemovidos }
+}
+
 module.exports = {
   registrarLog, listarLogs, listarLogsDesde, limparLogs,
-  broadcastEvent, listarEventosDesde
+  broadcastEvent, listarEventosDesde, limparAntigos
 }
