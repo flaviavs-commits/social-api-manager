@@ -158,6 +158,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/sobre.html'))
 })
 
+// Páginas legais públicas (exigência da revisão do TikTok: ToS e Privacy
+// Policy precisam estar no mesmo domínio do app, não em hospedagem externa).
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/privacy-policy.html'))
+})
+app.get('/terms-of-service', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/terms-of-service.html'))
+})
+
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
 app.get('/api/config', (req, res) => {
