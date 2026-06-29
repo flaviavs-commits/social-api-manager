@@ -1,8 +1,7 @@
 require('dotenv').config()
 const express  = require('express')
 const path     = require('path')
-const session  = require('express-session')
-const pgSession = require('connect-pg-simple')(session)
+const cors     = require('cors')
 
 const pool           = require('./db/pool')
 const accountsRoutes = require('./routes/accounts')
@@ -18,6 +17,7 @@ const requireAdmin   = require('./middleware/requireAdmin')
 const cronRoutes     = require('./routes/cron')
 const scheduler      = require('./services/scheduler')
 const { validarTokenMedia } = require('./services/mediaToken')
+const { gerarTokenSessao } = require('./utils/authToken')
 
 const app = express()
 app.disable('x-powered-by')
@@ -30,6 +30,11 @@ app.disable('x-powered-by')
 // (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). trust proxy = 1 confia no primeiro
 // proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
 app.set('trust proxy', 1)
+
+// Frontend (Vercel) e backend (Railway) são domínios diferentes — a
+// autenticação viaja via Bearer token, não cookie, então não precisa de
+// credentials:true aqui (sem cookies envolvidos na requisição cross-origin).
+app.use(cors({ origin: (process.env.FRONTEND_ORIGIN || '').split(',').filter(Boolean) }))
 
 // Cabeçalhos básicos de segurança (sem dependências extras)
 app.use((req, res, next) => {
@@ -50,19 +55,6 @@ app.use('/oauth/tiktok/webhook', express.json({
 
 app.use(express.json({ limit: '1mb' }))
 
-app.use(session({
-  store: new pgSession({ pool, tableName: 'session' }),
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  // secure:true exige HTTPS para o navegador enviar o cookie de volta — com
-  // trust proxy=1, req.secure passa a refletir corretamente o X-Forwarded-Proto
-  // do ngrok, então isso agora é seguro de habilitar (antes, sem trust proxy,
-  // o cookie secure nunca seria reenviado e a sessão "expirava" a cada request).
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax', secure: 'auto' }
-}))
-
 app.use('/auth/login', authRoutes)
 
 // As rotas de OAuth (incluindo os callbacks navegados pelo provedor externo)
@@ -78,19 +70,24 @@ app.use('/oauth', oauthRoutes)
 // sessão de usuário, então fica fora do requireAuth global.
 app.use('/api/cron', cronRoutes)
 
-app.get('/admin.html', requireAuth, requireAdmin, (req, res) => {
+// Bearer token não viaja em navegação simples, então o HTML em si não pode
+// mais ser bloqueado no servidor — a página carrega vazia para quem não tem
+// token, e as chamadas de API por baixo (apiFetch('/api/admin/...')) são
+// quem de fato exige token + role admin, redirecionando no 401/403.
+app.get('/admin.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/admin.html'))
 })
 
-// Mídia enviada pelos usuários (fotos/vídeos de posts) normalmente só pode
-// ser acessada por quem está autenticado. Exceção: um link assinado de curta
-// duração (?token=...), gerado só na hora de publicar — é assim que
-// Instagram/TikTok conseguem baixar a imagem/vídeo, já que essas APIs
-// buscam a mídia direto por URL pública, sem enviar nosso cookie de sessão.
+// Mídia enviada pelos usuários (fotos/vídeos de posts). Acesso exige o link
+// assinado de curta duração (?token=...), gerado na hora de publicar — é
+// assim que Instagram/TikTok conseguem baixar a imagem/vídeo, já que essas
+// APIs buscam a mídia direto por URL pública, sem cabeçalho de autenticação.
+// O fallback por sessão de usuário saiu: Bearer token não viaja em
+// requisições simples como <img src>, então sem o token assinado o acesso é negado.
 app.use('/uploads', (req, res, next) => {
   const filename = path.basename(req.path)
   if (validarTokenMedia(filename, req.query.token)) return next()
-  requireAuth(req, res, next)
+  res.status(403).end()
 }, express.static(path.join(__dirname, '../public/uploads')))
 
 // Repassa um arquivo do Vercel Blob através do nosso próprio domínio (já
@@ -143,7 +140,9 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
 // que precisam entender o app sem precisar de uma conta). Quem já tem sessão
 // válida vai direto para o painel, sem precisar passar por ela de novo.
 app.get('/', (req, res) => {
-  if (req.session?.userId) return res.redirect('/index.html')
+  // Sem cookie de sessão para checar aqui (Bearer token não viaja em
+  // navegação simples) — quem decide se já está logado e redireciona para
+  // /index.html é o próprio front, lendo o token salvo no localStorage.
 
   // Modo de revisão (TikTok): quando TIKTOK_REVIEW_MODE=true e há um usuário
   // demo configurado, o app abre direto no painel sem tela de login — o
@@ -151,8 +150,8 @@ app.get('/', (req, res) => {
   // revisão. O auto-login entra SOMENTE na conta demo isolada (nunca em dados
   // reais de outros usuários), e a flag deve ser desligada após a aprovação.
   if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
-    req.session.userId = Number(process.env.TIKTOK_REVIEW_USER_ID)
-    return res.redirect('/index.html')
+    const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
+    return res.redirect('/index.html?token=' + encodeURIComponent(token))
   }
 
   res.sendFile(path.join(__dirname, '../public/sobre.html'))

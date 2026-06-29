@@ -50,6 +50,16 @@ input:focus { outline: none; border-color: var(--accent); }
 </div>
 
 <script>
+const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
+
+// pendingToken chega por sessionStorage (fluxo senha→2FA, vindo de login.html)
+// ou por ?pendingToken= na URL (fluxo Google→2FA, redirect direto do backend).
+const pendingTokenFromUrl = new URLSearchParams(location.search).get('pendingToken');
+if (pendingTokenFromUrl) {
+  sessionStorage.setItem('pending2faToken', pendingTokenFromUrl);
+  history.replaceState({}, '', location.pathname);
+}
+
 function showMsg(text) {
   const el = document.getElementById('msg');
   el.textContent = text;
@@ -66,16 +76,19 @@ document.getElementById('form-2fa').addEventListener('submit', async (e) => {
   const btn = document.getElementById('btn-submit');
   btn.disabled = true;
   try {
-    const res = await fetch('/auth/login/verify-2fa', {
+    const pendingToken = sessionStorage.getItem('pending2faToken');
+    const res = await fetch(API + '/auth/login/verify-2fa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
+      body: JSON.stringify({ code, pendingToken })
     });
     const data = await res.json();
     if (!res.ok) {
       showMsg(data.erro || 'Não foi possível verificar o código.');
       return;
     }
+    sessionStorage.removeItem('pending2faToken');
+    localStorage.setItem('authToken', data.token);
     window.location.href = '/';
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');

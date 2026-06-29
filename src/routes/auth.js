@@ -8,6 +8,7 @@ const mailer = require('../services/mailer')
 const { addLog } = require('../middleware/logger')
 const { validarComplexidadeSenha } = require('../utils/http')
 const totp = require('../services/totp')
+const { gerarTokenSessao, verificarTokenPending2fa, gerarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
 
 function friendlyAuthError(msg) {
   return `<!DOCTYPE html><html><body><script>
@@ -69,15 +70,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     if (user.totp_enabled) {
       // Senha confere, mas falta o segundo fator — não abre sessão ainda,
-      // só marca quem está pendente de confirmar o código no app autenticador.
-      req.session.pending2faUserId = user.id
+      // devolve um token de curta duração que prova que a senha já foi
+      // validada, sem entregar acesso de fato até o código TOTP confirmar.
       addLog('ok', 'Senha confirmada, aguardando código 2FA', null, null, user.id)
-      return res.json({ ok: true, requires2fa: true })
+      return res.json({ ok: true, requires2fa: true, pendingToken: gerarTokenPending2fa(user.id) })
     }
 
-    req.session.userId = user.id
     addLog('ok', 'Login realizado com sucesso', null, null, user.id)
-    res.json({ ok: true })
+    res.json({ ok: true, token: gerarTokenSessao(user.id) })
   } catch (err) {
     addLog('err', `Falha no login: ${err.message}`, null, null, user?.id)
     res.status(500).json({ erro: 'Não foi possível entrar agora. Tente novamente em alguns instantes.' })
@@ -106,9 +106,8 @@ router.post('/register', loginLimiter, async (req, res) => {
     const user = await usersRepo.criar({ email, fullName })
     const passwordHash = await bcrypt.hash(password, 10)
     await credentialsRepo.criar(user.id, passwordHash)
-    req.session.userId = user.id
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
-    res.json({ ok: true })
+    res.json({ ok: true, token: gerarTokenSessao(user.id) })
   } catch (err) {
     addLog('err', `Falha ao criar conta: ${err.message}`)
     res.status(500).json({ erro: 'Não foi possível criar sua conta agora. Tente novamente em alguns instantes.' })
@@ -116,16 +115,20 @@ router.post('/register', loginLimiter, async (req, res) => {
 })
 
 router.post('/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }))
+  // Token stateless, sem revogação no servidor — o efeito real do logout é
+  // só o cliente descartar o token armazenado.
+  res.json({ ok: true })
 })
 
 // Completa o login depois que a senha já foi confirmada e a conta tem 2FA
-// ativo (ver pending2faUserId em /login). Reaproveita o mesmo rate limit do
+// ativo (ver pendingToken em /login). Reaproveita o mesmo rate limit do
 // login para não abrir uma porta de brute-force separada no código TOTP.
 router.post('/verify-2fa', loginLimiter, async (req, res) => {
-  const { code } = req.body || {}
-  const userId = req.session.pending2faUserId
-  if (!userId) {
+  const { code, pendingToken } = req.body || {}
+  let userId
+  try {
+    userId = verificarTokenPending2fa(pendingToken)
+  } catch {
     return res.status(400).json({ erro: 'Nenhum login pendente de confirmação. Faça login novamente.' })
   }
 
@@ -136,10 +139,8 @@ router.post('/verify-2fa', loginLimiter, async (req, res) => {
       return res.status(400).json({ erro: 'Código inválido. Verifique o app autenticador e tente de novo.' })
     }
 
-    delete req.session.pending2faUserId
-    req.session.userId = userId
     addLog('ok', 'Login com 2FA concluído', null, null, userId)
-    res.json({ ok: true })
+    res.json({ ok: true, token: gerarTokenSessao(userId) })
   } catch (err) {
     addLog('err', `Falha no login com 2FA: ${err.message}`, null, null, userId)
     res.status(500).json({ erro: 'Não foi possível verificar o código agora. Tente novamente.' })
@@ -255,11 +256,10 @@ router.get('/google', (req, res) => {
   const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI
   const scopes = ['openid', 'email', 'profile'].join(' ')
 
-  // state CSRF: nonce aleatório guardado na sessão e devolvido pelo Google no
-  // callback. Sem ele, um atacante poderia forjar o callback (login CSRF),
-  // logando a vítima numa conta controlada por ele.
-  const state = require('crypto').randomBytes(16).toString('hex')
-  req.session.googleOAuthState = state
+  // state CSRF: nonce assinado (HMAC) devolvido pelo Google no callback e
+  // validado ali sem depender de sessão/cookie. Sem ele, um atacante poderia
+  // forjar o callback (login CSRF), logando a vítima numa conta controlada por ele.
+  const state = gerarGoogleOAuthState()
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
@@ -278,11 +278,11 @@ router.get('/google/callback', async (req, res) => {
     return res.send(friendlyAuthError('Login com Google cancelado.'))
   }
 
-  // Valida o state contra o nonce guardado na sessão (proteção CSRF) e o
-  // consome em seguida, para não permitir reuso. Falha se ausente ou diferente.
-  const expectedState = req.session.googleOAuthState
-  delete req.session.googleOAuthState
-  if (!state || !expectedState || state !== expectedState) {
+  // Valida a assinatura/expiração do state (proteção CSRF) sem depender de
+  // sessão/cookie — o nonce viaja assinado dentro do próprio parâmetro.
+  try {
+    verificarGoogleOAuthState(state)
+  } catch {
     return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.'))
   }
 
@@ -329,14 +329,12 @@ router.get('/google/callback', async (req, res) => {
     }
 
     if (user.totp_enabled) {
-      req.session.pending2faUserId = user.id
       addLog('ok', 'Login com Google confirmado, aguardando código 2FA', null, null, user.id)
-      return res.redirect('/verify-2fa.html')
+      return res.redirect('/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
     }
 
-    req.session.userId = user.id
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
-    res.redirect('/')
+    res.redirect('/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
   } catch (err) {
     addLog('err', `Falha no login com Google: ${err.message}`)
     res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.'))

@@ -820,7 +820,21 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 <div class="toast" id="toast"></div>
 
 <script>
-const API = '';  // mesmo servidor
+const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
+
+// Captura o token vindo por URL (login com Google, modo de revisão TikTok),
+// já que esses fluxos são navegação simples (full-page redirect), não fetch —
+// não dá pra entregar o token via header nesse trecho.
+(function capturarTokenDaUrl() {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  if (token) {
+    localStorage.setItem('authToken', token);
+    params.delete('token');
+    const resto = params.toString();
+    history.replaceState({}, '', location.pathname + (resto ? '?' + resto : ''));
+  }
+})();
 
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
 // vindos do usuário (nomes de conta, texto de posts, mensagens de log etc.)
@@ -859,7 +873,8 @@ function showToast(msg, type = 'ok') {
 
 // ── Sair da conta ────────────────────────────────────────────────────────────
 async function logout() {
-  try { await fetch('/auth/login/logout', { method: 'POST' }); } catch {}
+  try { await apiFetch('/auth/login/logout', { method: 'POST' }); } catch {}
+  localStorage.removeItem('authToken');
   try { localStorage.setItem('lastLogoutAt', String(Date.now())); } catch {}
   window.location.href = '/login.html';
 }
@@ -867,10 +882,19 @@ async function logout() {
 // ── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
   const isFormData = opts.body instanceof FormData;
+  const token = localStorage.getItem('authToken');
   const res = await fetch(API + path, {
-    headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+    headers: {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: 'Bearer ' + token } : {})
+    },
     ...opts
   });
+  if (res.status === 401) {
+    localStorage.removeItem('authToken');
+    window.location.href = '/login.html';
+    throw new Error('Sessão expirada');
+  }
   if (!res.ok) {
     let mensagem = 'Não foi possível concluir essa ação. Tente novamente.';
     try {
@@ -2782,7 +2806,8 @@ async function startOAuthGoogle() {
 
   try {
     const params = new URLSearchParams({ accountName: name });
-    const res = await fetch(`/auth/tiktok/google?${params}`);
+    const token = localStorage.getItem('authToken');
+    const res = await fetch(`${API}/auth/tiktok/google?${params}`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
     const data = await res.json();
 
     if (!res.ok || data.error) { if (popup) popup.close(); showOAuthConfigError(data || { error: `HTTP ${res.status}` }); return; }
@@ -2816,7 +2841,8 @@ async function startOAuth() {
 
   try {
     const params = new URLSearchParams({ accountName: name, platform });
-    const res = await fetch(`/auth/${provider}?${params}`);
+    const token = localStorage.getItem('authToken');
+    const res = await fetch(`${API}/auth/${provider}?${params}`, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
     const data = await res.json();
 
     // Servidor retornou erro de configuração (.env)

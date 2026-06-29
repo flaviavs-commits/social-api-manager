@@ -1,7 +1,18 @@
 const usersRepo = require('../repositories/usersRepository')
+const { verificarTokenSessao } = require('../utils/authToken')
 
 async function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) {
+  const header = req.headers.authorization || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+
+  let userId = null
+  try {
+    if (token) userId = verificarTokenSessao(token)
+  } catch {
+    userId = null
+  }
+
+  if (!userId) {
     if (req.path.startsWith('/api/')) {
       return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' })
     }
@@ -9,9 +20,8 @@ async function requireAuth(req, res, next) {
   }
 
   try {
-    const user = await usersRepo.buscarPorId(req.session.userId)
+    const user = await usersRepo.buscarPorId(userId)
     if (!user) {
-      req.session.destroy(() => {})
       if (req.path.startsWith('/api/')) {
         return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' })
       }

@@ -83,8 +83,19 @@ function showMsg(text, type) {
   setTimeout(() => el.className = 'msg', 4000);
 }
 
+const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
+
 async function apiFetch(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const token = localStorage.getItem('authToken');
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    ...opts
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('authToken');
+    window.location.href = '/login.html';
+    throw new Error('Sessão expirada');
+  }
   if (!res.ok) {
     let mensagem = 'Não foi possível concluir essa ação.';
     try { const data = await res.json(); if (data?.erro) mensagem = data.erro; } catch {}
