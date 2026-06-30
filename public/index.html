@@ -329,22 +329,40 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 .cal-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
 .cal-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
 
-/* Modal de dia do calendário */
-.cal-day-modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+/* Modal de dia do calendário — timeline de horas */
+.cal-day-modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
 .cal-day-modal.open { opacity: 1; pointer-events: all; }
-.cal-day-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 480px; max-width: 94vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
-.cal-day-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.cal-day-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 540px; max-width: 96vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+.cal-day-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 10px; }
 .cal-day-modal-title { font-size: 14px; font-weight: 600; }
-.cal-day-modal-body { overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 10px; }
-.cal-day-post-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
-.cal-day-post-thumb { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--border2); }
-.cal-day-post-thumb-placeholder { width: 44px; height: 44px; border-radius: 6px; flex-shrink: 0; background: var(--border2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 18px; }
-.cal-day-post-info { flex: 1; min-width: 0; }
-.cal-day-post-time { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-bottom: 3px; }
-.cal-day-post-text { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
-.cal-day-post-plats { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
-.cal-day-post-status { font-size: 10px; font-family: var(--mono); }
-.cal-day-post-actions { display: flex; gap: 6px; margin-top: 6px; }
+.cal-day-modal-body { overflow-y: auto; flex: 1; }
+
+/* timeline */
+.cal-timeline { display: flex; flex-direction: column; }
+.cal-timeline-row { display: flex; min-height: 52px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.cal-timeline-row:last-child { border-bottom: none; }
+.cal-timeline-row.has-post { background: rgba(255,255,255,0.015); }
+.cal-tl-hour { width: 52px; flex-shrink: 0; padding: 8px 10px 8px 14px; font-size: 11px; font-family: var(--mono); color: var(--muted); text-align: right; line-height: 1; padding-top: 10px; border-right: 1px solid var(--border); }
+.cal-tl-hour.current-hour { color: var(--accent); font-weight: 700; }
+.cal-tl-posts { flex: 1; padding: 6px 10px; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+.cal-tl-empty { min-height: 52px; }
+
+/* card de post dentro da timeline */
+.cal-tl-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; gap: 9px; align-items: flex-start; cursor: default; transition: border-color 0.15s; }
+.cal-tl-card:hover { border-color: var(--border2); }
+.cal-tl-card.status-scheduled { border-left: 3px solid #fbbf24; }
+.cal-tl-card.status-published  { border-left: 3px solid var(--green); }
+.cal-tl-card.status-partial    { border-left: 3px solid #fbbf24; }
+.cal-tl-card.status-error      { border-left: 3px solid var(--red); }
+.cal-tl-card.status-processing { border-left: 3px solid var(--accent); }
+.cal-tl-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--border2); }
+.cal-tl-thumb-ph { width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0; background: var(--border2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 16px; }
+.cal-tl-info { flex: 1; min-width: 0; }
+.cal-tl-time { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 2px; }
+.cal-tl-text { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.cal-tl-plats { display: flex; gap: 4px; flex-wrap: wrap; }
+.cal-tl-status { font-size: 10px; font-family: var(--mono); margin-top: 2px; }
+.cal-tl-actions { margin-top: 4px; }
 
 .cal-cell.cal-loading { opacity: 0.5; pointer-events: none; }
 
@@ -964,6 +982,7 @@ function showPage(name) {
   if (name === 'agendador')  loadQueue();
   if (name === 'logs')       startLogStream();
   if (name === 'calendario') calInit();
+  else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics') startAnalyticsAutoRefresh();
   else                      stopAnalyticsAutoRefresh();
 }
@@ -3248,6 +3267,7 @@ let calYear  = new Date().getFullYear();
 let calMonth = new Date().getMonth() + 1; // 1-based
 let calPosts = [];
 let calInitialized = false;
+let calRefreshTimer = null;
 
 function calInit() {
   if (!calInitialized) {
@@ -3256,6 +3276,31 @@ function calInit() {
     calInitialized = true;
   }
   calLoad();
+  clearInterval(calRefreshTimer);
+  // Atualiza automaticamente a cada 30s enquanto o calendário estiver aberto
+  calRefreshTimer = setInterval(async () => {
+    if (!document.getElementById('page-calendario').classList.contains('active')) {
+      clearInterval(calRefreshTimer);
+      return;
+    }
+    await calSilentRefresh();
+  }, 30000);
+}
+
+async function calSilentRefresh() {
+  try {
+    const data = await apiFetch(`/posts/calendar?year=${calYear}&month=${calMonth}`);
+    calPosts = data.posts || [];
+    const grid = document.getElementById('cal-grid');
+    const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
+    calRender(grid, dayNames);
+    // Atualiza o modal de dia se estiver aberto
+    if (calDayModalDate && document.getElementById('cal-day-modal').classList.contains('open')) {
+      const updated = calPostsForDay(calDayModalDate.dateStr);
+      calDayModalDate.posts = updated;
+      _calRenderDayModal(calDayModalDate.dateStr, calDayModalDate.date, updated);
+    }
+  } catch {}
 }
 
 function calGoToday() {
@@ -3385,8 +3430,17 @@ function calMakePill(post) {
   return pill;
 }
 
+// ── Modal de dia com timeline de horas ───────────────────────────────────────
+
+let calDayModalDate = null; // guarda a data aberta para re-renderizar após reload
+
 function calOpenDayModal(dateStr, date, posts) {
-  const modal = document.getElementById('cal-day-modal');
+  calDayModalDate = { dateStr, date, posts };
+  _calRenderDayModal(dateStr, date, posts);
+  document.getElementById('cal-day-modal').classList.add('open');
+}
+
+function _calRenderDayModal(dateStr, date, posts) {
   const title = document.getElementById('cal-day-modal-title');
   const body  = document.getElementById('cal-day-modal-body');
 
@@ -3396,86 +3450,142 @@ function calOpenDayModal(dateStr, date, posts) {
   body.innerHTML = '';
 
   if (posts.length === 0) {
-    body.innerHTML = `<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono);font-size:12px">Nenhum post neste dia.<br><br><button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="font-size:11px;padding:5px 12px">+ Agendar post</button></div>`;
-  } else {
-    posts.forEach(p => body.appendChild(calMakeDayCard(p)));
-    // botão de agendar no rodapé
-    const footer = document.createElement('div');
-    footer.style.cssText = 'padding-top:4px;border-top:1px solid var(--border);';
-    footer.innerHTML = `<button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="width:100%;font-size:11px;padding:7px">+ Agendar novo post</button>`;
-    body.appendChild(footer);
+    body.innerHTML = `
+      <div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-family:var(--mono);font-size:12px">
+        Nenhum post agendado neste dia.
+        <br><br>
+        <button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="font-size:11px;padding:6px 14px">+ Agendar post</button>
+      </div>`;
+    return;
   }
 
-  modal.classList.add('open');
+  // Agrupa posts por hora
+  const byHour = {};
+  for (const p of posts) {
+    const ref = p.publishedAt || p.scheduledAt;
+    const h = ref ? new Date(ref).getHours() : -1;
+    if (!byHour[h]) byHour[h] = [];
+    byHour[h].push(p);
+  }
+
+  // Decide intervalo de horas a mostrar: do menor ao maior com margem
+  const hours = posts.map(p => {
+    const ref = p.publishedAt || p.scheduledAt;
+    return ref ? new Date(ref).getHours() : 0;
+  });
+  const minH = Math.max(0,  Math.min(...hours) - 1);
+  const maxH = Math.min(23, Math.max(...hours) + 1);
+
+  const nowH = new Date().getHours();
+  const isToday = dateStr === calDateStr(new Date());
+
+  const timeline = document.createElement('div');
+  timeline.className = 'cal-timeline';
+
+  for (let h = minH; h <= maxH; h++) {
+    const row = document.createElement('div');
+    const hasPosts = !!byHour[h];
+    row.className = 'cal-timeline-row' + (hasPosts ? ' has-post' : '');
+
+    const hourEl = document.createElement('div');
+    hourEl.className = 'cal-tl-hour' + (isToday && h === nowH ? ' current-hour' : '');
+    hourEl.textContent = String(h).padStart(2,'0') + 'h';
+    row.appendChild(hourEl);
+
+    const postsEl = document.createElement('div');
+    postsEl.className = 'cal-tl-posts';
+
+    if (hasPosts) {
+      byHour[h].forEach(p => postsEl.appendChild(calMakeTlCard(p)));
+    } else {
+      postsEl.classList.add('cal-tl-empty');
+    }
+
+    row.appendChild(postsEl);
+    timeline.appendChild(row);
+  }
+
+  body.appendChild(timeline);
+
+  // rodapé
+  const footer = document.createElement('div');
+  footer.style.cssText = 'padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;';
+  footer.innerHTML = `<button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="width:100%;font-size:11px;padding:7px">+ Agendar novo post neste dia</button>`;
+  body.appendChild(footer);
 }
 
-function calMakeDayCard(post) {
+function calMakeTlCard(post) {
   const card = document.createElement('div');
-  card.className = 'cal-day-post-card';
+  card.className = `cal-tl-card status-${post.status}`;
 
   // thumbnail
   const thumbWrap = document.createElement('div');
   if (post.mediaPath || (post.mediaItems && post.mediaItems[0])) {
     const src = post.mediaItems ? post.mediaItems[0].path : post.mediaPath;
-    if (post.mediaType === 'video' || (post.mediaItems && post.mediaItems[0]?.type === 'video')) {
-      thumbWrap.className = 'cal-day-post-thumb-placeholder';
+    const isVideo = post.mediaType === 'video' || post.mediaItems?.[0]?.type === 'video';
+    if (isVideo) {
+      thumbWrap.className = 'cal-tl-thumb-ph';
       thumbWrap.innerHTML = '▶';
     } else {
       const img = document.createElement('img');
-      img.className = 'cal-day-post-thumb';
+      img.className = 'cal-tl-thumb';
       img.src = src;
-      img.onerror = () => { thumbWrap.className = 'cal-day-post-thumb-placeholder'; thumbWrap.innerHTML = '🖼'; };
+      img.onerror = () => { thumbWrap.className = 'cal-tl-thumb-ph'; thumbWrap.innerHTML = '🖼'; };
       thumbWrap.appendChild(img);
     }
   } else {
-    thumbWrap.className = 'cal-day-post-thumb-placeholder';
+    thumbWrap.className = 'cal-tl-thumb-ph';
     thumbWrap.innerHTML = '📝';
   }
   card.appendChild(thumbWrap);
 
   // info
   const info = document.createElement('div');
-  info.className = 'cal-day-post-info';
+  info.className = 'cal-tl-info';
 
   const ref = post.publishedAt || post.scheduledAt;
   const timeStr = ref ? new Date(ref).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—';
 
-  const statusLabel = { scheduled:'Agendado', published:'Publicado', partial:'Publicado parcialmente', error:'Erro', processing:'Publicando...' };
-  const statusClass = { scheduled:'qs-pend', published:'qs-ok', partial:'qs-pend', error:'qs-err', processing:'qs-ok' };
+  const STATUS_LABEL = { scheduled:'Agendado', published:'Publicado', partial:'Publicado parcialmente', error:'Erro ao publicar', processing:'Publicando...' };
+  const STATUS_COLOR = { scheduled:'color:#fbbf24', published:'color:var(--green)', partial:'color:#fbbf24', error:'color:var(--red)', processing:'color:var(--accent)' };
 
   const platPills = (post.platforms || []).map(p =>
-    `<span class="mini-pill ${p}">${p}</span>`
+    `<span class="mini-pill ${escapeHtml(p)}">${escapeHtml(p)}</span>`
   ).join('');
 
   const rawLabel = post.youtubeTitle || post.text;
   const label = rawLabel ? escapeHtml(rawLabel) : '<em style="color:var(--muted)">Sem texto</em>';
 
   info.innerHTML = `
-    <div class="cal-day-post-time">${timeStr}</div>
-    <div class="cal-day-post-text">${label}</div>
-    <div class="cal-day-post-plats">${platPills}</div>
-    <div class="cal-day-post-status ${statusClass[post.status] || ''}">${statusLabel[post.status] || post.status}</div>
+    <div class="cal-tl-time">${timeStr}</div>
+    <div class="cal-tl-text">${label}</div>
+    <div class="cal-tl-plats">${platPills}</div>
+    <div class="cal-tl-status" style="${STATUS_COLOR[post.status] || ''}">${STATUS_LABEL[post.status] || post.status}</div>
   `;
 
-  // ação: cancelar se agendado
   if (post.status === 'scheduled') {
     const actions = document.createElement('div');
-    actions.className = 'cal-day-post-actions';
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn';
-    cancelBtn.style.cssText = 'font-size:10px;padding:3px 10px;color:var(--red);border-color:rgba(248,113,113,0.3)';
-    cancelBtn.textContent = 'Cancelar';
-    cancelBtn.onclick = async (e) => {
-      e.stopPropagation();
+    actions.className = 'cal-tl-actions';
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.cssText = 'font-size:10px;padding:3px 10px;color:var(--red);border-color:rgba(248,113,113,0.3)';
+    btn.textContent = 'Cancelar post';
+    btn.onclick = async (ev) => {
+      ev.stopPropagation();
       if (!confirm('Cancelar este post agendado?')) return;
       try {
         await apiFetch(`/posts/${post.id}`, { method: 'DELETE' });
         showToast('Post cancelado', 'ok');
-        calLoad();
-        calCloseDayModal();
+        await calLoad();
+        // re-renderiza o modal com posts atualizados do dia
+        if (calDayModalDate) {
+          const updated = calPostsForDay(calDayModalDate.dateStr);
+          calDayModalDate.posts = updated;
+          _calRenderDayModal(calDayModalDate.dateStr, calDayModalDate.date, updated);
+        }
       } catch { showToast('Erro ao cancelar', 'err'); }
     };
-    actions.appendChild(cancelBtn);
+    actions.appendChild(btn);
     info.appendChild(actions);
   }
 
@@ -3486,6 +3596,7 @@ function calMakeDayCard(post) {
 function calCloseDayModal(e) {
   if (e && e.target !== document.getElementById('cal-day-modal')) return;
   document.getElementById('cal-day-modal').classList.remove('open');
+  calDayModalDate = null;
 }
 
 
