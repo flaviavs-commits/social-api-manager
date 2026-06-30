@@ -355,8 +355,14 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 .cal-tl-card.status-partial    { border-left: 3px solid #fbbf24; }
 .cal-tl-card.status-error      { border-left: 3px solid var(--red); }
 .cal-tl-card.status-processing { border-left: 3px solid var(--accent); }
-.cal-tl-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--border2); }
-.cal-tl-thumb-ph { width: 40px; height: 40px; border-radius: 6px; flex-shrink: 0; background: var(--border2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 16px; }
+.cal-tl-thumb { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; display: block; background: var(--border2); transition: opacity 0.15s; }
+.cal-tl-thumb:hover { opacity: 0.85; }
+.cal-tl-thumb-ph { width: 56px; height: 56px; border-radius: 6px; background: var(--border2); display: flex; align-items: center; justify-content: center; color: var(--muted); }
+
+/* Preview expandido de mídia */
+.cal-media-preview { position: fixed; inset: 0; z-index: 600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.2s; cursor: zoom-out; }
+.cal-media-preview.open { opacity: 1; pointer-events: all; }
+.cal-media-preview img, .cal-media-preview video { max-width: min(92vw, 720px); max-height: 82vh; border-radius: 10px; object-fit: contain; box-shadow: 0 32px 80px rgba(0,0,0,0.6); display: block; }
 .cal-tl-info { flex: 1; min-width: 0; }
 .cal-tl-time { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 2px; }
 .cal-tl-text { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
@@ -705,6 +711,9 @@ input, select, textarea, .modal-overlay, .nav-section, label {
   </div>
 
 </div><!-- /main -->
+
+<!-- Preview de mídia do calendário -->
+<div class="cal-media-preview" id="cal-media-preview" onclick="calCloseMediaPreview()"></div>
 
 <!-- Modal de detalhe do dia no calendário -->
 <div class="cal-day-modal" id="cal-day-modal" onclick="calCloseDayModal(event)">
@@ -3518,24 +3527,58 @@ function calMakeTlCard(post) {
   const card = document.createElement('div');
   card.className = `cal-tl-card status-${post.status}`;
 
-  // thumbnail
+  // thumbnail — clicável para preview expandido
   const thumbWrap = document.createElement('div');
-  if (post.mediaPath || (post.mediaItems && post.mediaItems[0])) {
-    const src = post.mediaItems ? post.mediaItems[0].path : post.mediaPath;
-    const isVideo = post.mediaType === 'video' || post.mediaItems?.[0]?.type === 'video';
+  thumbWrap.style.cssText = 'flex-shrink:0;cursor:pointer;position:relative;';
+
+  const mediaSrc  = post.mediaItems?.[0]?.path || post.mediaPath || null;
+  const mediaType = post.mediaItems?.[0]?.type  || post.mediaType || null;
+  const isVideo   = mediaType === 'video';
+
+  if (mediaSrc) {
     if (isVideo) {
-      thumbWrap.className = 'cal-tl-thumb-ph';
-      thumbWrap.innerHTML = '▶';
+      // Vídeo: mostra elemento <video> mudo como thumbnail (carrega primeiro frame)
+      const vid = document.createElement('video');
+      vid.className  = 'cal-tl-thumb';
+      vid.src        = mediaSrc;
+      vid.muted      = true;
+      vid.preload    = 'metadata';
+      vid.playsInline = true;
+      // Posiciona no primeiro frame
+      vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0.001; });
+      vid.onerror = () => {
+        thumbWrap.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.className = 'cal-tl-thumb-ph';
+        ph.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+        thumbWrap.appendChild(ph);
+      };
+      thumbWrap.appendChild(vid);
+      // Badge de play por cima
+      const badge = document.createElement('div');
+      badge.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);border-radius:6px;pointer-events:none;';
+      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+      thumbWrap.appendChild(badge);
     } else {
       const img = document.createElement('img');
       img.className = 'cal-tl-thumb';
-      img.src = src;
-      img.onerror = () => { thumbWrap.className = 'cal-tl-thumb-ph'; thumbWrap.innerHTML = '🖼'; };
+      img.src       = mediaSrc;
+      img.onerror   = () => {
+        thumbWrap.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.className = 'cal-tl-thumb-ph';
+        ph.textContent = '🖼';
+        thumbWrap.appendChild(ph);
+      };
       thumbWrap.appendChild(img);
     }
+    // Clique abre preview expandido
+    thumbWrap.onclick = (ev) => { ev.stopPropagation(); calOpenMediaPreview(mediaSrc, isVideo); };
   } else {
-    thumbWrap.className = 'cal-tl-thumb-ph';
-    thumbWrap.innerHTML = '📝';
+    const ph = document.createElement('div');
+    ph.className = 'cal-tl-thumb-ph';
+    ph.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+    thumbWrap.appendChild(ph);
   }
   card.appendChild(thumbWrap);
 
@@ -3597,6 +3640,38 @@ function calCloseDayModal(e) {
   if (e && e.target !== document.getElementById('cal-day-modal')) return;
   document.getElementById('cal-day-modal').classList.remove('open');
   calDayModalDate = null;
+}
+
+function calOpenMediaPreview(src, isVideo) {
+  const el = document.getElementById('cal-media-preview');
+  el.innerHTML = '';
+  let media;
+  if (isVideo) {
+    media = document.createElement('video');
+    media.src      = src;
+    media.controls = true;
+    media.autoplay = true;
+    media.muted    = false;
+    media.playsInline = true;
+  } else {
+    media = document.createElement('img');
+    media.src = src;
+    media.alt = 'Preview';
+  }
+  el.appendChild(media);
+  el.classList.add('open');
+  // Fecha com Esc
+  const onKey = (ev) => { if (ev.key === 'Escape') { calCloseMediaPreview(); document.removeEventListener('keydown', onKey); } };
+  document.addEventListener('keydown', onKey);
+}
+
+function calCloseMediaPreview() {
+  const el = document.getElementById('cal-media-preview');
+  el.classList.remove('open');
+  // Para o vídeo se estiver tocando
+  const vid = el.querySelector('video');
+  if (vid) vid.pause();
+  setTimeout(() => { el.innerHTML = ''; }, 200);
 }
 
 
