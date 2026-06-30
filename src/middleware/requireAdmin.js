@@ -4,7 +4,7 @@ function requireAdmin(req, res, next) {
   if (req.originalUrl.startsWith('/api/')) {
     return res.status(403).json({ erro: 'Você não tem permissão para acessar esta área.' })
   }
-  res.redirect('/')
+  res.redirect((process.env.FRONTEND_URL || '') + '/')
 }
 
 module.exports = requireAdmin

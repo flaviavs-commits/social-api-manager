@@ -16,7 +16,7 @@ async function requireAuth(req, res, next) {
     if (req.path.startsWith('/api/')) {
       return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' })
     }
-    return res.redirect('/login.html')
+    return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
   }
 
   try {
@@ -25,7 +25,7 @@ async function requireAuth(req, res, next) {
       if (req.path.startsWith('/api/')) {
         return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' })
       }
-      return res.redirect('/login.html')
+      return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
     req.user = { id: user.id, email: user.email, role: user.role, fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }

@@ -93,19 +93,21 @@ function popupSuccess(tiktokUser) {
   const profileScript = tiktokUser
     ? `window.open('https://www.tiktok.com/@' + encodeURIComponent(${JSON.stringify(String(tiktokUser))}), '_blank');`
     : '';
+  const frontendUrl = process.env.FRONTEND_URL || '';
   return `<!DOCTYPE html><html><body><script>
     if (window.opener) {
-      window.opener.location.href = '/?connected=true';
+      window.opener.location.href = '${frontendUrl}/?connected=true';
       ${profileScript}
       window.close();
-    } else { window.location.href = '/?connected=true'; }
+    } else { window.location.href = '${frontendUrl}/?connected=true'; }
   </script></body></html>`;
 }
 
 function popupError(msg) {
+  const frontendUrl = process.env.FRONTEND_URL || '';
   return `<!DOCTYPE html><html><body><script>
-    if (window.opener) { window.opener.location.href = '/?error=${msg}'; window.close(); }
-    else { window.location.href = '/?error=${msg}'; }
+    if (window.opener) { window.opener.location.href = '${frontendUrl}/?error=${msg}'; window.close(); }
+    else { window.location.href = '${frontendUrl}/?error=${msg}'; }
   </script></body></html>`;
 }
 
@@ -302,54 +304,15 @@ router.get('/instagram/callback', async (req, res) => {
     }
 
     // 2. Troca o token de curta duração por um long-lived token (60 dias).
-    // A doc oficial da Meta diz que esse endpoint é GET, mas alguns tokens
-    // (ou contas) vêm respondendo "Unsupported request - method type: get" —
-    // erro consistente, não transitório, então insistir com retry no mesmo
-    // método só atrasa sem resolver. Tenta GET (padrão da doc); se vier
-    // exatamente esse erro, tenta POST uma vez na sequência, sem esperar
-    // o backoff — mais rápido que aumentar o número de tentativas no GET.
-    const exchangeUrl = `https://graph.instagram.com/access_token` +
-      `?grant_type=ig_exchange_token` +
-      `&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET)}` +
-      `&access_token=${encodeURIComponent(shortData.access_token)}`;
+    // Fluxo "Instagram API with Instagram Login": GET em graph.instagram.com/v19.0/access_token
+    // com grant_type=ig_exchange_token (mesmo host/versão usados no resto do código).
+    const exchangeUrl = 'https://graph.instagram.com/v19.0/access_token?' + new URLSearchParams({
+      grant_type: 'ig_exchange_token',
+      client_secret: process.env.INSTAGRAM_APP_SECRET,
+      access_token: shortData.access_token
+    }).toString();
 
-    let { data: longData } = await fetchJsonWithRetry(exchangeUrl, {}, { retries: 1, delayMs: 500 });
-
-    // ─── DIAGNÓSTICO TEMPORÁRIO ───────────────────────────────────────────────
-    // Captura o token fresco e testa hipóteses contra a API enquanto ele ainda
-    // está vivo, para descobrir a causa raiz do "Unsupported request" (code 100).
-    if (longData.error) {
-      console.log('\n═══════════ DIAGNÓSTICO INSTAGRAM TOKEN EXCHANGE ═══════════')
-      console.log('shortToken prefix:', shortData.access_token.slice(0, 6))
-      console.log('shortToken (full):', shortData.access_token)
-      console.log('GET ig_exchange_token →', JSON.stringify(longData.error))
-
-      // H1: graph.facebook.com em vez de graph.instagram.com (fluxo Business usa FB graph)
-      try {
-        const fbUrl = `https://graph.facebook.com/v19.0/access_token?grant_type=fb_exchange_token&client_id=${process.env.INSTAGRAM_APP_ID}&client_secret=${process.env.INSTAGRAM_APP_SECRET}&fb_exchange_token=${encodeURIComponent(shortData.access_token)}`
-        const r = await fetch(fbUrl); console.log('H1 graph.facebook fb_exchange →', JSON.stringify(await r.json()))
-      } catch (e) { console.log('H1 erro:', e.message) }
-
-      // H2: o token de curta duração já é usável diretamente em /me?
-      try {
-        const r = await fetch(`https://graph.instagram.com/me?fields=user_id,username&access_token=${encodeURIComponent(shortData.access_token)}`)
-        console.log('H2 short token em /me →', JSON.stringify(await r.json()))
-      } catch (e) { console.log('H2 erro:', e.message) }
-
-      // H3: endpoint com versão explícita
-      try {
-        const r = await fetch(`https://graph.instagram.com/v23.0/access_token?grant_type=ig_exchange_token&client_secret=${process.env.INSTAGRAM_APP_SECRET}&access_token=${encodeURIComponent(shortData.access_token)}`)
-        console.log('H3 com /v23.0 →', JSON.stringify(await r.json()))
-      } catch (e) { console.log('H3 erro:', e.message) }
-
-      console.log('═══════════════════════════════════════════════════════════\n')
-    }
-    // ─── FIM DIAGNÓSTICO ──────────────────────────────────────────────────────
-
-    if (isTransientGraphError(longData) || longData?.error?.message === 'Unsupported request - method type: get') {
-      const postRes = await fetchWithRetry(exchangeUrl, { method: 'POST' }, { retries: 1, delayMs: 500 });
-      longData = await postRes.json();
-    }
+    let { data: longData } = await fetchJsonWithRetry(exchangeUrl, { method: 'GET' }, { retries: 2, delayMs: 500 });
 
     if (longData.error || !longData.access_token) {
       addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform, null, meta.userId);
@@ -357,7 +320,7 @@ router.get('/instagram/callback', async (req, res) => {
     }
 
     // 3. Busca o username e a foto de perfil da conta conectada
-    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/me?fields=user_id,username,profile_picture_url&access_token=${longData.access_token}`);
+    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/v19.0/me?fields=user_id,username,profile_picture_url&access_token=${longData.access_token}`);
     const accountName = meta.accountName || profileData.username || 'Nova Conta Instagram';
 
     const expiresAt = new Date(Date.now() + (longData.expires_in || 60 * 86400) * 1000).toISOString();

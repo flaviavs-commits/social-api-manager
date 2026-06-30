@@ -4,7 +4,7 @@ function requireSuperAdmin(req, res, next) {
   if (req.originalUrl.startsWith('/api/')) {
     return res.status(403).json({ erro: 'Apenas o administrador principal pode fazer isso.' })
   }
-  res.redirect('/')
+  res.redirect((process.env.FRONTEND_URL || '') + '/')
 }
 
 module.exports = requireSuperAdmin

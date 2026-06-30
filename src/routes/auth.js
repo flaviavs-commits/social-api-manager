@@ -330,11 +330,11 @@ router.get('/google/callback', async (req, res) => {
 
     if (user.totp_enabled) {
       addLog('ok', 'Login com Google confirmado, aguardando código 2FA', null, null, user.id)
-      return res.redirect('/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
+      return res.redirect((process.env.FRONTEND_URL || '') + '/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
     }
 
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
-    res.redirect('/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
+    res.redirect((process.env.FRONTEND_URL || '') + '/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
   } catch (err) {
     addLog('err', `Falha no login com Google: ${err.message}`)
     res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.'))

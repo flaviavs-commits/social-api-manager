@@ -173,10 +173,44 @@ async function buscarHistoricoMetricas(postId) {
   return rows
 }
 
+// Retorna todos os posts de um mês/ano específico (agendados, publicados, erro, etc.)
+// para alimentar o calendário. Exclui apenas cancelados.
+async function listarPostsCalendario({ year, month, userId, isAdmin }) {
+  // month é 1-based (1=janeiro, 12=dezembro)
+  const inicio = new Date(Date.UTC(year, month - 1, 1))
+  const fim    = new Date(Date.UTC(year, month, 1))
+
+  const conds  = [`scheduled_at >= $1`, `scheduled_at < $2`, `status <> 'cancelled'`]
+  const params = [inicio.toISOString(), fim.toISOString()]
+
+  if (!isAdmin) {
+    params.push(userId)
+    conds.push(`user_id = $${params.length}`)
+  }
+
+  const { rows } = await pool.query(`
+    SELECT
+      id, text, platforms, status, repeat,
+      scheduled_at  AS "scheduledAt",
+      published_at  AS "publishedAt",
+      media_path    AS "mediaPath",
+      media_type    AS "mediaType",
+      media_items   AS "mediaItems",
+      youtube_title AS "youtubeTitle",
+      account_id    AS "accountId",
+      user_id       AS "userId"
+    FROM posts
+    WHERE ${conds.join(' AND ')}
+    ORDER BY scheduled_at ASC
+  `, params)
+  return rows
+}
+
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes,
   salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente,
-  registrarSnapshotMetricas, buscarHistoricoMetricas
+  registrarSnapshotMetricas, buscarHistoricoMetricas,
+  listarPostsCalendario
 }

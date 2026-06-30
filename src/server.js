@@ -151,7 +151,7 @@ app.get('/', (req, res) => {
   // reais de outros usuários), e a flag deve ser desligada após a aprovação.
   if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
     const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
-    return res.redirect('/index.html?token=' + encodeURIComponent(token))
+    return res.redirect((process.env.FRONTEND_URL || '') + '/index.html?token=' + encodeURIComponent(token))
   }
 
   res.sendFile(path.join(__dirname, '../public/sobre.html'))

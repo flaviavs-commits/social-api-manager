@@ -61,6 +61,25 @@ router.post('/upload-url', async (req, res) => {
   }
 })
 
+// GET /api/posts/calendar?year=2025&month=6
+router.get('/calendar', async (req, res) => {
+  try {
+    const year  = parseInt(req.query.year,  10)
+    const month = parseInt(req.query.month, 10)
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(400).json({ erro: 'year e month são obrigatórios (month: 1-12)' })
+    }
+    const posts = await repo.listarPostsCalendario({
+      year, month,
+      userId:  req.user.id,
+      isAdmin: isAdminRole(req.user.role)
+    })
+    res.json({ posts })
+  } catch (e) {
+    serverError(res, e, 'Erro ao carregar calendário')
+  }
+})
+
 // GET /api/posts
 router.get('/', async (req, res) => {
   try {
