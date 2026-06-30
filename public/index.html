@@ -3289,7 +3289,7 @@ function calInit() {
 
 async function calSilentRefresh() {
   try {
-    const data = await apiFetch(`/posts/calendar?year=${calYear}&month=${calMonth}`);
+    const data = await apiFetch(`/api/posts/calendar?year=${calYear}&month=${calMonth}`);
     calPosts = data.posts || [];
     const grid = document.getElementById('cal-grid');
     const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
@@ -3329,7 +3329,7 @@ async function calLoad() {
   grid.querySelectorAll('.cal-cell').forEach(c => c.classList.add('cal-loading'));
 
   try {
-    const data = await apiFetch(`/posts/calendar?year=${calYear}&month=${calMonth}`);
+    const data = await apiFetch(`/api/posts/calendar?year=${calYear}&month=${calMonth}`);
     calPosts = data.posts || [];
   } catch (e) {
     grid.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('cal-loading'));
