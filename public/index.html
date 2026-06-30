@@ -346,6 +346,8 @@ input, select, textarea, .modal-overlay, .nav-section, label {
 .cal-day-post-status { font-size: 10px; font-family: var(--mono); }
 .cal-day-post-actions { display: flex; gap: 6px; margin-top: 6px; }
 
+.cal-cell.cal-loading { opacity: 0.5; pointer-events: none; }
+
 @media (max-width: 700px) {
   .cal-grid { gap: 3px; }
   .cal-cell { min-height: 60px; padding: 4px; }
@@ -3272,24 +3274,27 @@ function calChangeMonth(delta) {
 async function calLoad() {
   document.getElementById('cal-month-label').textContent = `${CAL_MONTHS_PT[calMonth - 1]} ${calYear}`;
   const grid = document.getElementById('cal-grid');
-  // mantém cabeçalhos dos dias da semana
   const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
-  grid.innerHTML = '';
-  dayNames.forEach(d => grid.appendChild(d));
-  const loading = document.createElement('div');
-  loading.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--muted);padding:3rem;font-family:var(--mono);font-size:12px';
-  loading.textContent = 'carregando...';
-  grid.appendChild(loading);
+
+  // Renderiza o grid vazio imediatamente (sem esperar o fetch)
+  calPosts = [];
+  calRender(grid, dayNames);
+
+  // Marca células como skeleton enquanto carrega
+  grid.querySelectorAll('.cal-cell').forEach(c => c.classList.add('cal-loading'));
 
   try {
     const data = await apiFetch(`/posts/calendar?year=${calYear}&month=${calMonth}`);
     calPosts = data.posts || [];
   } catch (e) {
-    loading.textContent = 'Erro ao carregar posts.';
+    grid.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('cal-loading'));
+    showToast('Erro ao carregar posts do calendário', 'err');
     return;
   }
 
-  calRender(grid, dayNames);
+  // Re-renderiza com os posts reais
+  const dayNames2 = Array.from(grid.querySelectorAll('.cal-day-name'));
+  calRender(grid, dayNames2);
 }
 
 function calRender(grid, dayNames) {
