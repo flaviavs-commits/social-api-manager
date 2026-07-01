@@ -171,8 +171,20 @@ app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 app.get('/api/config', (req, res) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
-    googleApiKey: process.env.GOOGLE_API_KEY || null
+    googleApiKey: process.env.GOOGLE_API_KEY || null,
+    reviewMode: process.env.TIKTOK_REVIEW_MODE === 'true'
   })
+})
+
+// Endpoint público: retorna um token de sessão temporário para o avaliador do
+// TikTok entrar sem precisar de login. Só funciona quando TIKTOK_REVIEW_MODE=true.
+// Não expõe senha nem dados reais — o user_id apontado deve ser uma conta demo isolada.
+app.get('/api/review-token', (req, res) => {
+  if (process.env.TIKTOK_REVIEW_MODE !== 'true' || !process.env.TIKTOK_REVIEW_USER_ID) {
+    return res.status(404).json({ erro: 'não disponível' })
+  }
+  const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
+  res.json({ token })
 })
 
 app.use(requireAuth)

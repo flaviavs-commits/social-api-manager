@@ -970,6 +970,25 @@ const API = 'https://social-api-manager-production.up.railway.app';  // backend 
   }
 })();
 
+// Modo de revisão TikTok: se não houver token salvo, tenta buscar um token
+// de acesso automático no backend (só funciona quando TIKTOK_REVIEW_MODE=true).
+// reviewReadyPromise bloqueia o apiFetch até o auto-login terminar, evitando
+// que uma chamada de API dispare um redirect /login.html antes do token chegar.
+let _reviewReady;
+const reviewReadyPromise = new Promise(resolve => { _reviewReady = resolve; });
+(async function tentarAutoLoginReview() {
+  if (!localStorage.getItem('authToken')) {
+    try {
+      const res = await fetch(API + '/api/review-token');
+      if (res.ok) {
+        const { token } = await res.json();
+        if (token) localStorage.setItem('authToken', token);
+      }
+    } catch {}
+  }
+  _reviewReady();
+})();
+
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
 // vindos do usuário (nomes de conta, texto de posts, mensagens de log etc.)
 function escapeHtml(str) {
@@ -1017,6 +1036,7 @@ async function logout() {
 
 // ── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
+  await reviewReadyPromise; // aguarda auto-login de review antes de qualquer chamada
   const isFormData = opts.body instanceof FormData;
   const token = localStorage.getItem('authToken');
   const res = await fetch(API + path, {
