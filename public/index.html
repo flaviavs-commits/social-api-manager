@@ -278,6 +278,31 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .section-page { display: none; }
 .section-page.active { display: block; }
 
+/* ── Inbox mode: expande o main para preencher tudo ─────────────────────── */
+body.inbox-mode .main {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+body.inbox-mode #page-inbox.active {
+  flex: 1;
+  min-height: 0;
+  height: 100vh;
+  display: flex !important;
+  flex-direction: column;
+}
+@media (max-width: 768px) {
+  body.inbox-mode .main {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  body.inbox-mode #page-inbox {
+    height: calc(100vh - var(--topbar-h) - var(--bottomnav-h));
+  }
+}
+
 /* ── Toast ───────────────────────────────────────────────────────────────── */
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px 18px; font-size: 13px; z-index: 999; opacity: 0; transform: translateY(10px); transition: all 0.25s cubic-bezier(0.4,0,0.2,1); pointer-events: none; max-width: calc(100vw - 48px); box-shadow: var(--shadow); }
 .toast.show { opacity: 1; transform: translateY(0); }
@@ -545,7 +570,11 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-layout { display: grid; grid-template-columns: 320px 1fr; height: 100%; overflow: hidden; }
 
 @media (max-width: 768px) {
-  #inbox-fullpage { left: 0 !important; top: var(--topbar-h) !important; bottom: var(--bottomnav-h) !important; }
+  .inbox-layout { grid-template-columns: 1fr; }
+  .inbox-main { display: none; }
+  .inbox-sidebar { display: flex; }
+  .inbox-layout.thread-open .inbox-sidebar { display: none; }
+  .inbox-layout.thread-open .inbox-main { display: flex; }
 }
 
 /* Coluna esquerda: lista de conversas */
@@ -1167,12 +1196,9 @@ input, select, textarea, label, .bottom-nav-item {
     </div>
   </div>
 
-  <!-- INBOX (placeholder dentro do main para o showPage funcionar) -->
-  <div id="page-inbox" class="section-page" style="display:none!important"></div>
-
-  <!-- INBOX REAL (fora do main, cobre a área de conteúdo) -->
-  <div id="inbox-fullpage" style="display:none;position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;z-index:100;background:var(--bg)">
-    <div class="inbox-layout" style="height:100vh">
+  <!-- INBOX -->
+  <div id="page-inbox" class="section-page">
+    <div class="inbox-layout" style="height:100%">
 
       <!-- Sidebar: lista de posts/conversas -->
       <div class="inbox-sidebar" id="inbox-sidebar">
@@ -1253,7 +1279,7 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
 
     </div>
-  </div><!-- /inbox-fullpage -->
+  </div><!-- /page-inbox -->
 
   <!-- RASCUNHOS E TEMPLATES -->
   <div id="page-rascunhos" class="section-page">
@@ -1625,10 +1651,9 @@ function showPage(name) {
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics')  startAnalyticsAutoRefresh();
-  // Inbox usa fullpage overlay fora do .main
-  const inboxFull = document.getElementById('inbox-fullpage');
-  if (name === 'inbox') { inboxFull.style.display = 'block'; inboxInit(); }
-  else                  { inboxFull.style.display = 'none'; }
+  // Inbox mode: expande o .main para preencher a tela
+  if (name === 'inbox') { document.body.classList.add('inbox-mode'); inboxInit(); }
+  else                  { document.body.classList.remove('inbox-mode'); }
   if (name === 'rascunhos')  loadDrafts();
   else                       stopAnalyticsAutoRefresh();
 }
