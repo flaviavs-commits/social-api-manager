@@ -206,11 +206,21 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
   return rows
 }
 
+async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
+  const { rows } = await pool.query(
+    `UPDATE posts SET scheduled_at = $1
+     WHERE id = $2 AND status = 'scheduled' ${isAdmin ? '' : 'AND user_id = $3'}
+     RETURNING id`,
+    isAdmin ? [scheduledAt, id] : [scheduledAt, id, userId]
+  )
+  return rows[0] || null
+}
+
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes,
   salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente,
   registrarSnapshotMetricas, buscarHistoricoMetricas,
-  listarPostsCalendario
+  listarPostsCalendario, reagendarPost
 }

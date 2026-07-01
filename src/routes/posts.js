@@ -423,6 +423,22 @@ router.post('/:id/comments/:commentId/reply', async (req, res) => {
   }
 })
 
+// PATCH /api/posts/:id — reagendar post (drag & drop no calendário)
+router.patch('/:id', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const { scheduledAt } = req.body
+    if (!scheduledAt || isNaN(Date.parse(scheduledAt)))
+      return res.status(400).json({ erro: 'scheduledAt inválido' })
+    const updated = await repo.reagendarPost({ id, scheduledAt, userId: req.user.id, isAdmin: isAdminRole(req.user.role) })
+    if (!updated) return res.status(404).json({ erro: 'Post não encontrado ou não agendado' })
+    res.json({ ok: true })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
 // DELETE /api/posts/:id
 router.delete('/:id', async (req, res) => {
   try {

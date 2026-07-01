@@ -400,65 +400,119 @@ input, select, textarea, label, .bottom-nav-item {
 }
 
 /* ── Calendário ──────────────────────────────────────────────────────────── */
-.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
-.cal-nav { display: flex; align-items: center; gap: 8px; }
-.cal-nav button { background: none; border: 1px solid var(--border2); border-radius: 6px; width: 30px; height: 30px; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.cal-nav button:hover { color: var(--accent); border-color: var(--accent); }
-.cal-month-label { font-size: 15px; font-weight: 600; min-width: 180px; text-align: center; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.cal-day-name { text-align: center; font-size: 10px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 0 8px; }
-.cal-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-height: 100px; padding: 6px; cursor: pointer; transition: border-color 0.15s; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
-.cal-cell:hover { border-color: var(--accent); }
-.cal-cell.today { border-color: var(--accent); background: rgba(91,127,255,0.05); }
-.cal-cell.other-month { opacity: 0.4; }
-.cal-cell.has-posts { }
-.cal-day-num { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-bottom: 2px; font-weight: 600; }
-.cal-cell.today .cal-day-num { color: var(--accent); }
-.cal-post-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 4px; }
-.cal-post-pill.status-scheduled { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.cal-post-pill.status-published { background: rgba(52,211,153,0.12); color: var(--green); }
-.cal-post-pill.status-partial   { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.cal-post-pill.status-error     { background: rgba(248,113,113,0.12); color: var(--red); }
-.cal-post-pill.status-processing{ background: rgba(91,127,255,0.12); color: var(--accent); }
-.cal-more { font-size: 10px; color: var(--muted); font-family: var(--mono); padding: 1px 4px; }
-.cal-legend { display: flex; gap: 14px; flex-wrap: wrap; }
-.cal-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
-.cal-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+/* Toolbar: navegação + views + filtros */
+.cal-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.cal-nav { display: flex; align-items: center; gap: 6px; }
+.cal-nav button { background: none; border: 1px solid var(--border2); border-radius: 8px; width: 32px; height: 32px; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.cal-nav button:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+.cal-period-label { font-size: 15px; font-weight: 700; min-width: 170px; text-align: center; color: var(--text); letter-spacing: -0.01em; }
+.cal-today-btn { background: var(--surface2) !important; border: 1px solid var(--border2) !important; border-radius: 8px !important; width: auto !important; padding: 0 12px !important; font-size: 12px !important; font-weight: 600 !important; color: var(--muted) !important; height: 32px !important; cursor: pointer !important; transition: all 0.15s !important; }
+.cal-today-btn:hover { color: var(--accent) !important; border-color: var(--accent) !important; background: var(--accent-glow) !important; }
 
-/* Modal de dia do calendário — timeline de horas */
+/* View switcher */
+.cal-view-switcher { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.cal-view-btn { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: none; cursor: pointer; transition: all 0.15s; border-right: 1px solid var(--border); }
+.cal-view-btn:last-child { border-right: none; }
+.cal-view-btn.active { color: var(--accent); background: var(--accent-glow); }
+.cal-view-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.04); }
+
+/* Filtros por plataforma */
+.cal-filters { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.cal-filter-btn { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.cal-filter-btn:hover { border-color: var(--border2); color: var(--text); }
+.cal-filter-btn.active { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+.cal-filter-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* Legenda de status */
+.cal-legend-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.cal-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.cal-legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.cal-posts-count { margin-left: auto; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+
+/* Grid do mês */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.cal-day-name { text-align: center; font-size: 10px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 0 10px; }
+
+/* Células do mês */
+.cal-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; min-height: 110px; padding: 7px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; gap: 3px; overflow: hidden; position: relative; }
+.cal-cell:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.cal-cell.today { border-color: var(--accent); background: rgba(108,140,255,0.06); }
+.cal-cell.other-month { opacity: 0.35; pointer-events: none; }
+.cal-cell.drag-over { border-color: var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+/* Header da célula: número do dia + badge de contagem */
+.cal-day-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+.cal-day-num { font-size: 12px; font-family: var(--mono); color: var(--muted); font-weight: 700; line-height: 1; }
+.cal-cell.today .cal-day-num { color: var(--accent); background: var(--accent-glow); width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 11px; }
+.cal-day-badge { font-size: 9px; font-family: var(--mono); font-weight: 700; color: var(--accent); background: var(--accent-glow); border-radius: 10px; padding: 1px 6px; line-height: 16px; }
+
+/* Mini-cards de post no grid */
+.cal-post-card { border-radius: 5px; padding: 3px 6px; font-size: 10px; display: flex; align-items: center; gap: 5px; overflow: hidden; border-left: 3px solid transparent; background: rgba(255,255,255,0.04); transition: background 0.12s; cursor: pointer; }
+.cal-post-card:hover { background: rgba(255,255,255,0.08); }
+.cal-post-card.status-scheduled { border-left-color: var(--yellow); }
+.cal-post-card.status-published  { border-left-color: var(--green); }
+.cal-post-card.status-partial    { border-left-color: var(--yellow); }
+.cal-post-card.status-error      { border-left-color: var(--red); }
+.cal-post-card.status-processing { border-left-color: var(--accent); }
+.cal-post-card-thumb { width: 22px; height: 22px; border-radius: 3px; object-fit: cover; display: block; flex-shrink: 0; background: var(--border2); }
+.cal-post-card-thumb-ph { width: 22px; height: 22px; border-radius: 3px; background: var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.cal-post-card-body { flex: 1; min-width: 0; }
+.cal-post-card-time { font-size: 9px; font-family: var(--mono); color: var(--muted); line-height: 1; }
+.cal-post-card-text { font-size: 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.cal-post-card-plats { display: flex; gap: 2px; flex-shrink: 0; }
+.cal-more { font-size: 9px; color: var(--muted); font-family: var(--mono); padding: 1px 4px; text-align: center; }
+.cal-cell.cal-loading { opacity: 0.4; pointer-events: none; }
+
+/* ── View Semana ── */
+.cal-week-view { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.cal-week-header { display: grid; grid-template-columns: 52px repeat(7, 1fr); border-bottom: 1px solid var(--border); }
+.cal-week-header-cell { padding: 10px 8px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); border-right: 1px solid var(--border); }
+.cal-week-header-cell:last-child { border-right: none; }
+.cal-week-header-cell.today-col { color: var(--accent); background: rgba(108,140,255,0.06); }
+.cal-week-header-cell .day-name { font-size: 9px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; display: block; opacity: 0.7; }
+.cal-week-body { display: grid; grid-template-columns: 52px repeat(7, 1fr); max-height: 65vh; overflow-y: auto; }
+.cal-week-hour-col { border-right: 1px solid var(--border); }
+.cal-week-hour-label { height: 56px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 6px 8px 0 0; font-size: 10px; font-family: var(--mono); color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.04); }
+.cal-week-day-col { border-right: 1px solid var(--border); }
+.cal-week-day-col:last-child { border-right: none; }
+.cal-week-day-col.today-col { background: rgba(108,140,255,0.03); }
+.cal-week-hour-cell { height: 56px; border-bottom: 1px solid rgba(255,255,255,0.04); padding: 3px 4px; display: flex; flex-direction: column; gap: 2px; }
+.cal-week-post { border-radius: 4px; padding: 2px 5px; font-size: 10px; border-left: 3px solid transparent; background: rgba(255,255,255,0.05); cursor: pointer; overflow: hidden; transition: background 0.12s; }
+.cal-week-post:hover { background: rgba(255,255,255,0.1); }
+.cal-week-post.status-scheduled { border-left-color: var(--yellow); }
+.cal-week-post.status-published  { border-left-color: var(--green); }
+.cal-week-post.status-error      { border-left-color: var(--red); }
+.cal-week-post.status-processing { border-left-color: var(--accent); }
+.cal-week-post-time { font-size: 9px; font-family: var(--mono); color: var(--muted); display: block; }
+.cal-week-post-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); display: block; }
+
+/* Modal de dia — timeline */
 .cal-day-modal { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
 .cal-day-modal.open { opacity: 1; pointer-events: all; }
-.cal-day-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 540px; max-width: 96vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
+.cal-day-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 560px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.5); }
 .cal-day-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; gap: 10px; }
-.cal-day-modal-title { font-size: 14px; font-weight: 600; }
+.cal-day-modal-title { font-size: 15px; font-weight: 700; }
 .cal-day-modal-body { overflow-y: auto; flex: 1; }
 
-/* timeline */
+/* Timeline */
 .cal-timeline { display: flex; flex-direction: column; }
 .cal-timeline-row { display: flex; min-height: 52px; border-bottom: 1px solid rgba(255,255,255,0.04); }
 .cal-timeline-row:last-child { border-bottom: none; }
 .cal-timeline-row.has-post { background: rgba(255,255,255,0.015); }
-.cal-tl-hour { width: 52px; flex-shrink: 0; padding: 8px 10px 8px 14px; font-size: 11px; font-family: var(--mono); color: var(--muted); text-align: right; line-height: 1; padding-top: 10px; border-right: 1px solid var(--border); }
+.cal-tl-hour { width: 52px; flex-shrink: 0; padding: 10px 10px 0 14px; font-size: 11px; font-family: var(--mono); color: var(--muted); text-align: right; line-height: 1; border-right: 1px solid var(--border); }
 .cal-tl-hour.current-hour { color: var(--accent); font-weight: 700; }
 .cal-tl-posts { flex: 1; padding: 6px 10px; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
 .cal-tl-empty { min-height: 52px; }
-
-/* card de post dentro da timeline */
 .cal-tl-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; gap: 9px; align-items: flex-start; cursor: default; transition: border-color 0.15s; }
 .cal-tl-card:hover { border-color: var(--border2); }
-.cal-tl-card.status-scheduled { border-left: 3px solid #fbbf24; }
+.cal-tl-card.status-scheduled { border-left: 3px solid var(--yellow); }
 .cal-tl-card.status-published  { border-left: 3px solid var(--green); }
-.cal-tl-card.status-partial    { border-left: 3px solid #fbbf24; }
+.cal-tl-card.status-partial    { border-left: 3px solid var(--yellow); }
 .cal-tl-card.status-error      { border-left: 3px solid var(--red); }
 .cal-tl-card.status-processing { border-left: 3px solid var(--accent); }
-.cal-tl-thumb { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; display: block; background: var(--border2); transition: opacity 0.15s; }
+.cal-tl-thumb { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; display: block; background: var(--border2); cursor: zoom-in; transition: opacity 0.15s; }
 .cal-tl-thumb:hover { opacity: 0.85; }
 .cal-tl-thumb-ph { width: 56px; height: 56px; border-radius: 6px; background: var(--border2); display: flex; align-items: center; justify-content: center; color: var(--muted); }
-
-/* Preview expandido de mídia */
-.cal-media-preview { position: fixed; inset: 0; z-index: 600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.2s; cursor: zoom-out; }
-.cal-media-preview.open { opacity: 1; pointer-events: all; }
-.cal-media-preview img, .cal-media-preview video { max-width: min(92vw, 720px); max-height: 82vh; border-radius: 10px; object-fit: contain; box-shadow: 0 32px 80px rgba(0,0,0,0.6); display: block; }
 .cal-tl-info { flex: 1; min-width: 0; }
 .cal-tl-time { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 2px; }
 .cal-tl-text { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
@@ -466,16 +520,24 @@ input, select, textarea, label, .bottom-nav-item {
 .cal-tl-status { font-size: 10px; font-family: var(--mono); margin-top: 2px; }
 .cal-tl-actions { margin-top: 4px; }
 
-.cal-cell.cal-loading { opacity: 0.5; pointer-events: none; }
+/* Preview de mídia */
+.cal-media-preview { position: fixed; inset: 0; z-index: 600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.88); backdrop-filter: blur(8px); opacity: 0; pointer-events: none; transition: opacity 0.2s; cursor: zoom-out; }
+.cal-media-preview.open { opacity: 1; pointer-events: all; }
+.cal-media-preview img, .cal-media-preview video { max-width: min(92vw, 800px); max-height: 85vh; border-radius: 12px; object-fit: contain; box-shadow: 0 32px 80px rgba(0,0,0,0.7); display: block; }
 
 @media (max-width: 700px) {
+  .cal-toolbar { gap: 8px; }
+  .cal-period-label { min-width: 130px; font-size: 13px; }
+  .cal-filters { gap: 4px; }
+  .cal-filter-btn { padding: 4px 9px; font-size: 10px; }
   .cal-grid { gap: 2px; }
-  .cal-cell { min-height: 58px; padding: 4px; border-radius: 6px; }
-  .cal-post-pill { font-size: 9px; padding: 1px 4px; }
-  .cal-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .cal-legend { gap: 10px; }
+  .cal-cell { min-height: 64px; padding: 5px; border-radius: 7px; }
+  .cal-post-card { padding: 2px 4px; }
+  .cal-post-card-thumb, .cal-post-card-thumb-ph { display: none; }
   .cal-day-modal-box { width: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .cal-day-modal { align-items: flex-end; }
+  .cal-week-view { overflow-x: auto; }
+  .cal-week-body, .cal-week-header { min-width: 560px; }
 }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -792,30 +854,70 @@ input, select, textarea, label, .bottom-nav-item {
     <div class="page-header">
       <div>
         <div class="page-title">Calendário</div>
-        <div class="page-sub">Visualize todos os posts agendados e publicados por dia</div>
+        <div class="page-sub">Planeje e visualize todos os seus posts</div>
       </div>
-      <button class="btn" onclick="showPage('agendador')" style="display:flex;align-items:center;gap:6px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <button class="btn btn-accent" onclick="showPage('agendador')" style="gap:6px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Novo post
       </button>
     </div>
 
-    <div class="cal-header">
+    <!-- Toolbar: navegação + views + filtros -->
+    <div class="cal-toolbar">
+      <!-- Navegação de período -->
       <div class="cal-nav">
-        <button onclick="calChangeMonth(-1)" title="Mês anterior">‹</button>
-        <span class="cal-month-label" id="cal-month-label">—</span>
-        <button onclick="calChangeMonth(1)" title="Próximo mês">›</button>
+        <button onclick="calChangePeriod(-1)" title="Anterior">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="cal-period-label" id="cal-month-label">—</span>
+        <button onclick="calChangePeriod(1)" title="Próximo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="cal-today-btn" onclick="calGoToday()">Hoje</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn" onclick="calGoToday()" style="font-size:11px;padding:5px 12px">Hoje</button>
-        <div class="cal-legend">
-          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(251,191,36,0.6)"></div>Agendado</div>
-          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(52,211,153,0.6)"></div>Publicado</div>
-          <div class="cal-legend-item"><div class="cal-legend-dot" style="background:rgba(248,113,113,0.6)"></div>Erro</div>
-        </div>
+
+      <!-- View switcher: Mês / Semana -->
+      <div class="cal-view-switcher">
+        <button class="cal-view-btn active" id="cal-view-month" onclick="calSetView('month')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="4" x2="10" y2="22"/></svg>
+          Mês
+        </button>
+        <button class="cal-view-btn" id="cal-view-week" onclick="calSetView('week')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="4" x2="7" y2="22"/><line x1="13" y1="4" x2="13" y2="22"/></svg>
+          Semana
+        </button>
+      </div>
+
+      <!-- Filtros por plataforma -->
+      <div class="cal-filters" id="cal-filters">
+        <button class="cal-filter-btn active" data-plat="all" onclick="calSetFilter('all',this)">
+          <span class="cal-filter-dot" style="background:var(--accent)"></span> Todas
+        </button>
+        <button class="cal-filter-btn" data-plat="instagram" onclick="calSetFilter('instagram',this)">
+          <span class="cal-filter-dot" style="background:var(--ig)"></span> Instagram
+        </button>
+        <button class="cal-filter-btn" data-plat="facebook" onclick="calSetFilter('facebook',this)">
+          <span class="cal-filter-dot" style="background:var(--fb)"></span> Facebook
+        </button>
+        <button class="cal-filter-btn" data-plat="youtube" onclick="calSetFilter('youtube',this)">
+          <span class="cal-filter-dot" style="background:var(--yt)"></span> YouTube
+        </button>
+        <button class="cal-filter-btn" data-plat="tiktok" onclick="calSetFilter('tiktok',this)">
+          <span class="cal-filter-dot" style="background:#a0a4bc"></span> TikTok
+        </button>
       </div>
     </div>
 
+    <!-- Legenda de status -->
+    <div class="cal-legend-bar">
+      <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--yellow)"></span>Agendado</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--green)"></span>Publicado</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--accent)"></span>Publicando</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot" style="background:var(--red)"></span>Erro</div>
+      <div class="cal-posts-count" id="cal-posts-count"></div>
+    </div>
+
+    <!-- Grid do calendário (mês) -->
     <div class="cal-grid" id="cal-grid">
       <div class="cal-day-name">Dom</div>
       <div class="cal-day-name">Seg</div>
@@ -824,7 +926,12 @@ input, select, textarea, label, .bottom-nav-item {
       <div class="cal-day-name">Qui</div>
       <div class="cal-day-name">Sex</div>
       <div class="cal-day-name">Sáb</div>
-      <div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:3rem;font-family:var(--mono);font-size:12px" id="cal-loading">carregando...</div>
+    </div>
+
+    <!-- View semana -->
+    <div class="cal-week-view" id="cal-week-view" style="display:none">
+      <div class="cal-week-header" id="cal-week-header"></div>
+      <div class="cal-week-body" id="cal-week-body"></div>
     </div>
   </div>
 
@@ -3463,25 +3570,30 @@ const CAL_MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Ju
 const CAL_PLATFORM_COLORS = { facebook:'var(--fb)', instagram:'var(--ig)', youtube:'var(--yt)', tiktok:'#a0a0b0' };
 const CAL_PLATFORM_ICONS  = { facebook:'f', instagram:'ig', youtube:'yt', tiktok:'tt' };
 
+// ── Estado do calendário ──────────────────────────────────────────────────────
 let calYear  = new Date().getFullYear();
 let calMonth = new Date().getMonth() + 1; // 1-based
+let calWeekStart = null; // Date da segunda/domingo da semana atual (view semana)
 let calPosts = [];
 let calInitialized = false;
 let calRefreshTimer = null;
+let calView = 'month'; // 'month' | 'week'
+let calFilterPlat = 'all'; // 'all' | 'instagram' | 'facebook' | 'youtube' | 'tiktok'
+let calDayModalDate = null;
 
+// ── Init & refresh ────────────────────────────────────────────────────────────
 function calInit() {
   if (!calInitialized) {
     calYear  = new Date().getFullYear();
     calMonth = new Date().getMonth() + 1;
+    calWeekStart = calGetWeekStart(new Date());
     calInitialized = true;
   }
   calLoad();
   clearInterval(calRefreshTimer);
-  // Atualiza automaticamente a cada 30s enquanto o calendário estiver aberto
   calRefreshTimer = setInterval(async () => {
     if (!document.getElementById('page-calendario').classList.contains('active')) {
-      clearInterval(calRefreshTimer);
-      return;
+      clearInterval(calRefreshTimer); return;
     }
     await calSilentRefresh();
   }, 30000);
@@ -3489,12 +3601,10 @@ function calInit() {
 
 async function calSilentRefresh() {
   try {
-    const data = await apiFetch(`/api/posts/calendar?year=${calYear}&month=${calMonth}`);
+    const { year, month } = calFetchParams();
+    const data = await apiFetch(`/api/posts/calendar?year=${year}&month=${month}`);
     calPosts = data.posts || [];
-    const grid = document.getElementById('cal-grid');
-    const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
-    calRender(grid, dayNames);
-    // Atualiza o modal de dia se estiver aberto
+    calRenderCurrent();
     if (calDayModalDate && document.getElementById('cal-day-modal').classList.contains('open')) {
       const updated = calPostsForDay(calDayModalDate.dateStr);
       calDayModalDate.posts = updated;
@@ -3503,73 +3613,140 @@ async function calSilentRefresh() {
   } catch {}
 }
 
+function calFetchParams() {
+  if (calView === 'week' && calWeekStart) {
+    // Pode cruzar meses — busca o mês da segunda do range de 7 dias
+    const mid = new Date(calWeekStart); mid.setDate(mid.getDate() + 3);
+    return { year: mid.getFullYear(), month: mid.getMonth() + 1 };
+  }
+  return { year: calYear, month: calMonth };
+}
+
+function calGetWeekStart(date) {
+  const d = new Date(date);
+  const dow = d.getDay(); // 0=dom
+  d.setDate(d.getDate() - dow); // volta para domingo
+  return d;
+}
+
+// ── Navegação ─────────────────────────────────────────────────────────────────
 function calGoToday() {
   calYear  = new Date().getFullYear();
   calMonth = new Date().getMonth() + 1;
+  calWeekStart = calGetWeekStart(new Date());
   calLoad();
 }
 
-function calChangeMonth(delta) {
-  calMonth += delta;
-  if (calMonth > 12) { calMonth = 1;  calYear++; }
-  if (calMonth < 1)  { calMonth = 12; calYear--; }
+function calChangePeriod(delta) {
+  if (calView === 'week') {
+    const d = new Date(calWeekStart);
+    d.setDate(d.getDate() + delta * 7);
+    calWeekStart = d;
+  } else {
+    calMonth += delta;
+    if (calMonth > 12) { calMonth = 1;  calYear++; }
+    if (calMonth < 1)  { calMonth = 12; calYear--; }
+  }
   calLoad();
 }
 
+function calSetView(v) {
+  calView = v;
+  document.getElementById('cal-view-month').classList.toggle('active', v === 'month');
+  document.getElementById('cal-view-week').classList.toggle('active', v === 'week');
+  document.getElementById('cal-grid').style.display = v === 'month' ? 'grid' : 'none';
+  document.getElementById('cal-week-view').style.display = v === 'week' ? 'block' : 'none';
+  calLoad();
+}
+
+function calSetFilter(plat, btn) {
+  calFilterPlat = plat;
+  document.querySelectorAll('.cal-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calRenderCurrent();
+}
+
+function calFilteredPosts() {
+  if (calFilterPlat === 'all') return calPosts;
+  return calPosts.filter(p => (p.platforms || []).includes(calFilterPlat));
+}
+
+// ── Carregamento ──────────────────────────────────────────────────────────────
 async function calLoad() {
-  document.getElementById('cal-month-label').textContent = `${CAL_MONTHS_PT[calMonth - 1]} ${calYear}`;
-  const grid = document.getElementById('cal-grid');
-  const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
+  const { year, month } = calFetchParams();
+  // Label do período
+  const label = calView === 'week' && calWeekStart
+    ? calWeekLabel()
+    : `${CAL_MONTHS_PT[calMonth - 1]} ${calYear}`;
+  document.getElementById('cal-month-label').textContent = label;
 
-  // Renderiza o grid vazio imediatamente (sem esperar o fetch)
+  // Renderiza vazio enquanto carrega
   calPosts = [];
-  calRender(grid, dayNames);
+  calRenderCurrent();
 
-  // Marca células como skeleton enquanto carrega
+  const grid = document.getElementById('cal-grid');
   grid.querySelectorAll('.cal-cell').forEach(c => c.classList.add('cal-loading'));
 
   try {
-    const data = await apiFetch(`/api/posts/calendar?year=${calYear}&month=${calMonth}`);
+    const data = await apiFetch(`/api/posts/calendar?year=${year}&month=${month}`);
     calPosts = data.posts || [];
-  } catch (e) {
+  } catch {
     grid.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('cal-loading'));
     showToast('Erro ao carregar posts do calendário', 'err');
     return;
   }
 
-  // Re-renderiza com os posts reais
-  const dayNames2 = Array.from(grid.querySelectorAll('.cal-day-name'));
-  calRender(grid, dayNames2);
+  calRenderCurrent();
+  calUpdatePostsCount();
 }
 
-function calRender(grid, dayNames) {
+function calUpdatePostsCount() {
+  const total = calFilteredPosts().length;
+  const el = document.getElementById('cal-posts-count');
+  if (el) el.textContent = total > 0 ? `${total} post${total > 1 ? 's' : ''}` : '';
+}
+
+function calWeekLabel() {
+  const end = new Date(calWeekStart); end.setDate(end.getDate() + 6);
+  const opts = { day:'numeric', month:'short' };
+  const s = calWeekStart.toLocaleDateString('pt-BR', opts);
+  const e = end.toLocaleDateString('pt-BR', opts);
+  return `${s} — ${e} ${end.getFullYear()}`;
+}
+
+function calRenderCurrent() {
+  calUpdatePostsCount();
+  if (calView === 'week') {
+    calRenderWeek();
+  } else {
+    const grid = document.getElementById('cal-grid');
+    const dayNames = Array.from(grid.querySelectorAll('.cal-day-name'));
+    calRenderMonth(grid, dayNames);
+  }
+}
+
+// ── Render mês ────────────────────────────────────────────────────────────────
+function calRenderMonth(grid, dayNames) {
   grid.innerHTML = '';
   dayNames.forEach(d => grid.appendChild(d));
 
-  const today     = new Date();
-  const todayStr  = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const firstDay  = new Date(calYear, calMonth - 1, 1);
-  const totalDays = new Date(calYear, calMonth, 0).getDate();
-  const startDow  = firstDay.getDay(); // 0=dom
+  const today    = new Date();
+  const todayStr = calDateStr(today);
+  const firstDay = new Date(calYear, calMonth - 1, 1);
+  const totalDays= new Date(calYear, calMonth, 0).getDate();
+  const startDow = firstDay.getDay();
 
-  // células vazias do início
   for (let i = 0; i < startDow; i++) {
     const prev = new Date(calYear, calMonth - 1, -startDow + i + 1);
     grid.appendChild(calMakeCell(prev, true, todayStr));
   }
-
   for (let d = 1; d <= totalDays; d++) {
-    const date = new Date(calYear, calMonth - 1, d);
-    grid.appendChild(calMakeCell(date, false, todayStr));
+    grid.appendChild(calMakeCell(new Date(calYear, calMonth - 1, d), false, todayStr));
   }
-
-  // completar última linha
-  const totalCells = startDow + totalDays;
-  const remainder  = totalCells % 7;
-  if (remainder !== 0) {
-    for (let i = 1; i <= 7 - remainder; i++) {
-      const next = new Date(calYear, calMonth, i);
-      grid.appendChild(calMakeCell(next, true, todayStr));
+  const rem = (startDow + totalDays) % 7;
+  if (rem !== 0) {
+    for (let i = 1; i <= 7 - rem; i++) {
+      grid.appendChild(calMakeCell(new Date(calYear, calMonth, i), true, todayStr));
     }
   }
 }
@@ -3579,61 +3756,217 @@ function calDateStr(date) {
 }
 
 function calPostsForDay(dateStr) {
-  return calPosts.filter(p => {
+  return calFilteredPosts().filter(p => {
     const ref = p.publishedAt || p.scheduledAt;
     if (!ref) return false;
-    // scheduledAt vem em UTC do banco; ajusta para horário local
     const local = new Date(ref);
-    const localStr = `${local.getFullYear()}-${String(local.getMonth()+1).padStart(2,'0')}-${String(local.getDate()).padStart(2,'0')}`;
-    return localStr === dateStr;
+    return calDateStr(local) === dateStr;
   });
 }
 
 function calMakeCell(date, otherMonth, todayStr) {
-  const dStr   = calDateStr(date);
-  const posts  = calPostsForDay(dStr);
-  const cell   = document.createElement('div');
-  cell.className = 'cal-cell' + (otherMonth ? ' other-month' : '') + (dStr === todayStr ? ' today' : '') + (posts.length ? ' has-posts' : '');
-  cell.onclick = () => calOpenDayModal(dStr, date, posts);
+  const dStr  = calDateStr(date);
+  const posts = calPostsForDay(dStr);
+  const cell  = document.createElement('div');
+  cell.className = 'cal-cell'
+    + (otherMonth ? ' other-month' : '')
+    + (dStr === todayStr ? ' today' : '')
+    + (posts.length ? ' has-posts' : '');
 
+  // Drag & drop target
+  cell.addEventListener('dragover', (e) => { e.preventDefault(); cell.classList.add('drag-over'); });
+  cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+  cell.addEventListener('drop', (e) => {
+    e.preventDefault();
+    cell.classList.remove('drag-over');
+    const postId = e.dataTransfer.getData('text/plain');
+    if (postId) calDragDrop(postId, dStr);
+  });
+
+  // Header: número + badge
+  const header = document.createElement('div');
+  header.className = 'cal-day-header';
   const num = document.createElement('div');
   num.className = 'cal-day-num';
   num.textContent = date.getDate();
-  cell.appendChild(num);
+  header.appendChild(num);
+  if (posts.length > 0) {
+    const badge = document.createElement('div');
+    badge.className = 'cal-day-badge';
+    badge.textContent = posts.length;
+    header.appendChild(badge);
+  }
+  cell.appendChild(header);
 
+  // Cards dos posts
   const MAX_VISIBLE = 3;
-  posts.slice(0, MAX_VISIBLE).forEach(p => {
-    cell.appendChild(calMakePill(p));
-  });
+  posts.slice(0, MAX_VISIBLE).forEach(p => cell.appendChild(calMakePostCard(p)));
   if (posts.length > MAX_VISIBLE) {
     const more = document.createElement('div');
     more.className = 'cal-more';
     more.textContent = `+${posts.length - MAX_VISIBLE} mais`;
     cell.appendChild(more);
   }
+
+  cell.onclick = () => calOpenDayModal(dStr, date, calPostsForDay(dStr));
   return cell;
 }
 
-function calMakePill(post) {
-  const pill = document.createElement('div');
-  pill.className = `cal-post-pill status-${post.status}`;
+function calMakePostCard(post) {
+  const card = document.createElement('div');
+  card.className = `cal-post-card status-${post.status}`;
 
-  // ícones das plataformas
-  const platDots = (post.platforms || []).map(p => {
-    const span = document.createElement('span');
-    span.style.cssText = `display:inline-block;width:6px;height:6px;border-radius:50%;background:${CAL_PLATFORM_COLORS[p] || 'var(--muted)'};flex-shrink:0`;
-    return span.outerHTML;
-  }).join('');
+  // Drag source
+  card.draggable = post.status === 'scheduled';
+  card.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', String(post.id));
+    e.stopPropagation();
+  });
 
-  const label = post.youtubeTitle || post.text || '(sem texto)';
-  pill.innerHTML = platDots + `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(label)}</span>`;
-  return pill;
+  // Thumbnail (22x22)
+  const mediaSrc  = post.mediaItems?.[0]?.path || post.mediaPath || null;
+  const mediaType = post.mediaItems?.[0]?.type  || post.mediaType || null;
+  if (mediaSrc && mediaType !== 'video') {
+    const img = document.createElement('img');
+    img.className = 'cal-post-card-thumb';
+    img.src = mediaSrc;
+    img.onerror = () => img.remove();
+    card.appendChild(img);
+  } else if (mediaSrc && mediaType === 'video') {
+    const ph = document.createElement('div');
+    ph.className = 'cal-post-card-thumb-ph';
+    ph.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    ph.style.color = 'var(--muted)';
+    card.appendChild(ph);
+  }
+
+  // Body: hora + texto
+  const body = document.createElement('div');
+  body.className = 'cal-post-card-body';
+  const ref = post.publishedAt || post.scheduledAt;
+  const timeStr = ref ? new Date(ref).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+  const rawLabel = post.youtubeTitle || post.text || '';
+  body.innerHTML = `<div class="cal-post-card-time">${escapeHtml(timeStr)}</div><div class="cal-post-card-text">${escapeHtml(rawLabel) || '<em style="color:var(--muted)">—</em>'}</div>`;
+  card.appendChild(body);
+
+  // Dot icons plataformas
+  if ((post.platforms || []).length) {
+    const dots = document.createElement('div');
+    dots.className = 'cal-post-card-plats';
+    (post.platforms || []).slice(0, 3).forEach(p => {
+      const d = document.createElement('span');
+      d.style.cssText = `width:6px;height:6px;border-radius:50%;background:${CAL_PLATFORM_COLORS[p] || 'var(--muted)'};display:block`;
+      dots.appendChild(d);
+    });
+    card.appendChild(dots);
+  }
+
+  card.onclick = (e) => { e.stopPropagation(); };
+  return card;
 }
 
-// ── Modal de dia com timeline de horas ───────────────────────────────────────
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+async function calDragDrop(postId, newDateStr) {
+  const post = calPosts.find(p => String(p.id) === String(postId));
+  if (!post || post.status !== 'scheduled') return;
+  const oldRef = new Date(post.scheduledAt);
+  const [y, m, d] = newDateStr.split('-').map(Number);
+  const newRef = new Date(oldRef);
+  newRef.setFullYear(y, m - 1, d);
+  try {
+    await apiFetch(`/api/posts/${postId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduledAt: newRef.toISOString() })
+    });
+    showToast('Post movido!', 'ok');
+    await calSilentRefresh();
+  } catch { showToast('Não foi possível mover o post', 'err'); }
+}
 
-let calDayModalDate = null; // guarda a data aberta para re-renderizar após reload
+// ── Render semana ─────────────────────────────────────────────────────────────
+function calRenderWeek() {
+  const header = document.getElementById('cal-week-header');
+  const body   = document.getElementById('cal-week-body');
+  if (!calWeekStart) calWeekStart = calGetWeekStart(new Date());
 
+  const today    = new Date();
+  const todayStr = calDateStr(today);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(calWeekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+
+  const DAY_ABBR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  // Header
+  header.innerHTML = '';
+  const cornerEl = document.createElement('div');
+  cornerEl.className = 'cal-week-header-cell';
+  header.appendChild(cornerEl);
+  days.forEach(d => {
+    const dStr = calDateStr(d);
+    const cel = document.createElement('div');
+    cel.className = 'cal-week-header-cell' + (dStr === todayStr ? ' today-col' : '');
+    cel.innerHTML = `<span class="day-name">${DAY_ABBR[d.getDay()]}</span>${d.getDate()}`;
+    header.appendChild(cel);
+  });
+
+  // Body: 24 linhas x 7 colunas
+  body.innerHTML = '';
+
+  // coluna de horas (sticky esquerda)
+  const hourCol = document.createElement('div');
+  hourCol.className = 'cal-week-hour-col';
+  for (let h = 0; h < 24; h++) {
+    const lbl = document.createElement('div');
+    lbl.className = 'cal-week-hour-label';
+    lbl.textContent = String(h).padStart(2,'0') + 'h';
+    hourCol.appendChild(lbl);
+  }
+  body.appendChild(hourCol);
+
+  // colunas de cada dia
+  days.forEach(d => {
+    const dStr = calDateStr(d);
+    const col  = document.createElement('div');
+    col.className = 'cal-week-day-col' + (dStr === todayStr ? ' today-col' : '');
+
+    const postsOfDay = calPostsForDay(dStr);
+
+    for (let h = 0; h < 24; h++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-week-hour-cell';
+
+      const postsOfHour = postsOfDay.filter(p => {
+        const ref = p.publishedAt || p.scheduledAt;
+        return ref && new Date(ref).getHours() === h;
+      });
+
+      postsOfHour.forEach(p => {
+        const chip = document.createElement('div');
+        chip.className = `cal-week-post status-${p.status}`;
+        const ref = p.publishedAt || p.scheduledAt;
+        const mins = ref ? String(new Date(ref).getMinutes()).padStart(2,'0') : '';
+        const lbl  = p.youtubeTitle || p.text || '—';
+        chip.innerHTML = `<span class="cal-week-post-time">${String(h).padStart(2,'0')}:${mins}</span><span class="cal-week-post-text">${escapeHtml(lbl)}</span>`;
+        chip.onclick = () => calOpenDayModal(dStr, d, calPostsForDay(dStr));
+        cell.appendChild(chip);
+      });
+
+      col.appendChild(cell);
+    }
+
+    body.appendChild(col);
+  });
+
+  // Scroll para a hora atual se for semana atual
+  const nowH = today.getHours();
+  setTimeout(() => { body.scrollTop = Math.max(0, nowH * 56 - 112); }, 0);
+}
+
+// ── Modal de dia ──────────────────────────────────────────────────────────────
 function calOpenDayModal(dateStr, date, posts) {
   calDayModalDate = { dateStr, date, posts };
   _calRenderDayModal(dateStr, date, posts);
@@ -3643,40 +3976,29 @@ function calOpenDayModal(dateStr, date, posts) {
 function _calRenderDayModal(dateStr, date, posts) {
   const title = document.getElementById('cal-day-modal-title');
   const body  = document.getElementById('cal-day-modal-body');
-
-  const dayNames = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
-  title.textContent = `${dayNames[date.getDay()]}, ${date.getDate()} de ${CAL_MONTHS_PT[date.getMonth()]} de ${date.getFullYear()}`;
-
+  const DAY_NAMES = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+  title.textContent = `${DAY_NAMES[date.getDay()]}, ${date.getDate()} de ${CAL_MONTHS_PT[date.getMonth()]}`;
   body.innerHTML = '';
 
   if (posts.length === 0) {
-    body.innerHTML = `
-      <div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-family:var(--mono);font-size:12px">
-        Nenhum post agendado neste dia.
-        <br><br>
-        <button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="font-size:11px;padding:6px 14px">+ Agendar post</button>
-      </div>`;
+    body.innerHTML = `<div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-family:var(--mono);font-size:12px">
+      Nenhum post agendado neste dia.<br><br>
+      <button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="font-size:11px;padding:6px 14px">+ Agendar post</button>
+    </div>`;
     return;
   }
 
-  // Agrupa posts por hora
   const byHour = {};
   for (const p of posts) {
-    const ref = p.publishedAt || p.scheduledAt;
-    const h = ref ? new Date(ref).getHours() : -1;
+    const h = (p.publishedAt || p.scheduledAt) ? new Date(p.publishedAt || p.scheduledAt).getHours() : -1;
     if (!byHour[h]) byHour[h] = [];
     byHour[h].push(p);
   }
 
-  // Decide intervalo de horas a mostrar: do menor ao maior com margem
-  const hours = posts.map(p => {
-    const ref = p.publishedAt || p.scheduledAt;
-    return ref ? new Date(ref).getHours() : 0;
-  });
-  const minH = Math.max(0,  Math.min(...hours) - 1);
-  const maxH = Math.min(23, Math.max(...hours) + 1);
-
-  const nowH = new Date().getHours();
+  const hours   = posts.map(p => { const ref = p.publishedAt || p.scheduledAt; return ref ? new Date(ref).getHours() : 0; });
+  const minH    = Math.max(0,  Math.min(...hours) - 1);
+  const maxH    = Math.min(23, Math.max(...hours) + 1);
+  const nowH    = new Date().getHours();
   const isToday = dateStr === calDateStr(new Date());
 
   const timeline = document.createElement('div');
@@ -3684,32 +4006,21 @@ function _calRenderDayModal(dateStr, date, posts) {
 
   for (let h = minH; h <= maxH; h++) {
     const row = document.createElement('div');
-    const hasPosts = !!byHour[h];
-    row.className = 'cal-timeline-row' + (hasPosts ? ' has-post' : '');
-
+    row.className = 'cal-timeline-row' + (byHour[h] ? ' has-post' : '');
     const hourEl = document.createElement('div');
     hourEl.className = 'cal-tl-hour' + (isToday && h === nowH ? ' current-hour' : '');
     hourEl.textContent = String(h).padStart(2,'0') + 'h';
     row.appendChild(hourEl);
-
     const postsEl = document.createElement('div');
-    postsEl.className = 'cal-tl-posts';
-
-    if (hasPosts) {
-      byHour[h].forEach(p => postsEl.appendChild(calMakeTlCard(p)));
-    } else {
-      postsEl.classList.add('cal-tl-empty');
-    }
-
+    postsEl.className = 'cal-tl-posts' + (byHour[h] ? '' : ' cal-tl-empty');
+    if (byHour[h]) byHour[h].forEach(p => postsEl.appendChild(calMakeTlCard(p)));
     row.appendChild(postsEl);
     timeline.appendChild(row);
   }
 
   body.appendChild(timeline);
-
-  // rodapé
   const footer = document.createElement('div');
-  footer.style.cssText = 'padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;';
+  footer.style.cssText = 'padding:10px 14px;border-top:1px solid var(--border);';
   footer.innerHTML = `<button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="width:100%;font-size:11px;padding:7px">+ Agendar novo post neste dia</button>`;
   body.appendChild(footer);
 }
@@ -3718,52 +4029,32 @@ function calMakeTlCard(post) {
   const card = document.createElement('div');
   card.className = `cal-tl-card status-${post.status}`;
 
-  // thumbnail — clicável para preview expandido
   const thumbWrap = document.createElement('div');
-  thumbWrap.style.cssText = 'flex-shrink:0;cursor:pointer;position:relative;';
-
+  thumbWrap.style.cssText = 'flex-shrink:0;position:relative;';
   const mediaSrc  = post.mediaItems?.[0]?.path || post.mediaPath || null;
   const mediaType = post.mediaItems?.[0]?.type  || post.mediaType || null;
   const isVideo   = mediaType === 'video';
 
   if (mediaSrc) {
     if (isVideo) {
-      // Vídeo: mostra elemento <video> mudo como thumbnail (carrega primeiro frame)
       const vid = document.createElement('video');
-      vid.className  = 'cal-tl-thumb';
-      vid.src        = mediaSrc;
-      vid.muted      = true;
-      vid.preload    = 'metadata';
-      vid.playsInline = true;
-      // Posiciona no primeiro frame
+      vid.className = 'cal-tl-thumb';
+      vid.src = mediaSrc; vid.muted = true; vid.preload = 'metadata'; vid.playsInline = true;
       vid.addEventListener('loadedmetadata', () => { vid.currentTime = 0.001; });
-      vid.onerror = () => {
-        thumbWrap.innerHTML = '';
-        const ph = document.createElement('div');
-        ph.className = 'cal-tl-thumb-ph';
-        ph.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
-        thumbWrap.appendChild(ph);
-      };
+      vid.onerror = () => { thumbWrap.innerHTML = ''; const ph = document.createElement('div'); ph.className = 'cal-tl-thumb-ph'; ph.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>'; thumbWrap.appendChild(ph); };
       thumbWrap.appendChild(vid);
-      // Badge de play por cima
       const badge = document.createElement('div');
       badge.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);border-radius:6px;pointer-events:none;';
-      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+      badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
       thumbWrap.appendChild(badge);
     } else {
       const img = document.createElement('img');
       img.className = 'cal-tl-thumb';
-      img.src       = mediaSrc;
-      img.onerror   = () => {
-        thumbWrap.innerHTML = '';
-        const ph = document.createElement('div');
-        ph.className = 'cal-tl-thumb-ph';
-        ph.textContent = '🖼';
-        thumbWrap.appendChild(ph);
-      };
+      img.src = mediaSrc;
+      img.onerror = () => { thumbWrap.innerHTML = ''; const ph = document.createElement('div'); ph.className = 'cal-tl-thumb-ph'; ph.textContent = '🖼'; thumbWrap.appendChild(ph); };
       thumbWrap.appendChild(img);
     }
-    // Clique abre preview expandido
+    thumbWrap.style.cursor = 'zoom-in';
     thumbWrap.onclick = (ev) => { ev.stopPropagation(); calOpenMediaPreview(mediaSrc, isVideo); };
   } else {
     const ph = document.createElement('div');
@@ -3773,20 +4064,13 @@ function calMakeTlCard(post) {
   }
   card.appendChild(thumbWrap);
 
-  // info
   const info = document.createElement('div');
   info.className = 'cal-tl-info';
-
   const ref = post.publishedAt || post.scheduledAt;
   const timeStr = ref ? new Date(ref).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—';
-
   const STATUS_LABEL = { scheduled:'Agendado', published:'Publicado', partial:'Publicado parcialmente', error:'Erro ao publicar', processing:'Publicando...' };
-  const STATUS_COLOR = { scheduled:'color:#fbbf24', published:'color:var(--green)', partial:'color:#fbbf24', error:'color:var(--red)', processing:'color:var(--accent)' };
-
-  const platPills = (post.platforms || []).map(p =>
-    `<span class="mini-pill ${escapeHtml(p)}">${escapeHtml(p)}</span>`
-  ).join('');
-
+  const STATUS_COLOR = { scheduled:'var(--yellow)', published:'var(--green)', partial:'var(--yellow)', error:'var(--red)', processing:'var(--accent)' };
+  const platPills = (post.platforms || []).map(p => `<span class="mini-pill ${escapeHtml(p)}">${escapeHtml(p)}</span>`).join('');
   const rawLabel = post.youtubeTitle || post.text;
   const label = rawLabel ? escapeHtml(rawLabel) : '<em style="color:var(--muted)">Sem texto</em>';
 
@@ -3794,8 +4078,7 @@ function calMakeTlCard(post) {
     <div class="cal-tl-time">${timeStr}</div>
     <div class="cal-tl-text">${label}</div>
     <div class="cal-tl-plats">${platPills}</div>
-    <div class="cal-tl-status" style="${STATUS_COLOR[post.status] || ''}">${STATUS_LABEL[post.status] || post.status}</div>
-  `;
+    <div class="cal-tl-status" style="color:${STATUS_COLOR[post.status] || 'var(--muted)'}">${STATUS_LABEL[post.status] || post.status}</div>`;
 
   if (post.status === 'scheduled') {
     const actions = document.createElement('div');
@@ -3811,7 +4094,6 @@ function calMakeTlCard(post) {
         await apiFetch(`/posts/${post.id}`, { method: 'DELETE' });
         showToast('Post cancelado', 'ok');
         await calLoad();
-        // re-renderiza o modal com posts atualizados do dia
         if (calDayModalDate) {
           const updated = calPostsForDay(calDayModalDate.dateStr);
           calDayModalDate.posts = updated;
@@ -3822,7 +4104,6 @@ function calMakeTlCard(post) {
     actions.appendChild(btn);
     info.appendChild(actions);
   }
-
   card.appendChild(info);
   return card;
 }
@@ -3836,22 +4117,11 @@ function calCloseDayModal(e) {
 function calOpenMediaPreview(src, isVideo) {
   const el = document.getElementById('cal-media-preview');
   el.innerHTML = '';
-  let media;
-  if (isVideo) {
-    media = document.createElement('video');
-    media.src      = src;
-    media.controls = true;
-    media.autoplay = true;
-    media.muted    = false;
-    media.playsInline = true;
-  } else {
-    media = document.createElement('img');
-    media.src = src;
-    media.alt = 'Preview';
-  }
+  const media = isVideo ? document.createElement('video') : document.createElement('img');
+  if (isVideo) { media.src = src; media.controls = true; media.autoplay = true; media.playsInline = true; }
+  else { media.src = src; media.alt = 'Preview'; }
   el.appendChild(media);
   el.classList.add('open');
-  // Fecha com Esc
   const onKey = (ev) => { if (ev.key === 'Escape') { calCloseMediaPreview(); document.removeEventListener('keydown', onKey); } };
   document.addEventListener('keydown', onKey);
 }
@@ -3859,7 +4129,6 @@ function calOpenMediaPreview(src, isVideo) {
 function calCloseMediaPreview() {
   const el = document.getElementById('cal-media-preview');
   el.classList.remove('open');
-  // Para o vídeo se estiver tocando
   const vid = el.querySelector('video');
   if (vid) vid.pause();
   setTimeout(() => { el.innerHTML = ''; }, 200);
