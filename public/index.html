@@ -5418,10 +5418,16 @@ async function aiLoadModels() {
     const data = await apiFetch('/api/ai/models')
     aiModelsLoaded = true
     aiAvailableModels = data.models || []
-    // Padrão: Gemini Flash (primeiro disponível)
     const first = data.models.find(m => m.available) || data.models[0]
     if (first) aiSetModel(first.id, false)
-  } catch {}
+  } catch {
+    // fallback: usa lista estática se API falhar
+    aiModelsLoaded = true
+    aiAvailableModels = [
+      { id: 'gemini', name: 'Gemini 2.0 Flash', provider: 'Google',    available: true },
+      { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI',   available: true },
+    ]
+  }
 }
 
 function aiSetModel(id, notify = true) {
@@ -5452,15 +5458,17 @@ function aiSetModel(id, notify = true) {
   }
 }
 
-// Abre o picker — bloqueado se conversa ativa (step != 'greeting' e != 'done')
-function aiOpenModelPicker() {
-  const pageState = aiChat.page
-  const isLocked = pageState.greeted && pageState.step !== 'done' && pageState.step !== 'greeting'
-
-  if (isLocked) {
-    showToast('Conclua ou aguarde o post atual antes de trocar o modelo', 'warn')
+// Abre o picker — bloqueado após primeira interação do usuário (até criar um post)
+async function aiOpenModelPicker() {
+  const btn = document.getElementById('ai-change-model-btn')
+  if (btn?.disabled) {
+    showToast('Disponível antes de iniciar ou após criar um post', 'warn')
     return
   }
+
+  // Garante que os modelos foram carregados (força se lista vazia)
+  if (!aiAvailableModels.length) aiModelsLoaded = false
+  await aiLoadModels()
 
   // Renderiza lista
   const list = document.getElementById('ai-model-picker-list')
@@ -5832,7 +5840,17 @@ function aiChatAddMsg(ctx, role, html, isHtml = false) {
   if (role === 'agent') {
     avatarEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg>`
   } else {
-    avatarEl.textContent = aiChatUserInitial()
+    const userImg = document.getElementById('user-avatar')
+    if (userImg && userImg.style.display !== 'none' && userImg.src) {
+      const img = document.createElement('img')
+      img.src = userImg.src
+      img.style.cssText = 'width:28px;height:28px;border-radius:50%;object-fit:cover'
+      avatarEl.innerHTML = ''
+      avatarEl.appendChild(img)
+      avatarEl.style.background = 'none'
+    } else {
+      avatarEl.textContent = aiChatUserInitial()
+    }
   }
 
   const bubbleWrap = document.createElement('div')
@@ -5887,6 +5905,7 @@ function aiChatSetChips(ctx, chips) {
 function aiChipClick(ctx, val, el) {
   document.querySelectorAll(`#${ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'} .ai-chip`).forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '0.5' })
   el.style.background = 'rgba(108,140,255,0.3)'; el.style.opacity = '1'
+  if (ctx === 'page') aiLockModelChange(true)
   aiChatAddMsg(ctx, 'user', val)
   aiChatSetChips(ctx, [])
   setTimeout(() => aiChatProcess(ctx, val), 400)
@@ -5898,7 +5917,7 @@ async function aiChatStart(ctx) {
   if (state.greeted) return
   state.greeted = true
   state.step = 'ask_plats'
-  if (ctx === 'page') aiLockModelChange(true)
+  if (ctx === 'page') aiLockModelChange(false)
 
   await new Promise(r => setTimeout(r, 300))
   aiChatTyping(ctx, true)
@@ -6323,6 +6342,7 @@ async function aiChatSend(ctx) {
   input.value = ''
   input.style.height = 'auto'
   sendBtn.disabled = true
+  if (ctx === 'page') aiLockModelChange(true)
 
   // Se há arquivo pendente, mostra preview na bolha do usuário
   if (file) {
