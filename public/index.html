@@ -278,6 +278,137 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .section-page { display: none; }
 .section-page.active { display: block; }
 
+/* ── Widget IA flutuante ────────────────────────────────────────────────── */
+#ai-fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+#ai-fab-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c8cff 0%, #b39ddb 100%);
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(108,140,255,0.45);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+#ai-fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(108,140,255,0.6); }
+#ai-fab-btn .ai-fab-pulse {
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(108,140,255,0.4);
+  animation: ai-pulse 2s ease-out infinite;
+}
+@keyframes ai-pulse {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+#ai-fab-panel {
+  background: var(--surface);
+  border: 1px solid rgba(108,140,255,0.3);
+  border-radius: 16px;
+  width: 320px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.55);
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: ai-panel-in 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes ai-panel-in {
+  from { opacity: 0; transform: scale(0.85) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.ai-fab-head {
+  background: linear-gradient(135deg, rgba(108,140,255,0.15), rgba(179,157,219,0.1));
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.ai-fab-head-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg,#6c8cff,#b39ddb);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ai-fab-head-title { font-size: 13px; font-weight: 600; }
+.ai-fab-head-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.ai-fab-close {
+  margin-left: auto; background: none; border: none;
+  color: var(--muted); cursor: pointer; padding: 4px;
+  border-radius: 6px; transition: color var(--transition);
+}
+.ai-fab-close:hover { color: var(--text); }
+.ai-fab-body { padding: 14px 16px; }
+.ai-fab-field { margin-bottom: 10px; }
+.ai-fab-field label { display: block; font-size: 10px; font-weight: 500; color: var(--muted2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
+.ai-fab-field textarea {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-family: var(--sans); font-size: 12px; padding: 8px 10px;
+  resize: none; height: 72px; outline: none;
+  transition: border var(--transition);
+}
+.ai-fab-field textarea:focus { border-color: var(--accent); }
+.ai-fab-plats { display: flex; gap: 6px; flex-wrap: wrap; }
+.ai-fab-plat {
+  padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid var(--border); background: var(--surface2);
+  cursor: pointer; font-size: 11px; font-weight: 500; color: var(--muted2);
+  transition: all 0.15s;
+}
+.ai-fab-plat:hover { border-color: var(--border2); color: var(--text); }
+.ai-fab-plat.active.ig  { border-color: var(--ig); color: var(--ig); background: rgba(233,79,138,0.1); }
+.ai-fab-plat.active.fb  { border-color: var(--fb); color: var(--fb); background: rgba(91,141,239,0.1); }
+.ai-fab-plat.active.yt  { border-color: var(--yt); color: var(--yt); background: rgba(255,92,92,0.1); }
+.ai-fab-plat.active.tt  { border-color: #a0a4bc; color: #a0a4bc; background: rgba(232,232,240,0.06); }
+.ai-fab-actions { display: flex; gap: 8px; margin-top: 12px; }
+.ai-fab-gen-btn {
+  flex: 1; padding: 9px; border-radius: var(--radius-sm); border: none;
+  background: linear-gradient(135deg,#6c8cff,#b39ddb);
+  color: #fff; font-size: 12px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: opacity 0.15s;
+}
+.ai-fab-gen-btn:hover:not(:disabled) { opacity: 0.88; }
+.ai-fab-gen-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ai-fab-full-btn {
+  padding: 9px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--muted2); font-size: 11px; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+}
+.ai-fab-full-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ai-fab-result {
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--surface2); border-radius: var(--radius-sm);
+  border: 1px solid var(--border); display: none; flex-direction: column; gap: 8px;
+}
+.ai-fab-result-text { font-size: 12px; line-height: 1.6; color: var(--text); }
+.ai-fab-result-foot { display: flex; justify-content: flex-end; gap: 6px; }
+.ai-fab-sched-btn {
+  padding: 5px 12px; border-radius: var(--radius-sm);
+  border: none; background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+}
+.ai-fab-sched-btn:hover { opacity: 0.85; }
+.ai-fab-discard-btn {
+  padding: 5px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted); font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.ai-fab-discard-btn:hover { border-color: var(--red); color: var(--red); }
+@media (max-width: 768px) {
+  #ai-fab { bottom: calc(var(--bottomnav-h) + 12px); right: 14px; }
+  #ai-fab-panel { width: calc(100vw - 28px); }
+}
+
 /* ── Inbox mode: expande o main para preencher tudo ─────────────────────── */
 body.inbox-mode .main {
   max-width: none;
@@ -1450,6 +1581,9 @@ input, select, textarea, label, .bottom-nav-item {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           Gerar com IA
         </button>
+        <button onclick="aiLoadDemoPost()" style="width:100%;margin-top:8px;padding:9px;border-radius:var(--radius-sm);border:1px dashed var(--border2);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
+          👁 Ver exemplo de posts gerados
+        </button>
       </div>
 
       <!-- Resultados -->
@@ -1758,6 +1892,63 @@ input, select, textarea, label, .bottom-nav-item {
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Widget IA flutuante -->
+<div id="ai-fab">
+  <!-- Painel (oculto por padrão) -->
+  <div id="ai-fab-panel" style="display:none">
+    <div class="ai-fab-head">
+      <div class="ai-fab-head-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg>
+      </div>
+      <div>
+        <div class="ai-fab-head-title">Agente IA</div>
+        <div class="ai-fab-head-sub">Gere e agende em segundos</div>
+      </div>
+      <button class="ai-fab-close" onclick="aiFabClose()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="ai-fab-body">
+      <div class="ai-fab-field">
+        <label>O que você quer postar?</label>
+        <textarea id="ai-fab-instrucao" placeholder="Ex: Post motivacional sobre segunda-feira para academia..."></textarea>
+      </div>
+      <div class="ai-fab-field">
+        <label>Redes</label>
+        <div class="ai-fab-plats">
+          <div class="ai-fab-plat ig active" data-plat="instagram" onclick="aiFabTogglePlat(this)">ig</div>
+          <div class="ai-fab-plat fb" data-plat="facebook" onclick="aiFabTogglePlat(this)">fb</div>
+          <div class="ai-fab-plat yt" data-plat="youtube" onclick="aiFabTogglePlat(this)">yt</div>
+          <div class="ai-fab-plat tt" data-plat="tiktok" onclick="aiFabTogglePlat(this)">tt</div>
+        </div>
+      </div>
+      <div class="ai-fab-result" id="ai-fab-result">
+        <div class="ai-fab-result-text" id="ai-fab-result-text"></div>
+        <div class="ai-fab-result-foot">
+          <button class="ai-fab-discard-btn" onclick="aiFabDiscard()">Descartar</button>
+          <button class="ai-fab-sched-btn" onclick="aiFabSchedule()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Agendar
+          </button>
+        </div>
+      </div>
+      <div class="ai-fab-actions">
+        <button class="ai-fab-gen-btn" id="ai-fab-gen-btn" onclick="aiFabGenerate()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Gerar post
+        </button>
+        <button class="ai-fab-full-btn" onclick="aiFabClose();showPage('ai')">Modo completo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botão flutuante -->
+  <button id="ai-fab-btn" onclick="aiFabToggle()" title="Agente IA">
+    <div class="ai-fab-pulse"></div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1.2" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="#fff" stroke="none"/></svg>
+  </button>
+</div>
 
 <script>
 const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
@@ -5319,6 +5510,145 @@ async function aiScheduleAll() {
 
 function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Widget IA flutuante (FAB) ─────────────────────────────────────────────────
+let aiFabOpen = false
+let aiFabSelectedPlats = new Set(['instagram'])
+let aiFabLastPost = null
+
+function aiFabToggle() {
+  aiFabOpen = !aiFabOpen
+  const panel = document.getElementById('ai-fab-panel')
+  if (aiFabOpen) {
+    panel.style.display = 'block'
+  } else {
+    panel.style.display = 'none'
+  }
+}
+
+function aiFabClose() {
+  aiFabOpen = false
+  document.getElementById('ai-fab-panel').style.display = 'none'
+}
+
+function aiFabTogglePlat(el) {
+  const plat = el.dataset.plat
+  if (aiFabSelectedPlats.has(plat)) {
+    if (aiFabSelectedPlats.size === 1) return
+    aiFabSelectedPlats.delete(plat)
+    el.classList.remove('active')
+  } else {
+    aiFabSelectedPlats.add(plat)
+    el.classList.add('active')
+  }
+}
+
+async function aiFabGenerate() {
+  const instrucao = document.getElementById('ai-fab-instrucao').value.trim()
+  if (!instrucao) { showToast('Escreva uma instrução', 'warn'); return }
+
+  const btn = document.getElementById('ai-fab-gen-btn')
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner" style="width:13px;height:13px;border-width:1.5px"></span> Gerando...'
+
+  // Esconde resultado anterior
+  const resultEl = document.getElementById('ai-fab-result')
+  resultEl.style.display = 'none'
+
+  try {
+    const data = await apiFetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instrucao,
+        plataformas: [...aiFabSelectedPlats],
+        quantidade: 1,
+        tom: 'casual',
+        idioma: 'pt',
+      })
+    })
+
+    aiFabLastPost = data.posts?.[0] || null
+    if (aiFabLastPost) {
+      document.getElementById('ai-fab-result-text').textContent = aiFabLastPost.texto
+      resultEl.style.display = 'flex'
+    }
+  } catch (err) {
+    showToast(err.message || 'Erro ao gerar post', 'err')
+  } finally {
+    btn.disabled = false
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Gerar post'
+  }
+}
+
+function aiFabDiscard() {
+  aiFabLastPost = null
+  document.getElementById('ai-fab-result').style.display = 'none'
+  document.getElementById('ai-fab-instrucao').value = ''
+}
+
+async function aiFabSchedule() {
+  if (!aiFabLastPost) return
+  const btn = document.querySelector('.ai-fab-sched-btn')
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner" style="width:11px;height:11px;border-width:1.5px"></span>'
+  try {
+    await apiFetch('/api/ai/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts: [aiFabLastPost] })
+    })
+    showToast('Post agendado com sucesso!', 'ok')
+    aiFabDiscard()
+    aiFabClose()
+  } catch (err) {
+    btn.disabled = false
+    btn.innerHTML = '✓ Agendar'
+    showToast(err.message || 'Erro ao agendar', 'err')
+  }
+}
+
+// ── Post de exemplo (mock) ────────────────────────────────────────────────────
+// Injeta posts fictícios na página de Agente IA para demonstração visual
+function aiLoadDemoPost() {
+  const demoPosts = [
+    {
+      texto: `🚀 Segunda-feira chegou com tudo!\n\nNão existe atalho para o sucesso — existe consistência, foco e a decisão de agir quando todos ainda estão dormindo.\n\nHoje é o dia de transformar sua meta em rotina. Cada repetição, cada treino, cada passo conta.\n\n💪 O que você vai conquistar essa semana? Conta nos comentários!`,
+      titulo: '',
+      hashtags: ['motivação', 'segundafeira', 'foco', 'disciplina', 'academia', 'vidafit', 'treinoduro'],
+      emoji_destaque: '🚀',
+      angulo: 'Motivação de segunda-feira com chamada para engajamento',
+      plataformas: ['instagram', 'facebook'],
+      horario: (() => { const d = new Date(); d.setDate(d.getDate()+1); d.setHours(9,0,0,0); return d.toISOString() })(),
+    },
+    {
+      texto: `✨ Você sabia que 21 dias são suficientes para criar um novo hábito?\n\nA ciência comprova: pequenas ações repetidas todos os dias reescrevem sua rotina completamente.\n\nComeça hoje. Não amanhã. Não segunda. Hoje.\n\n#desafiodos21dias`,
+      titulo: '',
+      hashtags: ['hábitos', 'desafiodos21dias', 'transformação', 'selfimprovement', 'rotina'],
+      emoji_destaque: '✨',
+      angulo: 'Dado científico sobre formação de hábitos',
+      plataformas: ['instagram', 'tiktok'],
+      horario: (() => { const d = new Date(); d.setDate(d.getDate()+2); d.setHours(18,0,0,0); return d.toISOString() })(),
+    },
+    {
+      texto: `Como construir uma rotina matinal imbatível em 5 passos:\n\n1️⃣ Acorde sem apertar "soneca" (sério, isso muda tudo)\n2️⃣ Hidrate-se antes do café — 500ml de água em jejum\n3️⃣ 10 minutos de movimento — yoga, caminhada, o que preferir\n4️⃣ Leia ou ouça algo que te inspire por 15 minutos\n5️⃣ Revise suas metas do dia antes de abrir o celular\n\nQual desses você já faz? 👇`,
+      titulo: 'Como Construir uma Rotina Matinal Imbatível | 5 Passos Que Mudam Tudo',
+      hashtags: ['rotinamatinal', 'produtividade', 'bemestar', 'morningrotine', 'saúde'],
+      emoji_destaque: '⚡',
+      angulo: 'Lista prática com chamada para interação nos comentários',
+      plataformas: ['youtube', 'instagram'],
+      horario: (() => { const d = new Date(); d.setDate(d.getDate()+3); d.setHours(12,0,0,0); return d.toISOString() })(),
+    },
+  ]
+
+  aiGeneratedPosts = demoPosts
+  aiRenderCards()
+
+  // Scroll suave até os cards
+  setTimeout(() => {
+    document.getElementById('ai-cards')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, 100)
 }
 
 // ── Feature 4: Rascunhos e Templates ─────────────────────────────────────────
