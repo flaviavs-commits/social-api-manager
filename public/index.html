@@ -992,6 +992,21 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-char-count { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right; font-family: var(--mono); }
 .ai-char-warn { color: var(--yellow); }
 .ai-char-err { color: var(--red); }
+.ai-model-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border); background: var(--surface2);
+  cursor: pointer; font-size: 11px; font-weight: 500; color: var(--muted2);
+  transition: all 0.15s; position: relative;
+}
+.ai-model-btn:hover:not(.unavailable) { border-color: var(--border2); color: var(--text); }
+.ai-model-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--text); }
+.ai-model-btn.unavailable { opacity: 0.38; cursor: not-allowed; }
+.ai-model-btn .ai-model-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ai-model-btn .ai-model-dot.gemini  { background: #4285f4; }
+.ai-model-btn .ai-model-dot.openai  { background: #10a37f; }
+.ai-model-btn .ai-model-dot.claude  { background: #d97706; }
+.ai-model-unavail { font-size: 9px; color: var(--muted); font-family: var(--mono); }
 
 @media (max-width: 900px) {
   .ai-page { grid-template-columns: 1fr; }
@@ -1563,6 +1578,11 @@ input, select, textarea, label, .bottom-nav-item {
           </div>
         </div>
 
+        <div class="ai-field">
+          <label>Modelo de IA</label>
+          <div id="ai-model-selector" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+
         <div class="ai-row2">
           <div class="ai-field">
             <label>Quantidade</label>
@@ -1922,6 +1942,10 @@ input, select, textarea, label, .bottom-nav-item {
           <div class="ai-fab-plat yt" data-plat="youtube" onclick="aiFabTogglePlat(this)">yt</div>
           <div class="ai-fab-plat tt" data-plat="tiktok" onclick="aiFabTogglePlat(this)">tt</div>
         </div>
+      </div>
+      <div class="ai-fab-field">
+        <label>Modelo</label>
+        <div id="ai-fab-model-selector" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       </div>
       <div class="ai-fab-result" id="ai-fab-result">
         <div class="ai-fab-result-text" id="ai-fab-result-text"></div>
@@ -5295,9 +5319,53 @@ async function exportAnalyticsPDF() {
 let aiGeneratedPosts = []
 let aiSelectedTone = 'casual'
 let aiSelectedPlats = new Set(['instagram'])
+let aiSelectedModel = 'gemini'
+let aiModelsLoaded = false
+
+const AI_MODEL_META = {
+  gemini: { label: 'Gemini Flash', dot: 'gemini', provider: 'Google' },
+  openai: { label: 'GPT-4o Mini',  dot: 'openai', provider: 'OpenAI' },
+  claude: { label: 'Claude Haiku', dot: 'claude', provider: 'Anthropic' },
+}
+
+async function aiLoadModels() {
+  if (aiModelsLoaded) return
+  try {
+    const data = await apiFetch('/api/ai/models')
+    aiModelsLoaded = true
+    aiRenderModelSelector(data.models, 'ai-model-selector', false)
+    aiRenderModelSelector(data.models, 'ai-fab-model-selector', true)
+    // Seleciona automaticamente o primeiro disponível
+    const first = data.models.find(m => m.available)
+    if (first) aiSetModel(first.id)
+  } catch {}
+}
+
+function aiRenderModelSelector(models, containerId, compact) {
+  const el = document.getElementById(containerId)
+  if (!el) return
+  el.innerHTML = models.map(m => {
+    const meta = AI_MODEL_META[m.id] || {}
+    const unavail = !m.available
+    return `<button class="ai-model-btn${m.id === aiSelectedModel ? ' active' : ''}${unavail ? ' unavailable' : ''}"
+      data-model="${m.id}" onclick="${unavail ? '' : `aiSetModel('${m.id}')`}"
+      title="${unavail ? m.provider + ': chave não configurada no servidor' : m.name}">
+      <span class="ai-model-dot ${meta.dot || m.id}"></span>
+      ${compact ? (meta.dot === 'gemini' ? 'Gemini' : meta.dot === 'openai' ? 'GPT-4o' : 'Claude') : m.name}
+      ${unavail ? '<span class="ai-model-unavail">sem chave</span>' : ''}
+    </button>`
+  }).join('')
+}
+
+function aiSetModel(id) {
+  aiSelectedModel = id
+  document.querySelectorAll('.ai-model-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.model === id)
+  })
+}
 
 function aiPageInit() {
-  // noop — estado já persiste entre visitas
+  aiLoadModels()
 }
 
 function aiTogglePlat(el) {
@@ -5340,6 +5408,7 @@ async function aiGenerate() {
         quantidade: qtd,
         tom: aiSelectedTone,
         idioma,
+        modelo: aiSelectedModel,
       })
     })
 
@@ -5522,6 +5591,7 @@ function aiFabToggle() {
   const panel = document.getElementById('ai-fab-panel')
   if (aiFabOpen) {
     panel.style.display = 'block'
+    aiLoadModels()
   } else {
     panel.style.display = 'none'
   }
@@ -5566,6 +5636,7 @@ async function aiFabGenerate() {
         quantidade: 1,
         tom: 'casual',
         idioma: 'pt',
+        modelo: aiSelectedModel,
       })
     })
 

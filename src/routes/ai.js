@@ -1,5 +1,4 @@
 const { Router } = require('express')
-const Anthropic = require('@anthropic-ai/sdk')
 const { serverError } = require('../utils/http')
 
 const router = Router()
@@ -12,32 +11,19 @@ const PLATFORM_HINTS = {
 }
 
 const TONE_HINTS = {
-  motivacional:  'Tom motivacional: inspire, energize, use verbos de ação, frases de impacto.',
-  profissional:  'Tom profissional: sério, confiável, dados e fatos quando possível, linguagem formal.',
-  casual:        'Tom casual: amigável, descontraído, como se falasse com um amigo, pode usar gírias leves.',
-  informativo:   'Tom informativo: educativo, explique conceitos, dê dicas práticas, use listas quando adequado.',
-  humoristico:   'Tom humorístico: leve, divertido, pode usar trocadilhos ou referências da cultura pop, mas sem ofender.',
+  motivacional: 'Tom motivacional: inspire, energize, use verbos de ação, frases de impacto.',
+  profissional: 'Tom profissional: sério, confiável, dados e fatos quando possível, linguagem formal.',
+  casual:       'Tom casual: amigável, descontraído, como se falasse com um amigo, pode usar gírias leves.',
+  informativo:  'Tom informativo: educativo, explique conceitos, dê dicas práticas, use listas quando adequado.',
+  humoristico:  'Tom humorístico: leve, divertido, pode usar trocadilhos ou referências da cultura pop, mas sem ofender.',
 }
 
-// POST /api/ai/generate
-router.post('/generate', async (req, res) => {
-  try {
-    const { instrucao, plataformas, quantidade, tom, idioma } = req.body
+function buildPrompt(instrucao, plataformas, qtd, tom, idioma) {
+  const toneHint   = TONE_HINTS[tom] || TONE_HINTS.casual
+  const idiomaHint = idioma === 'en' ? 'Escreva em inglês.' : 'Escreva em português brasileiro.'
+  const platHints  = plataformas.map(p => PLATFORM_HINTS[p] || p).join('\n')
 
-    if (!instrucao || !instrucao.trim()) return res.status(400).json({ erro: 'Instrução é obrigatória' })
-    if (!plataformas || !plataformas.length) return res.status(400).json({ erro: 'Selecione ao menos uma plataforma' })
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ erro: 'ANTHROPIC_API_KEY não configurada no servidor' })
-
-    const qtd = Math.min(Math.max(parseInt(quantidade) || 3, 1), 10)
-    const toneHint = TONE_HINTS[tom] || TONE_HINTS.casual
-    const idiomaHint = idioma === 'en' ? 'Escreva em inglês.' : 'Escreva em português brasileiro.'
-    const platHints = plataformas.map(p => PLATFORM_HINTS[p] || p).join('\n')
-
-    // Calcula horários sugeridos distribuídos pelos próximos dias
-    const agora = new Date()
-    const horariosSugeridos = calcularHorarios(qtd, plataformas)
-
-    const prompt = `Você é um especialista em marketing digital e gestão de redes sociais.
+  return `Você é um especialista em marketing digital e gestão de redes sociais.
 
 Tarefa: Crie ${qtd} post(s) para redes sociais com base na instrução abaixo.
 
@@ -69,23 +55,67 @@ Responda APENAS com um JSON válido no formato abaixo, sem texto antes ou depois
     }
   ]
 }`
+}
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+function parseJsonResponse(rawText) {
+  const match = rawText.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('sem JSON')
+  return JSON.parse(match[0])
+}
 
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    })
+async function generateWithClaude(prompt) {
+  if (!process.env.ANTHROPIC_API_KEY) throw Object.assign(new Error('ANTHROPIC_API_KEY não configurada'), { status: 503 })
+  const Anthropic = require('@anthropic-ai/sdk')
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const msg = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  return msg.content[0]?.text || ''
+}
 
-    const rawText = message.content[0]?.text || ''
+async function generateWithOpenAI(prompt) {
+  if (!process.env.OPENAI_API_KEY) throw Object.assign(new Error('OPENAI_API_KEY não configurada no servidor'), { status: 503 })
+  const OpenAI = require('openai')
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const msg = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  return msg.choices[0]?.message?.content || ''
+}
+
+async function generateWithGemini(prompt) {
+  if (!process.env.GEMINI_API_KEY) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
+  const { GoogleGenerativeAI } = require('@google/generative-ai')
+  const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  const model  = client.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const result = await model.generateContent(prompt)
+  return result.response.text()
+}
+
+// POST /api/ai/generate
+router.post('/generate', async (req, res) => {
+  try {
+    const { instrucao, plataformas, quantidade, tom, idioma, modelo = 'gemini' } = req.body
+
+    if (!instrucao || !instrucao.trim()) return res.status(400).json({ erro: 'Instrução é obrigatória' })
+    if (!plataformas || !plataformas.length) return res.status(400).json({ erro: 'Selecione ao menos uma plataforma' })
+
+    const qtd    = Math.min(Math.max(parseInt(quantidade) || 3, 1), 10)
+    const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
+    const horariosSugeridos = calcularHorarios(qtd, plataformas)
+
+    let rawText
+    if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt)
+    else if (modelo === 'claude')  rawText = await generateWithClaude(prompt)
+    else                           rawText = await generateWithGemini(prompt)  // default: gemini
 
     let parsed
     try {
-      // Extrai o JSON mesmo que tenha texto extra ao redor
-      const match = rawText.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('sem JSON')
-      parsed = JSON.parse(match[0])
+      parsed = parseJsonResponse(rawText)
     } catch {
       return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
     }
@@ -96,19 +126,33 @@ Responda APENAS com um JSON válido no formato abaixo, sem texto antes ou depois
       hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
       emoji_destaque: p.emoji_destaque || '✨',
       angulo:         p.angulo || '',
-      plataformas:    plataformas,
+      plataformas,
       horario:        horariosSugeridos[i] || horariosSugeridos[0],
+      modelo,
     }))
 
-    res.json({ posts, usage: message.usage })
+    res.json({ posts, modelo })
   } catch (err) {
-    if (err.status === 401) return res.status(401).json({ erro: 'ANTHROPIC_API_KEY inválida' })
-    if (err.status === 429) return res.status(429).json({ erro: 'Limite de requisições da IA atingido. Tente em instantes.' })
+    if (err.status === 503) return res.status(503).json({ erro: err.message })
+    if (err.status === 401) return res.status(401).json({ erro: 'Chave de API inválida' })
+    if (err.status === 429) return res.status(429).json({ erro: 'Limite de requisições atingido. Tente em instantes.' })
     serverError(res, err)
   }
 })
 
-// POST /api/ai/schedule — agenda todos os posts gerados de uma vez
+// GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
+router.get('/models', (req, res) => {
+  res.json({
+    models: [
+      { id: 'gemini', name: 'Gemini 1.5 Flash', provider: 'Google', available: !!process.env.GEMINI_API_KEY },
+      { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI', available: !!process.env.OPENAI_API_KEY },
+      // Claude desabilitado temporariamente — remover este comentário quando reativar
+      // { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
+    ]
+  })
+})
+
+// POST /api/ai/schedule
 router.post('/schedule', async (req, res) => {
   try {
     const { posts } = req.body
@@ -119,19 +163,19 @@ router.post('/schedule', async (req, res) => {
 
     for (const p of posts) {
       const post = await repo.criarPost({
-        text:               p.texto,
-        platforms:          p.plataformas,
-        scheduledAt:        new Date(p.horario),
-        repeat:             'none',
-        mediaPath:          null,
-        mediaType:          null,
-        mediaItems:         null,
-        youtubeTitle:       p.titulo || null,
-        youtubeVisibility:  'public',
-        youtubeIsShort:     null,
-        accountId:          p.accountId || null,
-        userId:             req.user.id,
-        status:             'scheduled',
+        text:              p.texto,
+        platforms:         p.plataformas,
+        scheduledAt:       new Date(p.horario),
+        repeat:            'none',
+        mediaPath:         null,
+        mediaType:         null,
+        mediaItems:        null,
+        youtubeTitle:      p.titulo || null,
+        youtubeVisibility: 'public',
+        youtubeIsShort:    null,
+        accountId:         p.accountId || null,
+        userId:            req.user.id,
+        status:            'scheduled',
       })
       criados.push(post)
     }
@@ -143,29 +187,22 @@ router.post('/schedule', async (req, res) => {
 })
 
 function calcularHorarios(qtd, plataformas) {
-  // Melhores horários por plataforma (hora local do servidor, UTC)
   const melhorasHoras = {
     instagram: [9, 12, 18, 20],
     facebook:  [9, 13, 17, 19],
     youtube:   [14, 17, 20],
     tiktok:    [7, 12, 19, 21],
   }
-
-  const plat = plataformas[0] || 'instagram'
+  const plat  = plataformas[0] || 'instagram'
   const horas = melhorasHoras[plat] || [9, 12, 18]
-
   const agora = new Date()
   const horarios = []
-
   for (let i = 0; i < qtd; i++) {
-    const diasAFrente = Math.floor(i / horas.length) + 1
-    const horaIdx = i % horas.length
     const d = new Date(agora)
-    d.setDate(d.getDate() + diasAFrente)
-    d.setHours(horas[horaIdx], 0, 0, 0)
+    d.setDate(d.getDate() + Math.floor(i / horas.length) + 1)
+    d.setHours(horas[i % horas.length], 0, 0, 0)
     horarios.push(d.toISOString())
   }
-
   return horarios
 }
 
