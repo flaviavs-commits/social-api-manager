@@ -5915,7 +5915,7 @@ async function aiChatStart(ctx) {
     return
   }
 
-  aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+  aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
 }
 
 // Processa a mensagem do usuário e avança o fluxo
@@ -5934,7 +5934,7 @@ async function aiChatProcess(ctx, userMsg) {
     await new Promise(r => setTimeout(r, 600))
     aiChatTyping(ctx, false)
     aiChatAddMsg(ctx, 'agent', `Ótimo! Vamos desenvolver essa ideia. Para quais redes você quer postar?`)
-    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     // Guarda a instrução da memória para usar na geração
     state.instrucaoMemoria = userMsg.replace(/^[✅💡]\s*/, '').replace(/\.\.\.$/, '')
     return
@@ -5945,7 +5945,7 @@ async function aiChatProcess(ctx, userMsg) {
     await new Promise(r => setTimeout(r, 500))
     aiChatTyping(ctx, false)
     aiChatAddMsg(ctx, 'agent', `Perfeito! Para quais redes você quer postar?`)
-    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     return
   }
 
