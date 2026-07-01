@@ -251,6 +251,18 @@ async function runMigrations() {
       criado_em TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ai_memory (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      model TEXT NOT NULL,
+      tipo TEXT NOT NULL,
+      conteudo TEXT NOT NULL,
+      resolvido BOOLEAN DEFAULT FALSE,
+      criado_em TIMESTAMPTZ DEFAULT NOW(),
+      lembrar_em TIMESTAMPTZ
+    )
+  `)
 }
 
 if (require.main === module) {

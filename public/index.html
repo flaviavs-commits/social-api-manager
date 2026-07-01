@@ -5848,14 +5848,65 @@ async function aiChatStart(ctx) {
 
   await new Promise(r => setTimeout(r, 300))
   aiChatTyping(ctx, true)
+
+  // Busca memórias do modelo ativo para esse usuário
+  let memories = []
+  try {
+    const data = await apiFetch(`/api/ai/memory?modelo=${aiSelectedModel}`)
+    memories = data.memories || []
+  } catch {}
+
   await new Promise(r => setTimeout(r, 900))
   aiChatTyping(ctx, false)
 
   const greeting = aiChatGreeting()
   const agentName = aiChatAgentName()
+
+  // Saudação base
   aiChatAddMsg(ctx, 'agent',
-    `${greeting}! 👋 Sou o ${agentName}, seu assistente de conteúdo para redes sociais.\n\nO que vamos postar hoje? Estou aqui para criar e agendar tudo por você! 🚀\n\nPrimeiro: para quais redes sociais você quer postar?`
+    `${greeting}! 👋 Sou o ${agentName}, seu assistente de conteúdo para redes sociais.\n\nO que vamos postar hoje? Estou aqui para criar e agendar tudo por você! 🚀`
   )
+
+  // Se tem memórias, menciona antes de pedir a rede
+  if (memories.length) {
+    await new Promise(r => setTimeout(r, 600))
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 700))
+    aiChatTyping(ctx, false)
+
+    const pendentes = memories.filter(m => m.tipo === 'lembrete' || m.tipo === 'pendente')
+    const ideias    = memories.filter(m => m.tipo === 'ideia')
+    const prefs     = memories.filter(m => m.tipo === 'preferencia')
+
+    let memMsg = `🧠 Lembrei de algumas coisas da nossa última conversa:`
+
+    if (pendentes.length) {
+      memMsg += `\n\n📌 Pendências:`
+      pendentes.slice(0, 3).forEach(m => { memMsg += `\n• ${m.conteudo}` })
+    }
+    if (ideias.length) {
+      memMsg += `\n\n💡 Ideias guardadas:`
+      ideias.slice(0, 3).forEach(m => { memMsg += `\n• ${m.conteudo}` })
+    }
+    if (prefs.length) {
+      memMsg += `\n\n⚙️ Suas preferências:`
+      prefs.slice(0, 2).forEach(m => { memMsg += `\n• ${m.conteudo}` })
+    }
+
+    memMsg += `\n\nQuer usar alguma dessas ideias agora?`
+
+    // Guarda IDs das memórias no estado para resolver depois
+    state.memoryIds = memories.map(m => m.id)
+
+    aiChatAddMsg(ctx, 'agent', memMsg)
+    aiChatSetChips(ctx, [
+      ...pendentes.slice(0,1).map(m => `✅ ${m.conteudo.slice(0,35)}...`),
+      ...ideias.slice(0,1).map(m => `💡 ${m.conteudo.slice(0,35)}...`),
+      '✨ Criar post novo',
+    ].slice(0, 4))
+    return
+  }
+
   aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
 }
 
@@ -5863,6 +5914,32 @@ async function aiChatStart(ctx) {
 async function aiChatProcess(ctx, userMsg) {
   const state = aiChat[ctx]
   const msg = userMsg.trim().toLowerCase()
+
+  // Usuário clicou em uma memória guardada na saudação
+  if (state.step === 'ask_plats' && (msg.startsWith('✅') || msg.startsWith('💡'))) {
+    // Resolve memória selecionada se possível
+    if (state.memoryIds?.length) {
+      apiFetch(`/api/ai/memory/${state.memoryIds[0]}/resolve`, { method: 'PATCH' }).catch(() => {})
+    }
+    // Usa o conteúdo da memória como instrução, pula para ask_plats normal
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 600))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Ótimo! Vamos desenvolver essa ideia. Para quais redes você quer postar?`)
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+    // Guarda a instrução da memória para usar na geração
+    state.instrucaoMemoria = userMsg.replace(/^[✅💡]\s*/, '').replace(/\.\.\.$/, '')
+    return
+  }
+
+  if (msg.includes('criar post novo') || msg.includes('✨')) {
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 500))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Perfeito! Para quais redes você quer postar?`)
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+    return
+  }
 
   if (state.step === 'ask_plats') {
     // Detecta plataformas
@@ -6038,6 +6115,7 @@ async function aiChatSchedulePost(ctx, idx) {
     aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
     state.step = 'done'
     aiLockModelChange(false)
+    aiExtractMemories(ctx)
   } catch (err) {
     aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
   }
@@ -6059,6 +6137,7 @@ async function aiChatScheduleAll(ctx) {
     aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
     state.step = 'done'
     aiLockModelChange(false)
+    aiExtractMemories(ctx)
   } catch (err) {
     aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
   }
@@ -6134,6 +6213,35 @@ async function aiChatSend(ctx) {
   await new Promise(r => setTimeout(r, 300))
   await aiChatProcess(ctx, val)
   sendBtn.disabled = false
+}
+
+// Extrai memórias da conversa atual via IA e salva no banco
+async function aiExtractMemories(ctx) {
+  const state = aiChat[ctx]
+  if (!state.msgs.length) return
+
+  // Monta transcrição da conversa
+  const conversa = state.msgs
+    .map(m => `${m.role === 'user' ? 'Usuário' : 'Agente'}: ${m.html}`)
+    .join('\n')
+
+  try {
+    const data = await apiFetch('/api/ai/memory/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversa, modelo: aiSelectedModel }),
+    })
+
+    const saved = data.memories || []
+    if (saved.length && ctx === 'page') {
+      await new Promise(r => setTimeout(r, 1200))
+      const tipoLabel = { lembrete:'📌', ideia:'💡', preferencia:'⚙️', pendente:'📋', nota:'🗒️' }
+      const lista = saved.map(m => `${tipoLabel[m.tipo]||'•'} ${m.conteudo}`).join('\n')
+      aiChatAddMsg(ctx, 'agent',
+        `🧠 Guardei na memória para a próxima vez:\n\n${lista}\n\nAssim da próxima vez que conversar comigo, vou lembrar! 😊`
+      )
+    }
+  } catch {}
 }
 
 // FAB toggle

@@ -157,6 +157,109 @@ router.post('/generate', async (req, res) => {
   }
 })
 
+// ── Memória persistente por usuário+modelo ────────────────────────────────────
+const pool = require('../db/pool')
+
+// GET /api/ai/memory?modelo=gemini — busca memórias ativas do usuário para esse modelo
+router.get('/memory', async (req, res) => {
+  try {
+    const modelo = req.query.modelo || 'gemini'
+    const { rows } = await pool.query(`
+      SELECT id, tipo, conteudo, criado_em, lembrar_em
+      FROM ai_memory
+      WHERE user_id = $1 AND model = $2 AND resolvido = FALSE
+      ORDER BY criado_em DESC
+      LIMIT 30
+    `, [req.user.id, modelo])
+    res.json({ memories: rows })
+  } catch (err) { serverError(res, err) }
+})
+
+// POST /api/ai/memory — salva uma memória manualmente
+router.post('/memory', async (req, res) => {
+  try {
+    const { modelo = 'gemini', tipo = 'nota', conteudo, lembrarEm } = req.body
+    if (!conteudo?.trim()) return res.status(400).json({ erro: 'conteudo é obrigatório' })
+    const { rows } = await pool.query(`
+      INSERT INTO ai_memory (user_id, model, tipo, conteudo, lembrar_em)
+      VALUES ($1, $2, $3, $4, $5) RETURNING id
+    `, [req.user.id, modelo, tipo, conteudo.trim(), lembrarEm || null])
+    res.status(201).json({ id: rows[0].id })
+  } catch (err) { serverError(res, err) }
+})
+
+// PATCH /api/ai/memory/:id/resolve — marca memória como resolvida
+router.patch('/memory/:id/resolve', async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE ai_memory SET resolvido = TRUE WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    )
+    res.status(204).send()
+  } catch (err) { serverError(res, err) }
+})
+
+// DELETE /api/ai/memory/:id
+router.delete('/memory/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM ai_memory WHERE id = $1 AND user_id = $2`, [req.params.id, req.user.id])
+    res.status(204).send()
+  } catch (err) { serverError(res, err) }
+})
+
+// POST /api/ai/memory/extract — extrai lembretes/ideias de uma conversa via IA
+router.post('/memory/extract', async (req, res) => {
+  try {
+    const { conversa, modelo = 'gemini' } = req.body
+    if (!conversa?.trim()) return res.json({ memories: [] })
+
+    const prompt = `Analise a conversa abaixo entre um usuário e um assistente de redes sociais.
+Extraia APENAS informações que o usuário claramente quer lembrar no futuro, como:
+- Ideias de posts que não foram criadas ainda
+- Pedidos de "postar tal coisa amanhã/na semana"
+- Temas que o usuário quer explorar depois
+- Preferências declaradas (tom, horário, redes preferidas)
+- Qualquer coisa que o usuário disse "vou pensar" ou "deixa pra depois"
+
+NÃO extraia posts que já foram agendados ou criados.
+NÃO extraia informações genéricas ou óbvias.
+
+Conversa:
+${conversa.slice(0, 3000)}
+
+Responda APENAS com JSON válido, sem texto extra:
+{
+  "memories": [
+    { "tipo": "lembrete|ideia|preferencia|pendente", "conteudo": "descrição clara e objetiva em 1-2 frases", "lembrar_em": "ISO8601 ou null" }
+  ]
+}
+Se não houver nada relevante, retorne: {"memories": []}`
+
+    let rawText = ''
+    try {
+      if (modelo === 'openai')     rawText = await generateWithOpenAI(prompt)
+      else if (modelo === 'claude') rawText = await generateWithClaude(prompt)
+      else                          rawText = await generateWithGemini(prompt)
+    } catch { return res.json({ memories: [] }) }
+
+    let parsed
+    try { parsed = parseJsonResponse(rawText) } catch { return res.json({ memories: [] }) }
+
+    const memories = parsed.memories || []
+    const saved = []
+    for (const m of memories) {
+      if (!m.conteudo?.trim()) continue
+      const { rows } = await pool.query(`
+        INSERT INTO ai_memory (user_id, model, tipo, conteudo, lembrar_em)
+        VALUES ($1, $2, $3, $4, $5) RETURNING id, tipo, conteudo, lembrar_em
+      `, [req.user.id, modelo, m.tipo || 'nota', m.conteudo.trim(), m.lembrar_em || null])
+      saved.push(rows[0])
+    }
+
+    res.json({ memories: saved })
+  } catch (err) { serverError(res, err) }
+})
+
 // GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
 router.get('/models', (req, res) => {
   res.json({
