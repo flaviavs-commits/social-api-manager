@@ -647,6 +647,110 @@ input, select, textarea, label, .bottom-nav-item {
   .inbox-main { }
   .inbox-post-preview-media { width: 120px; }
 }
+
+/* ── Analytics redesign ─────────────────────────────────────────────────────── */
+.analytics-layout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.analytics-sidebar {
+  width: 200px;
+  flex: 0 0 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 8px;
+  position: sticky;
+  top: calc(var(--topbar-h) + 8px);
+}
+.analytics-net-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.analytics-net-item:hover { background: var(--surface2); }
+.analytics-net-item.active { background: var(--accent-glow); color: var(--accent); }
+.analytics-panel {
+  flex: 1;
+  min-width: 0;
+}
+.analytics-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.analytics-tab {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.analytics-tab:hover { color: var(--text); background: var(--surface2); }
+.analytics-tab.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.analytics-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.25rem;
+}
+.analytics-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.analytics-card-val { font-size: 28px; font-weight: 800; color: var(--text); }
+.analytics-card-label { font-size: 12px; color: var(--muted); }
+.analytics-card.accent-purple .analytics-card-val { color: var(--accent); }
+.analytics-card.accent-green  .analytics-card-val { color: var(--green); }
+.analytics-card.accent-pink   .analytics-card-val { color: #f472b6; }
+.analytics-card.accent-yellow .analytics-card-val { color: var(--yellow); }
+.analytics-post-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s;
+}
+.analytics-post-item:last-child { border-bottom: none; }
+.analytics-post-item:hover { background: var(--surface2); }
+.analytics-period-btns { display: flex; gap: 4px; }
+.analytics-period-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.analytics-period-btn:hover { color: var(--text); }
+.analytics-period-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+@media (max-width: 700px) {
+  .analytics-layout { flex-direction: column; }
+  .analytics-sidebar { width: 100%; flex: none; position: static; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
+  .analytics-net-item { flex: 0 0 auto; }
+}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -931,57 +1035,46 @@ input, select, textarea, label, .bottom-nav-item {
   <!-- ANALYTICS -->
   <div id="page-analytics" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Analytics</div><div class="page-sub" id="analytics-chart-sub">Posts publicados ao longo do tempo e desempenho por rede social</div></div>
+      <div><div class="page-title">Analytics</div></div>
       <button class="btn" id="btn-export-pdf" onclick="exportAnalyticsPDF()">⬇ Exportar PDF</button>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.5rem" id="analytics-platform-filter"></div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-      <div id="analytics-period-posts"></div>
-      <div id="analytics-chart-wrap"><canvas id="analytics-chart" height="90"></canvas></div>
-    </div>
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.75rem">
-      <div style="font-size:13px;font-weight:500">Likes e comentários por post</div>
-      <div id="analytics-last-updated" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
-    </div>
-    <div id="analytics-metrics-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>
-    </div>
 
-    <div data-analytics-section="instagram">
-      <div style="font-size:13px;font-weight:500;margin:1.5rem 0 0.75rem">Curtidas no Instagram</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-        <div id="analytics-period-igLikes"></div>
-        <div id="analytics-ig-likes-wrap"><canvas id="analytics-ig-likes-chart" height="90"></canvas></div>
+    <div class="analytics-layout">
+      <!-- Sidebar de redes -->
+      <div class="analytics-sidebar" id="analytics-sidebar">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:0 8px 6px">Redes</div>
+        <div id="analytics-net-list">
+          <div style="color:var(--muted);font-size:12px;padding:8px">carregando...</div>
+        </div>
       </div>
-    </div>
 
-    <div data-analytics-section="youtube">
-      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Tempo médio de visualização no YouTube</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-        <div id="analytics-period-ytWatch"></div>
-        <div id="analytics-yt-watchtime-wrap"><canvas id="analytics-yt-watchtime-chart" height="90"></canvas></div>
+      <!-- Painel principal -->
+      <div class="analytics-panel" id="analytics-panel">
+        <!-- Seletor de período -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--muted)">Período:</span>
+          <div class="analytics-period-btns" id="analytics-period-btns">
+            <button type="button" class="analytics-period-btn active" onclick="analyticsSetPeriod(7,this)">7d</button>
+            <button type="button" class="analytics-period-btn" onclick="analyticsSetPeriod(30,this)">30d</button>
+            <button type="button" class="analytics-period-btn" onclick="analyticsSetPeriod(90,this)">90d</button>
+          </div>
+          <div id="analytics-last-updated" style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-left:auto"></div>
+        </div>
+
+        <!-- Abas -->
+        <div class="analytics-tabs" id="analytics-tabs"></div>
+
+        <!-- Cards de métricas -->
+        <div class="analytics-cards" id="analytics-cards"></div>
+
+        <!-- Gráfico -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem">
+          <div id="analytics-chart-wrap" style="position:relative;min-height:160px"><canvas id="analytics-chart" height="100"></canvas></div>
+        </div>
+
+        <!-- Lista de posts -->
+        <div id="analytics-posts-wrap"></div>
       </div>
-    </div>
-
-    <div data-analytics-section="instagram">
-      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Saldo de seguidores no Instagram</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-        <div id="analytics-period-igFollowers"></div>
-        <div id="analytics-ig-followers-wrap"><canvas id="analytics-ig-followers-chart" height="90"></canvas></div>
-      </div>
-    </div>
-
-    <div data-analytics-section="tiktok">
-      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Seguidores e curtidas totais no TikTok</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
-        <div id="analytics-period-tiktok"></div>
-        <div id="analytics-tiktok-stats-wrap"><canvas id="analytics-tiktok-stats-chart" height="90"></canvas></div>
-      </div>
-    </div>
-
-    <div data-analytics-section="tiktok">
-      <div style="font-size:13px;font-weight:500;margin:0 0 0.75rem">Vídeos publicados no TikTok</div>
-      <div id="analytics-tiktok-videos-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.5rem"></div>
     </div>
   </div>
 
@@ -2559,108 +2652,335 @@ async function clearLogs() {
   }
 }
 
-// ── Analytics ────────────────────────────────────────────────────────────────
+// ── Analytics (redesign estilo Metricool) ────────────────────────────────────
 const ANALYTICS_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 
-// Converte uma data "YYYY-MM-DD" para o padrão brasileiro "DD/MM/AAAA", só
-// para exibição — as chaves internas (ordenação, lookup em objetos) continuam
-// em ISO, que é o formato comparável/ordenável por string.
 function formatDiaBR(isoDate) {
   const [ano, mes, dia] = isoDate.slice(0, 10).split('-');
   return `${dia}/${mes}/${ano}`;
 }
 const ANALYTICS_PLAT_COLORS = { facebook:'#5b8def', instagram:'#e94f8a', youtube:'#ff5c5c', tiktok:'#a0a0b0' };
 
-// Regra de métricas de cada rede social: o que a API de cada uma realmente
-// expõe hoje, usada para explicar (em vez de simplesmente omitir) por que
-// uma métrica aparece como "indisponível" para certas plataformas.
 const ANALYTICS_PLAT_RULES = {
-  facebook:  'Curtidas e comentários reais. Visualizações não são expostas pela Graph API para posts comuns de feed (só vídeos, com permissão extra).',
+  facebook:  'Curtidas e comentários reais. Visualizações não são expostas pela Graph API para posts comuns de feed.',
   instagram: 'Curtidas, comentários e visualizações reais (Insights). Comentários podem ser respondidos direto por aqui.',
-  youtube:   'Curtidas, comentários e visualizações reais, mais tempo médio de visualização (gráfico abaixo).',
-  tiktok:    'Sem ID público de post — métricas por post não disponíveis. Estatísticas da conta (seguidores/curtidas) aparecem no gráfico abaixo.'
+  youtube:   'Curtidas, comentários e visualizações reais, mais tempo médio de visualização.',
+  tiktok:    'Sem ID público de post — métricas por post não disponíveis. Estatísticas da conta aparecem no gráfico.'
 };
+
 let analyticsChart = null;
 let analyticsRefreshTimer = null;
 const ANALYTICS_REFRESH_MS = 30000;
 
-// Dados brutos da última busca, para poder reaplicar o filtro de rede social
-// sem precisar chamar a API de novo a cada clique.
 let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {} };
-let analyticsFilter = 'all';
-let analyticsIgLikesChart = null;
-let analyticsYtWatchTimeChart = null;
-let analyticsIgFollowersChart = null;
-let analyticsTiktokStatsChart = null;
+let analyticsActiveNet = 'instagram';
+let analyticsActiveTab = 'community';
+let analyticsPeriodDays = 7;
+let analyticsTiktokVideos = [];
 
-// Post selecionado na lista "Likes e comentários por post" — com nada
-// selecionado, o gráfico principal mostra a junção de todos os posts
-// (comportamento padrão); selecionando um post, o gráfico passa a mostrar
-// só o histórico de curtidas daquele post específico.
-let analyticsSelectedPostId = null;
-
-// ── Período por gráfico (regra de negócio: 1 mês por padrão) ──────────────────
-// Cada bloco de métrica (posts, curtidas do Instagram, tempo de visualização
-// do YouTube, seguidores do Instagram, stats do TikTok) tem seu próprio
-// intervalo de datas, independente dos demais — útil para comparar redes
-// sociais em janelas de tempo diferentes.
-function periodoPadraoUmMes() {
-  const ate = new Date();
-  const de = new Date(ate.getTime() - 30 * 86400000);
-  return { de: de.toISOString().slice(0, 10), ate: ate.toISOString().slice(0, 10) };
-}
-
-const analyticsPeriods = {
-  posts: periodoPadraoUmMes(),
-  igLikes: periodoPadraoUmMes(),
-  ytWatch: periodoPadraoUmMes(),
-  igFollowers: periodoPadraoUmMes(),
-  tiktok: periodoPadraoUmMes()
+const ANALYTICS_NET_ICONS = {
+  instagram: '📸',
+  facebook: '📘',
+  youtube: '▶️',
+  tiktok: '🎵'
 };
 
-// Renderiza o seletor "de/até" de um bloco e religa o gráfico correspondente
-// quando o usuário muda o intervalo.
-function renderPeriodPicker(key, onChange) {
-  const el = document.getElementById(`analytics-period-${key}`);
+const ANALYTICS_NET_TABS = {
+  instagram: [{ key:'community', label:'Comunidade' }, { key:'posts', label:'Posts publicados' }, { key:'growth', label:'Crescimento' }],
+  facebook:  [{ key:'community', label:'Comunidade' }, { key:'posts', label:'Posts publicados' }],
+  youtube:   [{ key:'community', label:'Comunidade' }, { key:'videos', label:'Vídeos publicados' }, { key:'growth', label:'Crescimento' }],
+  tiktok:    [{ key:'community', label:'Comunidade' }, { key:'videos', label:'Vídeos publicados' }]
+};
+
+function analyticsFilterByPeriod(data) {
+  const ate = new Date();
+  const de = new Date(ate.getTime() - analyticsPeriodDays * 86400000);
+  const deStr = de.toISOString().slice(0, 10);
+  const ateStr = ate.toISOString().slice(0, 10);
+  if (Array.isArray(data)) {
+    return data.filter(m => {
+      if (!m.publishedAt) return false;
+      const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
+      return dia >= deStr && dia <= ateStr;
+    });
+  }
+  return Object.fromEntries(Object.entries(data).filter(([dia]) => dia >= deStr && dia <= ateStr));
+}
+
+function analyticsSetPeriod(days, btn) {
+  analyticsPeriodDays = days;
+  document.querySelectorAll('.analytics-period-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  analyticsRenderPanel();
+}
+
+function analyticsSelectNetwork(net) {
+  analyticsActiveNet = net;
+  analyticsActiveTab = 'community';
+  analyticsRenderSidebar();
+  analyticsRenderPanel();
+}
+
+function analyticsSelectTab(tab) {
+  analyticsActiveTab = tab;
+  analyticsRenderPanel();
+}
+
+function analyticsRenderSidebar() {
+  const nets = analyticsDetectNetworks();
+  const listEl = document.getElementById('analytics-net-list');
+  if (!listEl) return;
+  if (!nets.length) {
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px">Nenhuma rede com dados</div>';
+    return;
+  }
+  listEl.innerHTML = nets.map(net => `
+    <div class="analytics-net-item ${analyticsActiveNet === net ? 'active' : ''}" onclick="analyticsSelectNetwork('${net}')">
+      <span style="font-size:16px">${ANALYTICS_NET_ICONS[net] || '🌐'}</span>
+      <span>${escapeHtml(ANALYTICS_PLAT_LABELS[net] || net)}</span>
+    </div>`).join('');
+}
+
+function analyticsDetectNetworks() {
+  const nets = new Set();
+  for (const m of analyticsData.metrics) {
+    if (m.platform) nets.add(m.platform);
+  }
+  if (Object.keys(analyticsData.instagramFollowers).length) nets.add('instagram');
+  if (Object.keys(analyticsData.tiktokStats).length) nets.add('tiktok');
+  if (analyticsTiktokVideos.length) nets.add('tiktok');
+  // preserve order
+  return ['instagram','facebook','youtube','tiktok'].filter(n => nets.has(n));
+}
+
+function analyticsRenderPanel() {
+  analyticsRenderTabs();
+  analyticsRenderCards(analyticsActiveNet, analyticsActiveTab);
+  analyticsRenderChart(analyticsActiveNet, analyticsActiveTab);
+  analyticsRenderPostsList(analyticsActiveNet, analyticsActiveTab);
+}
+
+function analyticsRenderTabs() {
+  const tabsEl = document.getElementById('analytics-tabs');
+  if (!tabsEl) return;
+  const tabs = ANALYTICS_NET_TABS[analyticsActiveNet] || [];
+  tabsEl.innerHTML = tabs.map(t =>
+    `<button type="button" class="analytics-tab ${analyticsActiveTab === t.key ? 'active' : ''}" onclick="analyticsSelectTab('${t.key}')">${escapeHtml(t.label)}</button>`
+  ).join('');
+}
+
+function fmtNum(n) {
+  if (n == null) return '—';
+  if (n >= 1000000) return (n/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1).replace(/\.0$/,'') + 'k';
+  return String(n);
+}
+
+function fmtWatchTime(seconds) {
+  if (seconds == null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function analyticsRenderCards(net, tab) {
+  const el = document.getElementById('analytics-cards');
   if (!el) return;
-  const p = analyticsPeriods[key];
-  const inputStyle = 'background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:var(--mono)';
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)">Período:</span>
-      <input type="date" value="${p.de}" style="${inputStyle}" onchange="onAnalyticsPeriodChange('${key}', this.value, null)"/>
-      <span style="font-size:11px;color:var(--muted)">até</span>
-      <input type="date" value="${p.ate}" style="${inputStyle}" onchange="onAnalyticsPeriodChange('${key}', null, this.value)"/>
-    </div>`;
-  el._onChange = onChange;
+  const metrics = analyticsFilterByPeriod(analyticsData.metrics).filter(m => m.platform === net);
+  const igFollowers = analyticsFilterByPeriod(analyticsData.instagramFollowers);
+  const tiktokStats = analyticsFilterByPeriod(analyticsData.tiktokStats);
+
+  let cards = [];
+
+  if (net === 'instagram') {
+    if (tab === 'community' || tab === 'growth') {
+      const igDias = Object.keys(igFollowers).sort();
+      const followers = igDias.length ? igFollowers[igDias[igDias.length-1]].followerCount : null;
+      const totalLikes = metrics.reduce((a,m) => a + (m.metrics?.likes||0), 0);
+      const totalComments = metrics.reduce((a,m) => a + (m.metrics?.comments||0), 0);
+      cards = [
+        { label:'Seguidores', val: fmtNum(followers), accent:'accent-purple' },
+        { label:'Likes', val: fmtNum(totalLikes), accent:'accent-pink' },
+        { label:'Comentários', val: fmtNum(totalComments), accent:'accent-green' },
+        { label:'Posts', val: fmtNum(metrics.length), accent:'accent-yellow' }
+      ];
+    } else {
+      const totalLikes = metrics.reduce((a,m) => a + (m.metrics?.likes||0), 0);
+      const totalViews = metrics.reduce((a,m) => a + (m.metrics?.views||0), 0);
+      cards = [
+        { label:'Posts publicados', val: fmtNum(metrics.length), accent:'accent-yellow' },
+        { label:'Likes', val: fmtNum(totalLikes), accent:'accent-pink' },
+        { label:'Views', val: fmtNum(totalViews), accent:'accent-purple' }
+      ];
+    }
+  } else if (net === 'facebook') {
+    const totalLikes = metrics.reduce((a,m) => a + (m.metrics?.likes||0), 0);
+    const totalComments = metrics.reduce((a,m) => a + (m.metrics?.comments||0), 0);
+    cards = [
+      { label:'Likes', val: fmtNum(totalLikes), accent:'accent-purple' },
+      { label:'Comentários', val: fmtNum(totalComments), accent:'accent-green' },
+      { label:'Posts publicados', val: fmtNum(metrics.length), accent:'accent-yellow' }
+    ];
+  } else if (net === 'youtube') {
+    const totalViews = metrics.reduce((a,m) => a + (m.metrics?.views||0), 0);
+    const totalLikes = metrics.reduce((a,m) => a + (m.metrics?.likes||0), 0);
+    const watchArr = metrics.filter(m => m.metrics?.watchTimeSeconds != null).map(m => m.metrics.watchTimeSeconds);
+    const avgWatch = watchArr.length ? watchArr.reduce((a,b)=>a+b,0)/watchArr.length : null;
+    cards = [
+      { label:'Views', val: fmtNum(totalViews), accent:'accent-purple' },
+      { label:'Likes', val: fmtNum(totalLikes), accent:'accent-pink' },
+      { label:'Watch time médio', val: fmtWatchTime(avgWatch), accent:'accent-green' },
+      { label:'Vídeos publicados', val: fmtNum(metrics.length), accent:'accent-yellow' }
+    ];
+  } else if (net === 'tiktok') {
+    const tkDias = Object.keys(tiktokStats).sort();
+    const followers = tkDias.length ? tiktokStats[tkDias[tkDias.length-1]].followerCount : null;
+    const likesTotal = tkDias.length ? tiktokStats[tkDias[tkDias.length-1]].likesCount : null;
+    cards = [
+      { label:'Seguidores', val: fmtNum(followers), accent:'accent-purple' },
+      { label:'Curtidas acumuladas', val: fmtNum(likesTotal), accent:'accent-pink' },
+      { label:'Vídeos publicados', val: fmtNum(analyticsTiktokVideos.length), accent:'accent-yellow' }
+    ];
+  }
+
+  el.innerHTML = cards.map(c => `
+    <div class="analytics-card ${c.accent}">
+      <div class="analytics-card-val">${c.val}</div>
+      <div class="analytics-card-label">${escapeHtml(c.label)}</div>
+    </div>`).join('');
 }
 
-function onAnalyticsPeriodChange(key, de, ate) {
-  if (de) analyticsPeriods[key].de = de;
-  if (ate) analyticsPeriods[key].ate = ate;
-  document.getElementById(`analytics-period-${key}`)._onChange?.();
-}
+function analyticsRenderChart(net, tab) {
+  const wrap = document.getElementById('analytics-chart-wrap');
+  if (!wrap) return;
+  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
 
-// Filtra um objeto chaveado por data ISO ("YYYY-MM-DD") para o período do bloco.
-function filtrarPorPeriodo(obj, key) {
-  const { de, ate } = analyticsPeriods[key];
-  return Object.fromEntries(Object.entries(obj).filter(([dia]) => dia >= de && dia <= ate));
-}
+  const metrics = analyticsFilterByPeriod(analyticsData.metrics).filter(m => m.platform === net);
+  const igFollowers = analyticsFilterByPeriod(analyticsData.instagramFollowers);
+  const tiktokStats = analyticsFilterByPeriod(analyticsData.tiktokStats);
 
-// Filtra uma lista de métricas por post (cada item tem publishedAt) para o período do bloco.
-function filtrarMetricasPorPeriodo(metrics, key) {
-  const { de, ate } = analyticsPeriods[key];
-  return metrics.filter(m => {
-    if (!m.publishedAt) return false;
-    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
-    return dia >= de && dia <= ate;
+  wrap.innerHTML = '<canvas id="analytics-chart" height="100"></canvas>';
+  const ctx = document.getElementById('analytics-chart');
+
+  const chartDefaults = {
+    responsive: true,
+    scales: { y: { beginAtZero: true, ticks: { precision:0, color:'#8b8fa3' }, grid: { color:'rgba(255,255,255,0.05)' } }, x: { ticks: { color:'#8b8fa3' }, grid: { display: false } } },
+    plugins: { legend: { position:'bottom', labels:{ color:'#8b8fa3', boxWidth:12 } } }
+  };
+
+  if ((net === 'instagram' && (tab === 'growth' || tab === 'community'))) {
+    const dias = Object.keys(igFollowers).sort();
+    if (!dias.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Sem dados de seguidores no período.</div>'; return; }
+    analyticsChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: dias.map(formatDiaBR), datasets: [{ label:'Seguidores', data: dias.map(d => igFollowers[d].followerCount), borderColor: ANALYTICS_PLAT_COLORS.instagram, backgroundColor: 'rgba(233,79,138,0.1)', fill:true, tension:0.3, pointRadius:3 }] },
+      options: chartDefaults
+    });
+    return;
+  }
+
+  if (net === 'tiktok' && tab === 'community') {
+    const dias = Object.keys(tiktokStats).sort();
+    if (!dias.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Sem dados do TikTok no período.</div>'; return; }
+    analyticsChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: dias.map(formatDiaBR), datasets: [
+        { label:'Seguidores', data: dias.map(d => tiktokStats[d].followerCount), borderColor: ANALYTICS_PLAT_COLORS.tiktok, backgroundColor:'rgba(160,160,176,0.08)', fill:true, tension:0.3, pointRadius:3 },
+        { label:'Curtidas totais', data: dias.map(d => tiktokStats[d].likesCount), borderColor:'#8b8fa3', backgroundColor:'transparent', tension:0.3, pointRadius:3 }
+      ] },
+      options: chartDefaults
+    });
+    return;
+  }
+
+  // Posts/vídeos: barras de likes por dia
+  const porDia = {};
+  for (const m of metrics) {
+    if (!m.publishedAt) continue;
+    const dia = new Date(m.publishedAt).toISOString().slice(0,10);
+    porDia[dia] = (porDia[dia] || 0) + (m.metrics?.likes || 0);
+  }
+  const dias = Object.keys(porDia).sort();
+  if (!dias.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Nenhum dado disponível para o período selecionado.</div>'; return; }
+  analyticsChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: dias.map(formatDiaBR), datasets: [{ label:'Likes', data: dias.map(d => porDia[d]), backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#6c8cff', borderRadius:4 }] },
+    options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display:false } } }
   });
 }
 
-// Busca curtidas/comentários direto das APIs das redes sociais a cada
-// chamada (sem cache), e repete automaticamente a cada 30s enquanto a
-// página Analytics estiver aberta — para de buscar ao trocar de página,
-// para não consumir cota das APIs à toa.
+function analyticsRenderPostsList(net, tab) {
+  const wrap = document.getElementById('analytics-posts-wrap');
+  if (!wrap) return;
+
+  const isPostsTab = tab === 'posts' || tab === 'videos';
+
+  if (!isPostsTab) { wrap.innerHTML = ''; return; }
+
+  // TikTok usa lista própria de vídeos
+  if (net === 'tiktok') {
+    if (!analyticsTiktokVideos.length) {
+      wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Nenhum vídeo publicado.</div>';
+      return;
+    }
+    wrap.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">` +
+      analyticsTiktokVideos.map(v => {
+        const data = new Date(v.createTime * 1000).toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo' });
+        const titulo = v.title ? escapeHtml(v.title.slice(0,70)) + (v.title.length>70?'…':'') : '<span style="color:var(--muted)">(sem título)</span>';
+        return `<a class="analytics-post-item" href="${escapeHtml(v.shareUrl)}" target="_blank" rel="noopener">
+          ${v.coverImageUrl ? `<img src="${escapeHtml(v.coverImageUrl)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:0 0 48px"/>` : '<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);flex:0 0 48px;display:flex;align-items:center;justify-content:center;font-size:18px">🎵</div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${titulo}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(data)}</div>
+          </div>
+          <div style="text-align:right;font-size:12px;color:var(--text);white-space:nowrap;flex:0 0 auto">
+            <span>👁 ${fmtNum(v.viewCount)}</span>
+            <span style="margin-left:8px">❤ ${fmtNum(v.likeCount)}</span>
+            <span style="margin-left:8px">💬 ${fmtNum(v.commentCount)}</span>
+          </div>
+        </a>`;
+      }).join('') + '</div>';
+    return;
+  }
+
+  // Outras redes: metrics list
+  const metrics = analyticsFilterByPeriod(analyticsData.metrics).filter(m => m.platform === net)
+    .sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+  if (!metrics.length) {
+    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Nenhum post no período selecionado.</div>';
+    return;
+  }
+
+  const THUMB_FALLBACK = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted)">🖼️</div>`.replace(/"/g,'&quot;');
+
+  wrap.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">` +
+    metrics.map(m => {
+      const data = m.publishedAt ? new Date(m.publishedAt).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
+      const texto = m.text ? escapeHtml(m.text.slice(0,70)) + (m.text.length>70?'…':'') : (m.youtubeTitle ? escapeHtml(m.youtubeTitle.slice(0,70)) : '<span style="color:var(--muted)">(sem texto)</span>');
+      const itens = m.mediaItems?.length ? m.mediaItems : (m.mediaPath ? [{path:m.mediaPath, type:m.mediaType}] : []);
+      let thumb = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 48px;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted)">📝</div>`;
+      if (itens.length) {
+        const p = itens[0];
+        thumb = p.type === 'video'
+          ? `<video src="${escapeHtml(p.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:0 0 48px" onerror="this.outerHTML='${THUMB_FALLBACK}'"></video>`
+          : `<img src="${escapeHtml(p.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:0 0 48px" onerror="this.outerHTML='${THUMB_FALLBACK}'"/>`;
+      }
+      const podeComentarios = net === 'instagram';
+      return `<div class="analytics-post-item" style="cursor:default">
+        ${thumb}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${texto}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(data)}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;white-space:nowrap;flex:0 0 auto" onclick="event.stopPropagation()">
+          ${m.metrics ? `<span>❤ ${fmtNum(m.metrics.likes)}</span><span style="margin-left:8px">💬 ${fmtNum(m.metrics.comments)}</span>${m.metrics.views!=null?`<span style="margin-left:8px">👁 ${fmtNum(m.metrics.views)}</span>`:''}` : '<span style="color:var(--muted)">sem métricas</span>'}
+          ${podeComentarios ? `<br><button type="button" class="plat-btn" style="flex:0;padding:3px 8px;font-size:11px;margin-top:4px" onclick="openCommentsModal(${m.postId})">Comentários</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
 function startAnalyticsAutoRefresh() {
   loadAnalytics();
   stopAnalyticsAutoRefresh();
@@ -2672,469 +2992,54 @@ function stopAnalyticsAutoRefresh() {
 }
 
 async function loadAnalytics() {
-  const listEl = document.getElementById('analytics-metrics-list');
-  if (!listEl.dataset.loaded) {
-    listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
-  }
-
   try {
     const { series, metrics, instagramFollowers, tiktokStats } = await apiFetch('/api/posts/analytics');
     analyticsData = { series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {} };
 
-    renderPeriodPicker('posts', renderAnalyticsView);
-    renderPeriodPicker('igLikes', () => renderInstagramLikesChart(filtrarMetricasPorPeriodo(analyticsData.metrics, 'igLikes')));
-    renderPeriodPicker('ytWatch', () => renderYoutubeWatchTimeChart(filtrarMetricasPorPeriodo(analyticsData.metrics, 'ytWatch')));
-    renderPeriodPicker('igFollowers', () => renderInstagramFollowersChart(filtrarPorPeriodo(analyticsData.instagramFollowers, 'igFollowers')));
-    renderPeriodPicker('tiktok', () => renderTiktokStatsChart(filtrarPorPeriodo(analyticsData.tiktokStats, 'tiktok')));
+    // Detect first available network and select it if none active
+    const nets = analyticsDetectNetworks();
+    if (nets.length && !nets.includes(analyticsActiveNet)) analyticsActiveNet = nets[0];
 
-    renderAnalyticsPlatformFilter();
-    renderAnalyticsView();
-    renderInstagramLikesChart(filtrarMetricasPorPeriodo(metrics, 'igLikes'));
-    renderYoutubeWatchTimeChart(filtrarMetricasPorPeriodo(metrics, 'ytWatch'));
-    renderInstagramFollowersChart(filtrarPorPeriodo(analyticsData.instagramFollowers, 'igFollowers'));
-    renderTiktokStatsChart(filtrarPorPeriodo(analyticsData.tiktokStats, 'tiktok'));
-    listEl.dataset.loaded = '1';
+    analyticsRenderSidebar();
+    analyticsRenderPanel();
     updateAnalyticsLastUpdated();
   } catch (e) {
-    listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
+    const panel = document.getElementById('analytics-panel');
+    if (panel) panel.innerHTML += `<div style="color:var(--red);padding:1rem;font-size:13px">Erro ao carregar analytics: ${escapeHtml(e.message)}</div>`;
   }
-
   loadTiktokVideos();
 }
 
 async function loadTiktokVideos() {
-  const listEl = document.getElementById('analytics-tiktok-videos-list');
-  if (!listEl) return;
-  listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
-
   try {
     const { videos } = await apiFetch('/api/posts/tiktok-videos');
-    if (!videos.length) {
-      listEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhum vídeo publicado ainda.</div>';
-      return;
+    analyticsTiktokVideos = videos || [];
+    if (analyticsActiveNet === 'tiktok' && (analyticsActiveTab === 'videos')) {
+      analyticsRenderPostsList('tiktok', analyticsActiveTab);
     }
-
-    listEl.innerHTML = videos.map(v => {
-      const data = new Date(v.createTime * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      const titulo = v.title ? escapeHtml(v.title.slice(0, 60)) + (v.title.length > 60 ? '…' : '') : '<span style="color:var(--muted)">(sem título)</span>';
-      return `<a class="plat-row" href="${escapeHtml(v.shareUrl)}" target="_blank" rel="noopener" style="flex-wrap:wrap;text-decoration:none;color:inherit">
-        ${v.coverImageUrl ? `<img src="${escapeHtml(v.coverImageUrl)}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;flex:0 0 40px"/>` : ''}
-        <div style="flex:1">
-          <div class="plat-row-name" style="font-size:13px;font-weight:400">${titulo}</div>
-          <div class="plat-row-meta">${escapeHtml(v.accountName || '')} · ${escapeHtml(data)}</div>
-        </div>
-        <div style="text-align:right;font-size:12px;color:var(--text);white-space:nowrap">
-          👁 ${v.viewCount ?? '—'} · ❤ ${v.likeCount ?? '—'} · 💬 ${v.commentCount ?? '—'}
-        </div>
-      </a>`;
-    }).join('');
-  } catch (e) {
-    listEl.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
-  }
-}
-
-function renderAnalyticsPlatformFilter() {
-  const wrap = document.getElementById('analytics-platform-filter');
-
-  const botoes = [{ key: 'all', label: 'Todas' }, ...Object.keys(ANALYTICS_PLAT_LABELS).map(p => ({ key: p, label: ANALYTICS_PLAT_LABELS[p] }))];
-  wrap.innerHTML = botoes.map(b =>
-    `<button type="button" class="plat-btn ${analyticsFilter === b.key ? 'primary' : ''}" style="flex:0;padding:5px 12px" onclick="setAnalyticsFilter('${b.key}')">${escapeHtml(b.label)}</button>`
-  ).join('');
-}
-
-function setAnalyticsFilter(plat) {
-  analyticsFilter = plat;
-  renderAnalyticsPlatformFilter();
-  renderAnalyticsView();
-}
-
-// Os blocos extras (curtidas/seguidores do Instagram, watch time do
-// YouTube, stats do TikTok) só fazem sentido para a rede social a que
-// pertencem — escondidos quando o filtro está em "Todas" ou em outra rede,
-// para não misturar dados de redes diferentes na mesma tela.
-function aplicarFiltroSecoesExtra() {
-  document.querySelectorAll('[data-analytics-section]').forEach(el => {
-    el.style.display = el.dataset.analyticsSection === analyticsFilter ? '' : 'none';
-  });
-}
-
-function renderAnalyticsView() {
-  aplicarFiltroSecoesExtra();
-  const seriesNoPeriodo = filtrarPorPeriodo(analyticsData.series, 'posts');
-
-  const series = analyticsFilter === 'all'
-    ? seriesNoPeriodo
-    : Object.fromEntries(
-        Object.entries(seriesNoPeriodo)
-          .map(([dia, porPlat]) => [dia, analyticsFilter in porPlat ? { [analyticsFilter]: porPlat[analyticsFilter] } : {}])
-          .filter(([, porPlat]) => Object.keys(porPlat).length)
-      );
-
-  const metricsNoPeriodo = filtrarMetricasPorPeriodo(analyticsData.metrics, 'posts');
-  const metrics = analyticsFilter === 'all'
-    ? metricsNoPeriodo
-    : metricsNoPeriodo.filter(m => m.platform === analyticsFilter);
-
-  // Com um post selecionado, o gráfico principal troca de "junção de todos
-  // os posts" para o histórico daquele post específico.
-  const postSelecionado = metrics.find(m => m.postId === analyticsSelectedPostId);
-  if (postSelecionado) {
-    renderSelectedPostChart(postSelecionado);
-  } else {
-    analyticsSelectedPostId = null;
-    renderAnalyticsChart(series);
-  }
-  renderAnalyticsMetrics(metrics);
-}
-
-// Seleciona/deseleciona um post ao clicar na sua linha na lista de
-// métricas. Clicar de novo no mesmo post desfaz a seleção, voltando à
-// junção de todos os posts no gráfico principal.
-function selectAnalyticsPost(postId) {
-  analyticsSelectedPostId = analyticsSelectedPostId === postId ? null : postId;
-  renderAnalyticsView();
+    // Also re-render cards if tiktok is active
+    if (analyticsActiveNet === 'tiktok') analyticsRenderCards('tiktok', analyticsActiveTab);
+    // ensure tiktok shows in sidebar if videos found
+    if (analyticsTiktokVideos.length) analyticsRenderSidebar();
+  } catch (_) { analyticsTiktokVideos = []; }
 }
 
 function updateAnalyticsLastUpdated() {
   const el = document.getElementById('analytics-last-updated');
   if (!el) return;
-  const agora = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  el.textContent = `Atualizado em tempo real · última busca às ${agora}`;
+  const agora = new Date().toLocaleTimeString('pt-BR', { timeZone:'America/Sao_Paulo', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  el.textContent = `atualizado às ${agora}`;
 }
 
-function renderAnalyticsChart(series) {
-  const subEl = document.getElementById('analytics-chart-sub');
-  if (subEl) subEl.textContent = 'Posts publicados ao longo do tempo e desempenho por rede social';
-
-  const dias = Object.keys(series).sort();
-  const wrap = document.getElementById('analytics-chart-wrap');
-
-  if (!dias.length) {
-    if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum post publicado ainda.</div>';
-    return;
-  }
-
-  // Sempre recria o canvas em vez de reaproveitar o existente — se o
-  // gráfico for desenhado enquanto a aba Analytics ainda estava oculta
-  // (display:none), o Chart.js mede largura/altura 0 e o desenho final
-  // fica distorcido (linha cortada, ponto solto), mesmo depois da aba
-  // ficar visível. Um canvas novo força uma medição limpa a cada render.
-  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
-  wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
-
-  const plataformas = [...new Set(dias.flatMap(d => Object.keys(series[d])))];
-  const datasets = plataformas.map(p => ({
-    label: ANALYTICS_PLAT_LABELS[p] || p,
-    data: dias.map(d => series[d][p] || 0),
-    borderColor: ANALYTICS_PLAT_COLORS[p] || '#888',
-    backgroundColor: 'transparent',
-    tension: 0, pointRadius: 4, pointHoverRadius: 6
-  }));
-
-  analyticsChart = new Chart(document.getElementById('analytics-chart'), {
-    type: 'line',
-    data: { labels: dias.map(formatDiaBR), datasets },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
-    }
-  });
-}
-
-// Mostra, no mesmo gráfico principal, o histórico de curtidas só do post
-// selecionado na lista abaixo (em vez da junção de todos os posts).
-async function renderSelectedPostChart(post) {
-  const subEl = document.getElementById('analytics-chart-sub');
-  const textoPreview = post.text ? post.text.slice(0, 60) + (post.text.length > 60 ? '…' : '') : '(sem texto)';
-  if (subEl) subEl.textContent = `Curtidas de "${textoPreview}" ao longo do tempo · clique novamente no post para voltar à junção`;
-
-  const wrap = document.getElementById('analytics-chart-wrap');
-  wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">carregando...</div>';
-
-  let history;
-  try {
-    ({ history } = await apiFetch(`/api/posts/${post.postId}/metrics-history`));
-  } catch (e) {
-    wrap.innerHTML = `<div style="text-align:center;color:var(--red);padding:1.5rem">${escapeHtml(e.message)}</div>`;
-    return;
-  }
-
-  // Pode ter trocado a seleção enquanto a busca estava em andamento.
-  if (analyticsSelectedPostId !== post.postId) return;
-
-  if (!history.length) {
-    if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Ainda não há histórico suficiente para este post. Volte em alguns dias — um ponto é salvo por dia.</div>';
-    return;
-  }
-
-  if (analyticsChart) { analyticsChart.destroy(); analyticsChart = null; }
-  wrap.innerHTML = '<canvas id="analytics-chart" height="90"></canvas>';
-
-  analyticsChart = new Chart(document.getElementById('analytics-chart'), {
-    type: 'line',
-    data: {
-      labels: history.map(h => formatDiaBR(h.date)),
-      datasets: [{
-        label: 'Curtidas',
-        data: history.map(h => h.likes),
-        borderColor: ANALYTICS_PLAT_COLORS[post.platform] || '#888',
-        backgroundColor: 'transparent',
-        tension: 0, pointRadius: 4, pointHoverRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
-    }
-  });
-}
-
-// Agrupa as curtidas dos posts do Instagram por dia de publicação, a partir
-// das métricas já buscadas para a lista "Likes e comentários por post".
-function renderInstagramLikesChart(metrics) {
-  const wrap = document.getElementById('analytics-ig-likes-wrap');
-  const porDia = {};
-  for (const m of metrics) {
-    if (m.platform !== 'instagram' || !m.metrics || m.metrics.likes == null) continue;
-    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
-    porDia[dia] = (porDia[dia] || 0) + m.metrics.likes;
-  }
-  const dias = Object.keys(porDia).sort();
-
-  if (!dias.length) {
-    if (analyticsIgLikesChart) { analyticsIgLikesChart.destroy(); analyticsIgLikesChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhuma curtida do Instagram disponível ainda.</div>';
-    return;
-  }
-  if (!document.getElementById('analytics-ig-likes-chart')) {
-    wrap.innerHTML = '<canvas id="analytics-ig-likes-chart" height="90"></canvas>';
-  }
-
-  if (analyticsIgLikesChart) analyticsIgLikesChart.destroy();
-  analyticsIgLikesChart = new Chart(document.getElementById('analytics-ig-likes-chart'), {
-    type: 'line',
-    data: { labels: dias.map(formatDiaBR), datasets: [{
-      label: 'Curtidas',
-      data: dias.map(d => porDia[d]),
-      borderColor: ANALYTICS_PLAT_COLORS.instagram,
-      backgroundColor: 'transparent',
-      tension: 0, pointRadius: 4, pointHoverRadius: 6
-    }] },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { display: false } }
-    }
-  });
-}
-
-// Agrupa o tempo médio de visualização (em segundos) dos vídeos do YouTube
-// por dia de publicação. Requer o scope yt-analytics.readonly — vídeos de
-// contas conectadas antes desse scope existir aparecem sem esse dado.
-function renderYoutubeWatchTimeChart(metrics) {
-  const wrap = document.getElementById('analytics-yt-watchtime-wrap');
-  const porDia = {};
-  for (const m of metrics) {
-    if (m.platform !== 'youtube' || !m.metrics || m.metrics.watchTimeSeconds == null) continue;
-    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
-    porDia[dia] = porDia[dia] || [];
-    porDia[dia].push(m.metrics.watchTimeSeconds);
-  }
-  const dias = Object.keys(porDia).sort();
-
-  if (!dias.length) {
-    if (analyticsYtWatchTimeChart) { analyticsYtWatchTimeChart.destroy(); analyticsYtWatchTimeChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado de tempo de visualização disponível ainda. Reconecte o canal do YouTube para liberar essa métrica.</div>';
-    return;
-  }
-  if (!document.getElementById('analytics-yt-watchtime-chart')) {
-    wrap.innerHTML = '<canvas id="analytics-yt-watchtime-chart" height="90"></canvas>';
-  }
-
-  const media = dias.map(d => {
-    const valores = porDia[d];
-    return Math.round(valores.reduce((a, b) => a + b, 0) / valores.length);
-  });
-
-  if (analyticsYtWatchTimeChart) analyticsYtWatchTimeChart.destroy();
-  analyticsYtWatchTimeChart = new Chart(document.getElementById('analytics-yt-watchtime-chart'), {
-    type: 'line',
-    data: { labels: dias.map(formatDiaBR), datasets: [{
-      label: 'Tempo médio de visualização (s)',
-      data: media,
-      borderColor: ANALYTICS_PLAT_COLORS.youtube,
-      backgroundColor: 'transparent',
-      tension: 0, pointRadius: 4, pointHoverRadius: 6
-    }] },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { display: false } }
-    }
-  });
-}
-
-// Saldo de seguidores da conta do Instagram, dia a dia — construído a
-// partir de hoje (sem histórico retroativo, já que a API de Insights que
-// daria isso direto não está liberada para este app).
-function renderInstagramFollowersChart(instagramFollowers) {
-  const wrap = document.getElementById('analytics-ig-followers-wrap');
-  const dias = Object.keys(instagramFollowers).sort();
-
-  if (!dias.length) {
-    if (analyticsIgFollowersChart) { analyticsIgFollowersChart.destroy(); analyticsIgFollowersChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado de seguidores disponível ainda.</div>';
-    return;
-  }
-  if (!document.getElementById('analytics-ig-followers-chart')) {
-    wrap.innerHTML = '<canvas id="analytics-ig-followers-chart" height="90"></canvas>';
-  }
-
-  if (analyticsIgFollowersChart) analyticsIgFollowersChart.destroy();
-  analyticsIgFollowersChart = new Chart(document.getElementById('analytics-ig-followers-chart'), {
-    type: 'line',
-    data: {
-      labels: dias.map(formatDiaBR),
-      datasets: [
-        {
-          label: 'Saldo de seguidores',
-          data: dias.map(d => instagramFollowers[d].followerCount),
-          borderColor: ANALYTICS_PLAT_COLORS.instagram,
-          backgroundColor: 'transparent',
-          tension: 0, pointRadius: 4, pointHoverRadius: 6
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
-    }
-  });
-}
-
-// Seguidores e curtidas totais da conta do TikTok, dia a dia — construído a
-// partir de hoje (sem histórico retroativo), via endpoint /user/info/ com
-// o scope user.info.stats.
-function renderTiktokStatsChart(tiktokStats) {
-  const wrap = document.getElementById('analytics-tiktok-stats-wrap');
-  const dias = Object.keys(tiktokStats).sort();
-
-  if (!dias.length) {
-    if (analyticsTiktokStatsChart) { analyticsTiktokStatsChart.destroy(); analyticsTiktokStatsChart = null; }
-    wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--mono)">Nenhum dado do TikTok disponível ainda. Reconecte a conta para liberar essa métrica.</div>';
-    return;
-  }
-  if (!document.getElementById('analytics-tiktok-stats-chart')) {
-    wrap.innerHTML = '<canvas id="analytics-tiktok-stats-chart" height="90"></canvas>';
-  }
-
-  if (analyticsTiktokStatsChart) analyticsTiktokStatsChart.destroy();
-  analyticsTiktokStatsChart = new Chart(document.getElementById('analytics-tiktok-stats-chart'), {
-    type: 'line',
-    data: {
-      labels: dias.map(formatDiaBR),
-      datasets: [
-        {
-          label: 'Seguidores',
-          data: dias.map(d => tiktokStats[d].followerCount),
-          borderColor: ANALYTICS_PLAT_COLORS.tiktok,
-          backgroundColor: 'transparent',
-          tension: 0, pointRadius: 4, pointHoverRadius: 6
-        },
-        {
-          label: 'Curtidas totais',
-          data: dias.map(d => tiktokStats[d].likesCount),
-          borderColor: '#8b8fa3',
-          backgroundColor: 'transparent',
-          tension: 0, pointRadius: 4, pointHoverRadius: 6
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3' } } }
-    }
-  });
-}
-
-// Miniatura do primeiro item de mídia do post (imagem, frame do vídeo, ou
-// ícone de carrossel quando há mais de um item), para dar contexto visual do
-// que foi publicado sem precisar abrir a rede social.
-// Ícone mostrado no lugar da miniatura quando a mídia não carrega — acontece
-// para posts publicados antes da migração para o Vercel Blob, cujos arquivos
-// ficavam em disco local (público/uploads) e não existem mais no ambiente
-// serverless atual. Sem isso, o navegador mostra o ícone padrão de imagem
-// quebrada no lugar.
-const ANALYTICS_THUMB_FALLBACK = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted)" title="Mídia não disponível">🖼️</div>`.replace(/"/g, '&quot;');
-
-function renderAnalyticsMediaThumb(m) {
-  const itens = m.mediaItems?.length ? m.mediaItems : (m.mediaPath ? [{ path: m.mediaPath, type: m.mediaType }] : []);
-  if (!itens.length) {
-    return `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--muted)">📝</div>`;
-  }
-  const primeiro = itens[0];
-  const badgeCarrossel = itens.length > 1 ? `<span style="position:absolute;bottom:-2px;right:-2px;background:var(--accent);color:#fff;font-size:9px;border-radius:6px;padding:1px 4px;line-height:1.4">${itens.length}</span>` : '';
-  const conteudo = primeiro.type === 'video'
-    ? `<video src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.outerHTML='${ANALYTICS_THUMB_FALLBACK}'"></video>`
-    : `<img src="${escapeHtml(primeiro.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover" onerror="this.outerHTML='${ANALYTICS_THUMB_FALLBACK}'"/>`;
-  return `<div style="position:relative;flex:0 0 auto">${conteudo}${badgeCarrossel}</div>`;
-}
-
-function renderAnalyticsMetrics(metrics) {
-  const listEl = document.getElementById('analytics-metrics-list');
-
-  const regraRede = analyticsFilter !== 'all' && ANALYTICS_PLAT_RULES[analyticsFilter]
-    ? `<div style="padding:8px 14px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface2)">ℹ️ <strong style="color:var(--text)">${escapeHtml(ANALYTICS_PLAT_LABELS[analyticsFilter])}:</strong> ${escapeHtml(ANALYTICS_PLAT_RULES[analyticsFilter])}</div>`
-    : '';
-
-  if (!metrics.length) {
-    listEl.innerHTML = regraRede + '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:13px">Nenhuma métrica disponível ainda. Métricas reais só aparecem para posts publicados a partir desta atualização, no Facebook, Instagram ou YouTube.</div>';
-    return;
-  }
-
-  const linhas = metrics.map(m => {
-    const data = m.publishedAt ? new Date(m.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
-    const texto = m.text ? escapeHtml(m.text.slice(0, 60)) + (m.text.length > 60 ? '…' : '') : '<span style="color:var(--muted)">(sem texto)</span>';
-    const views = m.metrics?.views != null
-      ? `👁 ${m.metrics.views} visualizações · `
-      : m.metrics ? '<span style="color:var(--muted)">visualizações indisponível</span> · ' : '';
-    const watchTime = m.metrics?.watchTimeSeconds != null
-      ? ` · ⏱ ${Math.round(m.metrics.watchTimeSeconds)}s médios`
-      : '';
-    const resultado = m.metrics
-      ? `${views}❤ ${m.metrics.likes ?? '—'} curtidas · 💬 ${m.metrics.comments ?? '—'} comentários${watchTime}`
-      : '<span style="color:var(--muted)">métrica indisponível</span>';
-
-    const podeVerComentarios = ANALYTICS_PLAT_COMENTARIOS.includes(m.platform);
-    const botaoComentarios = podeVerComentarios
-      ? `<button type="button" class="plat-btn" style="flex:0;padding:4px 10px;font-size:11px;margin-top:4px" onclick="openCommentsModal(${m.postId})">Ver comentários</button>`
-      : `<div style="font-size:11px;color:var(--muted);margin-top:4px">comentários indisponível</div>`;
-
-    const selecionado = m.postId === analyticsSelectedPostId;
-    const estiloSelecionado = selecionado ? `background:rgba(91,127,255,0.08);border-left:2px solid var(--accent)` : '';
-
-    return `<div class="plat-row" style="flex-wrap:wrap;cursor:pointer;${estiloSelecionado}" onclick="selectAnalyticsPost(${m.postId})" title="${selecionado ? 'Clique para voltar à junção de todos os posts' : 'Clique para ver só este post no gráfico'}">
-      ${renderAnalyticsMediaThumb(m)}
-      <span class="mini-pill ${escapeHtml(m.platform)}">${escapeHtml(ANALYTICS_PLAT_LABELS[m.platform] || m.platform)}</span>
-      <div style="flex:1">
-        <div class="plat-row-name" style="font-size:13px;font-weight:400">${texto}</div>
-        <div class="plat-row-meta">${escapeHtml(data)}</div>
-      </div>
-      <div style="text-align:right" onclick="event.stopPropagation()">
-        <div style="font-size:12px;color:var(--text);white-space:nowrap">${resultado}</div>
-        ${botaoComentarios}
-      </div>
-    </div>`;
-  }).join('');
-
-  listEl.innerHTML = regraRede + linhas;
-}
+// kept stubs so nothing else breaks
+function renderAnalyticsPlatformFilter() {}
+function renderAnalyticsView() {}
+function renderAnalyticsChart() {}
+function renderAnalyticsMetrics() {}
+function renderInstagramLikesChart() {}
+function renderYoutubeWatchTimeChart() {}
+function renderInstagramFollowersChart() {}
+function renderTiktokStatsChart() {}
 
 // ── Comentários (ler e responder) ─────────────────────────────────────────────
 // Hoje só o Instagram tem o escopo OAuth necessário para listar/responder
