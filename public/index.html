@@ -5803,8 +5803,15 @@ function aiChatAgentName() {
 }
 
 function aiChatUserInitial() {
-  const name = document.getElementById('user-name')?.textContent || '?'
-  return name.trim()[0]?.toUpperCase() || '?'
+  const name = document.getElementById('user-name')?.textContent?.trim() || ''
+  if (name && name !== '—') return name[0].toUpperCase()
+  // fallback: usa o email do localStorage
+  try {
+    const u = JSON.parse(localStorage.getItem('user') || '{}')
+    if (u.fullName) return u.fullName[0].toUpperCase()
+    if (u.email)    return u.email[0].toUpperCase()
+  } catch {}
+  return 'U'
 }
 
 // Adiciona mensagem no chat (ctx = 'fab' | 'page')
@@ -5829,7 +5836,7 @@ function aiChatAddMsg(ctx, role, html, isHtml = false) {
   }
 
   const bubbleWrap = document.createElement('div')
-  bubbleWrap.style.cssText = 'display:flex;flex-direction:column;flex:1;min-width:0;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start')
+  bubbleWrap.style.cssText = 'display:flex;flex-direction:column;max-width:calc(100% - 36px);align-items:' + (role === 'user' ? 'flex-end' : 'flex-start')
 
   const bubble = document.createElement('div')
   bubble.className = 'ai-msg-bubble'
