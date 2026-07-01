@@ -542,10 +542,10 @@ input, select, textarea, label, .bottom-nav-item {
 }
 
 /* ── Inbox ──────────────────────────────────────────────────────────────── */
-#page-inbox { flex-direction: column; height: calc(100vh - var(--topbar-h) - 2rem); padding: 0; overflow: hidden; }
-#page-inbox.active { display: flex; }
+#page-inbox { padding: 0; margin: -2rem -2.25rem; overflow: hidden; }
+#page-inbox.active { display: flex; flex-direction: column; }
 
-.inbox-layout { display: grid; grid-template-columns: 320px 1fr; flex: 1; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.inbox-layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
 
 /* Coluna esquerda: lista de conversas */
 .inbox-sidebar { display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); overflow: hidden; }
@@ -639,13 +639,18 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-plat-tag.youtube   { background: rgba(255,0,0,0.15);   color: var(--yt); }
 .inbox-plat-tag.tiktok    { background: rgba(105,201,208,0.15); color: #69c9d0; }
 
-@media (max-width: 700px) {
-  #page-inbox { height: calc(100vh - var(--topbar-h) - var(--bottomnav-h)); }
-  .inbox-layout { grid-template-columns: 1fr; }
+@media (max-width: 1024px) {
+  #page-inbox { margin: -1.75rem; }
+}
+@media (max-width: 768px) {
+  #page-inbox { margin: -1rem; margin-top: calc(-1rem); }
+  .inbox-layout { grid-template-columns: 1fr; height: calc(100vh - var(--topbar-h) - var(--bottomnav-h)); }
   .inbox-sidebar { display: none; }
   .inbox-sidebar.mobile-active { display: flex; position: fixed; inset: var(--topbar-h) 0 var(--bottomnav-h) 0; z-index: 300; border-radius: 0; border: none; }
-  .inbox-main { }
   .inbox-post-preview-media { width: 120px; }
+}
+@media (max-width: 480px) {
+  #page-inbox { margin: -0.85rem; }
 }
 
 /* ── Analytics redesign ─────────────────────────────────────────────────────── */
