@@ -542,10 +542,11 @@ input, select, textarea, label, .bottom-nav-item {
 }
 
 /* ── Inbox ──────────────────────────────────────────────────────────────── */
-#page-inbox { padding: 0; margin: -2rem -2.25rem; overflow: hidden; }
-#page-inbox.active { display: flex; flex-direction: column; }
+.inbox-layout { display: grid; grid-template-columns: 320px 1fr; height: 100%; overflow: hidden; }
 
-.inbox-layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
+@media (max-width: 768px) {
+  #inbox-fullpage { left: 0 !important; top: var(--topbar-h) !important; bottom: var(--bottomnav-h) !important; }
+}
 
 /* Coluna esquerda: lista de conversas */
 .inbox-sidebar { display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); overflow: hidden; }
@@ -639,18 +640,11 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-plat-tag.youtube   { background: rgba(255,0,0,0.15);   color: var(--yt); }
 .inbox-plat-tag.tiktok    { background: rgba(105,201,208,0.15); color: #69c9d0; }
 
-@media (max-width: 1024px) {
-  #page-inbox { margin: -1.75rem; }
-}
 @media (max-width: 768px) {
-  #page-inbox { margin: -1rem; margin-top: calc(-1rem); }
-  .inbox-layout { grid-template-columns: 1fr; height: calc(100vh - var(--topbar-h) - var(--bottomnav-h)); }
+  .inbox-layout { grid-template-columns: 1fr; }
   .inbox-sidebar { display: none; }
   .inbox-sidebar.mobile-active { display: flex; position: fixed; inset: var(--topbar-h) 0 var(--bottomnav-h) 0; z-index: 300; border-radius: 0; border: none; }
   .inbox-post-preview-media { width: 120px; }
-}
-@media (max-width: 480px) {
-  #page-inbox { margin: -0.85rem; }
 }
 
 /* ── Analytics redesign ─────────────────────────────────────────────────────── */
@@ -1173,9 +1167,12 @@ input, select, textarea, label, .bottom-nav-item {
     </div>
   </div>
 
-  <!-- INBOX -->
-  <div id="page-inbox" class="section-page">
-    <div class="inbox-layout">
+  <!-- INBOX (placeholder dentro do main para o showPage funcionar) -->
+  <div id="page-inbox" class="section-page" style="display:none!important"></div>
+
+  <!-- INBOX REAL (fora do main, cobre a área de conteúdo) -->
+  <div id="inbox-fullpage" style="display:none;position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;z-index:100;background:var(--bg)">
+    <div class="inbox-layout" style="height:100vh">
 
       <!-- Sidebar: lista de posts/conversas -->
       <div class="inbox-sidebar" id="inbox-sidebar">
@@ -1256,7 +1253,7 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
 
     </div>
-  </div>
+  </div><!-- /inbox-fullpage -->
 
   <!-- RASCUNHOS E TEMPLATES -->
   <div id="page-rascunhos" class="section-page">
@@ -1628,7 +1625,10 @@ function showPage(name) {
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics')  startAnalyticsAutoRefresh();
-  if (name === 'inbox')      inboxInit();
+  // Inbox usa fullpage overlay fora do .main
+  const inboxFull = document.getElementById('inbox-fullpage');
+  if (name === 'inbox') { inboxFull.style.display = 'block'; inboxInit(); }
+  else                  { inboxFull.style.display = 'none'; }
   if (name === 'rascunhos')  loadDrafts();
   else                       stopAnalyticsAutoRefresh();
 }
