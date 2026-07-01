@@ -302,8 +302,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 }
 #ai-fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(108,140,255,0.6); }
 #ai-fab-btn .ai-fab-pulse {
-  position: absolute; inset: -4px;
-  border-radius: 50%;
+  position: absolute; inset: -4px; border-radius: 50%;
   border: 2px solid rgba(108,140,255,0.4);
   animation: ai-pulse 2s ease-out infinite;
 }
@@ -312,101 +311,156 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   100% { opacity: 0; transform: scale(1.5); }
 }
 #ai-fab-panel {
-  background: var(--surface);
-  border: 1px solid rgba(108,140,255,0.3);
-  border-radius: 16px;
-  width: 320px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.55);
-  overflow: hidden;
-  transform-origin: bottom right;
-  animation: ai-panel-in 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  background: var(--surface); border: 1px solid rgba(108,140,255,0.28);
+  border-radius: 18px; width: 360px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden; transform-origin: bottom right;
+  animation: ai-panel-in 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  display: flex; flex-direction: column; max-height: 540px;
 }
 @keyframes ai-panel-in {
-  from { opacity: 0; transform: scale(0.85) translateY(10px); }
+  from { opacity: 0; transform: scale(0.88) translateY(12px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-.ai-fab-head {
-  background: linear-gradient(135deg, rgba(108,140,255,0.15), rgba(179,157,219,0.1));
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 10px;
+
+/* Chat head */
+.ai-chat-head {
+  background: linear-gradient(135deg, rgba(108,140,255,0.18), rgba(179,157,219,0.1));
+  padding: 13px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
 }
-.ai-fab-head-icon {
-  width: 34px; height: 34px; border-radius: 10px;
+.ai-chat-head-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
   background: linear-gradient(135deg,#6c8cff,#b39ddb);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  position: relative;
 }
-.ai-fab-head-title { font-size: 13px; font-weight: 600; }
-.ai-fab-head-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-.ai-fab-close {
-  margin-left: auto; background: none; border: none;
-  color: var(--muted); cursor: pointer; padding: 4px;
-  border-radius: 6px; transition: color var(--transition);
+.ai-chat-head-avatar::after {
+  content:''; position:absolute; bottom:1px; right:1px;
+  width:9px; height:9px; border-radius:50%;
+  background:#34d399; border:2px solid var(--surface);
 }
-.ai-fab-close:hover { color: var(--text); }
-.ai-fab-body { padding: 14px 16px; }
-.ai-fab-field { margin-bottom: 10px; }
-.ai-fab-field label { display: block; font-size: 10px; font-weight: 500; color: var(--muted2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
-.ai-fab-field textarea {
-  width: 100%; background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: var(--radius-sm); color: var(--text);
-  font-family: var(--sans); font-size: 12px; padding: 8px 10px;
-  resize: none; height: 72px; outline: none;
-  transition: border var(--transition);
+.ai-chat-head-info { flex:1; min-width:0; }
+.ai-chat-head-name { font-size:13px; font-weight:600; }
+.ai-chat-head-status { font-size:10px; color:var(--green); margin-top:1px; }
+.ai-chat-head-actions { display:flex; gap:6px; }
+.ai-chat-head-btn {
+  background:none; border:none; color:var(--muted); cursor:pointer;
+  padding:5px; border-radius:6px; transition:color var(--transition);
 }
-.ai-fab-field textarea:focus { border-color: var(--accent); }
-.ai-fab-plats { display: flex; gap: 6px; flex-wrap: wrap; }
-.ai-fab-plat {
-  padding: 4px 10px; border-radius: 20px;
-  border: 1.5px solid var(--border); background: var(--surface2);
-  cursor: pointer; font-size: 11px; font-weight: 500; color: var(--muted2);
-  transition: all 0.15s;
+.ai-chat-head-btn:hover { color:var(--text); }
+
+/* Chat messages */
+.ai-chat-msgs {
+  flex:1; overflow-y:auto; padding:14px 14px 8px;
+  display:flex; flex-direction:column; gap:10px;
+  scroll-behavior: smooth;
 }
-.ai-fab-plat:hover { border-color: var(--border2); color: var(--text); }
-.ai-fab-plat.active.ig  { border-color: var(--ig); color: var(--ig); background: rgba(233,79,138,0.1); }
-.ai-fab-plat.active.fb  { border-color: var(--fb); color: var(--fb); background: rgba(91,141,239,0.1); }
-.ai-fab-plat.active.yt  { border-color: var(--yt); color: var(--yt); background: rgba(255,92,92,0.1); }
-.ai-fab-plat.active.tt  { border-color: #a0a4bc; color: #a0a4bc; background: rgba(232,232,240,0.06); }
-.ai-fab-actions { display: flex; gap: 8px; margin-top: 12px; }
-.ai-fab-gen-btn {
-  flex: 1; padding: 9px; border-radius: var(--radius-sm); border: none;
-  background: linear-gradient(135deg,#6c8cff,#b39ddb);
-  color: #fff; font-size: 12px; font-weight: 600;
-  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-  transition: opacity 0.15s;
+.ai-chat-msgs::-webkit-scrollbar { width:4px; }
+.ai-chat-msgs::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+.ai-msg { display:flex; gap:8px; align-items:flex-end; max-width:100%; }
+.ai-msg.user { flex-direction:row-reverse; }
+.ai-msg-avatar {
+  width:28px; height:28px; border-radius:50%; flex-shrink:0;
+  background:linear-gradient(135deg,#6c8cff,#b39ddb);
+  display:flex; align-items:center; justify-content:center; font-size:12px;
 }
-.ai-fab-gen-btn:hover:not(:disabled) { opacity: 0.88; }
-.ai-fab-gen-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.ai-fab-full-btn {
-  padding: 9px 12px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border2); background: transparent;
-  color: var(--muted2); font-size: 11px; cursor: pointer;
-  transition: all 0.15s; white-space: nowrap;
+.ai-msg.user .ai-msg-avatar { background:var(--surface3); color:var(--muted2); }
+.ai-msg-bubble {
+  max-width:78%; padding:9px 12px; border-radius:14px;
+  font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-word;
 }
-.ai-fab-full-btn:hover { border-color: var(--accent); color: var(--accent); }
-.ai-fab-result {
-  margin-top: 10px; padding: 10px 12px;
-  background: var(--surface2); border-radius: var(--radius-sm);
-  border: 1px solid var(--border); display: none; flex-direction: column; gap: 8px;
+.ai-msg.agent .ai-msg-bubble {
+  background:var(--surface2); border:1px solid var(--border);
+  border-bottom-left-radius:4px; color:var(--text);
 }
-.ai-fab-result-text { font-size: 12px; line-height: 1.6; color: var(--text); }
-.ai-fab-result-foot { display: flex; justify-content: flex-end; gap: 6px; }
-.ai-fab-sched-btn {
-  padding: 5px 12px; border-radius: var(--radius-sm);
-  border: none; background: var(--accent); color: #fff;
-  font-size: 11px; font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+.ai-msg.user .ai-msg-bubble {
+  background:linear-gradient(135deg,#6c8cff,#b39ddb);
+  color:#fff; border-bottom-right-radius:4px;
 }
-.ai-fab-sched-btn:hover { opacity: 0.85; }
-.ai-fab-discard-btn {
-  padding: 5px 10px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: transparent;
-  color: var(--muted); font-size: 11px; cursor: pointer; transition: all 0.15s;
+.ai-msg-time { font-size:9px; color:var(--muted); margin-top:3px; text-align:right; }
+
+/* Chips de resposta rápida */
+.ai-chips { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 8px; }
+.ai-chip {
+  padding:5px 12px; border-radius:20px;
+  border:1px solid rgba(108,140,255,0.4); background:rgba(108,140,255,0.08);
+  color:var(--accent); font-size:11px; cursor:pointer;
+  transition:all 0.15s;
 }
-.ai-fab-discard-btn:hover { border-color: var(--red); color: var(--red); }
+.ai-chip:hover { background:rgba(108,140,255,0.18); border-color:var(--accent); }
+
+/* Typing indicator */
+.ai-typing { display:flex; gap:4px; align-items:center; padding:8px 12px; }
+.ai-typing span {
+  width:6px; height:6px; border-radius:50%; background:var(--muted);
+  animation:ai-bounce 1.2s infinite;
+}
+.ai-typing span:nth-child(2) { animation-delay:.2s; }
+.ai-typing span:nth-child(3) { animation-delay:.4s; }
+@keyframes ai-bounce {
+  0%,60%,100% { transform:translateY(0); }
+  30% { transform:translateY(-5px); }
+}
+
+/* Input do chat */
+.ai-chat-composer {
+  border-top:1px solid var(--border); padding:10px 12px;
+  display:flex; gap:8px; align-items:flex-end; flex-shrink:0;
+  background:var(--surface);
+}
+.ai-chat-input {
+  flex:1; background:var(--surface2); border:1px solid var(--border2);
+  border-radius:20px; color:var(--text); font-family:var(--sans);
+  font-size:12px; padding:8px 14px; resize:none; outline:none;
+  max-height:80px; overflow-y:auto; transition:border var(--transition);
+  line-height:1.5;
+}
+.ai-chat-input:focus { border-color:var(--accent); }
+.ai-chat-send {
+  width:34px; height:34px; border-radius:50%; border:none; flex-shrink:0;
+  background:linear-gradient(135deg,#6c8cff,#b39ddb);
+  color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:opacity 0.15s, transform 0.15s;
+}
+.ai-chat-send:hover:not(:disabled) { opacity:0.88; transform:scale(1.05); }
+.ai-chat-send:disabled { opacity:0.4; cursor:not-allowed; }
+
+/* Post preview dentro do chat */
+.ai-chat-post-preview {
+  background:var(--surface3); border:1px solid var(--border2);
+  border-radius:10px; padding:10px 12px; font-size:11px;
+  line-height:1.6; white-space:pre-wrap; word-break:break-word;
+  margin-top:6px; color:var(--text);
+}
+.ai-chat-post-actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.ai-chat-post-btn {
+  padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600;
+  cursor:pointer; transition:all 0.15s; border:none;
+}
+.ai-chat-post-btn.confirm { background:var(--accent); color:#fff; }
+.ai-chat-post-btn.confirm:hover { opacity:0.85; }
+.ai-chat-post-btn.edit { background:var(--surface2); color:var(--muted2); border:1px solid var(--border2); }
+.ai-chat-post-btn.edit:hover { border-color:var(--accent); color:var(--accent); }
+.ai-chat-post-btn.regen { background:var(--surface2); color:var(--muted2); border:1px solid var(--border2); }
+.ai-chat-post-btn.regen:hover { border-color:var(--yellow); color:var(--yellow); }
+
+/* Versão página cheia do chat */
+.ai-chat-fullpage {
+  display:flex; flex-direction:column;
+  height:calc(100vh - 120px); min-height:500px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); overflow:hidden;
+}
+.ai-chat-fullpage .ai-chat-msgs { padding:20px 24px 12px; gap:14px; }
+.ai-chat-fullpage .ai-msg-bubble { font-size:13px; max-width:65%; }
+.ai-chat-fullpage .ai-chat-composer { padding:14px 20px; }
+.ai-chat-fullpage .ai-chips { padding:0 20px 10px; }
+
 @media (max-width: 768px) {
   #ai-fab { bottom: calc(var(--bottomnav-h) + 12px); right: 14px; }
-  #ai-fab-panel { width: calc(100vw - 28px); }
+  #ai-fab-panel { width: calc(100vw - 28px); max-height: calc(100vh - var(--topbar-h) - var(--bottomnav-h) - 80px); }
 }
 
 /* ── Inbox mode: expande o main para preencher tudo ─────────────────────── */
@@ -1526,104 +1580,27 @@ input, select, textarea, label, .bottom-nav-item {
   <!-- RASCUNHOS E TEMPLATES -->
   <!-- AGENTE IA -->
   <div id="page-ai" class="section-page">
-    <div style="margin-bottom:24px">
-      <h2 style="font-size:20px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="var(--accent)" stroke="none"/><circle cx="15" cy="14" r="1" fill="var(--accent)" stroke="none"/></svg>
-        Agente IA
-        <span style="font-size:10px;background:linear-gradient(135deg,#6c8cff,#b39ddb);color:#fff;padding:2px 8px;border-radius:20px;font-weight:600">BETA</span>
-      </h2>
-      <p style="font-size:13px;color:var(--muted)">Descreva o que você quer postar e a IA cria e agenda automaticamente para você.</p>
-    </div>
-
-    <div class="ai-page">
-      <!-- Formulário -->
-      <div class="ai-form-panel">
-        <div class="ai-form-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Configurar geração
-        </div>
-        <p class="ai-form-subtitle">Preencha e clique em Gerar — a IA faz o resto.</p>
-
-        <div class="ai-field">
-          <label>O que você quer postar? *</label>
-          <textarea id="ai-instrucao" placeholder="Ex: Crie posts motivacionais sobre saúde e bem-estar para atrair novos clientes para minha academia...&#10;&#10;Quanto mais detalhes, melhor o resultado!" rows="5"></textarea>
-        </div>
-
-        <div class="ai-field">
-          <label>Redes sociais</label>
-          <div class="ai-plat-grid">
-            <div class="ai-plat-btn ig active" data-plat="instagram" onclick="aiTogglePlat(this)">
-              <span class="ai-plat-dot ig"></span> Instagram
-            </div>
-            <div class="ai-plat-btn fb" data-plat="facebook" onclick="aiTogglePlat(this)">
-              <span class="ai-plat-dot fb"></span> Facebook
-            </div>
-            <div class="ai-plat-btn yt" data-plat="youtube" onclick="aiTogglePlat(this)">
-              <span class="ai-plat-dot yt"></span> YouTube
-            </div>
-            <div class="ai-plat-btn tt" data-plat="tiktok" onclick="aiTogglePlat(this)">
-              <span class="ai-plat-dot tt"></span> TikTok
-            </div>
-          </div>
-        </div>
-
-        <div class="ai-field">
-          <label>Tom de voz</label>
-          <div class="ai-tone-grid">
-            <div class="ai-tone-btn active" data-tone="casual" onclick="aiToggleTone(this)">😊 Casual</div>
-            <div class="ai-tone-btn" data-tone="motivacional" onclick="aiToggleTone(this)">🔥 Motivacional</div>
-            <div class="ai-tone-btn" data-tone="profissional" onclick="aiToggleTone(this)">💼 Profissional</div>
-            <div class="ai-tone-btn" data-tone="informativo" onclick="aiToggleTone(this)">📚 Informativo</div>
-            <div class="ai-tone-btn" data-tone="humoristico" onclick="aiToggleTone(this)">😂 Humorístico</div>
-          </div>
-        </div>
-
-        <div class="ai-field">
-          <label>Modelo de IA</label>
-          <div id="ai-model-selector" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-        </div>
-
-        <div class="ai-row2">
-          <div class="ai-field">
-            <label>Quantidade</label>
-            <input type="number" id="ai-qtd" value="3" min="1" max="10" />
-          </div>
-          <div class="ai-field">
-            <label>Idioma</label>
-            <select id="ai-idioma">
-              <option value="pt">Português</option>
-              <option value="en">Inglês</option>
-            </select>
-          </div>
-        </div>
-
-        <button class="ai-gen-btn" id="ai-gen-btn" onclick="aiGenerate()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Gerar com IA
-        </button>
-        <button onclick="aiLoadDemoPost()" style="width:100%;margin-top:8px;padding:9px;border-radius:var(--radius-sm);border:1px dashed var(--border2);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all var(--transition)" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">
-          👁 Ver exemplo de posts gerados
-        </button>
+    <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="var(--accent)" stroke="none"/><circle cx="15" cy="14" r="1" fill="var(--accent)" stroke="none"/></svg>
+          Agente IA
+          <span style="font-size:9px;background:linear-gradient(135deg,#6c8cff,#b39ddb);color:#fff;padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.04em">BETA</span>
+        </h2>
+        <p style="font-size:12px;color:var(--muted);margin-top:2px">Converse com o agente — ele cria e agenda seus posts automaticamente.</p>
       </div>
-
-      <!-- Resultados -->
-      <div class="ai-results-panel">
-        <div class="ai-results-header" id="ai-results-header" style="display:none">
-          <div class="ai-results-title" id="ai-results-title">Posts gerados</div>
-          <div class="ai-results-actions">
-            <button class="ai-schedule-all-btn" id="ai-schedule-all-btn" onclick="aiScheduleAll()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-              Agendar todos
-            </button>
-          </div>
-        </div>
-        <div id="ai-empty" class="ai-empty">
-          <div class="ai-empty-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/></svg>
-          </div>
-          <p>Configure sua instrução ao lado e clique em <strong>Gerar com IA</strong> para criar posts automaticamente.</p>
-        </div>
-        <div id="ai-cards" class="ai-cards" style="display:none"></div>
+      <div style="display:flex;gap:8px;align-items:center" id="ai-page-model-bar"></div>
+    </div>
+    <div class="ai-chat-fullpage" id="ai-page-chat">
+      <div class="ai-chat-msgs" id="ai-page-msgs"></div>
+      <div class="ai-chips" id="ai-page-chips"></div>
+      <div class="ai-chat-composer">
+        <textarea class="ai-chat-input" id="ai-page-input" placeholder="Digite aqui..." rows="1"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('page')}"></textarea>
+        <button class="ai-chat-send" id="ai-page-send" onclick="aiChatSend('page')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
       </div>
     </div>
   </div>
@@ -1913,61 +1890,37 @@ input, select, textarea, label, .bottom-nav-item {
 
 <div class="toast" id="toast"></div>
 
-<!-- Widget IA flutuante -->
+<!-- Widget IA flutuante (chat) -->
 <div id="ai-fab">
-  <!-- Painel (oculto por padrão) -->
   <div id="ai-fab-panel" style="display:none">
-    <div class="ai-fab-head">
-      <div class="ai-fab-head-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg>
+    <div class="ai-chat-head">
+      <div class="ai-chat-head-avatar">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg>
       </div>
-      <div>
-        <div class="ai-fab-head-title">Agente IA</div>
-        <div class="ai-fab-head-sub">Gere e agende em segundos</div>
+      <div class="ai-chat-head-info">
+        <div class="ai-chat-head-name" id="ai-fab-agent-name">Agente IA</div>
+        <div class="ai-chat-head-status">● online</div>
       </div>
-      <button class="ai-fab-close" onclick="aiFabClose()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <div class="ai-chat-head-actions">
+        <button class="ai-chat-head-btn" onclick="aiFabClose();showPage('ai')" title="Abrir em tela cheia">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        </button>
+        <button class="ai-chat-head-btn" onclick="aiFabClose()" title="Fechar">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="ai-chat-msgs" id="ai-fab-msgs"></div>
+    <div class="ai-chips" id="ai-fab-chips"></div>
+    <div class="ai-chat-composer">
+      <textarea class="ai-chat-input" id="ai-fab-input" placeholder="Digite sua mensagem..." rows="1"
+        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('fab')}"></textarea>
+      <button class="ai-chat-send" id="ai-fab-send" onclick="aiChatSend('fab')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>
-    <div class="ai-fab-body">
-      <div class="ai-fab-field">
-        <label>O que você quer postar?</label>
-        <textarea id="ai-fab-instrucao" placeholder="Ex: Post motivacional sobre segunda-feira para academia..."></textarea>
-      </div>
-      <div class="ai-fab-field">
-        <label>Redes</label>
-        <div class="ai-fab-plats">
-          <div class="ai-fab-plat ig active" data-plat="instagram" onclick="aiFabTogglePlat(this)">ig</div>
-          <div class="ai-fab-plat fb" data-plat="facebook" onclick="aiFabTogglePlat(this)">fb</div>
-          <div class="ai-fab-plat yt" data-plat="youtube" onclick="aiFabTogglePlat(this)">yt</div>
-          <div class="ai-fab-plat tt" data-plat="tiktok" onclick="aiFabTogglePlat(this)">tt</div>
-        </div>
-      </div>
-      <div class="ai-fab-field">
-        <label>Modelo</label>
-        <div id="ai-fab-model-selector" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-      </div>
-      <div class="ai-fab-result" id="ai-fab-result">
-        <div class="ai-fab-result-text" id="ai-fab-result-text"></div>
-        <div class="ai-fab-result-foot">
-          <button class="ai-fab-discard-btn" onclick="aiFabDiscard()">Descartar</button>
-          <button class="ai-fab-sched-btn" onclick="aiFabSchedule()">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            Agendar
-          </button>
-        </div>
-      </div>
-      <div class="ai-fab-actions">
-        <button class="ai-fab-gen-btn" id="ai-fab-gen-btn" onclick="aiFabGenerate()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          Gerar post
-        </button>
-        <button class="ai-fab-full-btn" onclick="aiFabClose();showPage('ai')">Modo completo</button>
-      </div>
-    </div>
   </div>
-
-  <!-- Botão flutuante -->
   <button id="ai-fab-btn" onclick="aiFabToggle()" title="Agente IA">
     <div class="ai-fab-pulse"></div>
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1.2" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="#fff" stroke="none"/></svg>
@@ -5365,7 +5318,18 @@ function aiSetModel(id) {
 }
 
 function aiPageInit() {
-  aiLoadModels()
+  aiLoadModels().then(() => {
+    // Renderiza barra de modelos no topo da página
+    const bar = document.getElementById('ai-page-model-bar')
+    if (bar && !bar.dataset.loaded) {
+      bar.dataset.loaded = '1'
+      aiRenderModelSelector(
+        Object.entries(AI_MODEL_META).map(([id, m]) => ({ id, name: m.label, provider: m.provider, available: true })),
+        'ai-model-selector-fake', false
+      )
+    }
+    aiChatStart('page')
+  })
 }
 
 function aiTogglePlat(el) {
@@ -5581,17 +5545,436 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
 
-// ── Widget IA flutuante (FAB) ─────────────────────────────────────────────────
+// ── Motor de Chat do Agente IA ────────────────────────────────────────────────
 let aiFabOpen = false
-let aiFabSelectedPlats = new Set(['instagram'])
-let aiFabLastPost = null
 
+// Estado compartilhado entre o FAB e a página cheia
+const aiChat = {
+  fab:  { msgs: [], step: 'greeting', plats: ['instagram'], tom: 'casual', qtd: 1,  pendingPost: null, greeted: false },
+  page: { msgs: [], step: 'greeting', plats: ['instagram'], tom: 'casual', qtd: 3,  pendingPost: null, greeted: false },
+}
+
+const AI_STEPS = {
+  greeting: null,
+  ask_plats: null,
+  ask_tom: null,
+  ask_qtd: null,
+  ask_instrucao: null,
+  generating: null,
+  review_post: null,
+  done: null,
+}
+
+const PLAT_NAMES = { instagram:'Instagram', facebook:'Facebook', youtube:'YouTube', tiktok:'TikTok' }
+const TOM_LABELS = { casual:'Casual 😊', motivacional:'Motivacional 🔥', profissional:'Profissional 💼', informativo:'Informativo 📚', humoristico:'Humorístico 😂' }
+
+function aiChatTime() {
+  return new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+}
+
+function aiChatGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Bom dia'
+  if (h < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
+function aiChatAgentName() {
+  const meta = AI_MODEL_META[aiSelectedModel]
+  return meta ? meta.label : 'Agente IA'
+}
+
+function aiChatUserInitial() {
+  const name = document.getElementById('user-name')?.textContent || '?'
+  return name.trim()[0]?.toUpperCase() || '?'
+}
+
+// Adiciona mensagem no chat (ctx = 'fab' | 'page')
+function aiChatAddMsg(ctx, role, html, isHtml = false) {
+  const state = aiChat[ctx]
+  const msgsId = ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs'
+  const msgsEl = document.getElementById(msgsId)
+  if (!msgsEl) return
+
+  const msg = { role, html, isHtml, time: aiChatTime() }
+  state.msgs.push(msg)
+
+  const div = document.createElement('div')
+  div.className = `ai-msg ${role}`
+
+  const avatarEl = document.createElement('div')
+  avatarEl.className = 'ai-msg-avatar'
+  if (role === 'agent') {
+    avatarEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg>`
+  } else {
+    avatarEl.textContent = aiChatUserInitial()
+  }
+
+  const bubbleWrap = document.createElement('div')
+  bubbleWrap.style.display = 'flex'
+  bubbleWrap.style.flexDirection = 'column'
+  bubbleWrap.style.alignItems = role === 'user' ? 'flex-end' : 'flex-start'
+
+  const bubble = document.createElement('div')
+  bubble.className = 'ai-msg-bubble'
+  if (isHtml) bubble.innerHTML = html
+  else bubble.textContent = html
+
+  const timeEl = document.createElement('div')
+  timeEl.className = 'ai-msg-time'
+  timeEl.textContent = msg.time
+
+  bubbleWrap.appendChild(bubble)
+  bubbleWrap.appendChild(timeEl)
+
+  if (role === 'agent') { div.appendChild(avatarEl); div.appendChild(bubbleWrap) }
+  else { div.appendChild(bubbleWrap); div.appendChild(avatarEl) }
+
+  msgsEl.appendChild(div)
+  msgsEl.scrollTop = msgsEl.scrollHeight
+}
+
+// Indicador "digitando..."
+function aiChatTyping(ctx, show) {
+  const msgsId = ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs'
+  const msgsEl = document.getElementById(msgsId)
+  if (!msgsEl) return
+  const existing = msgsEl.querySelector('.ai-typing-wrap')
+  if (show && !existing) {
+    const d = document.createElement('div')
+    d.className = 'ai-msg agent ai-typing-wrap'
+    d.innerHTML = `<div class="ai-msg-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="#fff" stroke="none"/><circle cx="15" cy="14" r="1" fill="#fff" stroke="none"/></svg></div><div class="ai-msg-bubble" style="padding:10px 14px"><div class="ai-typing"><span></span><span></span><span></span></div></div>`
+    msgsEl.appendChild(d)
+    msgsEl.scrollTop = msgsEl.scrollHeight
+  } else if (!show && existing) {
+    existing.remove()
+  }
+}
+
+// Mostra chips de resposta rápida
+function aiChatSetChips(ctx, chips) {
+  const chipsId = ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'
+  const el = document.getElementById(chipsId)
+  if (!el) return
+  el.innerHTML = chips.map(c =>
+    `<button class="ai-chip" onclick="aiChipClick('${ctx}', '${c.replace(/'/g,"\\'")}', this)">${c}</button>`
+  ).join('')
+}
+
+function aiChipClick(ctx, val, el) {
+  document.querySelectorAll(`#${ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'} .ai-chip`).forEach(b => b.disabled = true)
+  el.style.background = 'rgba(108,140,255,0.3)'
+  aiChatAddMsg(ctx, 'user', val)
+  aiChatSetChips(ctx, [])
+  setTimeout(() => aiChatProcess(ctx, val), 400)
+}
+
+// Inicia o chat com saudação
+async function aiChatStart(ctx) {
+  const state = aiChat[ctx]
+  if (state.greeted) return
+  state.greeted = true
+  state.step = 'ask_plats'
+
+  await new Promise(r => setTimeout(r, 300))
+  aiChatTyping(ctx, true)
+  await new Promise(r => setTimeout(r, 900))
+  aiChatTyping(ctx, false)
+
+  const greeting = aiChatGreeting()
+  const agentName = aiChatAgentName()
+  aiChatAddMsg(ctx, 'agent',
+    `${greeting}! 👋 Sou o ${agentName}, seu assistente de conteúdo para redes sociais.\n\nO que vamos postar hoje? Estou aqui para criar e agendar tudo por você! 🚀\n\nPrimeiro: para quais redes sociais você quer postar?`
+  )
+  aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas as redes'])
+}
+
+// Processa a mensagem do usuário e avança o fluxo
+async function aiChatProcess(ctx, userMsg) {
+  const state = aiChat[ctx]
+  const msg = userMsg.trim().toLowerCase()
+
+  if (state.step === 'ask_plats') {
+    // Detecta plataformas
+    const plats = []
+    if (msg.includes('instagram') || msg.includes('ig') || msg.includes('📸')) plats.push('instagram')
+    if (msg.includes('facebook') || msg.includes('fb') || msg.includes('📘')) plats.push('facebook')
+    if (msg.includes('youtube') || msg.includes('yt') || msg.includes('▶')) plats.push('youtube')
+    if (msg.includes('tiktok') || msg.includes('tt') || msg.includes('🎵')) plats.push('tiktok')
+    if (msg.includes('todas') || msg.includes('all') || msg.includes('🌐')) plats.push('instagram','facebook','youtube','tiktok')
+
+    state.plats = plats.length ? [...new Set(plats)] : ['instagram']
+    const platNames = state.plats.map(p => PLAT_NAMES[p]).join(', ')
+
+    state.step = 'ask_tom'
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 700))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Ótimo! Vou criar posts para: ${platNames} ✅\n\nQual tom de voz você quer usar?`)
+    aiChatSetChips(ctx, ['😊 Casual', '🔥 Motivacional', '💼 Profissional', '📚 Informativo', '😂 Humorístico'])
+    return
+  }
+
+  if (state.step === 'ask_tom') {
+    if (msg.includes('motiv') || msg.includes('🔥')) state.tom = 'motivacional'
+    else if (msg.includes('profiss') || msg.includes('💼')) state.tom = 'profissional'
+    else if (msg.includes('informa') || msg.includes('📚')) state.tom = 'informativo'
+    else if (msg.includes('humor') || msg.includes('😂')) state.tom = 'humoristico'
+    else state.tom = 'casual'
+
+    state.step = 'ask_qtd'
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 600))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Tom ${TOM_LABELS[state.tom]} selecionado! 👌\n\nQuantos posts você quer criar?`)
+    aiChatSetChips(ctx, ['1 post', '3 posts', '5 posts', '7 posts'])
+    return
+  }
+
+  if (state.step === 'ask_qtd') {
+    const num = parseInt(msg.match(/\d+/)?.[0]) || 3
+    state.qtd = Math.min(Math.max(num, 1), 10)
+
+    state.step = 'ask_instrucao'
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 700))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `${state.qtd} post(s)! Perfeito. 💪\n\nAgora me conta: sobre o que você quer postar? Quanto mais detalhe você der, mais personalizado fica o resultado!\n\nPor exemplo: "Posts sobre treino de academia para iniciantes com dicas práticas"`)
+    aiChatSetChips(ctx, [])
+    return
+  }
+
+  if (state.step === 'ask_instrucao') {
+    if (msg.length < 5) {
+      aiChatAddMsg(ctx, 'agent', 'Hmm, pode me dar um pouco mais de detalhe? 😊 Sobre o que é o post?')
+      return
+    }
+
+    state.step = 'generating'
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 500))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Entendido! ✨ Deixa comigo — vou criar ${state.qtd} post(s) incrível(is) para você agora...`)
+
+    await new Promise(r => setTimeout(r, 600))
+    aiChatTyping(ctx, true)
+
+    try {
+      const data = await apiFetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instrucao: userMsg,
+          plataformas: state.plats,
+          quantidade: state.qtd,
+          tom: state.tom,
+          idioma: 'pt',
+          modelo: aiSelectedModel,
+        })
+      })
+
+      aiChatTyping(ctx, false)
+      const posts = data.posts || []
+      state.pendingPost = posts
+
+      if (!posts.length) {
+        aiChatAddMsg(ctx, 'agent', 'Hmm, não consegui gerar o post agora. Pode tentar novamente? 🙏')
+        state.step = 'ask_instrucao'
+        return
+      }
+
+      state.step = 'review_post'
+
+      // Mostra cada post gerado
+      for (let i = 0; i < posts.length; i++) {
+        const p = posts[i]
+        const platIcons = p.plataformas.map(pl => ({ instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' })[pl] || pl).join(' ')
+        const horarioFmt = new Date(p.horario).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+        const hashtags = p.hashtags?.length ? '\n\n' + p.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
+        const tituloHtml = p.titulo ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Título YouTube</div><div style="font-weight:600;margin-bottom:8px;font-size:12px">${esc(p.titulo)}</div>` : ''
+
+        await new Promise(r => setTimeout(r, i === 0 ? 200 : 800))
+
+        aiChatAddMsg(ctx, 'agent',
+          `${i === 0 ? '🎉 Pronto! Aqui está' + (posts.length > 1 ? ` o post ${i+1} de ${posts.length}` : '') + ':' : `📝 Post ${i+1} de ${posts.length}:`}\n\n${platIcons} · ${horarioFmt}`,
+          false
+        )
+
+        await new Promise(r => setTimeout(r, 200))
+
+        aiChatAddMsg(ctx, 'agent',
+          `${tituloHtml}<div class="ai-chat-post-preview">${esc(p.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${i})">✓ Agendar este</button><button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${i})">↻ Regerar</button></div>`,
+          true
+        )
+      }
+
+      await new Promise(r => setTimeout(r, 600))
+      if (posts.length > 1) {
+        aiChatAddMsg(ctx, 'agent', `Quer agendar todos os ${posts.length} posts de uma vez?`)
+        aiChatSetChips(ctx, ['✅ Agendar todos', '✏️ Editar um deles', '↻ Gerar novos posts'])
+      } else {
+        aiChatSetChips(ctx, ['✅ Agendar', '↻ Gerar outro', '🎨 Mudar o tom'])
+      }
+
+    } catch (err) {
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', `Ops! Tive um probleminha: ${err.message || 'erro ao gerar'}. Vamos tentar de novo? 🙏`)
+      state.step = 'ask_instrucao'
+    }
+    return
+  }
+
+  if (state.step === 'review_post') {
+    if (msg.includes('agendar todos') || msg.includes('✅')) {
+      await aiChatScheduleAll(ctx)
+    } else if (msg.includes('novo') || msg.includes('gerar') || msg.includes('↻')) {
+      state.step = 'ask_instrucao'
+      state.pendingPost = null
+      aiChatAddMsg(ctx, 'agent', 'Claro! Me conta o tema do próximo post 😊')
+      aiChatSetChips(ctx, [])
+    } else if (msg.includes('tom') || msg.includes('🎨')) {
+      state.step = 'ask_tom'
+      aiChatAddMsg(ctx, 'agent', 'Qual tom você prefere agora?')
+      aiChatSetChips(ctx, ['😊 Casual', '🔥 Motivacional', '💼 Profissional', '📚 Informativo', '😂 Humorístico'])
+    } else if (msg.includes('editar') || msg.includes('✏️')) {
+      aiChatAddMsg(ctx, 'agent', 'Clique em "↻ Regerar" no post que quiser refazer, ou me diga o que mudar! 😊')
+    } else {
+      // Mensagem livre — trata como nova instrução
+      state.step = 'ask_instrucao'
+      await aiChatProcess(ctx, userMsg)
+    }
+    return
+  }
+
+  // Fallback: reinicia
+  state.step = 'ask_instrucao'
+  aiChatAddMsg(ctx, 'agent', 'Pode me contar mais sobre o que quer postar? 😊')
+}
+
+async function aiChatSchedulePost(ctx, idx) {
+  const state = aiChat[ctx]
+  const post = state.pendingPost?.[idx]
+  if (!post) return
+
+  aiChatAddMsg(ctx, 'agent', '⏳ Agendando...')
+  try {
+    await apiFetch('/api/ai/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts: [post] })
+    })
+    const horarioFmt = new Date(post.horario).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+    aiChatAddMsg(ctx, 'agent', `✅ Post agendado para ${horarioFmt}! Aparecerá no Calendário e no Agendador.\n\nPosso criar mais alguma coisa para você? 😊`)
+    aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
+    state.step = 'done'
+  } catch (err) {
+    aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
+  }
+}
+
+async function aiChatScheduleAll(ctx) {
+  const state = aiChat[ctx]
+  const posts = state.pendingPost
+  if (!posts?.length) return
+
+  aiChatAddMsg(ctx, 'agent', `⏳ Agendando ${posts.length} posts...`)
+  try {
+    const data = await apiFetch('/api/ai/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts })
+    })
+    aiChatAddMsg(ctx, 'agent', `🎉 ${data.agendados} post(s) agendado(s) com sucesso! Tudo certo no Calendário.\n\nPosso ajudar com mais alguma coisa? 😊`)
+    aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
+    state.step = 'done'
+  } catch (err) {
+    aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
+  }
+}
+
+async function aiChatRegenOne(ctx, idx) {
+  const state = aiChat[ctx]
+  aiChatAddMsg(ctx, 'agent', '↻ Regenerando este post...')
+  aiChatTyping(ctx, true)
+  try {
+    const lastInstrucao = state.msgs.filter(m => m.role === 'user').slice(-3).map(m => m.html).join(' ')
+    const data = await apiFetch('/api/ai/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instrucao: lastInstrucao, plataformas: state.plats, quantidade: 1, tom: state.tom, idioma: 'pt', modelo: aiSelectedModel })
+    })
+    aiChatTyping(ctx, false)
+    const novo = data.posts?.[0]
+    if (novo) {
+      state.pendingPost[idx] = novo
+      const hashtags = novo.hashtags?.length ? '\n\n' + novo.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
+      aiChatAddMsg(ctx, 'agent',
+        `<div class="ai-chat-post-preview">${esc(novo.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${idx})">✓ Agendar este</button><button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ Regerar</button></div>`,
+        true
+      )
+    }
+  } catch (err) {
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', 'Não consegui regenerar. Tente novamente 🙏')
+  }
+}
+
+// Envia mensagem digitada pelo usuário
+async function aiChatSend(ctx) {
+  const inputId = ctx === 'fab' ? 'ai-fab-input' : 'ai-page-input'
+  const sendId  = ctx === 'fab' ? 'ai-fab-send'  : 'ai-page-send'
+  const input   = document.getElementById(inputId)
+  const sendBtn = document.getElementById(sendId)
+  if (!input) return
+
+  const val = input.value.trim()
+  if (!val) return
+
+  // Chips de atalho para navegação
+  if (val.includes('Ver Calendário') || val.includes('📅')) {
+    aiFabClose()
+    showPage('calendario')
+    return
+  }
+  if (val.includes('Por agora é isso') || val.includes('👋')) {
+    aiFabClose()
+    aiChatAddMsg(ctx, 'agent', 'Até logo! Qualquer hora que precisar criar posts é só me chamar 😊✨')
+    return
+  }
+  if (val.includes('Criar mais posts') || val.includes('➕')) {
+    aiChat[ctx].step = 'ask_instrucao'
+    aiChat[ctx].pendingPost = null
+    input.value = ''
+    input.style.height = 'auto'
+    aiChatAddMsg(ctx, 'user', val)
+    aiChatSetChips(ctx, [])
+    aiChatAddMsg(ctx, 'agent', 'Ótimo! Me conta o tema do próximo post 😊')
+    return
+  }
+
+  input.value = ''
+  input.style.height = 'auto'
+  sendBtn.disabled = true
+
+  aiChatAddMsg(ctx, 'user', val)
+  aiChatSetChips(ctx, [])
+
+  await new Promise(r => setTimeout(r, 300))
+  await aiChatProcess(ctx, val)
+  sendBtn.disabled = false
+}
+
+// FAB toggle
 function aiFabToggle() {
   aiFabOpen = !aiFabOpen
   const panel = document.getElementById('ai-fab-panel')
   if (aiFabOpen) {
-    panel.style.display = 'block'
-    aiLoadModels()
+    panel.style.display = 'flex'
+    panel.style.flexDirection = 'column'
+    aiLoadModels().then(() => {
+      document.getElementById('ai-fab-agent-name').textContent = aiChatAgentName()
+      aiChatStart('fab')
+    })
   } else {
     panel.style.display = 'none'
   }
@@ -5600,126 +5983,6 @@ function aiFabToggle() {
 function aiFabClose() {
   aiFabOpen = false
   document.getElementById('ai-fab-panel').style.display = 'none'
-}
-
-function aiFabTogglePlat(el) {
-  const plat = el.dataset.plat
-  if (aiFabSelectedPlats.has(plat)) {
-    if (aiFabSelectedPlats.size === 1) return
-    aiFabSelectedPlats.delete(plat)
-    el.classList.remove('active')
-  } else {
-    aiFabSelectedPlats.add(plat)
-    el.classList.add('active')
-  }
-}
-
-async function aiFabGenerate() {
-  const instrucao = document.getElementById('ai-fab-instrucao').value.trim()
-  if (!instrucao) { showToast('Escreva uma instrução', 'warn'); return }
-
-  const btn = document.getElementById('ai-fab-gen-btn')
-  btn.disabled = true
-  btn.innerHTML = '<span class="spinner" style="width:13px;height:13px;border-width:1.5px"></span> Gerando...'
-
-  // Esconde resultado anterior
-  const resultEl = document.getElementById('ai-fab-result')
-  resultEl.style.display = 'none'
-
-  try {
-    const data = await apiFetch('/api/ai/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instrucao,
-        plataformas: [...aiFabSelectedPlats],
-        quantidade: 1,
-        tom: 'casual',
-        idioma: 'pt',
-        modelo: aiSelectedModel,
-      })
-    })
-
-    aiFabLastPost = data.posts?.[0] || null
-    if (aiFabLastPost) {
-      document.getElementById('ai-fab-result-text').textContent = aiFabLastPost.texto
-      resultEl.style.display = 'flex'
-    }
-  } catch (err) {
-    showToast(err.message || 'Erro ao gerar post', 'err')
-  } finally {
-    btn.disabled = false
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Gerar post'
-  }
-}
-
-function aiFabDiscard() {
-  aiFabLastPost = null
-  document.getElementById('ai-fab-result').style.display = 'none'
-  document.getElementById('ai-fab-instrucao').value = ''
-}
-
-async function aiFabSchedule() {
-  if (!aiFabLastPost) return
-  const btn = document.querySelector('.ai-fab-sched-btn')
-  btn.disabled = true
-  btn.innerHTML = '<span class="spinner" style="width:11px;height:11px;border-width:1.5px"></span>'
-  try {
-    await apiFetch('/api/ai/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posts: [aiFabLastPost] })
-    })
-    showToast('Post agendado com sucesso!', 'ok')
-    aiFabDiscard()
-    aiFabClose()
-  } catch (err) {
-    btn.disabled = false
-    btn.innerHTML = '✓ Agendar'
-    showToast(err.message || 'Erro ao agendar', 'err')
-  }
-}
-
-// ── Post de exemplo (mock) ────────────────────────────────────────────────────
-// Injeta posts fictícios na página de Agente IA para demonstração visual
-function aiLoadDemoPost() {
-  const demoPosts = [
-    {
-      texto: `🚀 Segunda-feira chegou com tudo!\n\nNão existe atalho para o sucesso — existe consistência, foco e a decisão de agir quando todos ainda estão dormindo.\n\nHoje é o dia de transformar sua meta em rotina. Cada repetição, cada treino, cada passo conta.\n\n💪 O que você vai conquistar essa semana? Conta nos comentários!`,
-      titulo: '',
-      hashtags: ['motivação', 'segundafeira', 'foco', 'disciplina', 'academia', 'vidafit', 'treinoduro'],
-      emoji_destaque: '🚀',
-      angulo: 'Motivação de segunda-feira com chamada para engajamento',
-      plataformas: ['instagram', 'facebook'],
-      horario: (() => { const d = new Date(); d.setDate(d.getDate()+1); d.setHours(9,0,0,0); return d.toISOString() })(),
-    },
-    {
-      texto: `✨ Você sabia que 21 dias são suficientes para criar um novo hábito?\n\nA ciência comprova: pequenas ações repetidas todos os dias reescrevem sua rotina completamente.\n\nComeça hoje. Não amanhã. Não segunda. Hoje.\n\n#desafiodos21dias`,
-      titulo: '',
-      hashtags: ['hábitos', 'desafiodos21dias', 'transformação', 'selfimprovement', 'rotina'],
-      emoji_destaque: '✨',
-      angulo: 'Dado científico sobre formação de hábitos',
-      plataformas: ['instagram', 'tiktok'],
-      horario: (() => { const d = new Date(); d.setDate(d.getDate()+2); d.setHours(18,0,0,0); return d.toISOString() })(),
-    },
-    {
-      texto: `Como construir uma rotina matinal imbatível em 5 passos:\n\n1️⃣ Acorde sem apertar "soneca" (sério, isso muda tudo)\n2️⃣ Hidrate-se antes do café — 500ml de água em jejum\n3️⃣ 10 minutos de movimento — yoga, caminhada, o que preferir\n4️⃣ Leia ou ouça algo que te inspire por 15 minutos\n5️⃣ Revise suas metas do dia antes de abrir o celular\n\nQual desses você já faz? 👇`,
-      titulo: 'Como Construir uma Rotina Matinal Imbatível | 5 Passos Que Mudam Tudo',
-      hashtags: ['rotinamatinal', 'produtividade', 'bemestar', 'morningrotine', 'saúde'],
-      emoji_destaque: '⚡',
-      angulo: 'Lista prática com chamada para interação nos comentários',
-      plataformas: ['youtube', 'instagram'],
-      horario: (() => { const d = new Date(); d.setDate(d.getDate()+3); d.setHours(12,0,0,0); return d.toISOString() })(),
-    },
-  ]
-
-  aiGeneratedPosts = demoPosts
-  aiRenderCards()
-
-  // Scroll suave até os cards
-  setTimeout(() => {
-    document.getElementById('ai-cards')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, 100)
 }
 
 // ── Feature 4: Rascunhos e Templates ─────────────────────────────────────────
