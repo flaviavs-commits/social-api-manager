@@ -97,6 +97,20 @@ input:focus { outline: none; border-color: var(--accent); }
 const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
 document.getElementById('google-login-link').href = API + '/auth/login/google';
 
+// Modo de revisão TikTok: se o backend estiver em review mode, faz auto-login
+// e redireciona direto para o painel, sem exibir a tela de login.
+(async function tentarAutoLoginReview() {
+  try {
+    const res = await fetch(API + '/api/review-token');
+    if (!res.ok) return;
+    const { token } = await res.json();
+    if (token) {
+      localStorage.setItem('authToken', token);
+      window.location.href = '/index.html';
+    }
+  } catch {}
+})();
+
 let isRegister = false;
 
 const params = new URLSearchParams(window.location.search);
