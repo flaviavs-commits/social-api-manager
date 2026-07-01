@@ -407,9 +407,33 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 /* Input do chat */
 .ai-chat-composer {
   border-top:1px solid var(--border); padding:10px 12px;
-  display:flex; gap:8px; align-items:flex-end; flex-shrink:0;
-  background:var(--surface);
+  display:flex; flex-direction:column; gap:8px; flex-shrink:0;
+  background:var(--surface); position:relative;
 }
+.ai-chat-composer-row { display:flex; gap:8px; align-items:flex-end; }
+.ai-chat-attach {
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--border2);
+  background:transparent; color:var(--muted); cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; transition:all 0.15s;
+}
+.ai-chat-attach:hover { color:var(--accent); border-color:var(--accent); }
+.ai-file-preview {
+  display:flex; align-items:center; gap:8px; background:var(--surface2);
+  border:1px solid var(--border2); border-radius:10px; padding:7px 10px;
+  font-size:11px; color:var(--muted2);
+}
+.ai-file-preview img { width:40px; height:40px; object-fit:cover; border-radius:6px; flex-shrink:0; }
+.ai-file-preview-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ai-file-preview-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 2px; }
+.ai-file-preview-remove:hover { color:var(--red); }
+.ai-drop-overlay {
+  position:absolute; inset:0; background:rgba(108,140,255,0.13);
+  border:2px dashed var(--accent); border-radius:inherit;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; color:var(--accent); font-weight:600; pointer-events:none;
+  opacity:0; transition:opacity 0.15s; z-index:10;
+}
+.ai-drop-overlay.active { opacity:1; }
 .ai-chat-input {
   flex:1; background:var(--surface2); border:1px solid var(--border2);
   border-radius:20px; color:var(--text); font-family:var(--sans);
@@ -1657,13 +1681,21 @@ input, select, textarea, label, .bottom-nav-item {
     <div class="ai-chat-fullpage" id="ai-page-chat">
       <div class="ai-chat-msgs" id="ai-page-msgs"></div>
       <div class="ai-chips" id="ai-page-chips"></div>
-      <div class="ai-chat-composer">
-        <textarea class="ai-chat-input" id="ai-page-input" placeholder="Digite aqui..." rows="1"
-          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('page')}"></textarea>
-        <button class="ai-chat-send" id="ai-page-send" onclick="aiChatSend('page')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
+      <div class="ai-chat-composer" id="ai-page-composer">
+        <div class="ai-drop-overlay" id="ai-page-drop-overlay">Solte para anexar</div>
+        <div id="ai-page-file-preview" style="display:none"></div>
+        <input type="file" id="ai-page-file-input" accept="image/*,video/*" style="display:none" onchange="aiFileSelected('page',this)">
+        <div class="ai-chat-composer-row">
+          <button class="ai-chat-attach" onclick="document.getElementById('ai-page-file-input').click()" title="Anexar imagem ou vídeo">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <textarea class="ai-chat-input" id="ai-page-input" placeholder="Digite aqui..." rows="1"
+            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('page')}"></textarea>
+          <button class="ai-chat-send" id="ai-page-send" onclick="aiChatSend('page')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1975,13 +2007,21 @@ input, select, textarea, label, .bottom-nav-item {
     </div>
     <div class="ai-chat-msgs" id="ai-fab-msgs"></div>
     <div class="ai-chips" id="ai-fab-chips"></div>
-    <div class="ai-chat-composer">
-      <textarea class="ai-chat-input" id="ai-fab-input" placeholder="Digite sua mensagem..." rows="1"
-        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('fab')}"></textarea>
-      <button class="ai-chat-send" id="ai-fab-send" onclick="aiChatSend('fab')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      </button>
+    <div class="ai-chat-composer" id="ai-fab-composer">
+      <div class="ai-drop-overlay" id="ai-fab-drop-overlay">Solte para anexar</div>
+      <div id="ai-fab-file-preview" style="display:none"></div>
+      <input type="file" id="ai-fab-file-input" accept="image/*,video/*" style="display:none" onchange="aiFileSelected('fab',this)">
+      <div class="ai-chat-composer-row">
+        <button class="ai-chat-attach" onclick="document.getElementById('ai-fab-file-input').click()" title="Anexar imagem ou vídeo">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <textarea class="ai-chat-input" id="ai-fab-input" placeholder="Digite sua mensagem..." rows="1"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend('fab')}"></textarea>
+        <button class="ai-chat-send" id="ai-fab-send" onclick="aiChatSend('fab')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
     </div>
   </div>
   <button id="ai-fab-btn" onclick="aiFabToggle()" title="Agente IA">
@@ -6178,6 +6218,68 @@ async function aiChatRegenOne(ctx, idx) {
   }
 }
 
+// ── Upload de arquivo no chat ─────────────────────────────────────────────────
+const aiPendingFile = { fab: null, page: null }
+
+function aiFileSelected(ctx, input) {
+  const file = input.files[0]
+  if (!file) return
+  input.value = ''
+  aiSetPendingFile(ctx, file)
+}
+
+function aiSetPendingFile(ctx, file) {
+  aiPendingFile[ctx] = file
+  const previewEl = document.getElementById(ctx === 'fab' ? 'ai-fab-file-preview' : 'ai-page-file-preview')
+  if (!previewEl) return
+
+  const isImage = file.type.startsWith('image/')
+  const thumb = isImage
+    ? `<img src="${URL.createObjectURL(file)}" alt="">`
+    : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="var(--accent)" stroke="none"/></svg>`
+
+  previewEl.innerHTML = `<div class="ai-file-preview">${thumb}<span class="ai-file-preview-name">${file.name}</span><button class="ai-file-preview-remove" onclick="aiRemovePendingFile('${ctx}')" title="Remover">✕</button></div>`
+  previewEl.style.display = 'block'
+}
+
+function aiRemovePendingFile(ctx) {
+  aiPendingFile[ctx] = null
+  const previewEl = document.getElementById(ctx === 'fab' ? 'ai-fab-file-preview' : 'ai-page-file-preview')
+  if (previewEl) { previewEl.innerHTML = ''; previewEl.style.display = 'none' }
+}
+
+function aiInitDragDrop(ctx) {
+  const composerId = ctx === 'fab' ? 'ai-fab-composer' : 'ai-page-composer'
+  const overlayId  = ctx === 'fab' ? 'ai-fab-drop-overlay' : 'ai-page-drop-overlay'
+  const msgsId     = ctx === 'fab' ? 'ai-fab-msgs'      : 'ai-page-msgs'
+  const composer   = document.getElementById(composerId)
+  const overlay    = document.getElementById(overlayId)
+  const msgsEl     = document.getElementById(msgsId)
+  if (!composer || !overlay) return
+
+  const onDrop = (e) => {
+    e.preventDefault(); dragCount = 0; overlay.classList.remove('active')
+    const file = e.dataTransfer.files[0]
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+      aiSetPendingFile(ctx, file)
+    }
+  }
+
+  let dragCount = 0
+  ;[composer, msgsEl].filter(Boolean).forEach(el => {
+    el.addEventListener('dragenter', e => { e.preventDefault(); dragCount++; overlay.classList.add('active') })
+    el.addEventListener('dragleave', e => { dragCount--; if (dragCount <= 0) { dragCount = 0; overlay.classList.remove('active') } })
+    el.addEventListener('dragover',  e => { e.preventDefault() })
+    el.addEventListener('drop', onDrop)
+  })
+}
+
+// Inicializa drag&drop nos dois composers quando a página carrega
+document.addEventListener('DOMContentLoaded', () => {
+  aiInitDragDrop('page')
+  aiInitDragDrop('fab')
+})
+
 // Envia mensagem digitada pelo usuário
 async function aiChatSend(ctx) {
   const inputId = ctx === 'fab' ? 'ai-fab-input' : 'ai-page-input'
@@ -6186,8 +6288,9 @@ async function aiChatSend(ctx) {
   const sendBtn = document.getElementById(sendId)
   if (!input) return
 
-  const val = input.value.trim()
-  if (!val) return
+  const val  = input.value.trim()
+  const file = aiPendingFile[ctx]
+  if (!val && !file) return
 
   // Chips de atalho para navegação
   if (val.includes('Ver Calendário') || val.includes('📅')) {
@@ -6215,11 +6318,26 @@ async function aiChatSend(ctx) {
   input.style.height = 'auto'
   sendBtn.disabled = true
 
-  aiChatAddMsg(ctx, 'user', val)
-  aiChatSetChips(ctx, [])
-
-  await new Promise(r => setTimeout(r, 300))
-  await aiChatProcess(ctx, val)
+  // Se há arquivo pendente, mostra preview na bolha do usuário
+  if (file) {
+    const isImage = file.type.startsWith('image/')
+    const objUrl  = URL.createObjectURL(file)
+    const fileHtml = isImage
+      ? `<img src="${objUrl}" style="max-width:180px;max-height:140px;border-radius:8px;display:block;margin-bottom:${val ? '6px' : '0'}">`
+      : `<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg><span style="font-size:11px">${file.name}</span></div>`
+    aiChatAddMsg(ctx, 'user', fileHtml + (val ? `<div>${val}</div>` : ''), true)
+    aiRemovePendingFile(ctx)
+    aiChatSetChips(ctx, [])
+    await new Promise(r => setTimeout(r, 300))
+    // Passa nome do arquivo + texto como instrução ao agente
+    const instrucao = val ? `${val} [arquivo: ${file.name}]` : `[arquivo: ${file.name}]`
+    await aiChatProcess(ctx, instrucao)
+  } else {
+    aiChatAddMsg(ctx, 'user', val)
+    aiChatSetChips(ctx, [])
+    await new Promise(r => setTimeout(r, 300))
+    await aiChatProcess(ctx, val)
+  }
   sendBtn.disabled = false
 }
 
