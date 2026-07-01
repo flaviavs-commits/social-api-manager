@@ -368,8 +368,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 }
 .ai-msg.user .ai-msg-avatar { background:var(--surface3); color:var(--muted2); }
 .ai-msg-bubble {
-  max-width:78%; padding:9px 12px; border-radius:14px;
-  font-size:12px; line-height:1.6; word-break:break-word;
+  max-width:82%; padding:9px 12px; border-radius:14px;
+  font-size:13px; line-height:1.5; word-break:normal; overflow-wrap:break-word;
 }
 .ai-msg.agent .ai-msg-bubble {
   background:var(--surface2); border:1px solid var(--border);
@@ -384,7 +384,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 /* Chips de resposta rápida */
 .ai-chips { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 8px; }
 .ai-chip {
-  padding:5px 12px; border-radius:20px; white-space:nowrap;
+  padding:5px 12px; border-radius:20px; white-space:nowrap; min-width:max-content;
   border:1px solid rgba(108,140,255,0.4); background:rgba(108,140,255,0.08);
   color:var(--accent); font-size:11px; cursor:pointer;
   transition:all 0.15s;
