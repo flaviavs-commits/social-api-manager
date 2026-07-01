@@ -368,8 +368,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 }
 .ai-msg.user .ai-msg-avatar { background:var(--surface3); color:var(--muted2); }
 .ai-msg-bubble {
-  max-width:calc(100% - 44px); padding:9px 12px; border-radius:14px;
-  font-size:13px; line-height:1.5; overflow-wrap:break-word; word-break:break-word;
+  max-width:100%; padding:9px 12px; border-radius:14px;
+  font-size:13px; line-height:1.5; overflow-wrap:break-word;
 }
 .ai-msg.agent .ai-msg-bubble {
   background:var(--surface2); border:1px solid var(--border);
@@ -479,7 +479,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   border-radius:var(--radius-lg); overflow:hidden;
 }
 .ai-chat-fullpage .ai-chat-msgs { padding:20px 24px 12px; gap:14px; }
-.ai-chat-fullpage .ai-msg-bubble { font-size:13px; max-width:calc(100% - 44px); }
+.ai-chat-fullpage .ai-msg-bubble { font-size:13px; }
 .ai-chat-fullpage .ai-chat-composer { padding:14px 20px; }
 .ai-chat-fullpage .ai-chips { padding:0 20px 10px; }
 
@@ -5829,9 +5829,7 @@ function aiChatAddMsg(ctx, role, html, isHtml = false) {
   }
 
   const bubbleWrap = document.createElement('div')
-  bubbleWrap.style.display = 'flex'
-  bubbleWrap.style.flexDirection = 'column'
-  bubbleWrap.style.alignItems = role === 'user' ? 'flex-end' : 'flex-start'
+  bubbleWrap.style.cssText = 'display:flex;flex-direction:column;flex:1;min-width:0;align-items:' + (role === 'user' ? 'flex-end' : 'flex-start')
 
   const bubble = document.createElement('div')
   bubble.className = 'ai-msg-bubble'
