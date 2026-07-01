@@ -1,9 +1,14 @@
 const webpush = require('web-push')
-webpush.setVapidDetails(
-  'mailto:' + (process.env.VAPID_EMAIL || 'admin@app.local'),
-  process.env.VAPID_PUBLIC_KEY || 'placeholder',
-  process.env.VAPID_PRIVATE_KEY || 'placeholder'
-)
+
+// Só inicializa VAPID se as chaves estiverem definidas — evita crash no startup
+// quando as variáveis de ambiente ainda não foram configuradas no Railway.
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:' + (process.env.VAPID_EMAIL || 'admin@app.local'),
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  )
+}
 
 async function enviarPush(subscription, payload) {
   if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return
