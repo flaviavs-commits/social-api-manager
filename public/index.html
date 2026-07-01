@@ -1062,6 +1062,29 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-model-btn .ai-model-dot.claude  { background: #d97706; }
 .ai-model-unavail { font-size: 9px; color: var(--muted); font-family: var(--mono); }
 
+/* Seletor de modelo no picker */
+.ai-model-pick-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius);
+  border: 1.5px solid var(--border); background: var(--surface2);
+  cursor: pointer; transition: all 0.15s;
+}
+.ai-model-pick-item:hover:not(.unavailable) { border-color: var(--border2); background: var(--surface3); }
+.ai-model-pick-item.selected { border-color: var(--accent); background: var(--accent-glow); }
+.ai-model-pick-item.unavailable { opacity: 0.38; cursor: not-allowed; }
+.ai-model-pick-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+.ai-model-pick-icon.gemini { background: rgba(66,133,244,0.15); }
+.ai-model-pick-icon.openai { background: rgba(16,163,127,0.15); }
+.ai-model-pick-icon.claude { background: rgba(217,119,6,0.15); }
+.ai-model-pick-info { flex: 1; min-width: 0; }
+.ai-model-pick-name { font-size: 13px; font-weight: 600; }
+.ai-model-pick-desc { font-size: 11px; color: var(--muted); margin-top:2px; }
+.ai-model-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+.ai-model-pick-item.selected .ai-model-pick-check { background: var(--accent); border-color: var(--accent); }
+#ai-change-model-btn:hover { border-color: var(--accent); color: var(--accent); }
+#ai-change-model-btn:disabled { opacity: 0.35; cursor: not-allowed; border-style: solid; }
+#ai-change-model-btn.locked { opacity: 0.38; cursor: not-allowed; }
+
 @media (max-width: 900px) {
   .ai-page { grid-template-columns: 1fr; }
   .ai-form-panel { position: static; }
@@ -1589,8 +1612,40 @@ input, select, textarea, label, .bottom-nav-item {
         </h2>
         <p style="font-size:12px;color:var(--muted);margin-top:2px">Converse com o agente — ele cria e agenda seus posts automaticamente.</p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center" id="ai-page-model-bar"></div>
+      <!-- Badge do modelo ativo -->
+      <div id="ai-active-model-badge" style="display:flex;align-items:center;gap:8px">
+        <div id="ai-model-badge" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);font-size:12px;font-weight:500">
+          <span id="ai-badge-dot" style="width:7px;height:7px;border-radius:50%;background:#4285f4;flex-shrink:0"></span>
+          <span id="ai-badge-name">Gemini Flash</span>
+          <span style="font-size:10px;color:var(--muted)">· padrão</span>
+        </div>
+        <button id="ai-change-model-btn" onclick="aiOpenModelPicker()" style="padding:6px 12px;border-radius:20px;border:1px dashed var(--border2);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all var(--transition)" title="Trocar modelo (disponível após criar um post)">
+          ⚙ Trocar modelo
+        </button>
+      </div>
     </div>
+
+    <!-- Modal seletor de modelo -->
+    <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
+      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <div style="font-size:14px;font-weight:600">Escolher modelo de IA</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">A mudança vale para a próxima conversa</div>
+          </div>
+          <button onclick="aiCloseModelPicker()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#6c8cff,#b39ddb);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
+            Confirmar escolha
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="ai-chat-fullpage" id="ai-page-chat">
       <div class="ai-chat-msgs" id="ai-page-msgs"></div>
       <div class="ai-chips" id="ai-page-chips"></div>
@@ -5281,53 +5336,167 @@ const AI_MODEL_META = {
   claude: { label: 'Claude Haiku', dot: 'claude', provider: 'Anthropic' },
 }
 
+let aiAvailableModels = []
+let aiPickerSelectedModel = 'gemini' // seleção temporária no picker antes de confirmar
+
+const AI_MODEL_PICKER_META = {
+  gemini: {
+    icon: '✦',
+    iconClass: 'gemini',
+    dotColor: '#4285f4',
+    desc: 'Google · Rápido e gratuito · Recomendado',
+    badge: 'Padrão',
+  },
+  openai: {
+    icon: '◆',
+    iconClass: 'openai',
+    dotColor: '#10a37f',
+    desc: 'OpenAI · GPT-4o Mini · Excelente criatividade',
+    badge: '',
+  },
+  claude: {
+    icon: '●',
+    iconClass: 'claude',
+    dotColor: '#d97706',
+    desc: 'Anthropic · Claude Haiku · Tom natural',
+    badge: '',
+  },
+}
+
 async function aiLoadModels() {
   if (aiModelsLoaded) return
   try {
     const data = await apiFetch('/api/ai/models')
     aiModelsLoaded = true
-    aiRenderModelSelector(data.models, 'ai-model-selector', false)
-    aiRenderModelSelector(data.models, 'ai-fab-model-selector', true)
-    // Seleciona automaticamente o primeiro disponível
-    const first = data.models.find(m => m.available)
-    if (first) aiSetModel(first.id)
+    aiAvailableModels = data.models || []
+    // Padrão: Gemini Flash (primeiro disponível)
+    const first = data.models.find(m => m.available) || data.models[0]
+    if (first) aiSetModel(first.id, false)
   } catch {}
 }
 
-function aiRenderModelSelector(models, containerId, compact) {
-  const el = document.getElementById(containerId)
-  if (!el) return
-  el.innerHTML = models.map(m => {
-    const meta = AI_MODEL_META[m.id] || {}
-    const unavail = !m.available
-    return `<button class="ai-model-btn${m.id === aiSelectedModel ? ' active' : ''}${unavail ? ' unavailable' : ''}"
-      data-model="${m.id}" onclick="${unavail ? '' : `aiSetModel('${m.id}')`}"
-      title="${unavail ? m.provider + ': chave não configurada no servidor' : m.name}">
-      <span class="ai-model-dot ${meta.dot || m.id}"></span>
-      ${compact ? (meta.dot === 'gemini' ? 'Gemini' : meta.dot === 'openai' ? 'GPT-4o' : 'Claude') : m.name}
-      ${unavail ? '<span class="ai-model-unavail">sem chave</span>' : ''}
-    </button>`
-  }).join('')
+function aiSetModel(id, notify = true) {
+  aiSelectedModel = id
+  aiPickerSelectedModel = id
+  const meta = AI_MODEL_META[id] || {}
+  const pickerMeta = AI_MODEL_PICKER_META[id] || {}
+
+  // Atualiza badge da página
+  const dot = document.getElementById('ai-badge-dot')
+  const name = document.getElementById('ai-badge-name')
+  if (dot) dot.style.background = pickerMeta.dotColor || '#6c8cff'
+  if (name) name.textContent = meta.label || id
+
+  // Atualiza nome no cabeçalho do FAB
+  const fabName = document.getElementById('ai-fab-agent-name')
+  if (fabName) fabName.textContent = meta.label || 'Agente IA'
+
+  // Avisa no chat que o modelo mudou (só se não for inicialização)
+  if (notify) {
+    ;['page', 'fab'].forEach(ctx => {
+      const state = aiChat[ctx]
+      if (state.greeted) {
+        aiChatAddMsg(ctx, 'agent', `✅ Modelo alterado para ${meta.label}! Vou usar ele a partir de agora. O que vamos postar? 😊`)
+        aiChatSetChips(ctx, ['➕ Criar novo post'])
+      }
+    })
+  }
 }
 
-function aiSetModel(id) {
-  aiSelectedModel = id
-  document.querySelectorAll('.ai-model-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.model === id)
+// Abre o picker — bloqueado se conversa ativa (step != 'greeting' e != 'done')
+function aiOpenModelPicker() {
+  const pageState = aiChat.page
+  const isLocked = pageState.greeted && pageState.step !== 'done' && pageState.step !== 'greeting'
+
+  if (isLocked) {
+    showToast('Conclua ou aguarde o post atual antes de trocar o modelo', 'warn')
+    return
+  }
+
+  // Renderiza lista
+  const list = document.getElementById('ai-model-picker-list')
+  if (!list) return
+
+  list.innerHTML = aiAvailableModels.map(m => {
+    const pm = AI_MODEL_PICKER_META[m.id] || {}
+    const isSelected = m.id === aiSelectedModel
+    const unavail = !m.available
+    return `
+    <div class="ai-model-pick-item${isSelected ? ' selected' : ''}${unavail ? ' unavailable' : ''}"
+      data-model="${m.id}" onclick="${unavail ? '' : `aiPickerSelect('${m.id}')`}">
+      <div class="ai-model-pick-icon ${pm.iconClass || m.id}" style="font-size:20px;color:${pm.dotColor}">${pm.icon || '●'}</div>
+      <div class="ai-model-pick-info">
+        <div class="ai-model-pick-name">
+          ${AI_MODEL_META[m.id]?.label || m.name}
+          ${pm.badge ? `<span style="font-size:9px;background:rgba(108,140,255,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
+          ${unavail ? `<span style="font-size:9px;color:var(--red);margin-left:6px">sem chave</span>` : ''}
+        </div>
+        <div class="ai-model-pick-desc">${unavail ? 'Chave não configurada no servidor' : (pm.desc || m.provider)}</div>
+      </div>
+      <div class="ai-model-pick-check">
+        ${isSelected ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+      </div>
+    </div>`
+  }).join('')
+
+  document.getElementById('ai-model-picker').style.display = 'flex'
+}
+
+function aiPickerSelect(id) {
+  aiPickerSelectedModel = id
+  document.querySelectorAll('.ai-model-pick-item').forEach(el => {
+    const isThis = el.dataset.model === id
+    el.classList.toggle('selected', isThis)
+    const check = el.querySelector('.ai-model-pick-check')
+    check.innerHTML = isThis
+      ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
+      : ''
   })
+}
+
+function aiCloseModelPicker() {
+  document.getElementById('ai-model-picker').style.display = 'none'
+}
+
+function aiConfirmModelPick() {
+  if (aiPickerSelectedModel && aiPickerSelectedModel !== aiSelectedModel) {
+    aiSetModel(aiPickerSelectedModel, true)
+    // Reseta o chat para começar novo com o modelo escolhido
+    ;['page', 'fab'].forEach(ctx => {
+      aiChat[ctx].greeted = false
+      aiChat[ctx].step = 'greeting'
+      aiChat[ctx].pendingPost = null
+      aiChat[ctx].msgs = []
+      const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
+      if (msgsEl) msgsEl.innerHTML = ''
+      aiChatSetChips(ctx, [])
+    })
+  }
+  aiCloseModelPicker()
+  // Inicia nova conversa com o modelo novo
+  const meta = AI_MODEL_META[aiSelectedModel] || {}
+  showToast(`Modelo alterado para ${meta.label || aiSelectedModel}`, 'ok')
+
+  // Trava o botão de troca até o próximo post ser criado
+  aiLockModelChange(true)
+}
+
+function aiLockModelChange(lock) {
+  const btn = document.getElementById('ai-change-model-btn')
+  if (!btn) return
+  if (lock) {
+    btn.disabled = true
+    btn.classList.add('locked')
+    btn.title = 'Disponível após criar um post'
+  } else {
+    btn.disabled = false
+    btn.classList.remove('locked')
+    btn.title = 'Trocar modelo'
+  }
 }
 
 function aiPageInit() {
   aiLoadModels().then(() => {
-    // Renderiza barra de modelos no topo da página
-    const bar = document.getElementById('ai-page-model-bar')
-    if (bar && !bar.dataset.loaded) {
-      bar.dataset.loaded = '1'
-      aiRenderModelSelector(
-        Object.entries(AI_MODEL_META).map(([id, m]) => ({ id, name: m.label, provider: m.provider, available: true })),
-        'ai-model-selector-fake', false
-      )
-    }
     aiChatStart('page')
   })
 }
@@ -5675,6 +5844,7 @@ async function aiChatStart(ctx) {
   if (state.greeted) return
   state.greeted = true
   state.step = 'ask_plats'
+  if (ctx === 'page') aiLockModelChange(true)
 
   await new Promise(r => setTimeout(r, 300))
   aiChatTyping(ctx, true)
@@ -5867,6 +6037,7 @@ async function aiChatSchedulePost(ctx, idx) {
     aiChatAddMsg(ctx, 'agent', `✅ Post agendado para ${horarioFmt}! Aparecerá no Calendário e no Agendador.\n\nPosso criar mais alguma coisa para você? 😊`)
     aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
     state.step = 'done'
+    aiLockModelChange(false)
   } catch (err) {
     aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
   }
@@ -5887,6 +6058,7 @@ async function aiChatScheduleAll(ctx) {
     aiChatAddMsg(ctx, 'agent', `🎉 ${data.agendados} post(s) agendado(s) com sucesso! Tudo certo no Calendário.\n\nPosso ajudar com mais alguma coisa? 😊`)
     aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
     state.step = 'done'
+    aiLockModelChange(false)
   } catch (err) {
     aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
   }
