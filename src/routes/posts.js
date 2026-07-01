@@ -61,6 +61,28 @@ router.post('/upload-url', async (req, res) => {
   }
 })
 
+// GET /api/posts/inbox — lista posts publicados com suporte a comentários
+// (retorna metadados; comentários são carregados por demanda em /:id/comments)
+router.get('/inbox', async (req, res) => {
+  try {
+    const plat = req.query.platform || null // filtro opcional de plataforma
+    const all  = await repo.listarPosts({
+      status:  'published',
+      userId:  req.user.id,
+      isAdmin: isAdminRole(req.user.role)
+    })
+    const plats = commentsService.PLATAFORMAS_COM_COMENTARIOS
+    const posts = all
+      .filter(p => p.externalPostId && plats.includes(p.externalPlatform))
+      .filter(p => !plat || p.externalPlatform === plat)
+      .sort((a, b) => new Date(b.publishedAt || b.scheduledAt) - new Date(a.publishedAt || a.scheduledAt))
+      .slice(0, 100)
+    res.json({ posts })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
 // GET /api/posts/calendar?year=2025&month=6
 router.get('/calendar', async (req, res) => {
   try {

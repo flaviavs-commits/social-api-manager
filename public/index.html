@@ -539,6 +539,113 @@ input, select, textarea, label, .bottom-nav-item {
   .cal-week-view { overflow-x: auto; }
   .cal-week-body, .cal-week-header { min-width: 560px; }
 }
+
+/* ── Inbox ──────────────────────────────────────────────────────────────── */
+#page-inbox { flex-direction: column; height: calc(100vh - var(--topbar-h) - 2rem); padding: 0; overflow: hidden; }
+#page-inbox.active { display: flex; }
+
+.inbox-layout { display: grid; grid-template-columns: 320px 1fr; flex: 1; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+
+/* Coluna esquerda: lista de conversas */
+.inbox-sidebar { display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+.inbox-sidebar-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.inbox-sidebar-head-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.inbox-plat-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.inbox-plat-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; transition: all 0.15s; color: var(--muted); }
+.inbox-plat-btn:hover { border-color: var(--border2); color: var(--text); }
+.inbox-plat-btn.active { border-color: transparent; color: #fff; }
+.inbox-plat-btn.all.active { background: var(--accent); }
+.inbox-plat-btn.instagram.active { background: var(--ig); }
+.inbox-plat-btn.facebook.active  { background: var(--fb); }
+.inbox-plat-btn.youtube.active   { background: var(--yt); }
+.inbox-plat-btn.tiktok.active    { background: #69c9d0; }
+.inbox-search { position: relative; }
+.inbox-search input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px 7px 32px; font-size: 12px; color: var(--text); outline: none; }
+.inbox-search input:focus { border-color: var(--accent); }
+.inbox-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.inbox-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.inbox-tab { flex: 1; padding: 9px; text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; position: relative; }
+.inbox-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.inbox-tab-badge { position: absolute; top: 6px; right: calc(50% - 28px); width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.inbox-list { overflow-y: auto; flex: 1; }
+.inbox-conv-item { display: flex; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.12s; align-items: flex-start; }
+.inbox-conv-item:hover { background: rgba(255,255,255,0.03); }
+.inbox-conv-item.active { background: var(--accent-glow); }
+.inbox-conv-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: var(--border2); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #fff; position: relative; }
+.inbox-conv-plat-badge { position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 2px solid var(--surface); color: #fff; }
+.inbox-conv-plat-badge.instagram { background: var(--ig); }
+.inbox-conv-plat-badge.facebook  { background: var(--fb); }
+.inbox-conv-plat-badge.youtube   { background: var(--yt); }
+.inbox-conv-plat-badge.tiktok    { background: #69c9d0; }
+.inbox-conv-body { flex: 1; min-width: 0; }
+.inbox-conv-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-conv-preview { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+.inbox-conv-time { font-size: 10px; color: var(--muted); font-family: var(--mono); white-space: nowrap; flex-shrink: 0; }
+.inbox-loading { text-align: center; padding: 2rem; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.inbox-empty { text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 12px; }
+
+/* Coluna direita: thread de comentários */
+.inbox-main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.inbox-main-empty { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--muted); }
+.inbox-thread-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; background: var(--surface); }
+.inbox-thread-head-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--border2); flex-shrink: 0; object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; }
+.inbox-thread-head-info { flex: 1; min-width: 0; }
+.inbox-thread-head-name { font-size: 13px; font-weight: 700; }
+.inbox-thread-head-sub { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.inbox-thread-head-actions { display: flex; gap: 8px; }
+.inbox-thread-head-actions button { background: none; border: 1px solid var(--border); border-radius: 7px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+.inbox-thread-head-actions button:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Preview do post (miniatura) */
+.inbox-post-preview { padding: 10px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.inbox-post-preview-inner { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; gap: 0; max-height: 260px; }
+.inbox-post-preview-media { width: 220px; flex-shrink: 0; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.inbox-post-preview-media img, .inbox-post-preview-media video { width: 100%; height: 100%; object-fit: cover; max-height: 260px; }
+.inbox-post-preview-info { flex: 1; padding: 12px 14px; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.inbox-post-preview-title { font-size: 13px; font-weight: 600; line-height: 1.4; }
+.inbox-post-preview-sub { font-size: 11px; color: var(--muted); }
+
+/* Lista de comentários */
+.inbox-comments { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+.inbox-comment { display: flex; gap: 10px; align-items: flex-start; }
+.inbox-comment-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--border2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); }
+.inbox-comment-body { flex: 1; }
+.inbox-comment-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.inbox-comment-name { font-size: 12px; font-weight: 700; color: var(--text); }
+.inbox-comment-time { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+.inbox-comment-text { font-size: 12px; color: var(--text); line-height: 1.5; background: var(--surface); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 8px 12px; }
+.inbox-comment-actions { margin-top: 4px; display: flex; gap: 8px; }
+.inbox-comment-reply-btn { font-size: 10px; font-family: var(--mono); color: var(--muted); background: none; border: none; cursor: pointer; padding: 0; }
+.inbox-comment-reply-btn:hover { color: var(--accent); }
+.inbox-reply-box { margin-top: 6px; margin-left: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; gap: 8px; align-items: flex-end; }
+.inbox-reply-box textarea { flex: 1; background: none; border: none; outline: none; font-size: 12px; color: var(--text); resize: none; font-family: inherit; min-height: 36px; max-height: 100px; }
+.inbox-reply-box button { background: var(--accent); border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+.inbox-reply-box button:hover { opacity: 0.85; }
+
+/* Composer de reply geral (fixo no bottom) */
+.inbox-composer { padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; display: flex; align-items: flex-end; gap: 10px; }
+.inbox-composer-emoji { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); padding: 0; }
+.inbox-composer-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--text); resize: none; outline: none; min-height: 44px; max-height: 120px; font-family: inherit; }
+.inbox-composer-input:focus { border-color: var(--accent); }
+.inbox-composer-count { font-size: 10px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+.inbox-composer-send { background: var(--accent); border: none; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; white-space: nowrap; }
+.inbox-composer-send:hover { opacity: 0.85; }
+.inbox-composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.inbox-plat-tag { font-size: 9px; font-family: var(--mono); text-transform: uppercase; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+.inbox-plat-tag.instagram { background: rgba(225,48,108,0.15); color: var(--ig); }
+.inbox-plat-tag.facebook  { background: rgba(24,119,242,0.15); color: var(--fb); }
+.inbox-plat-tag.youtube   { background: rgba(255,0,0,0.15);   color: var(--yt); }
+.inbox-plat-tag.tiktok    { background: rgba(105,201,208,0.15); color: #69c9d0; }
+
+@media (max-width: 700px) {
+  #page-inbox { height: calc(100vh - var(--topbar-h) - var(--bottomnav-h)); }
+  .inbox-layout { grid-template-columns: 1fr; }
+  .inbox-sidebar { display: none; }
+  .inbox-sidebar.mobile-active { display: flex; position: fixed; inset: var(--topbar-h) 0 var(--bottomnav-h) 0; z-index: 300; border-radius: 0; border: none; }
+  .inbox-main { }
+  .inbox-post-preview-media { width: 120px; }
+}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -601,6 +708,10 @@ input, select, textarea, label, .bottom-nav-item {
   <div class="nav-item" onclick="showPage('calendario')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>
     Calendário
+  </div>
+  <div class="nav-item" onclick="showPage('inbox')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Inbox
   </div>
   <div class="nav-item" id="nav-admin" onclick="window.location.href='/admin.html'" style="display:none">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
@@ -935,6 +1046,91 @@ input, select, textarea, label, .bottom-nav-item {
     </div>
   </div>
 
+  <!-- INBOX -->
+  <div id="page-inbox" class="section-page">
+    <div class="inbox-layout">
+
+      <!-- Sidebar: lista de posts/conversas -->
+      <div class="inbox-sidebar" id="inbox-sidebar">
+        <div class="inbox-sidebar-head">
+          <div class="inbox-sidebar-head-top">
+            <div class="inbox-plat-filters" id="inbox-plat-filters">
+              <button class="inbox-plat-btn all active" data-plat="all" onclick="inboxSetPlat('all',this)" title="Todas as redes">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </button>
+              <button class="inbox-plat-btn instagram" data-plat="instagram" onclick="inboxSetPlat('instagram',this)" title="Instagram">ig</button>
+              <button class="inbox-plat-btn facebook"  data-plat="facebook"  onclick="inboxSetPlat('facebook',this)"  title="Facebook">f</button>
+              <button class="inbox-plat-btn youtube"   data-plat="youtube"   onclick="inboxSetPlat('youtube',this)"   title="YouTube">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M23 7s-.3-2-1.2-2.8c-1.1-1.2-2.4-1.2-3-1.3C16.2 2.8 12 2.8 12 2.8s-4.2 0-6.8.2c-.6.1-1.9.1-3 1.3C1.3 5 1 7 1 7S.8 9.2.8 11.3v2c0 2.1.2 4.3.2 4.3s.3 2 1.2 2.8c1.1 1.2 2.6 1.1 3.3 1.2C7.2 21.8 12 21.8 12 21.8s4.2 0 6.8-.3c.6-.1 1.9-.1 3-1.3.9-.8 1.2-2.8 1.2-2.8s.2-2.2.2-4.3v-2C23.2 9.2 23 7 23 7zM9.7 15.5V8.4l8.1 3.6-8.1 3.5z"/></svg>
+              </button>
+              <button class="inbox-plat-btn tiktok" data-plat="tiktok" onclick="inboxSetPlat('tiktok',this)" title="TikTok" style="font-size:10px;letter-spacing:-1px">tt</button>
+            </div>
+          </div>
+          <div class="inbox-search">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="inbox-search" placeholder="Buscar posts..." oninput="inboxFilter(this.value)">
+          </div>
+        </div>
+
+        <div class="inbox-tabs">
+          <div class="inbox-tab active" onclick="inboxSetTab('all',this)">Todos</div>
+          <div class="inbox-tab" onclick="inboxSetTab('unread',this)">Não lidos <span class="inbox-tab-badge" id="inbox-unread-badge" style="display:none"></span></div>
+          <div class="inbox-tab" onclick="inboxSetTab('resolved',this)">Respondidos</div>
+        </div>
+
+        <div class="inbox-list" id="inbox-list">
+          <div class="inbox-loading">Carregando...</div>
+        </div>
+      </div>
+
+      <!-- Main: thread de comentários do post selecionado -->
+      <div class="inbox-main" id="inbox-main">
+        <div class="inbox-main-empty" id="inbox-main-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span style="font-size:13px;opacity:0.4">Selecione um post para ver os comentários</span>
+        </div>
+
+        <!-- Thread (visível quando um post é selecionado) -->
+        <div id="inbox-thread" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+          <div class="inbox-thread-head">
+            <div class="inbox-thread-head-avatar" id="inbox-thread-avatar">?</div>
+            <div class="inbox-thread-head-info">
+              <div class="inbox-thread-head-name" id="inbox-thread-name">—</div>
+              <div class="inbox-thread-head-sub" id="inbox-thread-sub">—</div>
+            </div>
+            <div class="inbox-thread-head-actions">
+              <button title="Ver post na rede social" id="inbox-open-link-btn" onclick="inboxOpenExternalLink()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </button>
+              <button title="Marcar como resolvido" onclick="inboxToggleResolved()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="inbox-post-preview" id="inbox-post-preview" style="display:none"></div>
+
+          <div class="inbox-comments" id="inbox-comments">
+            <div class="inbox-loading">Carregando comentários...</div>
+          </div>
+
+          <div class="inbox-composer" id="inbox-composer" style="display:none">
+            <textarea class="inbox-composer-input" id="inbox-reply-text" placeholder="Escrever resposta..." rows="1"
+              oninput="inboxComposerInput(this)"
+              onkeydown="if(event.ctrlKey&&event.key==='Enter')inboxSendReply()"></textarea>
+            <span class="inbox-composer-count" id="inbox-reply-count">0 / 2000</span>
+            <button class="inbox-composer-send" id="inbox-send-btn" onclick="inboxSendReply()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Enviar
+            </button>
+          </div>
+          <div id="inbox-no-reply-notice" style="display:none;padding:8px 18px;font-size:11px;color:var(--muted);font-family:var(--mono);border-top:1px solid var(--border);text-align:center;background:var(--surface)"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div><!-- /main -->
 
 <!-- Preview de mídia do calendário -->
@@ -965,9 +1161,9 @@ input, select, textarea, label, .bottom-nav-item {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Agenda
   </button>
-  <button class="bottom-nav-item" onclick="showPage('analytics')" data-page="analytics">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
-    Stats
+  <button class="bottom-nav-item" onclick="showPage('inbox')" data-page="inbox">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Inbox
   </button>
   <button class="bottom-nav-item" onclick="toggleSidebar()" data-page="more">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="19" r="1" fill="currentColor"/></svg>
@@ -1267,7 +1463,7 @@ function showPage(name) {
 
   // Sidebar desktop: ativa item correto
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, calendario:6 };
+  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, calendario:6, inbox:7 };
   document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   // Bottom nav mobile: ativa item correto
@@ -1287,6 +1483,7 @@ function showPage(name) {
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics') startAnalyticsAutoRefresh();
+  if (name === 'inbox')     inboxInit();
   else                      stopAnalyticsAutoRefresh();
 }
 
@@ -4134,6 +4331,315 @@ function calCloseMediaPreview() {
   setTimeout(() => { el.innerHTML = ''; }, 200);
 }
 
+// ── INBOX ─────────────────────────────────────────────────────────────────────
+const PLAT_SUPPORTS_REPLY = ['instagram']; // demais são só leitura por ora
+const INBOX_PLAT_LABEL = { instagram:'COMENTÁRIO', facebook:'COMENTÁRIO', youtube:'COMENTÁRIO', tiktok:'COMENTÁRIO' };
+const INBOX_PLAT_COLOR = { instagram:'var(--ig)', facebook:'var(--fb)', youtube:'var(--yt)', tiktok:'#69c9d0' };
+
+let inboxPosts       = [];   // todos os posts carregados
+let inboxFiltered    = [];   // após filtro de plataforma + busca
+let inboxCurrentPost = null; // post selecionado
+let inboxFilterPlat  = 'all';
+let inboxSearchTerm  = '';
+let inboxTab         = 'all';
+let inboxResolved    = new Set(); // IDs de posts marcados como resolvidos (local)
+let inboxLoaded      = false;
+
+async function inboxInit() {
+  if (inboxLoaded) { inboxApplyFilter(); return; }
+  inboxLoaded = true;
+  document.getElementById('inbox-list').innerHTML = '<div class="inbox-loading">Carregando...</div>';
+  try {
+    const { posts } = await apiFetch('/api/posts/inbox');
+    inboxPosts = posts || [];
+    inboxApplyFilter();
+  } catch {
+    document.getElementById('inbox-list').innerHTML = '<div class="inbox-loading" style="color:var(--red)">Erro ao carregar posts</div>';
+  }
+}
+
+function inboxSetPlat(plat, btn) {
+  inboxFilterPlat = plat;
+  document.querySelectorAll('.inbox-plat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  inboxApplyFilter();
+}
+
+function inboxSetTab(tab, el) {
+  inboxTab = tab;
+  document.querySelectorAll('.inbox-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  inboxApplyFilter();
+}
+
+function inboxFilter(q) {
+  inboxSearchTerm = q.toLowerCase();
+  inboxApplyFilter();
+}
+
+function inboxApplyFilter() {
+  let list = inboxPosts;
+  if (inboxFilterPlat !== 'all') list = list.filter(p => p.externalPlatform === inboxFilterPlat);
+  if (inboxSearchTerm) list = list.filter(p =>
+    (p.text || '').toLowerCase().includes(inboxSearchTerm) ||
+    (p.youtubeTitle || '').toLowerCase().includes(inboxSearchTerm)
+  );
+  if (inboxTab === 'resolved')  list = list.filter(p => inboxResolved.has(p.id));
+  if (inboxTab === 'unread')    list = list.filter(p => !inboxResolved.has(p.id));
+  inboxFiltered = list;
+  inboxRenderList();
+}
+
+function inboxRenderList() {
+  const el = document.getElementById('inbox-list');
+  if (!inboxFiltered.length) {
+    el.innerHTML = '<div class="inbox-empty">Nenhum post encontrado.</div>';
+    return;
+  }
+  el.innerHTML = '';
+  inboxFiltered.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'inbox-conv-item' + (inboxCurrentPost?.id === p.id ? ' active' : '');
+    item.dataset.postId = p.id;
+
+    const ref = p.publishedAt || p.scheduledAt;
+    const timeStr = ref ? new Date(ref).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+
+    const mediaSrc = p.mediaItems?.[0]?.path || p.mediaPath;
+    const mediaType = p.mediaItems?.[0]?.type || p.mediaType;
+    const label = p.youtubeTitle || p.text || '(sem texto)';
+    const plat  = p.externalPlatform;
+    const platColor = INBOX_PLAT_COLOR[plat] || 'var(--muted)';
+
+    // Avatar: inicial da plataforma
+    const platInitials = { instagram:'ig', facebook:'f', youtube:'▶', tiktok:'tt' };
+    const initials = platInitials[plat] || '?';
+
+    item.innerHTML = `
+      <div class="inbox-conv-avatar" style="background:${platColor}">
+        <span>${initials.toUpperCase()}</span>
+        <span class="inbox-conv-plat-badge ${plat}">${platInitials[plat] || '?'}</span>
+      </div>
+      <div class="inbox-conv-body">
+        <div class="inbox-conv-name">${escapeHtml(label).substring(0,60)}</div>
+        <div class="inbox-conv-preview">
+          <span class="inbox-plat-tag ${plat}">${plat.toUpperCase()}</span>
+          ${inboxResolved.has(p.id) ? '<span style="color:var(--green);font-size:10px">✓ resolvido</span>' : ''}
+        </div>
+      </div>
+      <div class="inbox-conv-time">${timeStr}</div>`;
+
+    item.onclick = () => inboxOpenPost(p);
+    el.appendChild(item);
+  });
+}
+
+async function inboxOpenPost(post) {
+  inboxCurrentPost = post;
+  inboxRenderList(); // atualiza active state
+
+  // Mostra thread, esconde empty
+  document.getElementById('inbox-main-empty').style.display = 'none';
+  const thread = document.getElementById('inbox-thread');
+  thread.style.display = 'flex';
+
+  // Header da thread
+  const plat = post.externalPlatform;
+  const label = post.youtubeTitle || post.text || '(sem texto)';
+  const ref   = post.publishedAt || post.scheduledAt;
+  const date  = ref ? new Date(ref).toLocaleDateString('pt-BR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) : '';
+
+  const avatarEl = document.getElementById('inbox-thread-avatar');
+  avatarEl.style.background = INBOX_PLAT_COLOR[plat] || 'var(--accent)';
+  avatarEl.textContent = plat[0]?.toUpperCase() || '?';
+
+  document.getElementById('inbox-thread-name').textContent = label.substring(0,60);
+  document.getElementById('inbox-thread-sub').innerHTML =
+    `<span class="inbox-plat-tag ${plat}">${(INBOX_PLAT_LABEL[plat] || plat).toUpperCase()}</span><span>${date}</span>`;
+
+  // Preview do post
+  inboxRenderPostPreview(post);
+
+  // Composer / notice de somente leitura
+  const canReply = PLAT_SUPPORTS_REPLY.includes(plat);
+  document.getElementById('inbox-composer').style.display = canReply ? 'flex' : 'none';
+  const notice = document.getElementById('inbox-no-reply-notice');
+  notice.style.display = canReply ? 'none' : 'block';
+  notice.textContent = canReply ? '' : `Respostas via API não disponíveis para ${plat} — responda diretamente na plataforma.`;
+
+  // Limpa e carrega comentários
+  document.getElementById('inbox-comments').innerHTML = '<div class="inbox-loading">Carregando comentários...</div>';
+  try {
+    const { comments } = await apiFetch(`/api/posts/${post.id}/comments`);
+    inboxRenderComments(comments, post);
+  } catch (e) {
+    document.getElementById('inbox-comments').innerHTML =
+      `<div class="inbox-loading" style="color:var(--red)">${escapeHtml(e.message || 'Erro ao carregar comentários')}</div>`;
+  }
+}
+
+function inboxRenderPostPreview(post) {
+  const el = document.getElementById('inbox-post-preview');
+  const mediaSrc  = post.mediaItems?.[0]?.path || post.mediaPath;
+  const mediaType = post.mediaItems?.[0]?.type  || post.mediaType;
+  const label = post.youtubeTitle || post.text || '';
+  const plat  = post.externalPlatform;
+
+  if (!mediaSrc && !label) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+
+  let mediaHtml = '';
+  if (mediaSrc) {
+    if (mediaType === 'video') {
+      mediaHtml = `<div class="inbox-post-preview-media">
+        <video src="${escapeHtml(mediaSrc)}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>
+      </div>`;
+    } else {
+      mediaHtml = `<div class="inbox-post-preview-media">
+        <img src="${escapeHtml(mediaSrc)}" alt="" style="width:100%;height:100%;object-fit:cover">
+      </div>`;
+    }
+  }
+
+  const ref  = post.publishedAt || post.scheduledAt;
+  const date = ref ? new Date(ref).toLocaleDateString('pt-BR') : '';
+
+  el.innerHTML = `<div class="inbox-post-preview-inner">
+    ${mediaHtml}
+    <div class="inbox-post-preview-info">
+      <div class="inbox-post-preview-title">${escapeHtml(label).substring(0,160)}</div>
+      <div class="inbox-post-preview-sub">
+        <span class="inbox-plat-tag ${plat}">${plat}</span>
+        ${date ? `<span>Publicado ${date}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function inboxRenderComments(comments, post) {
+  const el = document.getElementById('inbox-comments');
+  if (!comments || !comments.length) {
+    el.innerHTML = '<div class="inbox-empty">Nenhum comentário ainda.</div>';
+    return;
+  }
+  el.innerHTML = '';
+  comments.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'inbox-comment';
+
+    const ref = c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) + ' ' +
+      new Date(c.createdAt).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+
+    const initials = (c.author || '?').substring(0,2).toUpperCase();
+    const canReply = PLAT_SUPPORTS_REPLY.includes(post.externalPlatform);
+
+    div.innerHTML = `
+      <div class="inbox-comment-avatar">${initials}</div>
+      <div class="inbox-comment-body">
+        <div class="inbox-comment-header">
+          <span class="inbox-comment-name">@${escapeHtml(c.author)}</span>
+          <span class="inbox-comment-time">${ref}</span>
+        </div>
+        <div class="inbox-comment-text">${escapeHtml(c.text)}</div>
+        ${canReply ? `<div class="inbox-comment-actions">
+          <button class="inbox-comment-reply-btn" onclick="inboxShowReplyBox(this,'${escapeHtml(c.id)}','${escapeHtml(c.author)}')">↩ Responder</button>
+        </div>` : ''}
+      </div>`;
+    el.appendChild(div);
+  });
+}
+
+function inboxShowReplyBox(btn, commentId, author) {
+  // Remove qualquer caixa de resposta já aberta
+  document.querySelectorAll('.inbox-reply-box').forEach(b => b.remove());
+
+  const body = btn.closest('.inbox-comment-body');
+  const box  = document.createElement('div');
+  box.className = 'inbox-reply-box';
+  box.dataset.commentId = commentId;
+  box.innerHTML = `
+    <textarea placeholder="Responder @${escapeHtml(author)}..." rows="2"></textarea>
+    <button onclick="inboxSendCommentReply(this,'${escapeHtml(commentId)}')">Enviar</button>`;
+  body.appendChild(box);
+  box.querySelector('textarea').focus();
+}
+
+async function inboxSendCommentReply(btn, commentId) {
+  const box  = btn.closest('.inbox-reply-box');
+  const text = box.querySelector('textarea').value.trim();
+  if (!text || !inboxCurrentPost) return;
+  btn.textContent = '...'; btn.disabled = true;
+  try {
+    await apiFetch(`/api/posts/${inboxCurrentPost.id}/comments/${commentId}/reply`, {
+      method: 'POST', body: JSON.stringify({ text })
+    });
+    showToast('Resposta enviada!', 'ok');
+    box.remove();
+  } catch (e) {
+    showToast(e.message || 'Erro ao enviar resposta', 'err');
+    btn.textContent = 'Enviar'; btn.disabled = false;
+  }
+}
+
+function inboxComposerInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('inbox-reply-count').textContent = `${el.value.length} / 2000`;
+}
+
+async function inboxSendReply() {
+  if (!inboxCurrentPost) return;
+  const el  = document.getElementById('inbox-reply-text');
+  const text = el.value.trim();
+  if (!text) return;
+  const btn = document.getElementById('inbox-send-btn');
+  btn.disabled = true;
+  // Para Instagram, reply geral vai para o comentário mais recente
+  // (comportamento simplificado — use o inline reply por comentário para mais controle)
+  try {
+    const { comments } = await apiFetch(`/api/posts/${inboxCurrentPost.id}/comments`);
+    if (comments && comments.length) {
+      const last = comments[comments.length - 1];
+      await apiFetch(`/api/posts/${inboxCurrentPost.id}/comments/${last.id}/reply`, {
+        method: 'POST', body: JSON.stringify({ text })
+      });
+      showToast('Resposta enviada!', 'ok');
+      el.value = '';
+      el.style.height = 'auto';
+      document.getElementById('inbox-reply-count').textContent = '0 / 2000';
+      // Recarrega comentários
+      const fresh = await apiFetch(`/api/posts/${inboxCurrentPost.id}/comments`);
+      inboxRenderComments(fresh.comments, inboxCurrentPost);
+    }
+  } catch (e) {
+    showToast(e.message || 'Erro ao enviar', 'err');
+  }
+  btn.disabled = false;
+}
+
+function inboxToggleResolved() {
+  if (!inboxCurrentPost) return;
+  const id = inboxCurrentPost.id;
+  if (inboxResolved.has(id)) inboxResolved.delete(id);
+  else inboxResolved.add(id);
+  inboxRenderList();
+  showToast(inboxResolved.has(id) ? 'Marcado como resolvido' : 'Marcado como pendente', 'ok');
+}
+
+function inboxOpenExternalLink() {
+  if (!inboxCurrentPost) return;
+  // Monta URL externa baseada na plataforma (deep link básico)
+  const p = inboxCurrentPost;
+  let url = null;
+  if (p.externalPlatform === 'youtube' && p.externalPostId)
+    url = `https://www.youtube.com/watch?v=${p.externalPostId}`;
+  else if (p.externalPlatform === 'instagram' && p.externalPostId)
+    url = `https://www.instagram.com/p/${p.externalPostId}/`;
+  else if (p.externalPlatform === 'facebook' && p.externalPostId)
+    url = `https://www.facebook.com/${p.externalPostId}`;
+  if (url) window.open(url, '_blank');
+  else showToast('URL do post não disponível', 'err');
+}
 
 </script>
 </body>
