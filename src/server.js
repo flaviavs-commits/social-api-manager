@@ -15,6 +15,8 @@ const meRoutes       = require('./routes/me')
 const requireAuth    = require('./middleware/requireAuth')
 const requireAdmin   = require('./middleware/requireAdmin')
 const cronRoutes     = require('./routes/cron')
+const draftsRoutes   = require('./routes/drafts')
+const pushRoutes     = require('./routes/push')
 const scheduler      = require('./services/scheduler')
 const { validarTokenMedia } = require('./services/mediaToken')
 const { gerarTokenSessao } = require('./utils/authToken')
@@ -199,6 +201,8 @@ app.use('/api/tokens',   tokensRoutes)
 app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
+app.use('/api/drafts',   draftsRoutes)
+app.use('/api/push',     pushRoutes)
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'))
@@ -216,8 +220,40 @@ app.use((err, req, res, next) => {
 // Em serverless (Vercel) não há app.listen() — o api/index.js importa "app"
 // direto e a plataforma cuida de invocar a função por requisição. Local
 // (npm start) continua chamando .listen() normalmente.
+// Migrations de novas tabelas — executado no startup para garantir que as
+// tabelas existem sem exigir processo manual de migration.
+async function runMigrations() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS drafts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT,
+      text TEXT,
+      platforms TEXT[] DEFAULT '{}',
+      media_path TEXT,
+      media_type TEXT,
+      media_items JSONB,
+      youtube_title TEXT,
+      youtube_visibility TEXT DEFAULT 'public',
+      is_template BOOLEAN DEFAULT FALSE,
+      criado_em TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT,
+      auth TEXT,
+      criado_em TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+}
+
 if (require.main === module) {
   const PORT = process.env.PORT || 3000
+  runMigrations().catch(err => console.error('Migration error:', err))
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
     console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)

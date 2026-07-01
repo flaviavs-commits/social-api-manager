@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --bg: #0f1117; --surface: #181b24; --surface2: #1e2130; --surface3: #252938;
@@ -705,6 +706,10 @@ input, select, textarea, label, .bottom-nav-item {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
     Analytics
   </div>
+  <div class="nav-item" onclick="showPage('rascunhos')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Rascunhos e Templates
+  </div>
   <div class="nav-item" onclick="showPage('calendario')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>
     Calendário
@@ -847,6 +852,19 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--sans);margin-top:5px;min-height:16px"></div>
           <div id="media-list" class="media-list"></div>
         </div>
+        <!-- Score de qualidade do post -->
+        <div id="post-quality-score" style="margin-bottom:1rem;display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:500">Qualidade do post</span>
+            <span id="score-value" style="font-size:13px;font-weight:600;font-family:var(--mono)">0/100</span>
+          </div>
+          <div style="height:6px;border-radius:99px;background:var(--surface2);overflow:hidden">
+            <div id="score-bar" style="height:100%;border-radius:99px;transition:width 0.3s,background 0.3s;width:0%;background:var(--red)"></div>
+          </div>
+          <div id="score-text" style="font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--sans)"></div>
+          <ul id="score-suggestions" style="font-size:11px;color:var(--muted);margin-top:4px;padding-left:1.2em;line-height:1.7"></ul>
+        </div>
+
         <div class="form-group">
           <label>Data e hora</label>
           <div class="date-picker">
@@ -870,12 +888,22 @@ input, select, textarea, label, .bottom-nav-item {
             </div>
           </div>
         </div>
+        <!-- Melhores horários -->
+        <div id="best-times-widget" style="display:none;margin-bottom:1rem">
+          <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px">Melhores horários</div>
+          <div id="best-times-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
         <div class="form-group"><label>Repetição</label>
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
           <button class="btn btn-accent" style="flex:1" onclick="schedulePost()">Agendar post</button>
           <button class="btn" style="flex:1" onclick="schedulePost(true)">Publicar agora</button>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(false)">💾 Salvar rascunho</button>
+          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(true)">📋 Salvar template</button>
         </div>
       </div>
       <div class="sched-queue">
@@ -904,6 +932,7 @@ input, select, textarea, label, .bottom-nav-item {
   <div id="page-analytics" class="section-page">
     <div class="page-header">
       <div><div class="page-title">Analytics</div><div class="page-sub" id="analytics-chart-sub">Posts publicados ao longo do tempo e desempenho por rede social</div></div>
+      <button class="btn" id="btn-export-pdf" onclick="exportAnalyticsPDF()">⬇ Exportar PDF</button>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.5rem" id="analytics-platform-filter"></div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem">
@@ -1128,6 +1157,24 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- RASCUNHOS E TEMPLATES -->
+  <div id="page-rascunhos" class="section-page">
+    <div class="page-header">
+      <div><div class="page-title">Rascunhos e Templates</div><div class="page-sub">Posts salvos para reutilizar ou continuar depois</div></div>
+      <button class="btn" onclick="loadDrafts()">↻ Atualizar</button>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin-bottom:0.75rem">Rascunhos</div>
+    <div id="drafts-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.5rem">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>
+    </div>
+
+    <div style="font-size:13px;font-weight:500;margin-bottom:0.75rem">Templates</div>
+    <div id="templates-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>
     </div>
   </div>
 
@@ -1463,7 +1510,7 @@ function showPage(name) {
 
   // Sidebar desktop: ativa item correto
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, calendario:6, inbox:7 };
+  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, calendario:6, inbox:7, rascunhos:8 };
   document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   // Bottom nav mobile: ativa item correto
@@ -1482,9 +1529,10 @@ function showPage(name) {
   if (name === 'logs')       startLogStream();
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
-  if (name === 'analytics') startAnalyticsAutoRefresh();
-  if (name === 'inbox')     inboxInit();
-  else                      stopAnalyticsAutoRefresh();
+  if (name === 'analytics')  startAnalyticsAutoRefresh();
+  if (name === 'inbox')      inboxInit();
+  if (name === 'rascunhos')  loadDrafts();
+  else                       stopAnalyticsAutoRefresh();
 }
 
 // ── Toast ────────────────────────────────────────────────────────────────────
@@ -1876,6 +1924,8 @@ function confirmAccountPicker() {
   const conta = apContas.find(c => c.id === selectedAccountId);
   document.getElementById('account-picker-label').textContent = `${AP_PLAT_LABELS[apSelectedPlatform]} — ${conta?.handle || ''}`;
   closeModal();
+  updateBestTimesWidget();
+  updatePostScore();
 }
 
 // Lista de mídias selecionadas para o post (carrossel se houver mais de uma).
@@ -1953,6 +2003,9 @@ function updateMediaPreview() {
     let extra = hasTikTok && allImages ? ' · TikTok: publicará como carrossel de fotos' : '';
     hint.textContent = `🎞️ Carrossel com ${mediaFiles.length} itens (arraste para reordenar)${extra}` + (restriction ? ` · ${restriction}` : '');
   }
+
+  // Atualiza score quando mídia muda
+  if (typeof updatePostScore === 'function') updatePostScore();
 
   list.innerHTML = mediaFiles.map((m, i) => {
     const url = URL.createObjectURL(m.file);
@@ -2108,6 +2161,7 @@ function dpApply() {
   document.getElementById('post-date').value = `${year}-${pad(month+1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
   updatePostDateDisplay();
   closeDatePicker();
+  if (typeof updatePostScore === 'function') updatePostScore();
 }
 
 function dpToday() {
@@ -4640,6 +4694,420 @@ function inboxOpenExternalLink() {
   if (url) window.open(url, '_blank');
   else showToast('URL do post não disponível', 'err');
 }
+
+// ── Feature 1: Score de qualidade do post ────────────────────────────────────
+function calcPostScore() {
+  const text = (document.getElementById('post-text')?.value || '').trim();
+  const date = document.getElementById('post-date')?.value || '';
+  const hasMedia = (typeof mediaFiles !== 'undefined' && mediaFiles.length > 0);
+  const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
+  const multiPlat = plats.length > 1;
+
+  let score = 0;
+  const missing = [];
+
+  if (text.length > 0) { score += 20; } else { missing.push('Adicione um texto à legenda (+20 pts)'); }
+  if (text.length >= 50) { score += 10; } else if (text.length > 0) { missing.push('Legenda com 50+ caracteres (+10 pts)'); }
+  if (/#\w/.test(text)) { score += 10; } else { missing.push('Adicione hashtags (#) (+10 pts)'); }
+  if (hasMedia) { score += 25; } else { missing.push('Adicione uma imagem ou vídeo (+25 pts)'); }
+  if (date) { score += 15; } else { missing.push('Defina a data e hora (+15 pts)'); }
+  if (multiPlat) { score += 10; } else if (plats.length === 1) { missing.push('Publique em múltiplas plataformas (+10 pts)'); }
+
+  // Sem erros de validação: texto ou mídia presente, data definida (se não publicar agora)
+  const semErro = (text.length > 0 || hasMedia) && plats.length > 0;
+  if (semErro) { score += 10; } else { missing.push('Complete os campos obrigatórios (+10 pts)'); }
+
+  return { score: Math.min(score, 100), missing };
+}
+
+function updatePostScore() {
+  const el = document.getElementById('post-quality-score');
+  if (!el) return;
+
+  const { score, missing } = calcPostScore();
+  const text = (document.getElementById('post-text')?.value || '').trim();
+  const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
+
+  // Só mostrar se o usuário começou a preencher algo
+  const hasContent = text.length > 0 || (typeof mediaFiles !== 'undefined' && mediaFiles.length > 0) || plats.length > 0;
+  el.style.display = hasContent ? '' : 'none';
+  if (!hasContent) return;
+
+  document.getElementById('score-value').textContent = score + '/100';
+
+  const bar = document.getElementById('score-bar');
+  bar.style.width = score + '%';
+  bar.style.background = score < 40 ? 'var(--red)' : score < 70 ? 'var(--yellow)' : 'var(--green)';
+
+  const textEl = document.getElementById('score-text');
+  textEl.textContent = score < 40 ? 'Post fraco — adicione mais elementos para aumentar o alcance.'
+    : score < 70 ? 'Post razoável — ainda há espaço para melhorar.'
+    : 'Post de qualidade — ótimas chances de engajamento!';
+
+  const ul = document.getElementById('score-suggestions');
+  ul.innerHTML = missing.map(s => `<li>${escapeHtml(s)}</li>`).join('');
+}
+
+// Hook nas alterações do agendador para atualizar o score em tempo real
+document.addEventListener('DOMContentLoaded', () => {
+  const postText = document.getElementById('post-text');
+  if (postText) postText.addEventListener('input', updatePostScore);
+});
+
+// Patch: chamar updatePostScore ao mudar plataforma e data (ver patches abaixo)
+
+// ── Feature 2: Horários ótimos por plataforma ─────────────────────────────────
+const BEST_TIMES = {
+  instagram: ['08:00','12:00','18:00','21:00'],
+  facebook:  ['09:00','13:00','15:00','19:00'],
+  youtube:   ['15:00','17:00','20:00'],
+  tiktok:    ['07:00','12:00','19:00','21:00'],
+};
+
+function updateBestTimesWidget() {
+  const widget = document.getElementById('best-times-widget');
+  const chips  = document.getElementById('best-times-chips');
+  if (!widget || !chips) return;
+
+  const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
+  if (plats.length === 0) { widget.style.display = 'none'; return; }
+
+  widget.style.display = '';
+
+  // Combina horários de todas as plataformas selecionadas (união, sem duplicatas)
+  const allTimes = new Set();
+  plats.forEach(p => (BEST_TIMES[p] || []).forEach(t => allTimes.add(t)));
+  const times = [...allTimes].sort();
+
+  chips.innerHTML = times.map(t => `
+    <button type="button" onclick="applyBestTime('${t}')"
+      style="padding:4px 10px;border-radius:99px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer;font-family:var(--mono);transition:background 0.15s"
+      onmouseover="this.style.background='var(--accent-glow)'"
+      onmouseout="this.style.background='var(--surface2)'">
+      ${t}
+    </button>`).join('');
+
+  // Também atualiza o score
+  updatePostScore();
+}
+
+function applyBestTime(time) {
+  // Usa data de hoje + horário sugerido
+  const now = new Date();
+  const [h, m] = time.split(':');
+  now.setHours(Number(h), Number(m), 0, 0);
+
+  // Formata como datetime-local (YYYY-MM-DDTHH:MM)
+  const pad = n => String(n).padStart(2, '0');
+  const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('post-date').value = val;
+
+  // Atualiza o display formatado
+  const display = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('post-date-display').value = display;
+
+  updatePostScore();
+}
+
+// Patch na função que atualiza plataformas selecionadas
+const _origUpdateAccountPickerLabel = window.updateAccountPickerLabel;
+// Vamos usar um MutationObserver no label para detectar mudanças de plataforma
+// pois a função está no escopo local do arquivo
+const _apLabelObs = new MutationObserver(updateBestTimesWidget);
+document.addEventListener('DOMContentLoaded', () => {
+  const lbl = document.getElementById('account-picker-label');
+  if (lbl) _apLabelObs.observe(lbl, { childList: true, subtree: true, characterData: true });
+
+  // Atualiza também quando o campo de data muda
+  const dateInput = document.getElementById('post-date');
+  if (dateInput) dateInput.addEventListener('change', updatePostScore);
+});
+
+// ── Feature 3: Exportar PDF Analytics ────────────────────────────────────────
+async function exportAnalyticsPDF() {
+  const btn = document.getElementById('btn-export-pdf');
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando PDF...'; }
+
+  try {
+    const { metrics = [] } = await apiFetch('/api/posts/analytics?platform=all&period=30');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, margin = 18, colW = W - margin * 2;
+    let y = margin;
+
+    // ── Cabeçalho ─────────────────────────────────────────────────────────────
+    doc.setFillColor(108, 140, 255);
+    doc.rect(0, 0, W, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('Social Manager', margin, 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const today = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+    doc.text(`Relatório mensal — gerado em ${today}`, margin, 21);
+    y = 36;
+
+    // ── Resumo ─────────────────────────────────────────────────────────────────
+    doc.setTextColor(30, 30, 50);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('Resumo do período (últimos 30 dias)', margin, y);
+    y += 7;
+
+    const total = metrics.length;
+    const plats = [...new Set(metrics.map(m => m.platform))];
+    const published = metrics.filter(m => m.status === 'published' || m.likes != null).length;
+    const taxaSucesso = total > 0 ? Math.round((published / total) * 100) : 0;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const resumoRows = [
+      ['Posts publicados', String(total)],
+      ['Plataformas ativas', plats.join(', ') || '—'],
+      ['Taxa de sucesso', taxaSucesso + '%'],
+    ];
+    resumoRows.forEach(([label, val]) => {
+      doc.setFont('helvetica', 'bold'); doc.text(label + ':', margin, y);
+      doc.setFont('helvetica', 'normal'); doc.text(val, margin + 55, y);
+      y += 6;
+    });
+    y += 4;
+
+    // ── Top 5 posts ────────────────────────────────────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30, 30, 50);
+    doc.text('Top 5 posts por engajamento', margin, y);
+    y += 7;
+
+    const sorted = [...metrics]
+      .map(m => ({ ...m, eng: (m.likes || 0) + (m.comments || 0) }))
+      .sort((a, b) => b.eng - a.eng)
+      .slice(0, 5);
+
+    // Cabeçalho da tabela
+    doc.setFillColor(230, 234, 255);
+    doc.rect(margin, y - 4, colW, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 100);
+    doc.text('#', margin + 2, y);
+    doc.text('Plataforma', margin + 10, y);
+    doc.text('Texto', margin + 38, y);
+    doc.text('Likes', margin + 110, y);
+    doc.text('Comments', margin + 127, y);
+    doc.text('Engaj.', margin + 155, y);
+    y += 4;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 50);
+    sorted.forEach((m, i) => {
+      if (i % 2 === 0) { doc.setFillColor(245, 246, 255); doc.rect(margin, y - 3, colW, 6, 'F'); }
+      const snippet = (m.text || '(sem texto)').substring(0, 45).replace(/\n/g, ' ');
+      doc.setFontSize(8.5);
+      doc.text(String(i + 1), margin + 2, y);
+      doc.text((m.platform || '—').substring(0, 11), margin + 10, y);
+      doc.text(snippet, margin + 38, y);
+      doc.text(String(m.likes || 0), margin + 110, y);
+      doc.text(String(m.comments || 0), margin + 130, y);
+      doc.text(String(m.eng), margin + 158, y);
+      y += 6;
+    });
+    y += 4;
+
+    // ── Tabela ASCII de desempenho por plataforma ──────────────────────────────
+    if (plats.length > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(30, 30, 50);
+      doc.text('Desempenho por plataforma', margin, y);
+      y += 7;
+
+      doc.setFillColor(230, 234, 255);
+      doc.rect(margin, y - 4, colW, 7, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 100);
+      doc.text('Plataforma', margin + 2, y);
+      doc.text('Posts', margin + 50, y);
+      doc.text('Total Likes', margin + 75, y);
+      doc.text('Total Comments', margin + 110, y);
+      doc.text('Likes/Post', margin + 155, y);
+      y += 4;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 30, 50);
+      plats.forEach((p, i) => {
+        const mets = metrics.filter(m => m.platform === p);
+        const totalLikes = mets.reduce((s, m) => s + (m.likes || 0), 0);
+        const totalComments = mets.reduce((s, m) => s + (m.comments || 0), 0);
+        const avg = mets.length > 0 ? (totalLikes / mets.length).toFixed(1) : '0';
+        if (i % 2 === 0) { doc.setFillColor(245, 246, 255); doc.rect(margin, y - 3, colW, 6, 'F'); }
+        doc.setFontSize(8.5);
+        doc.text(p, margin + 2, y);
+        doc.text(String(mets.length), margin + 52, y);
+        doc.text(String(totalLikes), margin + 78, y);
+        doc.text(String(totalComments), margin + 115, y);
+        doc.text(avg, margin + 157, y);
+        y += 6;
+      });
+    }
+
+    // ── Rodapé ─────────────────────────────────────────────────────────────────
+    const pageH = 297;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 170);
+    doc.text('Social Manager — Relatório gerado automaticamente', margin, pageH - 10);
+    doc.text('Página 1', W - margin - 10, pageH - 10);
+
+    doc.save(`social-manager-relatorio-${new Date().toISOString().slice(0,10)}.pdf`);
+    showToast('PDF gerado com sucesso!', 'ok');
+  } catch (e) {
+    showToast('Erro ao gerar PDF: ' + (e.message || 'verifique os dados'), 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⬇ Exportar PDF'; }
+  }
+}
+
+// ── Feature 4: Rascunhos e Templates ─────────────────────────────────────────
+async function loadDrafts() {
+  const draftsEl    = document.getElementById('drafts-list');
+  const templatesEl = document.getElementById('templates-list');
+  if (!draftsEl || !templatesEl) return;
+
+  draftsEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>';
+  templatesEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>';
+
+  try {
+    const { drafts } = await apiFetch('/api/drafts');
+    const draftItems    = (drafts || []).filter(d => !d.is_template);
+    const templateItems = (drafts || []).filter(d => d.is_template);
+
+    draftsEl.innerHTML    = renderDraftList(draftItems, false);
+    templatesEl.innerHTML = renderDraftList(templateItems, true);
+  } catch (e) {
+    const err = `<div style="text-align:center;color:var(--red);padding:2rem;font-size:12px">Erro ao carregar: ${escapeHtml(e.message)}</div>`;
+    draftsEl.innerHTML = err; templatesEl.innerHTML = err;
+  }
+}
+
+function renderDraftList(items, isTemplate) {
+  if (!items.length) {
+    return `<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Nenhum ${isTemplate ? 'template' : 'rascunho'} salvo.</div>`;
+  }
+  return items.map(d => {
+    const preview = (d.text || '(sem texto)').substring(0, 80);
+    const plats   = (d.platforms || []).join(', ') || '—';
+    const date    = d.criado_em ? new Date(d.criado_em).toLocaleDateString('pt-BR') : '';
+    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer"
+                 onclick="applyDraft(${d.id})"
+                 onmouseover="this.style.background='var(--surface2)'"
+                 onmouseout="this.style.background=''">
+      <div style="flex:1;min-width:0">
+        ${d.title ? `<div style="font-size:12px;font-weight:500;margin-bottom:2px">${escapeHtml(d.title)}</div>` : ''}
+        <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(preview)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)">${plats} · ${date}</div>
+      </div>
+      <button onclick="event.stopPropagation();deleteDraft(${d.id})"
+        style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1"
+        title="Deletar" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">×</button>
+    </div>`;
+  }).join('');
+}
+
+let _allDrafts = [];
+
+async function applyDraft(id) {
+  // Busca o draft da lista já carregada ou faz nova chamada
+  try {
+    const { drafts } = await apiFetch('/api/drafts');
+    const d = (drafts || []).find(x => x.id === id);
+    if (!d) return;
+
+    // Preenche o formulário do agendador
+    showPage('agendador');
+    document.getElementById('post-text').value = d.text || '';
+    if (d.youtube_title) document.getElementById('post-youtube-title').value = d.youtube_title;
+    if (d.youtube_visibility) document.getElementById('post-youtube-visibility').value = d.youtube_visibility;
+
+    updatePostScore();
+    showToast(d.is_template ? 'Template carregado no agendador!' : 'Rascunho carregado no agendador!', 'ok');
+  } catch (e) {
+    showToast('Erro ao carregar: ' + e.message, 'err');
+  }
+}
+
+async function deleteDraft(id) {
+  try {
+    await apiFetch(`/api/drafts/${id}`, { method: 'DELETE' });
+    showToast('Removido!', 'ok');
+    loadDrafts();
+  } catch (e) {
+    showToast('Erro ao remover: ' + e.message, 'err');
+  }
+}
+
+async function saveDraft(isTemplate) {
+  const text = document.getElementById('post-text').value.trim();
+  const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
+  const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
+  const platforms = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
+
+  if (!text && !(typeof mediaFiles !== 'undefined' && mediaFiles.length > 0)) {
+    return showToast('Escreva um texto ou adicione mídia para salvar', 'err');
+  }
+
+  try {
+    await apiFetch('/api/drafts', {
+      method: 'POST',
+      body: JSON.stringify({
+        text: text || null,
+        platforms,
+        youtubeTitle: youtubeTitle || null,
+        youtubeVisibility: youtubeVisibility || 'public',
+        isTemplate
+      })
+    });
+    showToast(isTemplate ? 'Template salvo!' : 'Rascunho salvo!', 'ok');
+  } catch (e) {
+    showToast('Erro ao salvar: ' + e.message, 'err');
+  }
+}
+
+// ── Feature 5: Push Notifications ────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const { key } = await apiFetch('/api/push/vapid-public-key');
+    if (!key) return; // VAPID não configurado no servidor
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key)
+    });
+    await apiFetch('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+    console.log('Push notifications ativadas');
+  } catch (e) {
+    console.warn('Push notifications não disponíveis:', e.message);
+  }
+}
+
+// Chama initPushNotifications após login
+apiFetch('/api/me').then(() => {
+  initPushNotifications();
+}).catch(() => {});
 
 </script>
 </body>

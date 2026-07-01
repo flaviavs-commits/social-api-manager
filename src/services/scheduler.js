@@ -3,6 +3,8 @@ const { publishPost, finalizarInstagramPendentes } = require('./publisher')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const postsRepo = require('../repositories/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
+const pool = require('../db/pool')
+const { enviarPush } = require('./pushService')
 
 // Publica um post pendente e notifica o frontend.
 // O post já chega com status 'processing' (reservado atomicamente por
@@ -48,6 +50,23 @@ async function processarPost(post) {
       text: post.text,
       results
     }, post.userId)
+
+    // Envia push notification para o usuário
+    try {
+      const { rows: subs } = await pool.query('SELECT * FROM push_subscriptions WHERE user_id=$1', [post.userId])
+      for (const sub of subs) {
+        await enviarPush(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          {
+            title: status === 'published' ? '✅ Post publicado!' : status === 'partial' ? '⚠️ Post parcialmente publicado' : '❌ Falha ao publicar',
+            body: post.text?.substring(0, 80) || 'Seu post foi processado',
+            icon: '/icon-192.png'
+          }
+        )
+      }
+    } catch (pushErr) {
+      console.error('Erro ao enviar push:', pushErr.message)
+    }
   } catch (err) {
     await postsRepo.atualizarStatusPost(post.id, 'error')
     // err.message às vezes vem vazio (ex: erro sem mensagem) — inclui o nome
@@ -55,6 +74,23 @@ async function processarPost(post) {
     // falhas que acontecem fora do try/catch por-plataforma do publisher.
     const detalhe = err.message || `${err.name || 'Erro'}: ${(err.stack || '').split('\n')[1]?.trim() || 'sem detalhes'}`
     await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${detalhe}`, platform: null })
+
+    // Envia push de falha
+    try {
+      const { rows: subs } = await pool.query('SELECT * FROM push_subscriptions WHERE user_id=$1', [post.userId])
+      for (const sub of subs) {
+        await enviarPush(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          {
+            title: '❌ Falha ao publicar',
+            body: post.text?.substring(0, 80) || 'Seu post não pôde ser publicado',
+            icon: '/icon-192.png'
+          }
+        )
+      }
+    } catch (pushErr) {
+      console.error('Erro ao enviar push de falha:', pushErr.message)
+    }
   }
 }
 
