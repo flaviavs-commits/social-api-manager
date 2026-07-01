@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
+    "@google/genai": "^2.10.0",
     "@google/generative-ai": "^0.24.1",
     "@vercel/blob": "^2.4.1",
     "bcrypt": "^6.0.0",
