@@ -2183,6 +2183,22 @@ async function apiFetch(path, opts = {}) {
   });
   if (res.status === 401) {
     localStorage.removeItem('authToken');
+    // Em modo de revisão, tenta renovar o token automaticamente em vez de redirecionar
+    try {
+      const reviewRes = await fetch(API + '/api/review-token');
+      if (reviewRes.ok) {
+        const { token } = await reviewRes.json();
+        if (token) {
+          localStorage.setItem('authToken', token);
+          // Retenta a chamada original com o novo token
+          const retryRes = await fetch(API + path, {
+            headers: { 'Authorization': 'Bearer ' + token, ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(opts.headers || {}) },
+            ...opts
+          });
+          if (retryRes.status !== 401) return retryRes;
+        }
+      }
+    } catch {}
     window.location.href = '/login.html';
     throw new Error('Sessão expirada');
   }
