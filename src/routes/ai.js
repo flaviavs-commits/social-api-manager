@@ -333,8 +333,7 @@ router.get('/models', (req, res) => {
     models: [
       { id: 'gemini', name: 'Gemini 1.5 Flash', provider: 'Google', available: !!process.env.GEMINI_API_KEY },
       { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI', available: !!process.env.OPENAI_API_KEY },
-      // Claude desabilitado temporariamente — remover este comentário quando reativar
-      // { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
+      { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
     ]
   })
 })
