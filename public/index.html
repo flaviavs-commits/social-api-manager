@@ -1650,6 +1650,29 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
     </div>
 
+    <!-- Modal API Key do usuário -->
+    <div id="ai-apikey-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center">
+      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg)">
+        <div style="margin-bottom:20px">
+          <div id="ai-apikey-modal-title" style="font-size:16px;font-weight:600;margin-bottom:8px"></div>
+          <div id="ai-apikey-modal-desc" style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px"></div>
+          <a id="ai-apikey-modal-link" href="#" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-bottom:16px">Acessar →</a>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">Cole sua chave de acesso abaixo:</div>
+          <input id="ai-apikey-modal-input" type="password" placeholder="Sua chave de acesso (API Key)"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none">
+          <div id="ai-apikey-modal-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          <div id="ai-apikey-modal-err" style="font-size:12px;color:var(--red);margin-top:6px;min-height:16px"></div>
+        </div>
+        <div style="background:rgba(108,140,255,0.08);border:1px solid rgba(108,140,255,0.15);border-radius:8px;padding:10px 12px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5">
+          🔒 Sua chave é criptografada e armazenada com segurança. Nunca é compartilhada com terceiros.
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="ai-apikey-modal-cancel" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer">Cancelar</button>
+          <button id="ai-apikey-modal-save" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer">Salvar e continuar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal seletor de modelo -->
     <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
       <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1)">
@@ -5399,6 +5422,7 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#4285f4',
     desc: 'Google · Rápido e gratuito · Recomendado',
     badge: 'Padrão',
+    requiresKey: false,
   },
   openai: {
     icon: '◆',
@@ -5406,6 +5430,11 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#10a37f',
     desc: 'OpenAI · GPT-4o Mini · Excelente criatividade',
     badge: '',
+    requiresKey: true,
+    keyProvider: 'OpenAI',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    keyHint: 'Começa com "sk-..."',
+    keyDesc: 'O GPT-4o Mini é um modelo da OpenAI. Para usá-lo com sua própria conta, você precisa de uma chave de acesso (API Key) gerada no site da OpenAI.',
   },
   claude: {
     icon: '●',
@@ -5413,7 +5442,96 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#d97706',
     desc: 'Anthropic · Claude Haiku · Tom natural',
     badge: '',
+    requiresKey: true,
+    keyProvider: 'Anthropic',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    keyHint: 'Começa com "sk-ant-..."',
+    keyDesc: 'O Claude Haiku é um modelo da Anthropic. Para usá-lo com sua própria conta, você precisa de uma chave de acesso (API Key) gerada no console da Anthropic.',
   },
+}
+
+// Saudações personalizadas por modelo
+const AI_MODEL_GREETINGS = {
+  gemini: [
+    saudacao => `${saudacao}! ✦ Sou o Gemini Flash, movido pela inteligência do Google.\n\nPronto para criar conteúdo incrível com você! Tem alguma ideia de post ou campanha em mente? 🚀`,
+    saudacao => `${saudacao}! ✦ Gemini aqui — veloz, criativo e pronto pra agir.\n\nO que vamos postar hoje? Me conta uma ideia ou tema e eu cuido do resto! 💡`,
+    saudacao => `${saudacao}! ✦ Que bom te ver! Sou o Gemini Flash, seu parceiro de conteúdo.\n\nTem alguma campanha planejada? Ou quer que eu sugira algo para suas redes? 🎯`,
+  ],
+  openai: [
+    saudacao => `${saudacao}! ◆ Sou o GPT-4o Mini, da OpenAI — especialista em texto criativo e persuasivo.\n\nJá tem alguma ideia de post ou campanha? Adoro trabalhar com briefings desafiadores! ✍️`,
+    saudacao => `${saudacao}! ◆ GPT-4o Mini online. Estou aqui para transformar suas ideias em conteúdo que engaja de verdade.\n\nO que você quer comunicar hoje? 🎨`,
+    saudacao => `${saudacao}! ◆ Ótima escolha! Sou o GPT-4o Mini, criativo e preciso.\n\nTem algum tema, produto ou campanha que quer explorar? Vamos criar algo incrível juntos! 💫`,
+  ],
+  claude: [
+    saudacao => `${saudacao}! ● Sou o Claude Haiku, da Anthropic — gosto de um texto natural, fluido e autêntico.\n\nO que vamos criar hoje? Tem alguma ideia de post ou precisa de inspiração? 🌿`,
+    saudacao => `${saudacao}! ● Claude Haiku aqui. Meu forte é escrever de forma humana e envolvente.\n\nMe conta o que você tem em mente — pode ser uma ideia vaga mesmo, eu desenvolvo! 📝`,
+    saudacao => `${saudacao}! ● Que bom contar com você! Sou o Claude Haiku e adoro criar conteúdo com personalidade.\n\nTem alguma campanha ou tema que quer explorar hoje? 🎯`,
+  ],
+}
+
+function aiModelGreeting(modelId) {
+  const saudacao = aiChatGreeting()
+  const greetings = AI_MODEL_GREETINGS[modelId] || AI_MODEL_GREETINGS.gemini
+  return greetings[Math.floor(Math.random() * greetings.length)](saudacao)
+}
+
+// Verifica se o usuário tem API key salva para o modelo
+async function aiCheckUserKey(modelId) {
+  try {
+    const data = await apiFetch(`/api/ai/apikey/${modelId}`)
+    return data.hasKey
+  } catch { return false }
+}
+
+// Salva a API key do usuário para o modelo
+async function aiSaveUserKey(modelId, apiKey) {
+  return apiFetch('/api/ai/apikey', { method: 'PUT', body: JSON.stringify({ modelo: modelId, apiKey }) })
+}
+
+// Abre modal de configuração de API key para modelos que requerem
+function aiOpenKeyModal(modelId, onSuccess) {
+  const pm = AI_MODEL_PICKER_META[modelId]
+  if (!pm) return
+
+  const modal = document.getElementById('ai-apikey-modal')
+  const title = document.getElementById('ai-apikey-modal-title')
+  const desc = document.getElementById('ai-apikey-modal-desc')
+  const hint = document.getElementById('ai-apikey-modal-hint')
+  const link = document.getElementById('ai-apikey-modal-link')
+  const input = document.getElementById('ai-apikey-modal-input')
+  const err = document.getElementById('ai-apikey-modal-err')
+
+  title.textContent = `Conectar conta ${pm.keyProvider}`
+  desc.textContent = pm.keyDesc
+  hint.textContent = `Formato esperado: ${pm.keyHint}`
+  link.href = pm.keyUrl
+  link.textContent = `Acessar ${pm.keyProvider} →`
+  input.value = ''
+  err.textContent = ''
+
+  modal.style.display = 'flex'
+
+  document.getElementById('ai-apikey-modal-save').onclick = async () => {
+    const key = input.value.trim()
+    if (!key) { err.textContent = 'Cole sua chave de acesso no campo acima.'; return }
+    const btn = document.getElementById('ai-apikey-modal-save')
+    btn.disabled = true
+    btn.textContent = 'Salvando...'
+    try {
+      await aiSaveUserKey(modelId, key)
+      modal.style.display = 'none'
+      if (onSuccess) onSuccess()
+    } catch {
+      err.textContent = 'Não foi possível salvar. Verifique a chave e tente novamente.'
+    } finally {
+      btn.disabled = false
+      btn.textContent = 'Salvar e continuar'
+    }
+  }
+
+  document.getElementById('ai-apikey-modal-cancel').onclick = () => {
+    modal.style.display = 'none'
+  }
 }
 
 async function aiLoadModels() {
@@ -5519,24 +5637,46 @@ function aiCloseModelPicker() {
   document.getElementById('ai-model-picker').style.display = 'none'
 }
 
-function aiConfirmModelPick() {
-  if (aiPickerSelectedModel && aiPickerSelectedModel !== aiSelectedModel) {
-    aiSetModel(aiPickerSelectedModel, true)
-    // Reseta o chat para começar novo com o modelo escolhido
-    ;['page', 'fab'].forEach(ctx => {
-      aiChat[ctx].greeted = false
-      aiChat[ctx].step = 'greeting'
-      aiChat[ctx].pendingPost = null
-      aiChat[ctx].msgs = []
-      const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
-      if (msgsEl) msgsEl.innerHTML = ''
-      aiChatSetChips(ctx, [])
-    })
+async function aiConfirmModelPick() {
+  const newModel = aiPickerSelectedModel
+  if (!newModel || newModel === aiSelectedModel) { aiCloseModelPicker(); return }
+
+  // Verifica se o modelo precisa de API key
+  const pm = AI_MODEL_PICKER_META[newModel]
+  if (pm?.requiresKey) {
+    const hasKey = await aiCheckUserKey(newModel)
+    if (!hasKey) {
+      aiCloseModelPicker()
+      aiOpenKeyModal(newModel, () => aiApplyModelChange(newModel))
+      return
+    }
   }
+
   aiCloseModelPicker()
-  // Inicia nova conversa com o modelo novo
-  const meta = AI_MODEL_META[aiSelectedModel] || {}
-  showToast(`Modelo alterado para ${meta.label || aiSelectedModel}`, 'ok')
+  aiApplyModelChange(newModel)
+}
+
+function aiApplyModelChange(newModel) {
+  aiSetModel(newModel, false)
+  // Reseta o chat para começar novo com o modelo escolhido
+  ;['page', 'fab'].forEach(ctx => {
+    aiChat[ctx].greeted = false
+    aiChat[ctx].step = 'greeting'
+    aiChat[ctx].pendingPost = null
+    aiChat[ctx].msgs = []
+    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
+    if (msgsEl) msgsEl.innerHTML = ''
+    aiChatSetChips(ctx, [])
+  })
+  const meta = AI_MODEL_META[newModel] || {}
+  showToast(`Modelo alterado para ${meta.label || newModel}`, 'ok')
+
+  // Inicia nova conversa com saudação do novo modelo
+  setTimeout(() => {
+    if (document.getElementById('page-ai')?.classList.contains('active')) aiChatStart('page')
+    const fabPanel = document.getElementById('ai-fab-panel')
+    if (fabPanel && fabPanel.style.display !== 'none') aiChatStart('fab')
+  }, 100)
 
   // Trava o botão de troca até o próximo post ser criado
   aiLockModelChange(true)
@@ -5936,13 +6076,8 @@ async function aiChatStart(ctx) {
   await new Promise(r => setTimeout(r, 900))
   aiChatTyping(ctx, false)
 
-  const greeting = aiChatGreeting()
-  const agentName = aiChatAgentName()
-
-  // Saudação base
-  aiChatAddMsg(ctx, 'agent',
-    `${greeting}! 👋 Sou o ${agentName}, seu assistente de conteúdo para redes sociais.\n\nO que vamos postar hoje? Estou aqui para criar e agendar tudo por você! 🚀`
-  )
+  // Saudação personalizada por modelo
+  aiChatAddMsg(ctx, 'agent', aiModelGreeting(aiSelectedModel))
 
   // Se tem memórias, menciona antes de pedir a rede
   if (memories.length) {

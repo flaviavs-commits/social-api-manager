@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const { serverError } = require('../utils/http')
+const { encrypt, decrypt } = require('../services/tokenCrypto')
 
 const router = Router()
 
@@ -63,10 +64,22 @@ function parseJsonResponse(rawText) {
   return JSON.parse(match[0])
 }
 
-async function generateWithClaude(prompt) {
-  if (!process.env.ANTHROPIC_API_KEY) throw Object.assign(new Error('ANTHROPIC_API_KEY não configurada'), { status: 503 })
+async function getUserApiKey(pool, userId, modelo) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT api_key FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
+      [userId, modelo]
+    )
+    if (!rows[0]?.api_key) return null
+    return decrypt(rows[0].api_key)
+  } catch { return null }
+}
+
+async function generateWithClaude(prompt, userKey) {
+  const key = userKey || process.env.ANTHROPIC_API_KEY
+  if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
   const Anthropic = require('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const client = new Anthropic({ apiKey: key })
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 4096,
@@ -75,10 +88,11 @@ async function generateWithClaude(prompt) {
   return msg.content[0]?.text || ''
 }
 
-async function generateWithOpenAI(prompt) {
-  if (!process.env.OPENAI_API_KEY) throw Object.assign(new Error('OPENAI_API_KEY não configurada no servidor'), { status: 503 })
+async function generateWithOpenAI(prompt, userKey) {
+  const key = userKey || process.env.OPENAI_API_KEY
+  if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
   const OpenAI = require('openai')
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const client = new OpenAI({ apiKey: key })
   const msg = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     max_tokens: 4096,
@@ -87,10 +101,11 @@ async function generateWithOpenAI(prompt) {
   return msg.choices[0]?.message?.content || ''
 }
 
-async function generateWithGemini(prompt) {
-  if (!process.env.GEMINI_API_KEY) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
+async function generateWithGemini(prompt, userKey) {
+  const key = userKey || process.env.GEMINI_API_KEY
+  if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
-  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+  const client = new GoogleGenAI({ apiKey: key })
   try {
     const result = await client.models.generateContent({
       model: 'gemini-2.0-flash',
@@ -122,10 +137,11 @@ router.post('/generate', async (req, res) => {
     const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
     const horariosSugeridos = calcularHorarios(qtd, plataformas)
 
+    const userKey = await getUserApiKey(pool, req.user.id, modelo)
     let rawText
-    if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt)
-    else if (modelo === 'claude')  rawText = await generateWithClaude(prompt)
-    else                           rawText = await generateWithGemini(prompt)  // default: gemini
+    if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt, userKey)
+    else if (modelo === 'claude')  rawText = await generateWithClaude(prompt, userKey)
+    else                           rawText = await generateWithGemini(prompt, userKey)
 
     let parsed
     try {
@@ -157,8 +173,59 @@ router.post('/generate', async (req, res) => {
   }
 })
 
-// ── Memória persistente por usuário+modelo ────────────────────────────────────
+// ── API Keys do usuário por modelo ───────────────────────────────────────────
 const pool = require('../db/pool')
+
+// Garante que a tabela existe (cria na primeira execução)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_ai_keys (
+    id        SERIAL PRIMARY KEY,
+    user_id   INTEGER NOT NULL,
+    modelo    TEXT NOT NULL,
+    api_key   TEXT NOT NULL,
+    criado_em TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, modelo)
+  )
+`).catch(() => {})
+
+// PUT /api/ai/apikey — salva ou atualiza a API key do usuário para um modelo
+router.put('/apikey', async (req, res) => {
+  try {
+    const { modelo, apiKey } = req.body || {}
+    if (!modelo || !apiKey?.trim()) return res.status(400).json({ erro: 'modelo e apiKey são obrigatórios' })
+    const encrypted = encrypt(apiKey.trim())
+    await pool.query(`
+      INSERT INTO user_ai_keys (user_id, modelo, api_key)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, modelo) DO UPDATE SET api_key = EXCLUDED.api_key, criado_em = NOW()
+    `, [req.user.id, modelo, encrypted])
+    res.json({ ok: true })
+  } catch (err) { serverError(res, err) }
+})
+
+// GET /api/ai/apikey/:modelo — verifica se o usuário tem key salva para o modelo
+router.get('/apikey/:modelo', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
+      [req.user.id, req.params.modelo]
+    )
+    res.json({ hasKey: rows.length > 0 })
+  } catch (err) { serverError(res, err) }
+})
+
+// DELETE /api/ai/apikey/:modelo — remove a key do usuário para o modelo
+router.delete('/apikey/:modelo', async (req, res) => {
+  try {
+    await pool.query(
+      `DELETE FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
+      [req.user.id, req.params.modelo]
+    )
+    res.json({ ok: true })
+  } catch (err) { serverError(res, err) }
+})
+
+// ── Memória persistente por usuário+modelo ────────────────────────────────────
 
 // GET /api/ai/memory?modelo=gemini — busca memórias ativas do usuário para esse modelo
 router.get('/memory', async (req, res) => {
