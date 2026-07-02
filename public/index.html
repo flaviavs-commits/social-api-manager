@@ -2191,10 +2191,9 @@ async function apiFetch(path, opts = {}) {
         if (token) {
           localStorage.setItem('authToken', token);
           // Retenta a chamada original com o novo token
-          const retryRes = await fetch(API + path, {
-            headers: { 'Authorization': 'Bearer ' + token, ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(opts.headers || {}) },
-            ...opts
-          });
+          const retryOpts = { ...opts, headers: { ...(opts.headers || {}), 'Authorization': 'Bearer ' + token } };
+          if (!(opts.body instanceof FormData)) retryOpts.headers['Content-Type'] = 'application/json';
+          const retryRes = await fetch(API + path, retryOpts);
           if (retryRes.status !== 401) return retryRes;
         }
       }
