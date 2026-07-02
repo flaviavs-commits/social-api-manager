@@ -5438,6 +5438,11 @@ const AI_MODEL_PICKER_META = {
     desc: 'Google · Rápido e gratuito · Recomendado',
     badge: 'Padrão',
     requiresKey: false,
+    keyProvider: 'Google AI Studio',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    keyHint: 'Começa com "AIza..."',
+    keyDesc: 'Tem uma conta Google/Gmail e quer usar sua própria cota do Gemini? Acesse o Google AI Studio, gere uma chave gratuita e cole aqui. Assim você usa sua própria conta em vez da cota compartilhada do servidor.',
+    keyBadge: 'Usar minha conta Google',
   },
   openai: {
     icon: '◆',
@@ -5449,7 +5454,7 @@ const AI_MODEL_PICKER_META = {
     keyProvider: 'OpenAI',
     keyUrl: 'https://platform.openai.com/api-keys',
     keyHint: 'Começa com "sk-..."',
-    keyDesc: 'O GPT-4o Mini é um modelo da OpenAI. Para usá-lo com sua própria conta, você precisa de uma chave de acesso (API Key) gerada no site da OpenAI.',
+    keyDesc: 'Para usar o GPT-4o Mini você precisa ter uma conta na OpenAI (platform.openai.com). Depois de criar sua conta e adicionar créditos, gere uma chave de acesso e cole aqui.',
   },
   claude: {
     icon: '●',
@@ -5461,7 +5466,7 @@ const AI_MODEL_PICKER_META = {
     keyProvider: 'Anthropic',
     keyUrl: 'https://console.anthropic.com/settings/keys',
     keyHint: 'Começa com "sk-ant-..."',
-    keyDesc: 'O Claude Haiku é um modelo da Anthropic. Para usá-lo com sua própria conta, você precisa de uma chave de acesso (API Key) gerada no console da Anthropic.',
+    keyDesc: 'Para usar o Claude Haiku você precisa ter uma conta na Anthropic (console.anthropic.com). Depois de criar sua conta e adicionar créditos, gere uma chave de acesso e cole aqui.',
   },
 }
 
@@ -5615,6 +5620,13 @@ async function aiOpenModelPicker() {
     const pm = AI_MODEL_PICKER_META[m.id] || {}
     const isSelected = m.id === aiSelectedModel
     const unavail = !m.available
+    const keyBadgeHtml = pm.keyBadge ? `
+      <div style="margin-top:6px">
+        <span onclick="event.stopPropagation();aiCloseModelPicker();aiOpenKeyModal('${m.id}',()=>{})"
+          style="font-size:10px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px">
+          🔑 ${pm.keyBadge}
+        </span>
+      </div>` : ''
     return `
     <div class="ai-model-pick-item${isSelected ? ' selected' : ''}${unavail ? ' unavailable' : ''}"
       data-model="${m.id}" onclick="${unavail ? '' : `aiPickerSelect('${m.id}')`}">
@@ -5626,6 +5638,7 @@ async function aiOpenModelPicker() {
           ${unavail ? `<span style="font-size:9px;color:var(--red);margin-left:6px">sem chave</span>` : ''}
         </div>
         <div class="ai-model-pick-desc">${unavail ? 'Chave não configurada no servidor' : (pm.desc || m.provider)}</div>
+        ${keyBadgeHtml}
       </div>
       <div class="ai-model-pick-check">
         ${isSelected ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
