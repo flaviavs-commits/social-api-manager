@@ -6151,9 +6151,97 @@ async function aiChatStart(ctx) {
 }
 
 // Processa a mensagem do usuário e avança o fluxo
+// Detecta se o usuário está pedindo geração de imagem
+function aiIsImageRequest(msg) {
+  const lower = msg.toLowerCase()
+  return /cri(e|a|ar)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual)/i.test(msg)
+    || /gera(r|)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual)/i.test(msg)
+    || /\b(imagem|ilustra[çc][aã]o|desenho)\s+(de|sobre|com)\b/i.test(msg)
+    || lower.includes('fazer uma imagem') || lower.includes('fazer um desenho')
+    || lower.includes('gerar imagem') || lower.includes('criar imagem')
+}
+
+// Fluxo de geração de imagem — verifica chave e gera ou coleta lead
+async function aiHandleImageRequest(ctx, userMsg) {
+  const state = aiChat[ctx]
+  aiChatTyping(ctx, true)
+  await new Promise(r => setTimeout(r, 700))
+  aiChatTyping(ctx, false)
+
+  // Verifica se usuário tem chave Google cadastrada
+  const hasKey = await aiCheckUserKey('gemini')
+  if (!hasKey) {
+    // Sem chave — coleta lead
+    state.step = 'image_lead'
+    state.imageDesc = userMsg
+    aiChatAddMsg(ctx, 'agent',
+      `Adoro a ideia! 🎨 Para criar imagens com IA você precisa de uma conta com acesso ao Imagen do Google.\n\nDeixa seu e-mail aqui que a equipe da **Vitis Souls** entra em contato com as melhores opções e preços para você! 😊`
+    )
+    return
+  }
+
+  // Tem chave — gera a imagem
+  aiChatAddMsg(ctx, 'agent', `Gerando sua imagem... isso pode levar alguns segundos! 🎨`)
+  aiChatTyping(ctx, true)
+  try {
+    const data = await apiFetch('/api/ai/image/generate', {
+      method: 'POST',
+      body: JSON.stringify({ descricao: userMsg })
+    })
+    aiChatTyping(ctx, false)
+    // Mostra a imagem no chat
+    const msgEl = document.createElement('div')
+    msgEl.className = 'ai-msg agent'
+    msgEl.innerHTML = `
+      <div class="ai-msg-avatar" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 36px)">
+        <img src="${data.image}" alt="Imagem gerada" style="max-width:320px;border-radius:12px;cursor:pointer" onclick="window.open(this.src)">
+        <div class="ai-msg-bubble agent" style="white-space:pre-wrap">Aqui está sua imagem! 🎉\n\nClique nela para abrir em tamanho completo. Quer fazer algum ajuste ou criar outra?</div>
+      </div>`
+    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
+    if (msgsEl) { msgsEl.appendChild(msgEl); msgsEl.scrollTop = msgsEl.scrollHeight }
+    aiChatSetChips(ctx, ['🎨 Criar outra imagem', '➕ Criar post'])
+  } catch (err) {
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar a imagem agora. ${err.message || 'Tente novamente em alguns instantes.'} 🙏`)
+  }
+}
+
 async function aiChatProcess(ctx, userMsg) {
   const state = aiChat[ctx]
   const msg = userMsg.trim().toLowerCase()
+
+  // Detecta pedido de imagem em qualquer etapa
+  if (aiIsImageRequest(userMsg)) {
+    await aiHandleImageRequest(ctx, userMsg)
+    return
+  }
+
+  // Resposta ao lead de imagem (usuário enviou o e-mail)
+  if (state.step === 'image_lead') {
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+    const email = userMsg.match(emailRegex)?.[0]
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 600))
+    aiChatTyping(ctx, false)
+    if (!email) {
+      aiChatAddMsg(ctx, 'agent', `Não encontrei um e-mail válido na sua mensagem. Por favor, informe seu e-mail para que possamos entrar em contato! 📧`)
+      return
+    }
+    try {
+      await apiFetch('/api/ai/image/lead', {
+        method: 'POST',
+        body: JSON.stringify({ email, descricao: state.imageDesc })
+      })
+    } catch {}
+    state.step = 'ask_plats'
+    state.imageDesc = null
+    aiChatAddMsg(ctx, 'agent',
+      `Perfeito! 🙌 Anotamos seu e-mail **${email}**.\n\nEm breve a equipe da Vitis Souls entrará em contato com as melhores opções para você!\n\nEnquanto isso, posso te ajudar a criar posts de texto para suas redes. Quer tentar? 😊`
+    )
+    aiChatSetChips(ctx, ['➕ Criar post', '📸 Instagram', '🌐 Todas as redes'])
+    return
+  }
 
   // Usuário clicou em uma memória guardada na saudação
   if (state.step === 'ask_plats' && (msg.startsWith('✅') || msg.startsWith('💡'))) {

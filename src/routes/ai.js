@@ -327,6 +327,59 @@ Se não houver nada relevante, retorne: {"memories": []}`
   } catch (err) { serverError(res, err) }
 })
 
+// Garante tabela de leads de imagem
+pool.query(`
+  CREATE TABLE IF NOT EXISTS ai_image_leads (
+    id        SERIAL PRIMARY KEY,
+    user_id   INTEGER,
+    email     TEXT NOT NULL,
+    descricao TEXT,
+    criado_em TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {})
+
+// POST /api/ai/image/generate — gera imagem via Google Imagen com chave do usuário
+router.post('/image/generate', async (req, res) => {
+  try {
+    const { descricao } = req.body || {}
+    if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
+
+    const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
+    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
+
+    const { GoogleGenAI } = require('@google/genai')
+    const client = new GoogleGenAI({ apiKey: userKey })
+    const result = await client.models.generateImages({
+      model: 'imagen-3.0-generate-002',
+      prompt: descricao.trim(),
+      config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
+    })
+
+    const imgData = result.generatedImages?.[0]?.image?.imageBytes
+    if (!imgData) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
+
+    res.json({ image: `data:image/jpeg;base64,${imgData}` })
+  } catch (err) {
+    if (err.message?.includes('billing') || err.message?.includes('quota')) {
+      return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
+    }
+    serverError(res, err)
+  }
+})
+
+// POST /api/ai/image/lead — salva lead de usuário interessado em geração de imagem
+router.post('/image/lead', async (req, res) => {
+  try {
+    const { email, descricao } = req.body || {}
+    if (!email?.trim()) return res.status(400).json({ erro: 'E-mail é obrigatório' })
+    await pool.query(
+      `INSERT INTO ai_image_leads (user_id, email, descricao) VALUES ($1, $2, $3)`,
+      [req.user.id, email.trim(), descricao?.trim() || null]
+    )
+    res.json({ ok: true })
+  } catch (err) { serverError(res, err) }
+})
+
 // GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
 router.get('/models', (req, res) => {
   res.json({
