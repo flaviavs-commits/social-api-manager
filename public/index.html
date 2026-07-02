@@ -1454,14 +1454,6 @@ input, select, textarea, label, .bottom-nav-item {
     </div>
   </div>
 
-  <div style="text-align:center;margin-top:2rem;padding-top:1rem;display:flex;flex-direction:column;align-items:center;gap:8px">
-    <div style="display:flex;justify-content:center;gap:16px">
-      <a href="/privacy-policy" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:none">Política de Privacidade</a>
-      <a href="/terms-of-service" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:none">Termos de Uso</a>
-    </div>
-    <span style="font-size:11px;color:var(--muted)">© <script>document.write(new Date().getFullYear())</script> Social API Manager</span>
-  </div>
-
   <!-- CALENDÁRIO -->
   <div id="page-calendario" class="section-page">
     <div class="page-header">
@@ -1719,6 +1711,14 @@ input, select, textarea, label, .bottom-nav-item {
   </div>
 
 </div><!-- /main -->
+
+<footer style="text-align:center;padding:1.25rem 1rem;display:flex;flex-direction:column;align-items:center;gap:6px;border-top:1px solid var(--border);margin-left:var(--sidebar-w)">
+  <div style="display:flex;justify-content:center;gap:16px">
+    <a href="/privacy-policy" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:none" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Política de Privacidade</a>
+    <a href="/terms-of-service" target="_blank" rel="noopener" style="font-size:11px;color:var(--muted);text-decoration:none" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Termos de Uso</a>
+  </div>
+  <span style="font-size:11px;color:var(--muted)">© <script>document.write(new Date().getFullYear())</script> Social API Manager</span>
+</footer>
 
 <!-- Preview de mídia do calendário -->
 <div class="cal-media-preview" id="cal-media-preview" onclick="calCloseMediaPreview()"></div>
