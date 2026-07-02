@@ -5560,8 +5560,15 @@ async function aiLoadModels() {
     const data = await apiFetch('/api/ai/models')
     aiModelsLoaded = true
     aiAvailableModels = data.models || []
-    const first = data.models.find(m => m.available) || data.models[0]
-    if (first) aiSetModel(first.id, false)
+    // Só define modelo padrão se o usuário ainda não escolheu um
+    const savedModel = localStorage.getItem('aiSelectedModel')
+    const validSaved = savedModel && data.models.find(m => m.id === savedModel)
+    if (validSaved) {
+      aiSetModel(savedModel, false)
+    } else {
+      const first = data.models.find(m => m.available) || data.models[0]
+      if (first) aiSetModel(first.id, false)
+    }
   } catch {
     // fallback: usa lista estática se API falhar
     aiModelsLoaded = true
@@ -5685,6 +5692,7 @@ async function aiConfirmModelPick() {
 }
 
 function aiApplyModelChange(newModel) {
+  localStorage.setItem('aiSelectedModel', newModel)
   aiSetModel(newModel, false)
   // Reseta o chat para começar novo com o modelo escolhido
   ;['page', 'fab'].forEach(ctx => {
@@ -6203,7 +6211,16 @@ async function aiHandleImageRequest(ctx, userMsg) {
     aiChatSetChips(ctx, ['🎨 Criar outra imagem', '➕ Criar post'])
   } catch (err) {
     aiChatTyping(ctx, false)
-    aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar a imagem agora. ${err.message || 'Tente novamente em alguns instantes.'} 🙏`)
+    const msg = err.message || ''
+    if (msg.includes('billing')) {
+      state.step = 'image_lead'
+      state.imageDesc = userMsg
+      aiChatAddMsg(ctx, 'agent',
+        `Para gerar imagens é necessário ativar o faturamento na sua conta Google AI Studio. Enquanto isso, posso te conectar com a equipe da Vitis Souls!\n\nDeixa seu e-mail aqui que entramos em contato com as melhores opções para você 😊`
+      )
+    } else {
+      aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar a imagem agora. ${msg || 'Tente novamente em alguns instantes.'} 🙏`)
+    }
   }
 }
 

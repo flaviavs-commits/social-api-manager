@@ -350,7 +350,7 @@ router.post('/image/generate', async (req, res) => {
     const { GoogleGenAI } = require('@google/genai')
     const client = new GoogleGenAI({ apiKey: userKey })
     const result = await client.models.generateImages({
-      model: 'imagen-3.0-generate-002',
+      model: 'imagen-4.0-generate-preview-05-20',
       prompt: descricao.trim(),
       config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
     })
@@ -360,10 +360,10 @@ router.post('/image/generate', async (req, res) => {
 
     res.json({ image: `data:image/jpeg;base64,${imgData}` })
   } catch (err) {
-    if (err.message?.includes('billing') || err.message?.includes('quota')) {
-      return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
-    }
-    serverError(res, err)
+    console.error('[AI Image]', err.message)
+    if (err.message?.includes('billing')) return res.status(402).json({ erro: 'billing' })
+    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
+    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
   }
 })
 
