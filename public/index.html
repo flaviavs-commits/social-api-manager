@@ -2133,7 +2133,8 @@ function showPage(name) {
 
   if (name === 'dashboard')  loadDashboard();
   if (name === 'tokens')     loadTokens();
-  if (name === 'agendador')  loadQueue();
+  if (name === 'agendador')  startQueueAutoRefresh();
+  else                       stopQueueAutoRefresh();
   if (name === 'logs')       startLogStream();
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
@@ -3003,9 +3004,19 @@ async function schedulePost(publishNow = false) {
   loadQueue();
 }
 
-async function loadQueue() {
+function startQueueAutoRefresh() {
+  loadQueue();
+  stopQueueAutoRefresh();
+  queueRefreshTimer = setInterval(() => { if (document.visibilityState !== 'hidden') loadQueue(true); }, QUEUE_REFRESH_MS);
+}
+
+function stopQueueAutoRefresh() {
+  if (queueRefreshTimer) { clearInterval(queueRefreshTimer); queueRefreshTimer = null; }
+}
+
+async function loadQueue(silent = false) {
   const list = document.getElementById('queue-list');
-  list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div>';
+  if (!silent) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div>';
   try {
     const [{ posts }, { data: contas }] = await Promise.all([
       apiFetch('/api/posts?status=scheduled'),
@@ -3215,6 +3226,9 @@ const ANALYTICS_PLAT_RULES = {
 let analyticsChart = null;
 let analyticsRefreshTimer = null;
 const ANALYTICS_REFRESH_MS = 30000;
+
+let queueRefreshTimer = null;
+const QUEUE_REFRESH_MS = 30000;
 
 let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {} };
 let analyticsActiveNet = 'instagram';
@@ -3529,8 +3543,17 @@ function analyticsRenderPostsList(net, tab) {
 
   const THUMB_FALLBACK = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted)">🖼️</div>`.replace(/"/g,'&quot;');
 
+  // Agrupa por postId para mostrar métricas de múltiplas plataformas no mesmo card
+  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', linkedin:'💼' };
+  const grupos = {};
+  for (const m of metrics) {
+    const key = m.postId || (m.text||'') + (m.publishedAt||'');
+    if (!grupos[key]) grupos[key] = { ...m, plataformas: [] };
+    grupos[key].plataformas.push({ platform: m.platform, metrics: m.metrics, postId: m.postId });
+  }
+
   wrap.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">` +
-    metrics.map(m => {
+    Object.values(grupos).map(m => {
       const data = m.publishedAt ? new Date(m.publishedAt).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '—';
       const texto = m.text ? escapeHtml(m.text.slice(0,70)) + (m.text.length>70?'…':'') : (m.youtubeTitle ? escapeHtml(m.youtubeTitle.slice(0,70)) : '<span style="color:var(--muted)">(sem texto)</span>');
       const itens = m.mediaItems?.length ? m.mediaItems : (m.mediaPath ? [{path:m.mediaPath, type:m.mediaType}] : []);
@@ -3541,16 +3564,25 @@ function analyticsRenderPostsList(net, tab) {
           ? `<video src="${escapeHtml(p.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:0 0 48px" onerror="this.outerHTML='${THUMB_FALLBACK}'"></video>`
           : `<img src="${escapeHtml(p.path)}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex:0 0 48px" onerror="this.outerHTML='${THUMB_FALLBACK}'"/>`;
       }
-      const podeComentarios = net === 'instagram';
-      return `<div class="analytics-post-item" style="cursor:default">
+
+      // Métricas por plataforma
+      const platRows = m.plataformas.map(pl => {
+        const icon = PLAT_ICON[pl.platform] || '🌐';
+        const podeComent = pl.platform === 'instagram';
+        if (!pl.metrics) return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">${icon} <span style="color:var(--muted)">sem métricas</span></div>`;
+        const views    = pl.metrics.views    != null ? `<span style="margin-left:6px">👁 ${fmtNum(pl.metrics.views)}</span>` : '';
+        const likes    = pl.metrics.likes    != null ? `<span style="margin-left:6px">❤ ${fmtNum(pl.metrics.likes)}</span>` : '';
+        const comments = pl.metrics.comments != null ? `<span style="margin-left:6px">💬 ${fmtNum(pl.metrics.comments)}</span>` : '';
+        const btnComent = podeComent ? `<button type="button" class="plat-btn" style="flex:0;padding:2px 7px;font-size:10px;margin-left:8px" onclick="openCommentsModal(${pl.postId})">Ver comentários</button>` : '';
+        return `<div style="display:flex;align-items:center;gap:2px;font-size:11.5px;margin-top:3px">${icon}${views}${likes}${comments}${btnComent}</div>`;
+      }).join('');
+
+      return `<div class="analytics-post-item" style="cursor:default;align-items:flex-start">
         ${thumb}
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${texto}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(data)}</div>
-        </div>
-        <div style="text-align:right;font-size:12px;white-space:nowrap;flex:0 0 auto" onclick="event.stopPropagation()">
-          ${m.metrics ? `<span>❤ ${fmtNum(m.metrics.likes)}</span><span style="margin-left:8px">💬 ${fmtNum(m.metrics.comments)}</span>${m.metrics.views!=null?`<span style="margin-left:8px">👁 ${fmtNum(m.metrics.views)}</span>`:''}` : '<span style="color:var(--muted)">sem métricas</span>'}
-          ${podeComentarios ? `<br><button type="button" class="plat-btn" style="flex:0;padding:3px 8px;font-size:11px;margin-top:4px" onclick="openCommentsModal(${m.postId})">Comentários</button>` : ''}
+          <div style="margin-top:4px" onclick="event.stopPropagation()">${platRows}</div>
         </div>
       </div>`;
     }).join('') + '</div>';
@@ -6531,8 +6563,8 @@ async function aiChatProcess(ctx, userMsg) {
     let contasConectadas = []
     try {
       const accounts = await apiFetch('/api/accounts')
-      contasConectadas = (accounts.accounts || [])
-        .filter(a => a.accessToken)
+      contasConectadas = (accounts.data || [])
+        .filter(a => a.tokens && a.tokens.some(t => t.accessToken))
         .map(a => a.platform)
     } catch {}
 
