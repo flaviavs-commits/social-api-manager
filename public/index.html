@@ -7322,12 +7322,32 @@ async function saveDraft(isTemplate) {
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const platforms = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
+  const hasMedia = typeof mediaFiles !== 'undefined' && mediaFiles.length > 0;
 
-  if (!text && !(typeof mediaFiles !== 'undefined' && mediaFiles.length > 0)) {
+  if (!text && !hasMedia) {
     return showToast('Escreva um texto ou adicione mídia para salvar', 'err');
   }
 
   try {
+    // Faz upload da mídia antes de salvar (igual ao schedulePost)
+    let mediaItems = null;
+    let mediaPath = null;
+    let mediaType = null;
+    if (hasMedia) {
+      showToast('Enviando mídia...', 'ok');
+      const uploaded = await Promise.all(mediaFiles.map(m => uploadArquivoDireto(m.file)));
+      if (uploaded.length === 1) {
+        mediaPath = uploaded[0].url;
+        mediaType = uploaded[0].mimetype.startsWith('video') ? 'video' : 'image';
+      } else {
+        mediaItems = uploaded.map((u, i) => ({
+          path: u.url,
+          type: u.mimetype.startsWith('video') ? 'video' : 'image',
+          caption: mediaFiles[i]?.caption || ''
+        }));
+      }
+    }
+
     await apiFetch('/api/drafts', {
       method: 'POST',
       body: JSON.stringify({
@@ -7335,7 +7355,10 @@ async function saveDraft(isTemplate) {
         platforms,
         youtubeTitle: youtubeTitle || null,
         youtubeVisibility: youtubeVisibility || 'public',
-        isTemplate
+        isTemplate,
+        mediaPath,
+        mediaType,
+        mediaItems
       })
     });
     showToast(isTemplate ? 'Template salvo!' : 'Rascunho salvo!', 'ok');
