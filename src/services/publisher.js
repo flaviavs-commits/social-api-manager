@@ -516,7 +516,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
     } else {
       await registrarLog({
         type: 'err',
-        message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${renewal.message}`,
+        message: `Token expirado para "${token.handle || token.accountName}" no ${platform} — não foi possível renovar automaticamente: ${renewal.message}`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
@@ -534,9 +534,10 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
     // bloqueando esta requisição/invocação à espera do Instagram.
     if (data?.pending) {
       await postsRepo.salvarInstagramPending(post.id, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId })
+      const tipoPost = data.stage === 'carousel_children' ? 'Carrossel' : 'Post'
       await registrarLog({
         type: 'info',
-        message: `Publicação no Instagram em processamento na conta "${token.handle || token.accountName}" — confirmação em até ~1min`,
+        message: `${tipoPost} enviado para o Instagram na conta "${token.handle || token.accountName}" — aguardando processamento (pode levar até 1 min)`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
@@ -566,10 +567,11 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
       // do publish (só o publish_id, usado pra consultar o status depois) —
       // por isso vai no log para facilitar achar o post sem precisar abrir o
       // app do TikTok manualmente.
-      const detalheTiktok = platform === 'tiktok' && data?.publish_id ? ` (publish_id: ${data.publish_id}, status: ${data.status})` : ''
+      const detalheTiktok = platform === 'tiktok' && data?.publish_id ? ` (publish_id: ${data.publish_id})` : ''
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
       await registrarLog({
         type: 'ok',
-        message: `Post publicado [${platform}] na conta "${token.handle || token.accountName}"${detalheTiktok}`,
+        message: `Post publicado no ${platLabel} na conta "${token.handle || token.accountName}" com sucesso! ✓${detalheTiktok}`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
@@ -580,7 +582,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
   } catch (err) {
     await registrarLog({
       type: 'err',
-      message: `Falha ao publicar [${platform}] em "${token.handle || token.accountName}": ${err.message}`,
+      message: `Não foi possível publicar no ${platform} na conta "${token.handle || token.accountName}": ${err.message}`,
       platform,
       conta_id: token.contaId,
       user_id: post.userId
@@ -611,15 +613,22 @@ async function finalizarPublicacaoInstagram(pending) {
     const createData = await createRes.json()
     if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status} ao criar carrossel`)
     creationId = createData.id
-    // O container do carrossel também precisa processar antes de publicar —
-    // como os filhos já estavam FINISHED, isso costuma ser rápido, mas ainda
-    // exige uma espera curta e limitada (bem menor que o ciclo completo).
+    // O container pai do carrossel precisa processar antes de publicar.
+    // Se não ficar pronto em 10s, devolve pendente para o cron tentar de novo
+    // no próximo tick — evita erro falso quando o Instagram demora mais.
+    let carouselReady = false
     for (let i = 0; i < 10; i++) {
       const status = await statusContainerInstagram(creationId, accessToken)
-      if (status === 'FINISHED') break
-      if (status === 'ERROR') throw new Error('Processamento do carrossel falhou no Instagram')
+      if (status === 'FINISHED') { carouselReady = true; break }
+      if (status === 'ERROR') throw new Error('O Instagram não conseguiu montar o carrossel. Verifique se as imagens/vídeos são válidos e tente novamente.')
       await new Promise(r => setTimeout(r, 1000))
     }
+    if (!carouselReady) {
+      // Salva o container pai como pendente para o cron finalizar
+      return { requeue: true, containerId: creationId }
+    }
+  } else if (pending.stage === 'carousel_container') {
+    creationId = pending.containerId
   } else {
     creationId = pending.containerId
   }
@@ -646,10 +655,17 @@ async function finalizarInstagramPendentes() {
       const containerIds = pending.stage === 'carousel_children' ? pending.childIds : [pending.containerId]
       const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, pending.accessToken)))
 
-      if (statuses.some(s => s === 'ERROR')) throw new Error('Processamento da mídia falhou no Instagram')
+      if (statuses.some(s => s === 'ERROR')) throw new Error('O Instagram encontrou um problema ao processar a mídia. Verifique se o arquivo é válido e tente publicar novamente.')
       if (!statuses.every(s => s === 'FINISHED')) return // ainda processando — tenta de novo no próximo tick
 
       const data = await finalizarPublicacaoInstagram(pending)
+
+      // Container pai do carrossel ainda não estava pronto — atualiza o pending e tenta no próximo tick
+      if (data?.requeue) {
+        await postsRepo.salvarInstagramPending(post.id, { ...pending, stage: 'carousel_container', containerId: data.containerId })
+        return
+      }
+
       const externalId = extrairExternalId('instagram', data)
       if (externalId) {
         await postsRepo.salvarPublicacaoExterna(post.id, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString() })
@@ -657,12 +673,13 @@ async function finalizarInstagramPendentes() {
       await postsRepo.limparInstagramPending(post.id)
       await postsRepo.atualizarStatusPost(post.id, 'published')
 
-      await registrarLog({ type: 'ok', message: `Post publicado [instagram] na conta "${pending.accountName}"`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
+      const tipoMidia = pending.stage === 'carousel_children' || pending.stage === 'carousel_container' ? 'Carrossel' : 'Post'
+      await registrarLog({ type: 'ok', message: `${tipoMidia} publicado no Instagram na conta "${pending.accountName}" com sucesso! ✓`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
       broadcastEvent('post_published', { id: post.id, status: 'published', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: true, data }] }, post.userId)
     } catch (err) {
       await postsRepo.limparInstagramPending(post.id)
       await postsRepo.atualizarStatusPost(post.id, 'error')
-      await registrarLog({ type: 'err', message: `Falha ao publicar [instagram] em "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
+      await registrarLog({ type: 'err', message: `Não foi possível publicar no Instagram na conta "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
       broadcastEvent('post_published', { id: post.id, status: 'error', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: false, error: err.message }] }, post.userId)
     }
   }))
