@@ -2194,7 +2194,14 @@ async function apiFetch(path, opts = {}) {
           const retryOpts = { ...opts, headers: { ...(opts.headers || {}), 'Authorization': 'Bearer ' + token } };
           if (!(opts.body instanceof FormData)) retryOpts.headers['Content-Type'] = 'application/json';
           const retryRes = await fetch(API + path, retryOpts);
-          if (retryRes.status !== 401) return retryRes;
+          if (retryRes.status !== 401) {
+            if (!retryRes.ok) {
+              let mensagem = 'Não foi possível concluir essa ação. Tente novamente.';
+              try { const d = await retryRes.json(); if (d?.erro || d?.error) mensagem = d.erro || d.error; } catch {}
+              throw new Error(mensagem);
+            }
+            return retryRes.json();
+          }
         }
       }
     } catch {}
