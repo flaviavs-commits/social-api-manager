@@ -2090,13 +2090,8 @@ const reviewReadyPromise = new Promise(resolve => { _reviewReady = resolve; });
     } catch {}
   }
   _reviewReady();
-  // Carrega contagem do inbox em background para exibir badge no menu
-  try {
-    const { posts } = await apiFetch('/api/posts/inbox');
-    inboxPosts = posts || [];
-    inboxLoaded = true;
-    inboxUpdateBadge();
-  } catch {}
+  // Inicia polling de não lidos para exibir badge no menu (sem carregar os posts completos)
+  inboxStartUnreadPolling();
 })();
 
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
@@ -4912,14 +4907,55 @@ function calCloseMediaPreview() {
 // ── INBOX ─────────────────────────────────────────────────────────────────────
 const PLAT_SUPPORTS_REPLY = ['instagram']; // demais são só leitura por ora
 
+// unreadMap: { [postId]: count } — vem do backend, atualizado periodicamente
+let inboxUnreadMap = {};
+let inboxUnreadTimer = null;
+
 function inboxUpdateBadge() {
-  const unread = inboxPosts.filter(p => !inboxResolved.has(p.id)).length;
+  const total = Object.values(inboxUnreadMap).reduce((s, n) => s + n, 0);
   [document.getElementById('inbox-nav-badge'), document.getElementById('inbox-bottom-badge')].forEach(el => {
     if (!el) return;
-    if (unread > 0) { el.textContent = unread > 99 ? '99+' : unread; el.style.display = 'inline-block'; }
+    if (total > 0) { el.textContent = total > 99 ? '99+' : total; el.style.display = 'inline-block'; }
     else { el.style.display = 'none'; }
   });
+  // Atualiza badge por post na lista
+  inboxRenderUnreadDots();
 }
+
+function inboxRenderUnreadDots() {
+  document.querySelectorAll('.inbox-conv-item[data-post-id]').forEach(el => {
+    const pid = Number(el.dataset.postId);
+    const count = inboxUnreadMap[pid] || 0;
+    let dot = el.querySelector('.inbox-unread-dot');
+    if (count > 0) {
+      if (!dot) {
+        dot = document.createElement('span');
+        dot.className = 'inbox-unread-dot';
+        dot.style.cssText = 'min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;font-family:var(--sans);line-height:18px;text-align:center;flex-shrink:0';
+        el.appendChild(dot);
+      }
+      dot.textContent = count > 99 ? '99+' : count;
+    } else if (dot) {
+      dot.remove();
+    }
+  });
+}
+
+async function inboxFetchUnread() {
+  try {
+    const { unread } = await apiFetch('/api/posts/inbox/unread');
+    // converte chaves para número
+    inboxUnreadMap = {};
+    for (const [k, v] of Object.entries(unread || {})) inboxUnreadMap[Number(k)] = v;
+    inboxUpdateBadge();
+  } catch {}
+}
+
+function inboxStartUnreadPolling() {
+  inboxFetchUnread();
+  if (!inboxUnreadTimer) inboxUnreadTimer = setInterval(inboxFetchUnread, 60000);
+}
+
 const INBOX_PLAT_LABEL = { instagram:'COMENTÁRIO', facebook:'COMENTÁRIO', youtube:'COMENTÁRIO', tiktok:'COMENTÁRIO' };
 const INBOX_PLAT_COLOR = { instagram:'var(--ig)', facebook:'var(--fb)', youtube:'var(--yt)', tiktok:'#69c9d0' };
 
@@ -4929,17 +4965,17 @@ let inboxCurrentPost = null; // post selecionado
 let inboxFilterPlat  = 'all';
 let inboxSearchTerm  = '';
 let inboxTab         = 'all';
-let inboxResolved    = new Set(); // IDs de posts marcados como resolvidos (local)
+let inboxResolved    = new Set(); // posts marcados como resolvidos (aba "Resolvidos")
 let inboxLoaded      = false;
 
 async function inboxInit() {
+  inboxStartUnreadPolling();
   if (inboxLoaded) { inboxApplyFilter(); return; }
   inboxLoaded = true;
   document.getElementById('inbox-list').innerHTML = '<div class="inbox-loading">Carregando...</div>';
   try {
     const { posts } = await apiFetch('/api/posts/inbox');
     inboxPosts = posts || [];
-    inboxUpdateBadge();
     inboxApplyFilter();
   } catch {
     inboxLoaded = false;
@@ -5061,6 +5097,13 @@ async function inboxOpenPost(post) {
   try {
     const { comments } = await apiFetch(`/api/posts/${post.id}/comments`);
     inboxRenderComments(comments, post);
+    // Marca todos os comentários como vistos e zera o badge deste post
+    const ids = (comments || []).map(c => c.id).filter(Boolean);
+    if (ids.length) {
+      apiFetch(`/api/posts/${post.id}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: ids }) }).catch(() => {});
+      delete inboxUnreadMap[post.id];
+      inboxUpdateBadge();
+    }
   } catch (e) {
     document.getElementById('inbox-comments').innerHTML =
       `<div class="inbox-loading" style="color:var(--red)">${escapeHtml(e.message || 'Erro ao carregar comentários')}</div>`;

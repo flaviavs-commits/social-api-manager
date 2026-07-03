@@ -5,6 +5,7 @@ const fs = require('fs')
 const crypto = require('crypto')
 const sharp = require('sharp')
 const { put, presignUrl, issueSignedToken } = require('@vercel/blob')
+const pool = require('../db/pool')
 const repo = require('../repositories/postsRepository')
 const contasRepo = require('../repositories/contasRepository')
 const { publishPost } = require('../services/publisher')
@@ -58,6 +59,73 @@ router.post('/upload-url', async (req, res) => {
     res.json({ uploadUrl: presignedUrl, mimetype })
   } catch (e) {
     serverError(res, e, 'Não foi possível gerar a URL de upload')
+  }
+})
+
+// GET /api/posts/inbox/unread — retorna quantos comentários novos (não vistos) cada post tem
+// Faz chamadas às APIs das redes sociais só para os posts do inbox
+router.get('/inbox/unread', async (req, res) => {
+  try {
+    const all = await repo.listarPosts({ status: 'published', userId: req.user.id, isAdmin: isAdminRole(req.user.role) })
+    const plats = commentsService.PLATAFORMAS_COM_COMENTARIOS
+    const posts = all
+      .filter(p => p.externalPostId && plats.includes(p.externalPlatform))
+      .slice(0, 30) // limita para não sobrecarregar as APIs
+
+    // Busca seen_ids de todos os posts de uma vez
+    const postIds = posts.map(p => p.id)
+    if (!postIds.length) return res.json({ unread: {} })
+
+    const { rows: seenRows } = await pool.query(
+      `SELECT post_id, seen_ids FROM inbox_seen_comments WHERE user_id=$1 AND post_id=ANY($2)`,
+      [req.user.id, postIds]
+    )
+    const seenMap = {}
+    for (const r of seenRows) seenMap[r.post_id] = new Set(r.seen_ids || [])
+
+    // Busca comentários de todos os posts em paralelo (com timeout)
+    const results = await Promise.allSettled(
+      posts.map(async p => {
+        const { comments } = await commentsService.listarComentariosPost(p)
+        const seen = seenMap[p.id] || new Set()
+        const newCount = (comments || []).filter(c => !seen.has(c.id)).length
+        return { postId: p.id, newCount }
+      })
+    )
+
+    const unread = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.newCount > 0) {
+        unread[r.value.postId] = r.value.newCount
+      }
+    }
+    res.json({ unread })
+  } catch (e) {
+    serverError(res, e)
+  }
+})
+
+// POST /api/posts/:id/comments/seen — marca comentários como vistos
+router.post('/:id/comments/seen', async (req, res) => {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const commentIds = req.body.commentIds || []
+    if (!commentIds.length) return res.status(204).send()
+
+    await pool.query(
+      `INSERT INTO inbox_seen_comments (user_id, post_id, seen_ids, atualizado_em)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, post_id) DO UPDATE
+         SET seen_ids = (
+           SELECT ARRAY(SELECT DISTINCT unnest(inbox_seen_comments.seen_ids || $3::TEXT[]))
+         ),
+         atualizado_em = NOW()`,
+      [req.user.id, id, commentIds]
+    )
+    res.status(204).send()
+  } catch (e) {
+    serverError(res, e)
   }
 })
 

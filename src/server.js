@@ -252,6 +252,15 @@ async function runMigrations() {
     )
   `)
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS inbox_seen_comments (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      seen_ids TEXT[] DEFAULT '{}',
+      atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (user_id, post_id)
+    )
+  `)
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS ai_memory (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
