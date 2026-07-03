@@ -70,15 +70,9 @@ async function getUserApiKey(pool, userId, modelo) {
       `SELECT api_key FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
       [userId, modelo]
     )
-    console.log(`[AI Key] userId=${userId} modelo=${modelo} found=${rows.length > 0}`)
     if (!rows[0]?.api_key) return null
-    const decrypted = decrypt(rows[0].api_key)
-    console.log(`[AI Key] decrypt ok=${!!decrypted}`)
-    return decrypted
-  } catch (e) {
-    console.error(`[AI Key] erro ao buscar/decifrar chave:`, e.message)
-    return null
-  }
+    return decrypt(rows[0].api_key)
+  } catch { return null }
 }
 
 async function generateWithClaude(prompt, userKey) {
@@ -111,7 +105,12 @@ async function generateWithGemini(prompt, userKey) {
   const key = userKey || process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
+  // Quando o usuário tem chave própria, remove temporariamente GOOGLE_API_KEY do env
+  // para evitar que o SDK ignore a chave passada e use a do servidor
+  const savedGoogleKey = process.env.GOOGLE_API_KEY
+  if (userKey) delete process.env.GOOGLE_API_KEY
   const client = new GoogleGenAI({ apiKey: key })
+  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
 
   const MAX_RETRIES = 3
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -125,8 +124,8 @@ async function generateWithGemini(prompt, userKey) {
       const msg = e.message || ''
       if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
         if (attempt < MAX_RETRIES) {
-          // Backoff exponencial: 2s, 4s
-          await new Promise(r => setTimeout(r, 2000 * attempt))
+          // Backoff: 1s, 2s — mantém dentro do timeout do Railway (30s)
+          await new Promise(r => setTimeout(r, 1000 * attempt))
           continue
         }
         throw Object.assign(new Error('quota'), { status: 429 })
@@ -216,13 +215,11 @@ router.put('/apikey', async (req, res) => {
     const { modelo, apiKey } = req.body || {}
     if (!modelo || !apiKey?.trim()) return res.status(400).json({ erro: 'modelo e apiKey são obrigatórios' })
     const encrypted = encrypt(apiKey.trim())
-    console.log(`[AI Key] salvando chave userId=${req.user.id} modelo=${modelo}`)
     await pool.query(`
       INSERT INTO user_ai_keys (user_id, modelo, api_key)
       VALUES ($1, $2, $3)
       ON CONFLICT (user_id, modelo) DO UPDATE SET api_key = EXCLUDED.api_key, criado_em = NOW()
     `, [req.user.id, modelo, encrypted])
-    console.log(`[AI Key] chave salva ok userId=${req.user.id} modelo=${modelo}`)
     res.json({ ok: true })
   } catch (err) { serverError(res, err) }
 })
