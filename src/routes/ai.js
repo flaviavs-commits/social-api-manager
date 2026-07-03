@@ -101,22 +101,29 @@ async function generateWithOpenAI(prompt, userKey) {
   return msg.choices[0]?.message?.content || ''
 }
 
-async function generateWithGemini(prompt, userKey) {
+const GEMINI_MODEL_IDS = {
+  'gemini':            'gemini-2.0-flash',
+  'gemini-2.5-flash':  'gemini-2.5-flash',
+  'gemini-2.5-pro':    'gemini-2.5-pro',
+  'gemini-2.5-lite':   'gemini-2.5-flash-lite',
+}
+
+async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
   const key = userKey || process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
-  // Quando o usuário tem chave própria, remove temporariamente GOOGLE_API_KEY do env
-  // para evitar que o SDK ignore a chave passada e use a do servidor
   const savedGoogleKey = process.env.GOOGLE_API_KEY
   if (userKey) delete process.env.GOOGLE_API_KEY
   const client = new GoogleGenAI({ apiKey: key })
   if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
 
+  const geminiModel = GEMINI_MODEL_IDS[modelId] || 'gemini-2.0-flash'
+
   const MAX_RETRIES = 3
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const result = await client.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: geminiModel,
         contents: prompt,
       })
       return result.text
@@ -150,11 +157,13 @@ router.post('/generate', async (req, res) => {
     const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
     const horariosSugeridos = calcularHorarios(qtd, plataformas)
 
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
+    // Novos modelos Gemini usam a chave salva como 'gemini' (mesma chave, model ID diferente)
+    const keyModelo = GEMINI_MODEL_IDS[modelo] ? 'gemini' : modelo
+    const userKey = await getUserApiKey(pool, req.user.id, keyModelo)
     let rawText
     if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt, userKey)
     else if (modelo === 'claude')  rawText = await generateWithClaude(prompt, userKey)
-    else                           rawText = await generateWithGemini(prompt, userKey)
+    else                           rawText = await generateWithGemini(prompt, userKey, modelo)
 
     let parsed
     try {
@@ -473,17 +482,18 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   ]
 }`
 
+    const geminiModel = GEMINI_MODEL_IDS[modelo] || 'gemini-2.0-flash'
     const isVideo = !mediaBase64
     let rawText
 
     if (isVideo) {
       rawText = await client.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: geminiModel,
         contents: `${prompt}\n\n(Nota: o usuário enviou um vídeo. Contexto fornecido: "${contexto || 'sem contexto adicional'}". Crie sugestões com base no contexto disponível.)`,
       }).then(r => r.text)
     } else {
       rawText = await client.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: geminiModel,
         contents: [
           { inlineData: { mimeType, data: mediaBase64 } },
           { text: prompt },
@@ -508,11 +518,15 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 
 // GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
 router.get('/models', (req, res) => {
+  const hasGemini = !!process.env.GEMINI_API_KEY
   res.json({
     models: [
-      { id: 'gemini', name: 'Gemini 1.5 Flash', provider: 'Google', available: !!process.env.GEMINI_API_KEY },
-      { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI', available: !!process.env.OPENAI_API_KEY },
-      { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
+      { id: 'gemini',            name: 'Gemini 2.0 Flash',      provider: 'Google',    available: hasGemini },
+      { id: 'gemini-2.5-flash',  name: 'Gemini 2.5 Flash',      provider: 'Google',    available: hasGemini },
+      { id: 'gemini-2.5-pro',    name: 'Gemini 2.5 Pro',        provider: 'Google',    available: hasGemini },
+      { id: 'gemini-2.5-lite',   name: 'Gemini 2.5 Flash-Lite', provider: 'Google',    available: hasGemini },
+      { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: !!process.env.OPENAI_API_KEY },
+      { id: 'claude',            name: 'Claude Haiku',           provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
     ]
   })
 })

@@ -5430,9 +5430,12 @@ let aiSelectedModel = 'gemini'
 let aiModelsLoaded = false
 
 const AI_MODEL_META = {
-  gemini: { label: 'Gemini Flash', dot: 'gemini', provider: 'Google' },
-  openai: { label: 'GPT-4o Mini',  dot: 'openai', provider: 'OpenAI' },
-  claude: { label: 'Claude Haiku', dot: 'claude', provider: 'Anthropic' },
+  gemini:            { label: 'Gemini 2.0 Flash',      dot: 'gemini', provider: 'Google' },
+  'gemini-2.5-flash':{ label: 'Gemini 2.5 Flash',      dot: 'gemini', provider: 'Google' },
+  'gemini-2.5-pro':  { label: 'Gemini 2.5 Pro',        dot: 'gemini', provider: 'Google' },
+  'gemini-2.5-lite': { label: 'Gemini 2.5 Flash-Lite', dot: 'gemini', provider: 'Google' },
+  openai:            { label: 'GPT-4o Mini',            dot: 'openai', provider: 'OpenAI' },
+  claude:            { label: 'Claude Haiku',           dot: 'claude', provider: 'Anthropic' },
 }
 
 let aiAvailableModels = []
@@ -5443,13 +5446,52 @@ const AI_MODEL_PICKER_META = {
     icon: '✦',
     iconClass: 'gemini',
     dotColor: '#4285f4',
-    desc: 'Google · Rápido e gratuito · Recomendado',
+    desc: 'Google · Gemini 2.0 Flash · Rápido e gratuito · Recomendado',
     badge: 'Padrão',
     requiresKey: false,
     keyProvider: 'Google AI Studio',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'Começa com "AIza..."',
     keyDesc: 'Tem uma conta Google com faturamento ativo? Acesse o Google AI Studio, gere uma chave de API vinculada ao seu projeto com billing habilitado e cole aqui. Assim você usa sua própria cota paga sem limitações de uso compartilhado.',
+    keyBadge: 'Usar minha conta Google',
+  },
+  'gemini-2.5-flash': {
+    icon: '✦',
+    iconClass: 'gemini',
+    dotColor: '#4285f4',
+    desc: 'Google · Melhor custo-benefício · Raciocínio avançado · Recomendado para produção',
+    badge: 'Novo',
+    requiresKey: true,
+    keyProvider: 'Google AI Studio',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    keyHint: 'Começa com "AIza..."',
+    keyDesc: 'Para usar o Gemini 2.5 Flash você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
+    keyBadge: 'Usar minha conta Google',
+  },
+  'gemini-2.5-pro': {
+    icon: '✦',
+    iconClass: 'gemini',
+    dotColor: '#0d47a1',
+    desc: 'Google · Modelo mais avançado · Máxima qualidade · Ideal para conteúdo complexo',
+    badge: 'Pro',
+    requiresKey: true,
+    keyProvider: 'Google AI Studio',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    keyHint: 'Começa com "AIza..."',
+    keyDesc: 'Para usar o Gemini 2.5 Pro você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
+    keyBadge: 'Usar minha conta Google',
+  },
+  'gemini-2.5-lite': {
+    icon: '✦',
+    iconClass: 'gemini',
+    dotColor: '#42a5f5',
+    desc: 'Google · Mais leve e rápido · Baixo custo · Ideal para alto volume',
+    badge: 'Lite',
+    requiresKey: true,
+    keyProvider: 'Google AI Studio',
+    keyUrl: 'https://aistudio.google.com/apikey',
+    keyHint: 'Começa com "AIza..."',
+    keyDesc: 'Para usar o Gemini 2.5 Flash-Lite você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
     keyBadge: 'Usar minha conta Google',
   },
   openai: {
@@ -5480,6 +5522,18 @@ const AI_MODEL_PICKER_META = {
 
 // Saudações personalizadas por modelo
 const AI_MODEL_GREETINGS = {
+  'gemini-2.5-flash': [
+    saudacao => `${saudacao}! ✦ Sou o Gemini 2.5 Flash — raciocínio avançado com velocidade de produção.\n\nPronto para criar conteúdo de alto nível com você! Qual é o tema de hoje? 🚀`,
+    saudacao => `${saudacao}! ✦ Gemini 2.5 Flash aqui — a combinação ideal de qualidade e velocidade do Google.\n\nO que vamos criar? Me conta sua ideia! 💡`,
+  ],
+  'gemini-2.5-pro': [
+    saudacao => `${saudacao}! ✦ Sou o Gemini 2.5 Pro — o modelo mais avançado do Google, com capacidade de raciocínio profundo.\n\nVamos criar algo extraordinário juntos! Qual é o desafio de hoje? 🌟`,
+    saudacao => `${saudacao}! ✦ Gemini 2.5 Pro online. Máxima qualidade para conteúdo que realmente se destaca.\n\nMe conta o que você quer comunicar! 🎯`,
+  ],
+  'gemini-2.5-lite': [
+    saudacao => `${saudacao}! ✦ Sou o Gemini 2.5 Flash-Lite — ultra-rápido e eficiente, perfeito para alto volume.\n\nPronto para criar muitos posts em tempo recorde! O que vamos postar? ⚡`,
+    saudacao => `${saudacao}! ✦ Gemini 2.5 Lite aqui — velocidade máxima para quem não tem tempo a perder.\n\nQual é o tema de hoje? 💨`,
+  ],
   gemini: [
     saudacao => `${saudacao}! ✦ Sou o Gemini Flash, movido pela inteligência do Google.\n\nPronto para criar conteúdo incrível com você! Tem alguma ideia de post ou campanha em mente? 🚀`,
     saudacao => `${saudacao}! ✦ Gemini aqui — veloz, criativo e pronto pra agir.\n\nO que vamos postar hoje? Me conta uma ideia ou tema e eu cuido do resto! 💡`,
@@ -6193,11 +6247,17 @@ async function aiChatStart(ctx) {
 // Detecta se o usuário está pedindo geração de imagem
 function aiIsImageRequest(msg) {
   const lower = msg.toLowerCase()
-  return /cri(e|a|ar)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual)/i.test(msg)
-    || /gera(r|)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual)/i.test(msg)
-    || /\b(imagem|ilustra[çc][aã]o|desenho)\s+(de|sobre|com)\b/i.test(msg)
+  return /cri(e|a|ar|ando)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual|logo|ícone|icone|poster|flyer)/i.test(msg)
+    || /gera(r|ndo|)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual|logo|poster|flyer)/i.test(msg)
+    || /faz(er|endo|)\s+(uma?\s+)?(imagem|foto|ilustra|desenho|arte|banner|capa|thumbnail|visual|logo)/i.test(msg)
+    || /\b(imagem|ilustra[çc][aã]o|desenho|banner|logo)\s+(de|sobre|com|para)\b/i.test(msg)
+    || /design\s+(de|para|do|da)/i.test(msg)
     || lower.includes('fazer uma imagem') || lower.includes('fazer um desenho')
     || lower.includes('gerar imagem') || lower.includes('criar imagem')
+    || lower.includes('quero uma imagem') || lower.includes('preciso de uma imagem')
+    || lower.includes('quero um banner') || lower.includes('cria um banner')
+    || lower.includes('cria uma foto') || lower.includes('me faz uma imagem')
+    || lower.includes('me faz um') && (lower.includes('banner') || lower.includes('logo') || lower.includes('poster'))
 }
 
 // Fluxo de geração de imagem — verifica chave e gera ou coleta lead
