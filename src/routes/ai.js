@@ -164,7 +164,7 @@ router.post('/generate', async (req, res) => {
     res.json({ posts, modelo })
   } catch (err) {
     if (err.status === 503) return res.status(503).json({ erro: err.message })
-    if (err.status === 401) return res.status(401).json({ erro: 'Chave de API inválida. Verifique a chave no Railway.' })
+    if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
     if (err.status === 429 || err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
       return res.status(429).json({ erro: 'Limite de requisições da IA atingido. Aguarde alguns segundos e tente novamente.' })
     }
@@ -185,6 +185,14 @@ pool.query(`
     api_key   TEXT NOT NULL,
     criado_em TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, modelo)
+  )
+`).catch(() => {})
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_ai_prefs (
+    user_id         INTEGER PRIMARY KEY,
+    preferred_model TEXT NOT NULL,
+    atualizado_em   TIMESTAMPTZ DEFAULT NOW()
   )
 `).catch(() => {})
 
@@ -221,6 +229,31 @@ router.delete('/apikey/:modelo', async (req, res) => {
       `DELETE FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
       [req.user.id, req.params.modelo]
     )
+    res.json({ ok: true })
+  } catch (err) { serverError(res, err) }
+})
+
+// GET /api/ai/prefs — retorna modelo preferido do usuário
+router.get('/prefs', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT preferred_model FROM user_ai_prefs WHERE user_id = $1`,
+      [req.user.id]
+    )
+    res.json({ preferred_model: rows[0]?.preferred_model || null })
+  } catch (err) { serverError(res, err) }
+})
+
+// PUT /api/ai/prefs — salva modelo preferido do usuário
+router.put('/prefs', async (req, res) => {
+  try {
+    const { modelo } = req.body || {}
+    if (!modelo) return res.status(400).json({ erro: 'modelo é obrigatório' })
+    await pool.query(`
+      INSERT INTO user_ai_prefs (user_id, preferred_model)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id) DO UPDATE SET preferred_model = EXCLUDED.preferred_model, atualizado_em = NOW()
+    `, [req.user.id, modelo])
     res.json({ ok: true })
   } catch (err) { serverError(res, err) }
 })

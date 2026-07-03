@@ -5558,14 +5558,21 @@ function aiOpenKeyModal(modelId, onSuccess) {
 async function aiLoadModels() {
   if (aiModelsLoaded) return
   try {
-    const data = await apiFetch('/api/ai/models')
+    const [data, prefs] = await Promise.all([
+      apiFetch('/api/ai/models'),
+      apiFetch('/api/ai/prefs').catch(() => ({ preferred_model: null })),
+    ])
     aiModelsLoaded = true
     aiAvailableModels = data.models || []
-    // Só define modelo padrão se o usuário ainda não escolheu um
-    const savedModel = localStorage.getItem('aiSelectedModel')
-    const validSaved = savedModel && data.models.find(m => m.id === savedModel)
-    if (validSaved) {
-      aiSetModel(savedModel, false)
+    // Prioridade: 1) preferência salva no servidor, 2) localStorage, 3) primeiro disponível
+    const serverModel = prefs.preferred_model && data.models.find(m => m.id === prefs.preferred_model)
+    const savedModel  = localStorage.getItem('aiSelectedModel')
+    const localModel  = savedModel && data.models.find(m => m.id === savedModel)
+    if (serverModel) {
+      aiSetModel(serverModel.id, false)
+      localStorage.setItem('aiSelectedModel', serverModel.id)
+    } else if (localModel) {
+      aiSetModel(localModel.id, false)
     } else {
       const first = data.models.find(m => m.available) || data.models[0]
       if (first) aiSetModel(first.id, false)
@@ -5694,6 +5701,7 @@ async function aiConfirmModelPick() {
 
 function aiApplyModelChange(newModel) {
   localStorage.setItem('aiSelectedModel', newModel)
+  apiFetch('/api/ai/prefs', { method: 'PUT', body: JSON.stringify({ modelo: newModel }) }).catch(() => {})
   aiSetModel(newModel, false)
   // Reseta o chat para começar novo com o modelo escolhido
   ;['page', 'fab'].forEach(ctx => {
