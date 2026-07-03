@@ -6131,6 +6131,21 @@ async function aiChatStart(ctx) {
   // Saudação personalizada por modelo
   aiChatAddMsg(ctx, 'agent', aiModelGreeting(aiSelectedModel))
 
+  // Verifica se usuário tem chave própria — se não tiver, pergunta sobre assinatura
+  let hasKey = false
+  try { const k = await apiFetch(`/api/ai/apikey/${aiSelectedModel}`); hasKey = k.hasKey } catch {}
+  if (!hasKey && !state.askedAboutKey) {
+    state.askedAboutKey = true
+    await new Promise(r => setTimeout(r, 700))
+    aiChatTyping(ctx, true)
+    await new Promise(r => setTimeout(r, 800))
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Antes de começar — você já tem alguma assinatura de IA? (Google Gemini, OpenAI/ChatGPT ou Anthropic/Claude)`)
+    aiChatSetChips(ctx, ['✅ Sim, tenho assinatura', '❌ Não tenho'])
+    state.step = 'ask_has_key'
+    return
+  }
+
   // Se tem memórias, menciona antes de pedir a rede
   if (memories.length) {
     await new Promise(r => setTimeout(r, 600))
@@ -6319,12 +6334,79 @@ async function aiChatProcess(ctx, userMsg) {
     return
   }
 
+  if (state.step === 'ask_has_key') {
+    if (msg.includes('❌') || msg.includes('não tenho')) {
+      state.step = 'ask_plats'
+      aiChatTyping(ctx, true)
+      await new Promise(r => setTimeout(r, 600))
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', `Sem problema! 😊\n\nA **Vitis Souls** pode te indicar o melhor plano de IA com o melhor custo-benefício para o seu negócio.\n\n📩 Entre em contato: **tiago@vitissouls.com**\n\nPor enquanto, pode usar o agente normalmente. Para quais redes você quer postar?`)
+      aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+    } else {
+      // Tem assinatura — abre modal para inserir a chave de API
+      state.step = 'ask_plats'
+      aiChatTyping(ctx, true)
+      await new Promise(r => setTimeout(r, 600))
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', `Ótimo! 🎉 Para conectar sua conta, informe sua chave de API abaixo. Ela fica salva com segurança e você não precisa inserir de novo.`)
+      aiChatSetChips(ctx, [])
+      aiOpenKeyModal(aiSelectedModel, () => {
+        aiChatAddMsg(ctx, 'agent', `Chave configurada com sucesso! ✅ Agora vamos criar seus posts. Para quais redes você quer postar?`)
+        aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+      })
+    }
+    return
+  }
+
   if (msg.includes('criar post novo') || msg.includes('✨')) {
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 500))
     aiChatTyping(ctx, false)
     aiChatAddMsg(ctx, 'agent', `Perfeito! Para quais redes você quer postar?`)
     aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+    return
+  }
+
+  if (state.step === 'ask_plats_for_media') {
+    const plats = []
+    if (msg.includes('instagram') || msg.includes('ig') || msg.includes('📸')) plats.push('instagram')
+    if (msg.includes('facebook') || msg.includes('fb') || msg.includes('📘')) plats.push('facebook')
+    if (msg.includes('youtube') || msg.includes('yt') || msg.includes('▶')) plats.push('youtube')
+    if (msg.includes('tiktok') || msg.includes('tt') || msg.includes('🎵')) plats.push('tiktok')
+    if (msg.includes('todas') || msg.includes('🌐')) plats.push('instagram','facebook','youtube','tiktok')
+    state.plats = plats.length ? [...new Set(plats)] : ['instagram']
+    if (state.pendingMediaFile) {
+      const { base64, mimeType, contexto } = state.pendingMediaFile
+      state.pendingMediaFile = null
+      await aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.plats)
+    }
+    return
+  }
+
+  if (state.step === 'review_media') {
+    if (msg.includes('agendar todos') || msg.includes('✅ Agendar todos')) {
+      for (const s of (state.pendingMediaSugestoes || [])) {
+        await aiScheduleMediaPost(ctx, s)
+        await new Promise(r => setTimeout(r, 200))
+      }
+      return
+    }
+    if (msg.includes('regerar') || msg.includes('↻')) {
+      aiAnalyzeMediaRegen(ctx)
+      return
+    }
+    if (msg.includes('ajustar') || msg.includes('✏️')) {
+      aiChatAddMsg(ctx, 'agent', 'Claro! Me diz o que quer ajustar no texto e eu refaço. 😊')
+      state.step = 'ask_instrucao'
+      return
+    }
+    if (msg.includes('✅ Agendar') && state.pendingMediaSugestoes?.length) {
+      await aiScheduleMediaPost(ctx, state.pendingMediaSugestoes[0])
+      return
+    }
+    // Mensagem livre — trata como novo pedido
+    state.step = 'ask_instrucao'
+    await aiChatProcess(ctx, userMsg)
     return
   }
 
@@ -6675,20 +6757,18 @@ async function aiChatSend(ctx) {
   sendBtn.disabled = true
   if (ctx === 'page') aiLockModelChange(true)
 
-  // Se há arquivo pendente, mostra preview na bolha do usuário
+  // Se há arquivo pendente, analisa com IA e sugere texto para redes
   if (file) {
     const isImage = file.type.startsWith('image/')
     const objUrl  = URL.createObjectURL(file)
     const fileHtml = isImage
       ? `<img src="${objUrl}" style="max-width:180px;max-height:140px;border-radius:8px;display:block;margin-bottom:${val ? '6px' : '0'}">`
       : `<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg><span style="font-size:11px">${file.name}</span></div>`
-    aiChatAddMsg(ctx, 'user', fileHtml + (val ? `<div>${val}</div>` : ''), true)
+    aiChatAddMsg(ctx, 'user', fileHtml + (val ? `<div>${escapeHtml(val)}</div>` : ''), true)
     aiRemovePendingFile(ctx)
     aiChatSetChips(ctx, [])
     await new Promise(r => setTimeout(r, 300))
-    // Passa nome do arquivo + texto como instrução ao agente
-    const instrucao = val ? `${val} [arquivo: ${file.name}]` : `[arquivo: ${file.name}]`
-    await aiChatProcess(ctx, instrucao)
+    await aiAnalyzeMedia(ctx, file, val)
   } else {
     aiChatAddMsg(ctx, 'user', val)
     aiChatSetChips(ctx, [])
@@ -6696,6 +6776,118 @@ async function aiChatSend(ctx) {
     await aiChatProcess(ctx, val)
   }
   sendBtn.disabled = false
+}
+
+// Analisa mídia enviada pelo usuário e sugere texto para redes sociais
+async function aiAnalyzeMedia(ctx, file, contexto) {
+  const state = aiChat[ctx]
+
+  aiChatTyping(ctx, true)
+  aiChatAddMsg(ctx, 'agent', `📎 Recebi sua ${file.type.startsWith('image/') ? 'imagem' : 'vídeo'}! Analisando o conteúdo para sugerir o melhor texto para suas redes... ✨`)
+
+  // Converte arquivo para base64
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result.split(',')[1])
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  // Usa as plataformas já selecionadas no estado ou pede para selecionar
+  const plats = state.plats?.length ? state.plats : null
+
+  if (!plats) {
+    // Ainda não selecionou plataformas — pede antes de analisar
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Para qual rede você quer o texto?`)
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+    // Guarda arquivo e contexto para usar depois que o usuário escolher a rede
+    state.pendingMediaFile = { base64, mimeType: file.type, nome: file.name, contexto }
+    state.step = 'ask_plats_for_media'
+    return
+  }
+
+  await aiDoAnalyzeMedia(ctx, base64, file.type, contexto, plats)
+}
+
+async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {
+  const state = aiChat[ctx]
+  aiChatTyping(ctx, true)
+
+  try {
+    const data = await apiFetch('/api/ai/analyze-media', {
+      method: 'POST',
+      body: JSON.stringify({ mediaBase64: base64, mimeType, plataformas: plats, contexto: contexto || '', modelo: aiSelectedModel })
+    })
+
+    aiChatTyping(ctx, false)
+    const sugestoes = data.sugestoes || []
+
+    if (!sugestoes.length) {
+      aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar sugestões para essa mídia. Pode tentar novamente ou me descrever o conteúdo? 😊`)
+      aiChatSetChips(ctx, ['↻ Tentar novamente'])
+      return
+    }
+
+    if (data.descricao_midia) {
+      aiChatAddMsg(ctx, 'agent', `🔍 Identifiquei: *${data.descricao_midia}*\n\nAqui estão as sugestões de texto para cada rede:`)
+    }
+
+    const PLAT_ICONS = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' }
+    for (const s of sugestoes) {
+      const icon = PLAT_ICONS[s.plataforma] || '🌐'
+      const platLabel = s.plataforma.charAt(0).toUpperCase() + s.plataforma.slice(1)
+      const hashtags = s.hashtags?.length ? '\n\n' + s.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
+      const tituloHtml = s.titulo ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Título YouTube</div><div style="font-weight:600;margin-bottom:8px;font-size:12px">${escapeHtml(s.titulo)}</div>` : ''
+
+      await new Promise(r => setTimeout(r, 300))
+      aiChatAddMsg(ctx, 'agent',
+        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${JSON.stringify(s).replace(/'/g,"&#39;")})">✓ Agendar este</button><button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
+        true
+      )
+    }
+
+    // Salva sugestões no estado para agendamento
+    state.pendingMediaSugestoes = sugestoes
+    state.pendingMediaPlats = plats
+    state.step = 'review_media'
+
+    await new Promise(r => setTimeout(r, 400))
+    aiChatSetChips(ctx, sugestoes.length > 1 ? ['✅ Agendar todos', '↻ Regerar sugestões', '✏️ Ajustar texto'] : ['✅ Agendar', '↻ Regerar', '✏️ Ajustar texto'])
+
+  } catch (err) {
+    aiChatTyping(ctx, false)
+    const msg429 = err.message?.toLowerCase().includes('limite')
+    aiChatAddMsg(ctx, 'agent', msg429
+      ? `⏳ Limite de requisições atingido. Aguarde um momento e tente novamente.`
+      : `Ops! Não consegui analisar a mídia: ${err.message}. Tente novamente. 🙏`)
+    aiChatSetChips(ctx, ['↻ Tentar novamente'])
+    state.step = 'ask_instrucao'
+  }
+}
+
+function aiAnalyzeMediaRegen(ctx) {
+  const state = aiChat[ctx]
+  if (state.pendingMediaFile) {
+    const { base64, mimeType, contexto } = state.pendingMediaFile
+    aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.pendingMediaPlats || state.plats)
+  }
+}
+
+async function aiScheduleMediaPost(ctx, sugestao) {
+  // Abre agendador com o texto sugerido pré-preenchido
+  showPage('agendador')
+  await new Promise(r => setTimeout(r, 300))
+  const textArea = document.getElementById('post-text')
+  if (textArea) {
+    textArea.value = sugestao.texto + (sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h}`).join(' ') : '')
+    textArea.dispatchEvent(new Event('input'))
+  }
+  if (sugestao.titulo) {
+    const titleInput = document.getElementById('youtube-title')
+    if (titleInput) titleInput.value = sugestao.titulo
+  }
+  showToast('Texto copiado para o agendador! Complete o post e agende. ✅', 'ok')
 }
 
 // Extrai memórias da conversa atual via IA e salva no banco

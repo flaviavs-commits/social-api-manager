@@ -426,6 +426,87 @@ router.post('/image/lead', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
+// POST /api/ai/analyze-media — analisa imagem/vídeo via Gemini Vision e sugere texto para redes sociais
+router.post('/analyze-media', async (req, res) => {
+  try {
+    const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
+    if (!mediaBase64 || !mimeType) return res.status(400).json({ erro: 'mediaBase64 e mimeType são obrigatórios' })
+
+    const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
+    const key = userKey || process.env.GEMINI_API_KEY
+    if (!key) return res.status(503).json({ erro: 'GEMINI_API_KEY não configurada no servidor' })
+
+    const { GoogleGenAI } = require('@google/genai')
+    const savedGoogleKey = process.env.GOOGLE_API_KEY
+    if (userKey) delete process.env.GOOGLE_API_KEY
+    const client = new GoogleGenAI({ apiKey: key })
+    if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+
+    const PLAT_HINTS = {
+      instagram: 'Instagram (máx 2200 chars, 5-10 hashtags, tom visual e engajante)',
+      facebook:  'Facebook (texto mais longo, 1-3 hashtags, chamada para ação)',
+      youtube:   'YouTube (título chamativo + descrição SEO com palavras-chave)',
+      tiktok:    'TikTok (texto curto máx 150 chars, 3-5 hashtags trending, linguagem jovem)',
+    }
+    const platDesc = plataformas.map(p => PLAT_HINTS[p] || p).join('; ')
+    const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
+
+    const prompt = `Você é um especialista em marketing digital. Analise esta mídia e crie sugestões de posts para redes sociais.
+
+Plataformas alvo: ${platDesc}${contextoHint}
+
+Para cada plataforma, forneça:
+- Um texto de post otimizado para aquela rede
+- Hashtags relevantes (array de strings sem #)
+- Um título (só para YouTube)
+
+Responda APENAS com JSON válido, sem texto antes ou depois:
+{
+  "descricao_midia": "breve descrição do que está na mídia (1 frase)",
+  "sugestoes": [
+    {
+      "plataforma": "instagram",
+      "texto": "...",
+      "hashtags": ["hashtag1", "hashtag2"],
+      "titulo": ""
+    }
+  ]
+}`
+
+    const isVideo = mimeType.startsWith('video/')
+    let rawText
+
+    if (isVideo) {
+      // Vídeos: usa só o prompt de texto (Gemini Vision não aceita vídeo base64 grande)
+      rawText = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: `${prompt}\n\n(Nota: o usuário enviou um vídeo chamado "${contexto || 'vídeo'}". Crie sugestões com base no contexto disponível.)`,
+      }).then(r => r.text)
+    } else {
+      rawText = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: [
+          { inlineData: { mimeType, data: mediaBase64 } },
+          { text: prompt },
+        ],
+      }).then(r => r.text)
+    }
+
+    let parsed
+    try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
+
+    res.json({
+      descricao_midia: parsed.descricao_midia || '',
+      sugestoes: parsed.sugestoes || [],
+    })
+  } catch (err) {
+    const msg = err.message || ''
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Tente novamente.' })
+    console.error('[AI analyze-media]', msg)
+    serverError(res, err)
+  }
+})
+
 // GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
 router.get('/models', (req, res) => {
   res.json({
