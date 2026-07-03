@@ -5342,7 +5342,13 @@ async function exportAnalyticsPDF() {
   if (btn) { btn.disabled = true; btn.textContent = 'Gerando PDF...'; }
 
   try {
-    const { metrics = [] } = await apiFetch('/api/posts/analytics?platform=all&period=30');
+    // Usa os dados já carregados na página; faz nova chamada só se ainda não carregou
+    let rawMetrics = analyticsData?.metrics;
+    if (!rawMetrics) {
+      const res = await apiFetch('/api/posts/analytics');
+      rawMetrics = res.metrics || [];
+    }
+    const metrics = rawMetrics;
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -5369,21 +5375,38 @@ async function exportAnalyticsPDF() {
     doc.text('Resumo do período (últimos 30 dias)', margin, y);
     y += 7;
 
-    const total = metrics.length;
-    const plats = [...new Set(metrics.map(m => m.platform))];
-    const published = metrics.filter(m => m.status === 'published' || m.likes != null).length;
-    const taxaSucesso = total > 0 ? Math.round((published / total) * 100) : 0;
+    // Normaliza: métricas estão dentro de m.metrics (não direto em m)
+    const norm = metrics.map(m => ({
+      platform:    m.platform || '—',
+      text:        m.text || m.youtubeTitle || '',
+      publishedAt: m.publishedAt,
+      likes:       m.metrics?.likes    ?? 0,
+      comments:    m.metrics?.comments ?? 0,
+      views:       m.metrics?.views    ?? 0,
+    }));
+
+    const total = norm.length;
+    const plats = [...new Set(norm.map(m => m.platform))];
+    const comMetrica = norm.filter(m => m.likes > 0 || m.views > 0 || m.comments > 0).length;
+    const totalViews    = norm.reduce((s, m) => s + m.views, 0);
+    const totalLikesAll = norm.reduce((s, m) => s + m.likes, 0);
+    const totalComsAll  = norm.reduce((s, m) => s + m.comments, 0);
+    const totalEng      = totalLikesAll + totalComsAll;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     const resumoRows = [
-      ['Posts publicados', String(total)],
-      ['Plataformas ativas', plats.join(', ') || '—'],
-      ['Taxa de sucesso', taxaSucesso + '%'],
+      ['Posts publicados',    String(total)],
+      ['Com métricas',        String(comMetrica)],
+      ['Plataformas ativas',  plats.join(', ') || '—'],
+      ['Total visualizações', String(totalViews)],
+      ['Total curtidas',      String(totalLikesAll)],
+      ['Total comentários',   String(totalComsAll)],
+      ['Engajamento total',   String(totalEng)],
     ];
     resumoRows.forEach(([label, val]) => {
       doc.setFont('helvetica', 'bold'); doc.text(label + ':', margin, y);
-      doc.setFont('helvetica', 'normal'); doc.text(val, margin + 55, y);
+      doc.setFont('helvetica', 'normal'); doc.text(val, margin + 60, y);
       y += 6;
     });
     y += 4;
@@ -5395,42 +5418,43 @@ async function exportAnalyticsPDF() {
     doc.text('Top 5 posts por engajamento', margin, y);
     y += 7;
 
-    const sorted = [...metrics]
-      .map(m => ({ ...m, eng: (m.likes || 0) + (m.comments || 0) }))
+    const sorted = [...norm]
+      .map(m => ({ ...m, eng: m.likes + m.comments }))
       .sort((a, b) => b.eng - a.eng)
       .slice(0, 5);
 
-    // Cabeçalho da tabela
     doc.setFillColor(230, 234, 255);
     doc.rect(margin, y - 4, colW, 7, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 100);
-    doc.text('#', margin + 2, y);
-    doc.text('Plataforma', margin + 10, y);
-    doc.text('Texto', margin + 38, y);
-    doc.text('Likes', margin + 110, y);
-    doc.text('Comments', margin + 127, y);
-    doc.text('Engaj.', margin + 155, y);
+    doc.text('#',         margin + 2,   y);
+    doc.text('Rede',      margin + 10,  y);
+    doc.text('Texto',     margin + 35,  y);
+    doc.text('Views',     margin + 100, y);
+    doc.text('Curtidas',  margin + 118, y);
+    doc.text('Coment.',   margin + 138, y);
+    doc.text('Engaj.',    margin + 158, y);
     y += 4;
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 30, 50);
     sorted.forEach((m, i) => {
       if (i % 2 === 0) { doc.setFillColor(245, 246, 255); doc.rect(margin, y - 3, colW, 6, 'F'); }
-      const snippet = (m.text || '(sem texto)').substring(0, 45).replace(/\n/g, ' ');
+      const snippet = (m.text || '(sem texto)').substring(0, 40).replace(/\n/g, ' ');
       doc.setFontSize(8.5);
-      doc.text(String(i + 1), margin + 2, y);
-      doc.text((m.platform || '—').substring(0, 11), margin + 10, y);
-      doc.text(snippet, margin + 38, y);
-      doc.text(String(m.likes || 0), margin + 110, y);
-      doc.text(String(m.comments || 0), margin + 130, y);
-      doc.text(String(m.eng), margin + 158, y);
+      doc.text(String(i + 1),      margin + 2,   y);
+      doc.text(m.platform.substring(0, 10), margin + 10, y);
+      doc.text(snippet,            margin + 35,  y);
+      doc.text(String(m.views),    margin + 100, y);
+      doc.text(String(m.likes),    margin + 120, y);
+      doc.text(String(m.comments), margin + 140, y);
+      doc.text(String(m.eng),      margin + 160, y);
       y += 6;
     });
     y += 4;
 
-    // ── Tabela ASCII de desempenho por plataforma ──────────────────────────────
+    // ── Desempenho por plataforma ──────────────────────────────────────────────
     if (plats.length > 0) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
@@ -5443,27 +5467,30 @@ async function exportAnalyticsPDF() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(60, 60, 100);
-      doc.text('Plataforma', margin + 2, y);
-      doc.text('Posts', margin + 50, y);
-      doc.text('Total Likes', margin + 75, y);
-      doc.text('Total Comments', margin + 110, y);
-      doc.text('Likes/Post', margin + 155, y);
+      doc.text('Plataforma',  margin + 2,   y);
+      doc.text('Posts',       margin + 45,  y);
+      doc.text('Views',       margin + 70,  y);
+      doc.text('Curtidas',    margin + 95,  y);
+      doc.text('Comentários', margin + 122, y);
+      doc.text('Engaj.',      margin + 158, y);
       y += 4;
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(30, 30, 50);
       plats.forEach((p, i) => {
-        const mets = metrics.filter(m => m.platform === p);
-        const totalLikes = mets.reduce((s, m) => s + (m.likes || 0), 0);
-        const totalComments = mets.reduce((s, m) => s + (m.comments || 0), 0);
-        const avg = mets.length > 0 ? (totalLikes / mets.length).toFixed(1) : '0';
+        const mets = norm.filter(m => m.platform === p);
+        const tViews = mets.reduce((s, m) => s + m.views, 0);
+        const tLikes = mets.reduce((s, m) => s + m.likes, 0);
+        const tComs  = mets.reduce((s, m) => s + m.comments, 0);
+        const tEng   = tLikes + tComs;
         if (i % 2 === 0) { doc.setFillColor(245, 246, 255); doc.rect(margin, y - 3, colW, 6, 'F'); }
         doc.setFontSize(8.5);
-        doc.text(p, margin + 2, y);
-        doc.text(String(mets.length), margin + 52, y);
-        doc.text(String(totalLikes), margin + 78, y);
-        doc.text(String(totalComments), margin + 115, y);
-        doc.text(avg, margin + 157, y);
+        doc.text(p,             margin + 2,   y);
+        doc.text(String(mets.length), margin + 47, y);
+        doc.text(String(tViews),  margin + 70,  y);
+        doc.text(String(tLikes),  margin + 97,  y);
+        doc.text(String(tComs),   margin + 125, y);
+        doc.text(String(tEng),    margin + 160, y);
         y += 6;
       });
     }
