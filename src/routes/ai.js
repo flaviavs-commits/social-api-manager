@@ -106,22 +106,30 @@ async function generateWithGemini(prompt, userKey) {
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
   const client = new GoogleGenAI({ apiKey: key })
-  try {
-    const result = await client.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    })
-    return result.text
-  } catch (e) {
-    // Normaliza erros do SDK do Gemini para o formato padrão
-    const msg = e.message || ''
-    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-      throw Object.assign(new Error('quota'), { status: 429 })
+
+  const MAX_RETRIES = 3
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      })
+      return result.text
+    } catch (e) {
+      const msg = e.message || ''
+      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+        if (attempt < MAX_RETRIES) {
+          // Backoff exponencial: 2s, 4s
+          await new Promise(r => setTimeout(r, 2000 * attempt))
+          continue
+        }
+        throw Object.assign(new Error('quota'), { status: 429 })
+      }
+      if (msg.includes('401') || msg.includes('API_KEY') || msg.includes('invalid')) {
+        throw Object.assign(new Error('Chave Gemini inválida'), { status: 401 })
+      }
+      throw e
     }
-    if (msg.includes('401') || msg.includes('API_KEY') || msg.includes('invalid')) {
-      throw Object.assign(new Error('Chave Gemini inválida'), { status: 401 })
-    }
-    throw e
   }
 }
 
