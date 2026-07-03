@@ -430,7 +430,7 @@ router.post('/image/lead', async (req, res) => {
 router.post('/analyze-media', async (req, res) => {
   try {
     const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
-    if (!mediaBase64 || !mimeType) return res.status(400).json({ erro: 'mediaBase64 e mimeType são obrigatórios' })
+    if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
 
     const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
     const key = userKey || process.env.GEMINI_API_KEY
@@ -473,14 +473,13 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   ]
 }`
 
-    const isVideo = mimeType.startsWith('video/')
+    const isVideo = mimeType.startsWith('video/') || !mediaBase64
     let rawText
 
     if (isVideo) {
-      // Vídeos: usa só o prompt de texto (Gemini Vision não aceita vídeo base64 grande)
       rawText = await client.models.generateContent({
         model: 'gemini-2.0-flash',
-        contents: `${prompt}\n\n(Nota: o usuário enviou um vídeo chamado "${contexto || 'vídeo'}". Crie sugestões com base no contexto disponível.)`,
+        contents: `${prompt}\n\n(Nota: o usuário enviou um vídeo. Contexto fornecido: "${contexto || 'sem contexto adicional'}". Crie sugestões com base no contexto disponível.)`,
       }).then(r => r.text)
     } else {
       rawText = await client.models.generateContent({

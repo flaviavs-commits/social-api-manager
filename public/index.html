@@ -6782,11 +6782,14 @@ async function aiChatSend(ctx) {
 async function aiAnalyzeMedia(ctx, file, contexto) {
   const state = aiChat[ctx]
 
-  aiChatTyping(ctx, true)
-  aiChatAddMsg(ctx, 'agent', `📎 Recebi sua ${file.type.startsWith('image/') ? 'imagem' : 'vídeo'}! Analisando o conteúdo para sugerir o melhor texto para suas redes... ✨`)
+  // Vídeos não são enviados em base64 (muito grandes) — usa só o contexto de texto
+  const isVideo = file.type.startsWith('video/')
 
-  // Converte arquivo para base64
-  const base64 = await new Promise((resolve, reject) => {
+  aiChatTyping(ctx, true)
+  aiChatAddMsg(ctx, 'agent', isVideo
+    ? `🎬 Recebi seu vídeo! Como vídeos são grandes para analisar diretamente, vou criar sugestões com base no contexto que você descreveu. ✨`
+    : `📎 Recebi sua imagem! Analisando o conteúdo para sugerir o melhor texto para suas redes... ✨`)
+  const base64 = isVideo ? '' : await new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result.split(',')[1])
     reader.onerror = reject
