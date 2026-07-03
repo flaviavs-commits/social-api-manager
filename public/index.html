@@ -6358,6 +6358,18 @@ async function aiChatProcess(ctx, userMsg) {
     return
   }
 
+  if (msg.includes('Ir para Conexões') || msg.includes('🔗')) {
+    showPage('tokens')
+    aiFabClose()
+    return
+  }
+  if (msg.includes('Escolher outra rede') || msg.includes('🌐 Escolher')) {
+    aiChatAddMsg(ctx, 'agent', 'Claro! Para quais redes você quer postar?')
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok'])
+    state.step = 'ask_plats'
+    return
+  }
+
   if (msg.includes('criar post novo') || msg.includes('✨')) {
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 500))
@@ -6422,11 +6434,39 @@ async function aiChatProcess(ctx, userMsg) {
     state.plats = plats.length ? [...new Set(plats)] : ['instagram']
     const platNames = state.plats.map(p => PLAT_NAMES[p]).join(', ')
 
-    state.step = 'ask_tom'
+    // Verifica se tem conta conectada para as plataformas selecionadas
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 700))
+    let contasConectadas = []
+    try {
+      const accounts = await apiFetch('/api/accounts')
+      contasConectadas = (accounts.accounts || [])
+        .filter(a => a.accessToken)
+        .map(a => a.platform)
+    } catch {}
+
+    const platsSemConta = state.plats.filter(p => !contasConectadas.includes(p))
+    if (platsSemConta.length === state.plats.length) {
+      // Nenhuma das plataformas selecionadas tem conta conectada
+      aiChatTyping(ctx, false)
+      const platsFaltando = platsSemConta.map(p => PLAT_NAMES[p]).join(', ')
+      aiChatAddMsg(ctx, 'agent', `⚠️ Você ainda não tem nenhuma conta conectada para: **${platsFaltando}**.\n\nPara agendar posts nessas redes, acesse **Conexões das Contas** e vincule sua conta primeiro. 😊`)
+      aiChatSetChips(ctx, ['🔗 Ir para Conexões', '🌐 Escolher outra rede'])
+      state.step = 'ask_plats'
+      return
+    }
+
+    if (platsSemConta.length > 0) {
+      // Algumas têm conta, outras não — avisa mas continua
+      const platsFaltando = platsSemConta.map(p => PLAT_NAMES[p]).join(', ')
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', `ℹ️ Não encontrei conta conectada para: **${platsFaltando}**. Vou criar posts só para as redes que você já tem vinculadas.\n\nPara conectar as demais, acesse **Conexões das Contas**.`)
+      state.plats = state.plats.filter(p => contasConectadas.includes(p))
+    }
+
+    state.step = 'ask_tom'
     aiChatTyping(ctx, false)
-    aiChatAddMsg(ctx, 'agent', `Ótimo! Vou criar posts para: ${platNames} ✅\n\nQual tom de voz você quer usar?`)
+    aiChatAddMsg(ctx, 'agent', `Ótimo! Vou criar posts para: ${state.plats.map(p => PLAT_NAMES[p]).join(', ')} ✅\n\nQual tom de voz você quer usar?`)
     aiChatSetChips(ctx, ['😊 Casual', '🔥 Motivacional', '💼 Profissional', '📚 Informativo', '😂 Humorístico'])
     return
   }
@@ -6782,19 +6822,53 @@ async function aiChatSend(ctx) {
 async function aiAnalyzeMedia(ctx, file, contexto) {
   const state = aiChat[ctx]
 
-  // Vídeos não são enviados em base64 (muito grandes) — usa só o contexto de texto
   const isVideo = file.type.startsWith('video/')
 
   aiChatTyping(ctx, true)
   aiChatAddMsg(ctx, 'agent', isVideo
-    ? `🎬 Recebi seu vídeo! Como vídeos são grandes para analisar diretamente, vou criar sugestões com base no contexto que você descreveu. ✨`
+    ? `🎬 Recebi seu vídeo! Extraindo um frame para analisar o conteúdo visualmente... ✨`
     : `📎 Recebi sua imagem! Analisando o conteúdo para sugerir o melhor texto para suas redes... ✨`)
-  const base64 = isVideo ? '' : await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result.split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+
+  let base64, mimeTypeToSend
+  if (isVideo) {
+    // Extrai um frame do vídeo via canvas e usa como imagem para análise
+    try {
+      const frameBase64 = await new Promise((resolve, reject) => {
+        const video = document.createElement('video')
+        video.muted = true
+        video.preload = 'metadata'
+        const objUrl = URL.createObjectURL(file)
+        video.src = objUrl
+        video.addEventListener('loadeddata', () => {
+          video.currentTime = Math.min(1, video.duration * 0.1) // 10% do vídeo ou 1s
+        })
+        video.addEventListener('seeked', () => {
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.min(video.videoWidth, 1280)
+          canvas.height = Math.round(canvas.width * video.videoHeight / video.videoWidth)
+          canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+          URL.revokeObjectURL(objUrl)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+          resolve(dataUrl.split(',')[1])
+        })
+        video.addEventListener('error', reject)
+        video.load()
+      })
+      base64 = frameBase64
+      mimeTypeToSend = 'image/jpeg'
+    } catch {
+      base64 = ''
+      mimeTypeToSend = file.type
+    }
+  } else {
+    base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    mimeTypeToSend = file.type
+  }
 
   // Usa as plataformas já selecionadas no estado ou pede para selecionar
   const plats = state.plats?.length ? state.plats : null
@@ -6805,12 +6879,12 @@ async function aiAnalyzeMedia(ctx, file, contexto) {
     aiChatAddMsg(ctx, 'agent', `Para qual rede você quer o texto?`)
     aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     // Guarda arquivo e contexto para usar depois que o usuário escolher a rede
-    state.pendingMediaFile = { base64, mimeType: file.type, nome: file.name, contexto }
+    state.pendingMediaFile = { base64, mimeType: mimeTypeToSend, nome: file.name, contexto }
     state.step = 'ask_plats_for_media'
     return
   }
 
-  await aiDoAnalyzeMedia(ctx, base64, file.type, contexto, plats)
+  await aiDoAnalyzeMedia(ctx, base64, mimeTypeToSend, contexto, plats)
 }
 
 async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {

@@ -473,7 +473,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   ]
 }`
 
-    const isVideo = mimeType.startsWith('video/') || !mediaBase64
+    const isVideo = !mediaBase64
     let rawText
 
     if (isVideo) {
