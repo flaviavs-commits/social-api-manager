@@ -7231,14 +7231,16 @@ function renderDraftList(items, isTemplate) {
       ).join('');
 
       // Texto preview
-      const preview = text ? escapeHtml(text.slice(0, 120)) + (text.length > 120 ? '…' : '') : '<span style="color:var(--muted);font-style:italic">sem texto</span>';
+      const previewText = text || (d.youtube_title && !d.title ? '' : '');
+      const preview = previewText ? escapeHtml(previewText.slice(0, 120)) + (previewText.length > 120 ? '…' : '') : '<span style="color:var(--muted);font-style:italic">sem texto</span>';
+      const displayTitle = d.title || d.youtube_title || '';
 
       return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s"
                    onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 2px var(--accent-glow)'"
                    onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow=''">
         ${thumb}
         <div style="padding:12px;flex:1;display:flex;flex-direction:column;gap:8px">
-          ${d.title ? `<div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(d.title)}</div>` : ''}
+          ${displayTitle ? `<div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(displayTitle)}</div>` : ''}
           <div style="font-size:12px;color:var(--muted);line-height:1.5;flex:1">${preview}</div>
           ${platPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${platPills}</div>` : ''}
           <div style="font-size:10px;color:var(--muted)">${date}</div>
