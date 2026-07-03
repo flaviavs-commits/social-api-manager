@@ -6286,6 +6286,32 @@ async function aiChatProcess(ctx, userMsg) {
     return
   }
 
+  // Chips de erro: tentar novamente / usar chave / trocar modelo
+  if (msg.includes('tentar novamente') || msg.includes('↻ Tentar')) {
+    if (state.lastInstrucao) {
+      state.step = 'ask_instrucao'
+      await aiChatProcess(ctx, state.lastInstrucao)
+    } else {
+      state.step = 'ask_instrucao'
+      aiChatAddMsg(ctx, 'agent', 'Claro! Me conta o tema do post novamente 😊')
+      aiChatSetChips(ctx, [])
+    }
+    return
+  }
+  if (msg.includes('usar minha chave') || msg.includes('🔑 Usar')) {
+    aiOpenKeyModal(aiSelectedModel, () => {
+      if (state.lastInstrucao) {
+        state.step = 'ask_instrucao'
+        aiChatProcess(ctx, state.lastInstrucao)
+      }
+    })
+    return
+  }
+  if (msg.includes('trocar modelo') || msg.includes('🔄 Trocar')) {
+    aiOpenModelPicker()
+    return
+  }
+
   if (msg.includes('criar post novo') || msg.includes('✨')) {
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 500))
@@ -6352,6 +6378,7 @@ async function aiChatProcess(ctx, userMsg) {
     }
 
     state.step = 'generating'
+    state.lastInstrucao = userMsg
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 500))
     aiChatTyping(ctx, false)
@@ -6419,7 +6446,23 @@ async function aiChatProcess(ctx, userMsg) {
 
     } catch (err) {
       aiChatTyping(ctx, false)
-      aiChatAddMsg(ctx, 'agent', `Ops! Tive um probleminha: ${err.message || 'erro ao gerar'}. Vamos tentar de novo? 🙏`)
+      const msg429 = err.message?.toLowerCase().includes('limite') || err.message?.includes('429') || err.message?.toLowerCase().includes('quota')
+      const msg401 = err.message?.toLowerCase().includes('chave') || err.message?.toLowerCase().includes('inválid')
+      if (msg429) {
+        const pm = AI_MODEL_PICKER_META[aiSelectedModel]
+        aiChatAddMsg(ctx, 'agent', `⏳ O modelo ${AI_MODEL_META[aiSelectedModel]?.label || aiSelectedModel} atingiu o limite de requisições gratuitas agora.\n\nVocê pode:\n• Aguardar alguns segundos e tentar de novo\n• Usar sua própria chave de API para ter mais limite`)
+        if (pm?.requiresKey || pm?.keyBadge) {
+          aiChatSetChips(ctx, ['🔑 Usar minha chave', '↻ Tentar novamente'])
+        } else {
+          aiChatSetChips(ctx, ['↻ Tentar novamente'])
+        }
+      } else if (msg401) {
+        aiChatAddMsg(ctx, 'agent', `🔑 A chave de API configurada é inválida. Clique em "Trocar modelo" e configure uma chave válida.`)
+        aiChatSetChips(ctx, ['🔄 Trocar modelo'])
+      } else {
+        aiChatAddMsg(ctx, 'agent', `Ops! Tive um probleminha: ${err.message || 'erro ao gerar'}. Vamos tentar de novo? 🙏`)
+        aiChatSetChips(ctx, ['↻ Tentar novamente'])
+      }
       state.step = 'ask_instrucao'
     }
     return
