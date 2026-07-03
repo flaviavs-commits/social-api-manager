@@ -2139,11 +2139,11 @@ function showPage(name) {
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics')  startAnalyticsAutoRefresh();
+  else                       stopAnalyticsAutoRefresh();
   // Inbox mode: expande o .main para preencher a tela
   if (name === 'inbox') { document.body.classList.add('inbox-mode'); inboxInit(); }
   else                  { document.body.classList.remove('inbox-mode'); }
   if (name === 'rascunhos')  loadDrafts();
-  else                       stopAnalyticsAutoRefresh();
   if (name === 'ai') aiPageInit();
 
   // Esconde footer em páginas de tela cheia
@@ -3591,7 +3591,7 @@ function analyticsRenderPostsList(net, tab) {
 function startAnalyticsAutoRefresh() {
   loadAnalytics();
   stopAnalyticsAutoRefresh();
-  analyticsRefreshTimer = setInterval(loadAnalytics, ANALYTICS_REFRESH_MS);
+  analyticsRefreshTimer = setInterval(() => { if (document.visibilityState !== 'hidden') loadAnalytics(); }, ANALYTICS_REFRESH_MS);
 }
 
 function stopAnalyticsAutoRefresh() {
