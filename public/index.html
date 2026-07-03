@@ -5549,8 +5549,8 @@ function aiOpenKeyModal(modelId, onSuccess) {
       await aiSaveUserKey(modelId, key)
       modal.style.display = 'none'
       if (onSuccess) onSuccess()
-    } catch {
-      err.textContent = 'Não foi possível salvar. Verifique a chave e tente novamente.'
+    } catch (e) {
+      err.textContent = e.message || 'Não foi possível salvar. Verifique a chave e tente novamente.'
     } finally {
       btn.disabled = false
       btn.textContent = 'Salvar e continuar'

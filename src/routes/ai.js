@@ -70,9 +70,15 @@ async function getUserApiKey(pool, userId, modelo) {
       `SELECT api_key FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
       [userId, modelo]
     )
+    console.log(`[AI Key] userId=${userId} modelo=${modelo} found=${rows.length > 0}`)
     if (!rows[0]?.api_key) return null
-    return decrypt(rows[0].api_key)
-  } catch { return null }
+    const decrypted = decrypt(rows[0].api_key)
+    console.log(`[AI Key] decrypt ok=${!!decrypted}`)
+    return decrypted
+  } catch (e) {
+    console.error(`[AI Key] erro ao buscar/decifrar chave:`, e.message)
+    return null
+  }
 }
 
 async function generateWithClaude(prompt, userKey) {
@@ -210,11 +216,13 @@ router.put('/apikey', async (req, res) => {
     const { modelo, apiKey } = req.body || {}
     if (!modelo || !apiKey?.trim()) return res.status(400).json({ erro: 'modelo e apiKey são obrigatórios' })
     const encrypted = encrypt(apiKey.trim())
+    console.log(`[AI Key] salvando chave userId=${req.user.id} modelo=${modelo}`)
     await pool.query(`
       INSERT INTO user_ai_keys (user_id, modelo, api_key)
       VALUES ($1, $2, $3)
       ON CONFLICT (user_id, modelo) DO UPDATE SET api_key = EXCLUDED.api_key, criado_em = NOW()
     `, [req.user.id, modelo, encrypted])
+    console.log(`[AI Key] chave salva ok userId=${req.user.id} modelo=${modelo}`)
     res.json({ ok: true })
   } catch (err) { serverError(res, err) }
 })
