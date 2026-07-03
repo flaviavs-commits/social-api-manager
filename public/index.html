@@ -2118,7 +2118,7 @@ function showPage(name) {
 
   // Sidebar desktop: ativa item correto
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, calendario:6, inbox:7, rascunhos:8, ai:9 };
+  const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, rascunhos:6, calendario:7, inbox:8, ai:9 };
   document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   // Bottom nav mobile: ativa item correto
@@ -4850,6 +4850,7 @@ async function inboxInit() {
     inboxPosts = posts || [];
     inboxApplyFilter();
   } catch {
+    inboxLoaded = false;
     document.getElementById('inbox-list').innerHTML = '<div class="inbox-loading" style="color:var(--red)">Erro ao carregar posts</div>';
   }
 }
