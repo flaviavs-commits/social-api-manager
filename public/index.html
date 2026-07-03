@@ -7201,24 +7201,57 @@ function renderDraftList(items, isTemplate) {
   if (!items.length) {
     return `<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Nenhum ${isTemplate ? 'template' : 'rascunho'} salvo.</div>`;
   }
-  return items.map(d => {
-    const preview = (d.text || '(sem texto)').substring(0, 80);
-    const plats   = (d.platforms || []).join(', ') || '—';
-    const date    = d.criado_em ? new Date(d.criado_em).toLocaleDateString('pt-BR') : '';
-    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer"
-                 onclick="applyDraft(${d.id})"
-                 onmouseover="this.style.background='var(--surface2)'"
-                 onmouseout="this.style.background=''">
-      <div style="flex:1;min-width:0">
-        ${d.title ? `<div style="font-size:12px;font-weight:500;margin-bottom:2px">${escapeHtml(d.title)}</div>` : ''}
-        <div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(preview)}</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono)">${plats} · ${date}</div>
-      </div>
-      <button onclick="event.stopPropagation();deleteDraft(${d.id})"
-        style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1"
-        title="Deletar" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">×</button>
-    </div>`;
-  }).join('');
+  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', linkedin:'💼' };
+  const PLAT_COLOR = { instagram:'var(--ig)', facebook:'var(--fb)', youtube:'var(--yt)', tiktok:'#888' };
+
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:4px 2px">` +
+    items.map(d => {
+      const date    = d.criado_em ? new Date(d.criado_em).toLocaleDateString('pt-BR') : '';
+      const plats   = d.platforms || [];
+      const text    = d.text || '';
+      const hasMedia = d.media_path || (d.media_items && d.media_items.length > 0);
+      const mediaItems = d.media_items?.length ? d.media_items : (d.media_path ? [{ path: d.media_path, type: d.media_type }] : []);
+      const firstMedia = mediaItems[0];
+
+      // Thumb
+      let thumb = '';
+      if (firstMedia) {
+        thumb = firstMedia.type === 'video'
+          ? `<video src="${escapeHtml(firstMedia.path)}" style="width:100%;height:140px;object-fit:cover;border-radius:8px 8px 0 0;display:block" muted></video>`
+          : `<img src="${escapeHtml(firstMedia.path)}" style="width:100%;height:140px;object-fit:cover;border-radius:8px 8px 0 0;display:block" onerror="this.style.display='none'"/>`;
+        if (mediaItems.length > 1) {
+          thumb += `<div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px">🎞️ ${mediaItems.length}</div>`;
+          thumb = `<div style="position:relative">${thumb}</div>`;
+        }
+      }
+
+      // Pills de plataforma
+      const platPills = plats.map(p =>
+        `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:10px;background:var(--surface2);color:${PLAT_COLOR[p]||'var(--text)'}">${PLAT_ICON[p]||'🌐'} ${p}</span>`
+      ).join('');
+
+      // Texto preview
+      const preview = text ? escapeHtml(text.slice(0, 120)) + (text.length > 120 ? '…' : '') : '<span style="color:var(--muted);font-style:italic">sem texto</span>';
+
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s"
+                   onmouseover="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 2px var(--accent-glow)'"
+                   onmouseout="this.style.borderColor='var(--border)';this.style.boxShadow=''">
+        ${thumb}
+        <div style="padding:12px;flex:1;display:flex;flex-direction:column;gap:8px">
+          ${d.title ? `<div style="font-size:13px;font-weight:600;color:var(--text)">${escapeHtml(d.title)}</div>` : ''}
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;flex:1">${preview}</div>
+          ${platPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${platPills}</div>` : ''}
+          <div style="font-size:10px;color:var(--muted)">${date}</div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button onclick="applyDraft(${d.id})" class="btn btn-accent" style="flex:1;font-size:12px;padding:6px 0">
+              ${isTemplate ? '📋 Usar template' : '✏️ Editar rascunho'}
+            </button>
+            <button onclick="deleteDraft(${d.id})" class="btn" style="padding:6px 10px;font-size:12px;color:var(--muted)"
+              onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
 }
 
 let _allDrafts = [];
