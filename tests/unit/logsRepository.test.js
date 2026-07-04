@@ -1,0 +1,111 @@
+// Testes unitários — logsRepository (pool mockado)
+jest.mock('../../src/db/pool', () => ({ query: jest.fn() }))
+
+const pool = require('../../src/db/pool')
+const repo = require('../../src/repositories/logsRepository')
+
+beforeEach(() => jest.clearAllMocks())
+
+describe('registrarLog', () => {
+  test('insere log e retorna a linha criada', async () => {
+    const log = { id: 1, type: 'ok', message: 'tudo certo' }
+    pool.query.mockResolvedValueOnce({ rows: [log] })
+    const result = await repo.registrarLog({ type: 'ok', message: 'tudo certo' })
+    expect(result).toEqual(log)
+  })
+
+  test('passa platform e conta_id quando fornecidos', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{}] })
+    await repo.registrarLog({ type: 'err', message: 'falha', platform: 'instagram', conta_id: 5 })
+    const params = pool.query.mock.calls[0][1]
+    expect(params[2]).toBe('instagram')
+    expect(params[3]).toBe(5)
+  })
+})
+
+describe('listarLogs', () => {
+  test('admin usa query sem filtro de user_id', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarLogs(50, 1, true)
+    const sql = pool.query.mock.calls[0][0]
+    const params = pool.query.mock.calls[0][1]
+    expect(sql).not.toContain('user_id = $2')
+    expect(params).toEqual([50])
+  })
+
+  test('usuário comum filtra por user_id', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarLogs(50, 7, false)
+    const sql = pool.query.mock.calls[0][0]
+    expect(sql).toContain('user_id = $2')
+    expect(pool.query.mock.calls[0][1]).toContain(7)
+  })
+})
+
+describe('listarLogsDesde', () => {
+  test('admin filtra só por lastId', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarLogsDesde(10, 1, true)
+    const params = pool.query.mock.calls[0][1]
+    expect(params).toEqual([10])
+  })
+
+  test('usuário comum filtra por lastId e userId', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarLogsDesde(10, 3, false)
+    const params = pool.query.mock.calls[0][1]
+    expect(params).toEqual([10, 3])
+  })
+})
+
+describe('limparLogs', () => {
+  test('admin deleta todos os logs', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.limparLogs(1, true)
+    const sql = pool.query.mock.calls[0][0]
+    expect(sql).toMatch(/DELETE FROM logs$/)
+  })
+
+  test('usuário deleta só seus logs', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.limparLogs(3, false)
+    const sql = pool.query.mock.calls[0][0]
+    expect(sql).toContain('WHERE conta_id IN')
+  })
+})
+
+describe('listarEventosDesde', () => {
+  test('admin filtra só por lastId', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarEventosDesde(5, 1, true)
+    expect(pool.query.mock.calls[0][1]).toEqual([5])
+  })
+
+  test('usuário filtra por lastId e userId', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarEventosDesde(5, 2, false)
+    expect(pool.query.mock.calls[0][1]).toEqual([5, 2])
+  })
+})
+
+describe('broadcastEvent', () => {
+  test('insere evento com nome, payload e userId', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.broadcastEvent('post_published', { postId: 1 }, 5)
+    const params = pool.query.mock.calls[0][1]
+    expect(params[0]).toBe('post_published')
+    expect(JSON.parse(params[1])).toEqual({ postId: 1 })
+    expect(params[2]).toBe(5)
+  })
+})
+
+describe('limparAntigos', () => {
+  test('deleta logs e eventos antigos, retorna contagens', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rowCount: 10 })
+      .mockResolvedValueOnce({ rowCount: 5 })
+    const result = await repo.limparAntigos()
+    expect(result.logsRemovidos).toBe(10)
+    expect(result.eventosRemovidos).toBe(5)
+  })
+})

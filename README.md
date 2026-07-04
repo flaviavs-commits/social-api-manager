@@ -408,3 +408,74 @@ Para produção, configure também:
 - **HTTPS** obrigatório para as Redirect URIs das plataformas
 - **Variáveis de ambiente** no servidor (não usar `.env` em produção)
 - **`DATABASE_URL`** apontando para o PostgreSQL de produção
+
+## Testes
+
+```bash
+npm test               # roda todos os testes
+npm run test:coverage  # com relatório de cobertura
+```
+
+### Cobertura de testes
+
+Cobertura medida com Jest (`npm run test:coverage`) após implementação completa da suíte de testes — partindo de **0% (sem nenhum teste)** para:
+
+| Métrica    | Cobertura |
+|------------|-----------|
+| Statements | **72.33%** |
+| Branches   | **63.93%** |
+| Functions  | **79.25%** |
+| Lines      | **73.56%** |
+
+**19 suítes / 265 testes — todos passando.**
+
+#### Cobertura por arquivo
+
+| Arquivo | Statements | Funções | Linhas |
+|---|---|---|---|
+| `utils/authToken.js` | 100% | 100% | 100% |
+| `repositories/postsRepository.js` | 100% | 100% | 100% |
+| `repositories/usersRepository.js` | 100% | 100% | 100% |
+| `middleware/requireAdmin.js` | 100% | 100% | 100% |
+| `middleware/requireSuperAdmin.js` | 100% | 100% | 100% |
+| `services/totp.js` | 96% | 100% | 100% |
+| `services/mediaToken.js` | 95% | 100% | 100% |
+| `repositories/credentialsRepository.js` | 93% | 85% | 93% |
+| `services/tokenCrypto.js` | 92% | 100% | 100% |
+| `middleware/requireAuth.js` | 87% | 100% | 86% |
+| `routes/drafts.js` | 87% | 100% | 87% |
+| `routes/admin.js` | 80% | 75% | 85% |
+| `utils/http.js` | 77% | 75% | 72% |
+| `repositories/logsRepository.js` | 74% | 87% | 82% |
+| `routes/auth.js` | 62% | 66% | 63% |
+| `routes/posts.js` | 54% | 52% | 54% |
+
+> **Por que auth.js e posts.js ficam abaixo de 80%:** essas rotas contêm código que depende de I/O externo real — callback do Google OAuth (`fetch` para `accounts.google.com`), conversão de imagem com `sharp`, análise de vídeo com `ffprobe` e upload direto ao Vercel Blob. Esses fluxos exigiriam mock de rede global para serem cobertos, o que foge do escopo de testes unitários/integração.
+
+#### Estrutura dos testes
+
+```
+tests/
+├── unit/
+│   ├── authToken.test.js          — geração e verificação de tokens HMAC
+│   ├── http.test.js               — helpers de rota (parseId, validações, constantes)
+│   ├── mediaToken.test.js         — tokens de acesso a uploads
+│   ├── tokenCrypto.test.js        — AES-256-GCM encrypt/decrypt
+│   ├── totp.test.js               — TOTP RFC 6238 (segredo, código, validação, URI)
+│   ├── middleware.test.js         — requireAdmin e requireSuperAdmin
+│   ├── usersRepository.test.js    — CRUD de usuários (pool mockado)
+│   ├── postsRepository.test.js    — CRUD de posts (pool mockado)
+│   ├── credentialsRepository.test.js — senhas e tokens de reset
+│   └── logsRepository.test.js    — logs e eventos de sistema
+├── integration/
+│   ├── auth.test.js               — requireAuth middleware, GET /api/me
+│   ├── authRoutes.test.js         — login, register, logout, 2FA, forgot/reset password
+│   ├── adminRoutes.test.js        — GET/POST /api/admin/users
+│   ├── drafts.test.js             — GET/POST/DELETE /api/drafts
+│   ├── inbox.test.js              — /inbox, /inbox/unread, /comments/seen
+│   ├── mediaProxy.test.js         — /uploads token guard, /media-proxy SSRF guard
+│   └── postsRoutes.test.js        — GET/DELETE/PATCH /api/posts, validações de input
+└── components/
+    ├── postScore.test.js          — score de qualidade por plataforma (puro JS)
+    └── bestTimes.test.js          — merge de horários sugeridos e applyBestTime
+```

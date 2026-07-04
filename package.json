@@ -4,7 +4,30 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "collectCoverageFrom": [
+      "src/utils/**/*.js",
+      "src/middleware/**/*.js",
+      "src/services/mediaToken.js",
+      "src/services/tokenCrypto.js",
+      "src/services/totp.js",
+      "src/repositories/usersRepository.js",
+      "src/repositories/postsRepository.js",
+      "src/repositories/credentialsRepository.js",
+      "src/repositories/logsRepository.js",
+      "src/routes/drafts.js",
+      "src/routes/posts.js",
+      "src/routes/auth.js",
+      "src/routes/admin.js"
+    ],
+    "coverageReporters": ["text", "text-summary"],
+    "coverageThreshold": {}
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
@@ -32,7 +55,10 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@jest/globals": "^30.4.1",
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   },
   "engines": {
     "node": ">=20.9.0"
