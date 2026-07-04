@@ -1369,10 +1369,10 @@ input, select, textarea, label, .bottom-nav-item {
             </div>
           </div>
         </div>
-        <!-- Melhores horários -->
-        <div id="best-times-widget" style="display:none;margin-bottom:1rem">
-          <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px">Melhores horários</div>
-          <div id="best-times-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        <!-- Melhores horários (abaixo do picker) -->
+        <div id="best-times-widget" style="display:none;margin-top:-8px;margin-bottom:1rem">
+          <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px">⚡ Melhores horários para engajamento</div>
+          <div id="best-times-chips" style="display:flex;flex-wrap:wrap;gap:5px"></div>
         </div>
 
         <div class="form-group"><label>Repetição</label>
@@ -5281,56 +5281,143 @@ function inboxOpenExternalLink() {
 }
 
 // ── Feature 1: Score de qualidade do post ────────────────────────────────────
+// Regras específicas por plataforma
+const SCORE_RULES = {
+  instagram: [
+    { pts: 20, check: ({text}) => text.length > 0,         tip: 'Adicione uma legenda ao post'              },
+    { pts: 10, check: ({text}) => text.length >= 50,        tip: 'Legenda com 50+ caracteres gera mais alcance' },
+    { pts: 15, check: ({text}) => (text.match(/#\w/g)||[]).length >= 3, tip: 'Use 3 ou mais hashtags relevantes' },
+    { pts: 25, check: ({hasMedia}) => hasMedia,             tip: 'Adicione imagem ou vídeo'                  },
+    { pts: 10, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                      },
+    { pts: 10, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Adicione emojis para aumentar engajamento' },
+    { pts: 10, check: ({text}) => text.length >= 100,       tip: 'Legenda longa (100+ chars) melhora o alcance' },
+  ],
+  facebook: [
+    { pts: 20, check: ({text}) => text.length > 0,         tip: 'Escreva um texto para o post'              },
+    { pts: 15, check: ({text}) => text.length >= 80,        tip: 'Textos longos performam melhor no Facebook' },
+    { pts: 10, check: ({text}) => /#\w/.test(text),         tip: 'Adicione hashtags (#)'                     },
+    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Adicione imagem ou vídeo'                  },
+    { pts: 10, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                      },
+    { pts: 15, check: ({text}) => text.includes('?'),       tip: 'Faça uma pergunta para gerar comentários'  },
+    { pts: 10, check: ({multiPlat}) => multiPlat,           tip: 'Publique em outras redes também'           },
+  ],
+  youtube: [
+    { pts: 25, check: ({youtubeTitle}) => youtubeTitle.length >= 30, tip: 'Título com 30+ caracteres (mais cliques)' },
+    { pts: 15, check: ({youtubeTitle}) => youtubeTitle.length > 0,   tip: 'Adicione um título ao vídeo'      },
+    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Anexe o arquivo de vídeo'                  },
+    { pts: 15, check: ({text}) => text.length >= 100,       tip: 'Descrição com 100+ chars melhora SEO'     },
+    { pts: 10, check: ({text}) => text.length > 0,          tip: 'Adicione uma descrição ao vídeo'          },
+    { pts: 10, check: ({date}) => !!date,                   tip: 'Defina a data e hora de publicação'       },
+    { pts: 5,  check: ({text}) => /#\w/.test(text),         tip: 'Hashtags na descrição ajudam no SEO'      },
+  ],
+  tiktok: [
+    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Adicione o vídeo'                          },
+    { pts: 15, check: ({text}) => text.length > 0,          tip: 'Adicione uma legenda'                     },
+    { pts: 20, check: ({text}) => (text.match(/#\w/g)||[]).length >= 3, tip: 'Use 3+ hashtags trending'     },
+    { pts: 15, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Emojis aumentam o engajamento' },
+    { pts: 15, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                      },
+    { pts: 15, check: ({text}) => text.length >= 50,        tip: 'Legenda com 50+ caracteres'               },
+  ],
+  linkedin: [
+    { pts: 25, check: ({text}) => text.length >= 100,       tip: 'Textos longos (100+ chars) performam melhor' },
+    { pts: 15, check: ({text}) => text.length > 0,          tip: 'Escreva um texto profissional'            },
+    { pts: 15, check: ({text}) => /#\w/.test(text),         tip: 'Adicione hashtags profissionais'          },
+    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Adicione imagem ou vídeo'                 },
+    { pts: 15, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                     },
+    { pts: 10, check: ({text}) => text.includes('?'),       tip: 'Faça uma pergunta para engajar conexões'  },
+  ],
+  twitter: [
+    { pts: 25, check: ({text}) => text.length > 0 && text.length <= 280, tip: 'Escreva um texto (máx 280 chars)' },
+    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Imagem/vídeo aumenta alcance no X'        },
+    { pts: 15, check: ({text}) => /#\w/.test(text),         tip: 'Adicione 1-2 hashtags relevantes'        },
+    { pts: 15, check: ({text}) => text.length >= 50,        tip: 'Tweets com 50+ chars engajam mais'       },
+    { pts: 15, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                     },
+    { pts: 10, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Emojis aumentam cliques'    },
+  ],
+};
+
 function calcPostScore() {
   const text = (document.getElementById('post-text')?.value || '').trim();
+  const youtubeTitle = (document.getElementById('post-youtube-title')?.value || '').trim();
   const date = document.getElementById('post-date')?.value || '';
   const hasMedia = (typeof mediaFiles !== 'undefined' && mediaFiles.length > 0);
   const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
   const multiPlat = plats.length > 1;
+  const ctx = { text, youtubeTitle, date, hasMedia, multiPlat };
 
-  let score = 0;
+  // Sem plataforma selecionada: regras genéricas
+  if (plats.length === 0) {
+    const missing = [];
+    let score = 0;
+    if (text.length > 0) score += 20; else missing.push('Adicione um texto à legenda');
+    if (hasMedia) score += 25; else missing.push('Adicione uma imagem ou vídeo');
+    if (date) score += 15; else missing.push('Defina a data e hora');
+    if (/#\w/.test(text)) score += 10; else missing.push('Adicione hashtags (#)');
+    if (text.length >= 50) score += 10; else if (text.length > 0) missing.push('Legenda com 50+ caracteres');
+    if (multiPlat) score += 10; else missing.push('Escolha uma rede social');
+    return { score: Math.min(score, 100), missing, plat: null };
+  }
+
+  // Com plataforma: agrupa regras de cada rede selecionada
+  // Usa regras da primeira plataforma (ou genéricas se múltiplas)
+  const mainPlat = plats[0];
+  const rules = SCORE_RULES[mainPlat] || SCORE_RULES.instagram;
   const missing = [];
+  let score = 0;
+  const totalPts = rules.reduce((s, r) => s + r.pts, 0);
 
-  if (text.length > 0) { score += 20; } else { missing.push('Adicione um texto à legenda (+20 pts)'); }
-  if (text.length >= 50) { score += 10; } else if (text.length > 0) { missing.push('Legenda com 50+ caracteres (+10 pts)'); }
-  if (/#\w/.test(text)) { score += 10; } else { missing.push('Adicione hashtags (#) (+10 pts)'); }
-  if (hasMedia) { score += 25; } else { missing.push('Adicione uma imagem ou vídeo (+25 pts)'); }
-  if (date) { score += 15; } else { missing.push('Defina a data e hora (+15 pts)'); }
-  if (multiPlat) { score += 10; } else if (plats.length === 1) { missing.push('Publique em múltiplas plataformas (+10 pts)'); }
+  for (const rule of rules) {
+    if (rule.check(ctx)) {
+      score += rule.pts;
+    } else {
+      missing.push(rule.tip);
+    }
+  }
 
-  // Sem erros de validação: texto ou mídia presente, data definida (se não publicar agora)
-  const semErro = (text.length > 0 || hasMedia) && plats.length > 0;
-  if (semErro) { score += 10; } else { missing.push('Complete os campos obrigatórios (+10 pts)'); }
-
-  return { score: Math.min(score, 100), missing };
+  // Normaliza para 100
+  const normalized = Math.round((score / totalPts) * 100);
+  return { score: normalized, missing, plat: mainPlat };
 }
+
+const PLAT_SCORE_LABELS = {
+  instagram: 'Instagram',
+  facebook:  'Facebook',
+  youtube:   'YouTube',
+  tiktok:    'TikTok',
+  linkedin:  'LinkedIn',
+  twitter:   'X (Twitter)',
+};
 
 function updatePostScore() {
   const el = document.getElementById('post-quality-score');
   if (!el) return;
 
-  const { score, missing } = calcPostScore();
+  const { score, missing, plat } = calcPostScore();
   const text = (document.getElementById('post-text')?.value || '').trim();
   const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
 
-  // Só mostrar se o usuário começou a preencher algo
   const hasContent = text.length > 0 || (typeof mediaFiles !== 'undefined' && mediaFiles.length > 0) || plats.length > 0;
   el.style.display = hasContent ? '' : 'none';
   if (!hasContent) return;
+
+  // Label do score muda por plataforma
+  const platLabel = plat ? `${PLAT_SCORE_LABELS[plat] || plat}` : 'Geral';
+  el.querySelector('span:first-child').textContent = `Qualidade para ${platLabel}`;
 
   document.getElementById('score-value').textContent = score + '/100';
 
   const bar = document.getElementById('score-bar');
   bar.style.width = score + '%';
-  bar.style.background = score < 40 ? 'var(--red)' : score < 70 ? 'var(--yellow)' : 'var(--green)';
+  bar.style.background = score < 40 ? 'var(--red)' : score < 70 ? 'var(--yellow,#f59e0b)' : 'var(--green)';
 
   const textEl = document.getElementById('score-text');
-  textEl.textContent = score < 40 ? 'Post fraco — adicione mais elementos para aumentar o alcance.'
-    : score < 70 ? 'Post razoável — ainda há espaço para melhorar.'
-    : 'Post de qualidade — ótimas chances de engajamento!';
+  if (score < 40)      textEl.textContent = 'Post fraco — siga as sugestões para aumentar o alcance.';
+  else if (score < 70) textEl.textContent = 'Post razoável — ainda há espaço para melhorar.';
+  else if (score < 90) textEl.textContent = 'Bom post — ótimas chances de engajamento!';
+  else                 textEl.textContent = 'Post excelente — máximo potencial de alcance! 🚀';
 
   const ul = document.getElementById('score-suggestions');
-  ul.innerHTML = missing.map(s => `<li>${escapeHtml(s)}</li>`).join('');
+  ul.innerHTML = missing.slice(0, 4).map(s => `<li>${escapeHtml(s)}</li>`).join('');
 }
 
 // Hook nas alterações do agendador para atualizar o score em tempo real
@@ -5343,10 +5430,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Feature 2: Horários ótimos por plataforma ─────────────────────────────────
 const BEST_TIMES = {
-  instagram: ['08:00','12:00','18:00','21:00'],
-  facebook:  ['09:00','13:00','15:00','19:00'],
-  youtube:   ['15:00','17:00','20:00'],
-  tiktok:    ['07:00','12:00','19:00','21:00'],
+  instagram: [
+    { time: '08:00', label: 'Manhã'      },
+    { time: '12:00', label: 'Almoço'     },
+    { time: '18:00', label: 'Tarde'      },
+    { time: '21:00', label: 'Noite'      },
+  ],
+  facebook: [
+    { time: '09:00', label: 'Manhã'      },
+    { time: '13:00', label: 'Almoço'     },
+    { time: '15:00', label: 'Tarde'      },
+    { time: '19:00', label: 'Noite'      },
+  ],
+  youtube: [
+    { time: '15:00', label: 'Tarde'      },
+    { time: '17:00', label: 'Fim de tarde'},
+    { time: '20:00', label: 'Noite'      },
+  ],
+  tiktok: [
+    { time: '07:00', label: 'Cedo'       },
+    { time: '12:00', label: 'Almoço'     },
+    { time: '19:00', label: 'Noite'      },
+    { time: '21:00', label: 'Tarde-noite'},
+  ],
+  linkedin: [
+    { time: '08:00', label: 'Manhã'      },
+    { time: '12:00', label: 'Almoço'     },
+    { time: '17:00', label: 'Saída'      },
+  ],
+  twitter: [
+    { time: '09:00', label: 'Manhã'      },
+    { time: '13:00', label: 'Almoço'     },
+    { time: '20:00', label: 'Noite'      },
+  ],
 };
 
 function updateBestTimesWidget() {
@@ -5355,43 +5471,58 @@ function updateBestTimesWidget() {
   if (!widget || !chips) return;
 
   const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
-  if (plats.length === 0) { widget.style.display = 'none'; return; }
+  if (plats.length === 0) { widget.style.display = 'none'; updatePostScore(); return; }
 
   widget.style.display = '';
 
-  // Combina horários de todas as plataformas selecionadas (união, sem duplicatas)
-  const allTimes = new Set();
-  plats.forEach(p => (BEST_TIMES[p] || []).forEach(t => allTimes.add(t)));
-  const times = [...allTimes].sort();
+  // Une horários de todas as plataformas, sem duplicatas por time
+  const seen = new Set();
+  const allTimes = [];
+  plats.forEach(p => {
+    (BEST_TIMES[p] || []).forEach(t => {
+      if (!seen.has(t.time)) { seen.add(t.time); allTimes.push({ ...t }); }
+    });
+  });
+  allTimes.sort((a, b) => a.time.localeCompare(b.time));
 
-  chips.innerHTML = times.map(t => `
-    <button type="button" onclick="applyBestTime('${t}')"
-      style="padding:4px 10px;border-radius:99px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:11px;cursor:pointer;font-family:var(--mono);transition:background 0.15s"
-      onmouseover="this.style.background='var(--accent-glow)'"
-      onmouseout="this.style.background='var(--surface2)'">
-      ${t}
-    </button>`).join('');
+  const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const currentDate = dpSelected;
 
-  // Também atualiza o score
+  chips.innerHTML = allTimes.map(({ time, label }) => {
+    const base = currentDate || (() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth(), day: n.getDate() }; })();
+    const d = new Date(base.year, base.month, base.day);
+    const diaLabel = currentDate ? diasSemana[d.getDay()] : 'Hoje';
+    const isSelected = currentDate && document.getElementById('post-date')?.value?.endsWith('T' + time);
+
+    return `<button type="button" onclick="applyBestTime('${time}')"
+      style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:8px;border:1px solid ${isSelected ? 'var(--accent)' : 'var(--border2)'};background:${isSelected ? 'var(--accent-glow)' : 'var(--surface2)'};color:var(--text);font-size:11px;cursor:pointer;transition:all 0.15s"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--accent-glow)'"
+      onmouseout="this.style.borderColor='${isSelected ? 'var(--accent)' : 'var(--border2)'}';this.style.background='${isSelected ? 'var(--accent-glow)' : 'var(--surface2)'}'">
+      <span style="font-family:var(--mono);font-weight:600">${time}</span>
+      <span style="color:var(--muted);font-size:10px">${diaLabel} · ${label}</span>
+    </button>`;
+  }).join('');
+
   updatePostScore();
 }
 
 function applyBestTime(time) {
-  // Usa data de hoje + horário sugerido
-  const now = new Date();
-  const [h, m] = time.split(':');
-  now.setHours(Number(h), Number(m), 0, 0);
-
-  // Formata como datetime-local (YYYY-MM-DDTHH:MM)
   const pad = n => String(n).padStart(2, '0');
-  const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  document.getElementById('post-date').value = val;
+  const [h, m] = time.split(':').map(Number);
 
-  // Atualiza o display formatado
-  const display = `${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  document.getElementById('post-date-display').value = display;
+  // Mantém o dia já selecionado no picker; caso contrário usa hoje
+  const base = dpSelected
+    ? { ...dpSelected, hour: h, minute: m }
+    : (() => { const n = new Date(); return { year: n.getFullYear(), month: n.getMonth(), day: n.getDate(), hour: h, minute: m }; })();
+
+  dpSelected = base;
+
+  const val = `${base.year}-${pad(base.month+1)}-${pad(base.day)}T${pad(h)}:${pad(m)}`;
+  document.getElementById('post-date').value = val;
+  document.getElementById('post-date-display').value = `${pad(base.day)}/${pad(base.month+1)}/${base.year} ${pad(h)}:${pad(m)}`;
 
   updatePostScore();
+  updateBestTimesWidget(); // atualiza destaque do chip selecionado
 }
 
 // Patch na função que atualiza plataformas selecionadas
