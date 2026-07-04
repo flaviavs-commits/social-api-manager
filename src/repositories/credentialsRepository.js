@@ -10,7 +10,7 @@ async function criar(userId, passwordHash) {
 
 async function buscarPorUserId(userId) {
   const { rows: [cred] } = await pool.query(
-    `SELECT * FROM credentials WHERE user_id = $1`,
+    `SELECT id, user_id, password_hash FROM credentials WHERE user_id = $1`,
     [userId]
   )
   return cred || null
@@ -49,7 +49,7 @@ async function gerarTokenReset(userId) {
 
 async function buscarPorResetToken(token) {
   const { rows: [cred] } = await pool.query(
-    `SELECT c.*, u.email FROM credentials c
+    `SELECT c.user_id, c.reset_token_expires, u.email FROM credentials c
      JOIN users u ON u.id = c.user_id
      WHERE c.reset_token = $1 AND c.reset_token_expires > NOW()`,
     [token]

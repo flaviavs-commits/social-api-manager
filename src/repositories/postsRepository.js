@@ -117,6 +117,7 @@ async function listarPostsPublicadosSemExternalId(platform, userId, isAdmin) {
     FROM posts
     WHERE ${conds.join(' AND ')}
     ORDER BY scheduled_at DESC
+    LIMIT 50
   `, params)
   return rows
 }

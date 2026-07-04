@@ -3,6 +3,7 @@ const usersRepo = require('../repositories/usersRepository')
 const contasRepo = require('../repositories/contasRepository')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { parseId, serverError, isAdminRole } = require('../utils/http')
+const { invalidarCacheUsuario } = require('../middleware/requireAuth')
 
 const router = Router()
 
@@ -36,6 +37,7 @@ router.post('/users/:id/role', requireSuperAdmin, async (req, res) => {
 
     const user = await usersRepo.atualizarRole(id, role)
     if (!user) return res.status(404).json({ erro: 'Usuário não encontrado' })
+    invalidarCacheUsuario(id)
     res.json({ user })
   } catch (e) {
     serverError(res, e, 'Não foi possível atualizar o papel do usuário')
@@ -67,6 +69,7 @@ router.post('/users/:id/ativo', async (req, res) => {
 
     const user = await usersRepo.atualizarAtivo(id, ativo)
     if (!user) return res.status(404).json({ erro: 'Usuário não encontrado' })
+    invalidarCacheUsuario(id)
     res.json({ user })
   } catch (e) {
     serverError(res, e, 'Não foi possível atualizar o usuário')

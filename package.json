@@ -10,7 +10,9 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "collectCoverageFrom": [
       "src/utils/**/*.js",
       "src/middleware/**/*.js",
@@ -26,7 +28,10 @@
       "src/routes/auth.js",
       "src/routes/admin.js"
     ],
-    "coverageReporters": ["text", "text-summary"],
+    "coverageReporters": [
+      "text",
+      "text-summary"
+    ],
     "coverageThreshold": {}
   },
   "dependencies": {
@@ -35,6 +40,7 @@
     "@google/generative-ai": "^0.24.1",
     "@vercel/blob": "^2.4.1",
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",

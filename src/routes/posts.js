@@ -2,6 +2,7 @@ const { Router } = require('express')
 const path = require('path')
 const os = require('os')
 const fs = require('fs')
+const { pipeline } = require('stream/promises')
 const crypto = require('crypto')
 const sharp = require('sharp')
 const { put, presignUrl, issueSignedToken } = require('@vercel/blob')
@@ -243,18 +244,14 @@ router.get('/analytics', async (req, res) => {
       metrics.filter(m => m.metrics).map(m => repo.registrarSnapshotMetricas(m.postId, m.metrics))
     )
 
-    // Saldo de seguidores e alcance do Instagram, dia a dia — métrica de
-    // conta, não de post. Falha silenciosa (ex: conta sem o scope de
-    // insights) para não derrubar o restante do Analytics.
-    let instagramFollowers = {}
-    try {
-      instagramFollowers = await metricsService.buscarSeriesSeguidoresInstagram(req.user.id, isAdminRole(req.user.role))
-    } catch {}
-
-    let tiktokStats = {}
-    try {
-      tiktokStats = await metricsService.buscarSeriesStatsTiktok(req.user.id, isAdminRole(req.user.role))
-    } catch {}
+    // Saldo de seguidores e alcance do Instagram + TikTok em paralelo —
+    // métricas de conta, não de post. Falha silenciosa por plataforma.
+    const [igResult, ttResult] = await Promise.allSettled([
+      metricsService.buscarSeriesSeguidoresInstagram(req.user.id, isAdminRole(req.user.role)),
+      metricsService.buscarSeriesStatsTiktok(req.user.id, isAdminRole(req.user.role)),
+    ])
+    const instagramFollowers = igResult.status === 'fulfilled' ? igResult.value : {}
+    const tiktokStats = ttResult.status === 'fulfilled' ? ttResult.value : {}
 
     res.json({ series: porDia, metrics, instagramFollowers, tiktokStats })
   } catch (e) {
@@ -374,11 +371,10 @@ router.post('/', async (req, res) => {
       files = await Promise.all(files.map(async f => {
         if (!f.mimetype.startsWith('image/')) return f
         if (f.mimetype === 'image/jpeg' && !resizeForTiktok) return f
-        const res = await fetch(f.url)
-        const buffer = Buffer.from(await res.arrayBuffer())
-        let pipeline = sharp(buffer)
-        if (resizeForTiktok) pipeline = pipeline.resize(1080, 1920, { fit: 'cover', position: 'centre' })
-        const jpegBuffer = await pipeline.jpeg({ quality: 90 }).toBuffer()
+        const fetchRes = await fetch(f.url)
+        let sharpPipeline = sharp(fetchRes.body)
+        if (resizeForTiktok) sharpPipeline = sharpPipeline.resize(1080, 1920, { fit: 'cover', position: 'centre' })
+        const jpegBuffer = await sharpPipeline.jpeg({ quality: 90 }).toBuffer()
         const { url } = await put(`${crypto.randomUUID()}.jpg`, jpegBuffer, { access: 'public', contentType: 'image/jpeg' })
         return { ...f, url, mimetype: 'image/jpeg' }
       }))
@@ -404,8 +400,9 @@ router.post('/', async (req, res) => {
       const ext = f.mimetype === 'video/quicktime' ? 'mov' : 'mp4'
       const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${ext}`)
       try {
-        const res = await fetch(f.url)
-        await fs.promises.writeFile(tmpPath, Buffer.from(await res.arrayBuffer()))
+        const fetchRes = await fetch(f.url)
+        if (!fetchRes.ok) return null
+        await pipeline(fetchRes.body, fs.createWriteStream(tmpPath))
         return await probeVideo(tmpPath)
       } catch {
         return null

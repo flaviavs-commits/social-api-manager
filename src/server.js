@@ -3,6 +3,7 @@ const express  = require('express')
 const path     = require('path')
 const cors     = require('cors')
 
+const compression    = require('compression')
 const pool           = require('./db/pool')
 const accountsRoutes = require('./routes/accounts')
 const tokensRoutes   = require('./routes/tokens')
@@ -38,6 +39,7 @@ app.set('trust proxy', 1)
 // autenticação viaja via Bearer token, não cookie, então não precisa de
 // credentials:true aqui (sem cookies envolvidos na requisição cross-origin).
 app.use(cors({ origin: (process.env.FRONTEND_ORIGIN || '').split(',').filter(Boolean) }))
+app.use(compression())
 
 // Cabeçalhos básicos de segurança (sem dependências extras)
 app.use((req, res, next) => {
@@ -172,6 +174,7 @@ app.get('/terms-of-service', (req, res) => {
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
 app.get('/api/config', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300')
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
     googleApiKey: process.env.GOOGLE_API_KEY || null,
@@ -193,6 +196,7 @@ app.get('/api/review-token', (req, res) => {
 app.use(requireAuth)
 
 app.get('/api/me', (req, res) => {
+  res.setHeader('Cache-Control', 'private, max-age=30')
   res.json({ id: req.user.id, email: req.user.email, role: req.user.role, fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
 })
 
@@ -225,53 +229,67 @@ app.use((err, req, res, next) => {
 // Migrations de novas tabelas — executado no startup para garantir que as
 // tabelas existem sem exigir processo manual de migration.
 async function runMigrations() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS drafts (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title TEXT,
-      text TEXT,
-      platforms TEXT[] DEFAULT '{}',
-      media_path TEXT,
-      media_type TEXT,
-      media_items JSONB,
-      youtube_title TEXT,
-      youtube_visibility TEXT DEFAULT 'public',
-      is_template BOOLEAN DEFAULT FALSE,
-      criado_em TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS push_subscriptions (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      endpoint TEXT UNIQUE NOT NULL,
-      p256dh TEXT,
-      auth TEXT,
-      criado_em TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS inbox_seen_comments (
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-      seen_ids TEXT[] DEFAULT '{}',
-      atualizado_em TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (user_id, post_id)
-    )
-  `)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS ai_memory (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      model TEXT NOT NULL,
-      tipo TEXT NOT NULL,
-      conteudo TEXT NOT NULL,
-      resolvido BOOLEAN DEFAULT FALSE,
-      criado_em TIMESTAMPTZ DEFAULT NOW(),
-      lembrar_em TIMESTAMPTZ
-    )
-  `)
+  await Promise.all([
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS drafts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT,
+        text TEXT,
+        platforms TEXT[] DEFAULT '{}',
+        media_path TEXT,
+        media_type TEXT,
+        media_items JSONB,
+        youtube_title TEXT,
+        youtube_visibility TEXT DEFAULT 'public',
+        is_template BOOLEAN DEFAULT FALSE,
+        criado_em TIMESTAMPTZ DEFAULT NOW()
+      )
+    `),
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT UNIQUE NOT NULL,
+        p256dh TEXT,
+        auth TEXT,
+        criado_em TIMESTAMPTZ DEFAULT NOW()
+      )
+    `),
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS inbox_seen_comments (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        seen_ids TEXT[] DEFAULT '{}',
+        atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (user_id, post_id)
+      )
+    `),
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_memory (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        conteudo TEXT NOT NULL,
+        resolvido BOOLEAN DEFAULT FALSE,
+        criado_em TIMESTAMPTZ DEFAULT NOW(),
+        lembrar_em TIMESTAMPTZ
+      )
+    `),
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON credentials (user_id);
+    `).catch(() => {}),
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_credentials_reset_token ON credentials (reset_token) WHERE reset_token IS NOT NULL;
+    `).catch(() => {}),
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_posts_published_no_external ON posts (status, criado_em DESC) WHERE status = 'published' AND external_post_id IS NULL;
+    `).catch(() => {}),
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_posts_instagram_pending ON posts (id) WHERE instagram_pending IS NOT NULL;
+    `).catch(() => {}),
+  ])
 }
 
 if (require.main === module) {

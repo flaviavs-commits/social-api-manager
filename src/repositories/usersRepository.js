@@ -8,9 +8,11 @@ function normalizarEmail(email) {
   return email.trim().toLowerCase()
 }
 
+const USER_COLS = 'id, email, role, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em'
+
 async function buscarPorEmail(email) {
   const { rows: [user] } = await pool.query(
-    `SELECT * FROM users WHERE email = $1 AND ativo = TRUE`,
+    `SELECT ${USER_COLS} FROM users WHERE email = $1 AND ativo = TRUE`,
     [normalizarEmail(email)]
   )
   return user || null
@@ -18,7 +20,7 @@ async function buscarPorEmail(email) {
 
 async function buscarPorId(id) {
   const { rows: [user] } = await pool.query(
-    `SELECT * FROM users WHERE id = $1 AND ativo = TRUE`,
+    `SELECT ${USER_COLS} FROM users WHERE id = $1 AND ativo = TRUE`,
     [id]
   )
   return user || null
@@ -29,7 +31,7 @@ async function buscarPorId(id) {
 // estiver inativo (ex: impedir que um admin comum reative outro admin).
 async function buscarPorIdIncluindoInativo(id) {
   const { rows: [user] } = await pool.query(
-    `SELECT * FROM users WHERE id = $1`,
+    `SELECT ${USER_COLS} FROM users WHERE id = $1`,
     [id]
   )
   return user || null
@@ -37,7 +39,7 @@ async function buscarPorIdIncluindoInativo(id) {
 
 async function buscarPorGoogleId(googleId) {
   const { rows: [user] } = await pool.query(
-    `SELECT * FROM users WHERE google_id = $1 AND ativo = TRUE`,
+    `SELECT ${USER_COLS} FROM users WHERE google_id = $1 AND ativo = TRUE`,
     [googleId]
   )
   return user || null
