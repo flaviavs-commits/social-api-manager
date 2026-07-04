@@ -5289,7 +5289,7 @@ const SCORE_RULES = {
     { pts: 15, check: ({text}) => (text.match(/#\w/g)||[]).length >= 3, tip: 'Use 3 ou mais hashtags relevantes' },
     { pts: 25, check: ({hasMedia}) => hasMedia,             tip: 'Adicione imagem ou vídeo'                  },
     { pts: 10, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                      },
-    { pts: 10, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Adicione emojis para aumentar engajamento' },
+    { pts: 10, check: ({text}) => /\p{Emoji}/u.test(text), tip: 'Adicione emojis para aumentar engajamento' },
     { pts: 10, check: ({text}) => text.length >= 100,       tip: 'Legenda longa (100+ chars) melhora o alcance' },
   ],
   facebook: [
@@ -5314,7 +5314,7 @@ const SCORE_RULES = {
     { pts: 20, check: ({hasMedia}) => hasMedia,             tip: 'Adicione o vídeo'                          },
     { pts: 15, check: ({text}) => text.length > 0,          tip: 'Adicione uma legenda'                     },
     { pts: 20, check: ({text}) => (text.match(/#\w/g)||[]).length >= 3, tip: 'Use 3+ hashtags trending'     },
-    { pts: 15, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Emojis aumentam o engajamento' },
+    { pts: 15, check: ({text}) => /\p{Emoji}/u.test(text), tip: 'Emojis aumentam o engajamento' },
     { pts: 15, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                      },
     { pts: 15, check: ({text}) => text.length >= 50,        tip: 'Legenda com 50+ caracteres'               },
   ],
@@ -5332,7 +5332,7 @@ const SCORE_RULES = {
     { pts: 15, check: ({text}) => /#\w/.test(text),         tip: 'Adicione 1-2 hashtags relevantes'        },
     { pts: 15, check: ({text}) => text.length >= 50,        tip: 'Tweets com 50+ chars engajam mais'       },
     { pts: 15, check: ({date}) => !!date,                   tip: 'Defina a data e hora'                     },
-    { pts: 10, check: ({text}) => /[😀-🙏🌀-🗿🚀-🛿✂-➰]/.test(text), tip: 'Emojis aumentam cliques'    },
+    { pts: 10, check: ({text}) => /\p{Emoji}/u.test(text), tip: 'Emojis aumentam cliques'    },
   ],
 };
 
