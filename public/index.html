@@ -1336,7 +1336,7 @@ input, select, textarea, label, .bottom-nav-item {
         <!-- Score de qualidade do post -->
         <div id="post-quality-score" style="margin-bottom:1rem;display:none">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span style="font-size:12px;font-weight:500">Qualidade do post</span>
+            <span id="score-label" style="font-size:12px;font-weight:500">Qualidade do post</span>
             <span id="score-value" style="font-size:13px;font-weight:600;font-family:var(--mono)">0/100</span>
           </div>
           <div style="height:6px;border-radius:99px;background:var(--surface2);overflow:hidden">
@@ -5402,7 +5402,7 @@ function updatePostScore() {
 
   // Label do score muda por plataforma
   const platLabel = plat ? `${PLAT_SCORE_LABELS[plat] || plat}` : 'Geral';
-  el.querySelector('span:first-child').textContent = `Qualidade para ${platLabel}`;
+  document.getElementById('score-label').textContent = `Qualidade para ${platLabel}`;
 
   document.getElementById('score-value').textContent = score + '/100';
 
