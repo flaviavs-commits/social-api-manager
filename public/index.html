@@ -2116,7 +2116,11 @@ function closeSidebar() {
   document.body.style.overflow = '';
 }
 
+// Página atualmente visível — usada pelo agente de IA para contextualizar sugestões
+window.currentPageName = 'dashboard';
+
 function showPage(name) {
+  window.currentPageName = name;
   document.querySelectorAll('.section-page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
 
@@ -6345,6 +6349,23 @@ const AI_STEPS = {
 const PLAT_NAMES = { instagram:'Instagram', facebook:'Facebook', youtube:'YouTube', tiktok:'TikTok' }
 const TOM_LABELS = { casual:'Casual 😊', motivacional:'Motivacional 🔥', profissional:'Profissional 💼', informativo:'Informativo 📚', humoristico:'Humorístico 😂' }
 
+// Pergunta contextual que o agente faz ao ser aberto a partir de cada página
+const AI_PAGE_HINTS = {
+  dashboard:   'Vi que você está no Dashboard. Quer que eu já sugira um post com base no seu desempenho recente?',
+  tokens:      'Notei que você está na tela de Tokens. Precisa de ajuda para conectar ou renovar alguma conta?',
+  agendador:   'Você está no Agendador. Quer que eu monte um post agora para você agendar?',
+  integracoes: 'Você está em Integrações. Alguma rede social nova para conectar? Posso te orientar.',
+  logs:        'Vi que você está de olho nos Logs. Encontrou algum erro que eu possa ajudar a entender?',
+  analytics:   'Você está no Analytics. Quer que eu analise os números e sugira um post com base no que está performando melhor?',
+  rascunhos:   'Você está nos Rascunhos. Quer que eu finalize algum deles ou crie um post novo?',
+  calendario:  'Vi que você está no Calendário. Quer que eu preencha algum horário livre com um post novo?',
+  inbox:       'Você está na Inbox. Precisa de ajuda para responder algum comentário ou mensagem?',
+}
+
+function aiPageHintFor(page) {
+  return AI_PAGE_HINTS[page] || null
+}
+
 function aiChatTime() {
   return new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
 }
@@ -6485,6 +6506,18 @@ async function aiChatStart(ctx) {
 
   // Saudação personalizada por modelo
   aiChatAddMsg(ctx, 'agent', aiModelGreeting(aiSelectedModel))
+
+  // Pergunta contextual com base na página em que o usuário estava ao abrir o chat
+  if (ctx === 'fab') {
+    const hint = aiPageHintFor(window.currentPageName)
+    if (hint) {
+      await new Promise(r => setTimeout(r, 500))
+      aiChatTyping(ctx, true)
+      await new Promise(r => setTimeout(r, 700))
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', hint)
+    }
+  }
 
   // Verifica se usuário tem chave própria — se não tiver, pergunta sobre assinatura
   let hasKey = false
