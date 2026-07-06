@@ -5,6 +5,7 @@ const postsRepo = require('../repositories/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
 const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
+const { verificarSaudePlataformas } = require('./platformHealth')
 
 // Publica um post pendente e notifica o frontend.
 // O post já chega com status 'processing' (reservado atomicamente por
@@ -141,6 +142,10 @@ function start() {
   // Renova tokens próximos do vencimento a cada 6 horas, e uma vez no início
   cron.schedule('0 */6 * * *', renovarTokensProativamente)
   renovarTokensProativamente()
+
+  // Verifica a cada minuto se as redes sociais estão respondendo
+  cron.schedule('* * * * *', verificarSaudePlataformas)
+  verificarSaudePlataformas()
 }
 
-module.exports = { start, processarPendentes, renovarTokensProativamente }
+module.exports = { start, processarPendentes, renovarTokensProativamente, verificarSaudePlataformas }

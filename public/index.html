@@ -2935,7 +2935,41 @@ async function uploadArquivoDireto(file) {
   return { url: data.url, mimetype };
 }
 
+// ── Disponibilidade das redes sociais ─────────────────────────────────────────
+// Verificado no servidor a cada 1 minuto (src/services/platformHealth.js);
+// aqui só consultamos o resultado e atualizamos a UI a cada 60s também.
+let platformHealthStatus = {};
+
+async function refreshPlatformHealth() {
+  try {
+    const data = await apiFetch('/api/platform-health');
+    platformHealthStatus = data.platforms || {};
+  } catch { /* mantém o último status conhecido em caso de falha de rede */ }
+}
+
+let platformHealthTimer = null;
+function startPlatformHealthPolling() {
+  refreshPlatformHealth();
+  if (platformHealthTimer) return;
+  platformHealthTimer = setInterval(refreshPlatformHealth, 60000);
+}
+
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' };
+
+// Retorna a lista de plataformas selecionadas que estão marcadas como fora do ar
+function plataformasForaDoAr(platforms) {
+  return platforms.filter(p => platformHealthStatus[p] === 'down');
+}
+
 async function schedulePost(publishNow = false) {
+  const platformsSelecionadas = [...selectedPlats];
+  const indisponiveis = plataformasForaDoAr(platformsSelecionadas);
+  if (indisponiveis.length) {
+    const nomes = indisponiveis.map(p => PLATFORM_LABELS[p] || p).join(', ');
+    showToast(`😕 ${nomes} está fora do ar no momento. Aguarde a rede voltar para agendar ou publicar.`, 'err');
+    return;
+  }
+
   const text = document.getElementById('post-text').value.trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
@@ -5428,6 +5462,7 @@ function updatePostScore() {
 document.addEventListener('DOMContentLoaded', () => {
   const postText = document.getElementById('post-text');
   if (postText) postText.addEventListener('input', updatePostScore);
+  startPlatformHealthPolling();
 });
 
 // Patch: chamar updatePostScore ao mudar plataforma e data (ver patches abaixo)

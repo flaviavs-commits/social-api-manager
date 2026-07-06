@@ -72,7 +72,15 @@ async function reservarPostsPendentes() {
     WITH reservados AS (
       UPDATE posts SET status = 'processing'
       WHERE id IN (
-        SELECT id FROM posts WHERE status = 'scheduled' AND scheduled_at <= NOW()
+        SELECT p.id FROM posts p
+        WHERE p.status = 'scheduled' AND p.scheduled_at <= NOW()
+        -- Segura o post se TODAS as suas plataformas estiverem fora do ar;
+        -- volta a tentar no próximo tick do cron (1 min depois) até
+        -- alguma plataforma voltar a responder ('up' ou 'unknown').
+        AND EXISTS (
+          SELECT 1 FROM unnest(p.platforms) AS plat
+          WHERE plat NOT IN (SELECT platform FROM platform_health WHERE status = 'down')
+        )
       )
       RETURNING
         id, text, platforms, scheduled_at, repeat, status, user_id,

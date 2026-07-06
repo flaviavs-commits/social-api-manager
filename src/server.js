@@ -210,6 +210,11 @@ app.use('/api/drafts',   draftsRoutes)
 app.use('/api/push',     pushRoutes)
 app.use('/api/ai',       aiRoutes)
 
+app.get('/api/platform-health', async (req, res) => {
+  const { getStatusMap } = require('./services/platformHealth')
+  res.json({ platforms: await getStatusMap() })
+})
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'))
 })

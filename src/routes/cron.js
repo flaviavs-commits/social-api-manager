@@ -32,4 +32,9 @@ router.get('/renew-tokens', async (req, res) => {
   res.json({ ok: true, limpeza })
 })
 
+router.get('/health-check', async (req, res) => {
+  await scheduler.verificarSaudePlataformas()
+  res.json({ ok: true })
+})
+
 module.exports = router
