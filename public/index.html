@@ -52,7 +52,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .user-role.super_admin { background: rgba(251,191,36,0.15); color: var(--yellow); }
 
 .nav-section { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.7; }
-.sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); overflow: hidden; max-height: 500px; transition: max-height var(--transition), padding var(--transition); }
+.sidebar-plat-list.collapsed { max-height: 0; padding: 0; border-bottom-color: transparent; }
+.nav-section.collapsed { display: none; }
 .sidebar-plat-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--text); cursor: pointer; transition: background var(--transition); }
 .sidebar-plat-item:hover { background: rgba(255,255,255,0.04); }
 .sidebar-plat-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; opacity: 0.5; }
@@ -1147,12 +1149,13 @@ input, select, textarea, label, .bottom-nav-item {
     MeuEcoo Media
   </div>
 
-  <div class="nav-item active" onclick="showPage('dashboard')">
+  <div class="nav-item active" onclick="toggleSidebarPlatList()">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     Dashboard
+    <svg id="sidebar-plat-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;transition:transform var(--transition)"><polyline points="6 9 12 15 18 9"/></svg>
   </div>
 
-  <div class="nav-section">Redes sociais</div>
+  <div class="nav-section" id="sidebar-plat-section">Redes sociais</div>
   <div class="sidebar-plat-list" id="sidebar-plat-list">
     <div style="padding:8px 1.25rem;font-size:11px;color:var(--muted);font-family:var(--mono)">carregando...</div>
   </div>
@@ -2114,6 +2117,14 @@ function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('open');
   document.body.style.overflow = '';
+}
+
+// Expande/encolhe a lista de redes sociais na sidebar (abaixo do item Dashboard)
+function toggleSidebarPlatList() {
+  document.getElementById('sidebar-plat-list')?.classList.toggle('collapsed');
+  document.getElementById('sidebar-plat-section')?.classList.toggle('collapsed');
+  document.getElementById('sidebar-plat-caret')?.style.setProperty('transform',
+    document.getElementById('sidebar-plat-list')?.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)');
 }
 
 // Página atualmente visível — usada pelo agente de IA para contextualizar sugestões
