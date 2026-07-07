@@ -213,35 +213,51 @@ router.get('/analytics', async (req, res) => {
       }
     }
 
-    // Métricas reais só existem para posts com external_post_id, ou seja,
-    // publicados a partir desta funcionalidade. Limita aos mais recentes para
-    // não disparar uma chamada de API externa por post em contas com muito
-    // histórico — isso já é paralelizado (Promise.allSettled), mas o tempo
-    // total ainda é limitado pelo timeout individual de cada chamada.
-    const MAX_POSTS_COM_METRICAS = 30
-    const comExternalId = posts
-      .filter(p => p.externalPostId)
+    // Métricas reais só existem para publicações com external_post_id, ou seja,
+    // feitas a partir desta funcionalidade. Um post pode ter sido publicado em
+    // várias redes (uma linha por rede em post_publications) — busca métricas
+    // de CADA rede para que todas apareçam no Analytics, não só uma por post.
+    // Limita ao total de chamadas (não de posts) para não disparar uma chamada
+    // de API externa por rede em contas com muito histórico. Isso já é
+    // paralelizado (Promise.allSettled), mas o tempo total ainda é limitado
+    // pelo timeout individual de cada chamada.
+    const MAX_PUBLICACOES_COM_METRICAS = 30
+    const postById = new Map(posts.map(p => [p.id, p]))
+    const publicacoes = (await repo.listarPublicacoesDosPosts(posts.map(p => p.id)))
+      .filter(pub => postById.has(pub.postId))
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-      .slice(0, MAX_POSTS_COM_METRICAS)
+      .slice(0, MAX_PUBLICACOES_COM_METRICAS)
+
     const metricsResults = await Promise.allSettled(
-      comExternalId.map(p => metricsService.buscarMetricasPost({ ...p, userRole: req.user.role }))
+      publicacoes.map(pub => {
+        const p = postById.get(pub.postId)
+        return metricsService.buscarMetricasPost({
+          ...p,
+          externalPostId: pub.externalPostId,
+          externalPlatform: pub.platform,
+          userRole: req.user.role
+        })
+      })
     )
 
-    const metrics = comExternalId.map((p, i) => ({
-      postId: p.id,
-      platform: p.externalPlatform,
-      text: p.text,
-      publishedAt: p.publishedAt,
-      mediaPath: p.mediaPath,
-      mediaType: p.mediaType,
-      mediaItems: p.mediaItems,
-      metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
-    }))
+    const metrics = publicacoes.map((pub, i) => {
+      const p = postById.get(pub.postId)
+      return {
+        postId: p.id,
+        platform: pub.platform,
+        text: p.text,
+        publishedAt: pub.publishedAt || p.publishedAt,
+        mediaPath: p.mediaPath,
+        mediaType: p.mediaType,
+        mediaItems: p.mediaItems,
+        metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
+      }
+    })
 
-    // Grava um ponto por dia no histórico de cada post (best-effort — não
-    // bloqueia a resposta do Analytics se a escrita falhar).
+    // Grava um ponto por dia no histórico de cada (post, rede) (best-effort —
+    // não bloqueia a resposta do Analytics se a escrita falhar).
     await Promise.allSettled(
-      metrics.filter(m => m.metrics).map(m => repo.registrarSnapshotMetricas(m.postId, m.metrics))
+      metrics.filter(m => m.metrics).map(m => repo.registrarSnapshotMetricas(m.postId, m.platform, m.metrics))
     )
 
     // Saldo de seguidores e alcance do Instagram + TikTok em paralelo —

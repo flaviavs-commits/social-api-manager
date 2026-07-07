@@ -104,11 +104,40 @@ async function reservarPostsPendentes() {
 // permitir buscar métricas (likes/comentários) depois. Posts publicados
 // antes desta coluna existir, ou em redes sem ID público utilizável
 // (TikTok), ficam com esses campos nulos.
+//
+// Um post pode ir para várias redes: grava uma linha por rede em
+// post_publications (upsert), preservando o ID externo de cada uma para o
+// Analytics. As colunas legadas external_post_id/external_platform em posts
+// guardam só a PRIMEIRA rede publicada (usadas por comentários/inbox, que só
+// precisam de algum ID do post) — não sobrescreve se já houver uma, para não
+// perder qual foi a primeira quando publicando em paralelo.
 async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt }) {
   await pool.query(
-    `UPDATE posts SET external_post_id = $1, external_platform = $2, published_at = $3 WHERE id = $4`,
+    `INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (post_id, platform)
+       DO UPDATE SET external_post_id = EXCLUDED.external_post_id, published_at = EXCLUDED.published_at`,
+    [id, externalPlatform, externalPostId, publishedAt]
+  )
+  await pool.query(
+    `UPDATE posts
+     SET external_post_id = $1, external_platform = $2, published_at = COALESCE(published_at, $3)
+     WHERE id = $4 AND external_post_id IS NULL`,
     [externalPostId, externalPlatform, publishedAt, id]
   )
+}
+
+// Todas as publicações (uma por rede) dos posts informados, para o Analytics
+// montar uma entrada de métricas por (post, rede) em vez de só uma por post.
+async function listarPublicacoesDosPosts(postIds) {
+  if (!postIds.length) return []
+  const { rows } = await pool.query(
+    `SELECT post_id AS "postId", platform, external_post_id AS "externalPostId", published_at AS "publishedAt"
+     FROM post_publications
+     WHERE post_id = ANY($1) AND external_post_id IS NOT NULL`,
+    [postIds]
+  )
+  return rows
 }
 
 // Posts publicados numa plataforma que ainda não têm o ID externo salvo —
@@ -158,26 +187,28 @@ async function listarPostsComInstagramPendente() {
   return rows
 }
 
-// Salva um snapshot diário das métricas de um post (1 ponto por dia), para
-// alimentar o gráfico de curtidas ao longo do tempo — a API da rede social
-// só dá o valor atual, então é o Analytics que constrói o histórico, dia a
-// dia, a cada vez que busca métricas reais.
-async function registrarSnapshotMetricas(postId, { likes, comments, views }) {
+// Salva um snapshot diário das métricas de um post por rede (1 ponto por dia
+// por rede), para alimentar o gráfico de curtidas ao longo do tempo — a API da
+// rede social só dá o valor atual, então é o Analytics que constrói o
+// histórico, dia a dia, a cada vez que busca métricas reais. Como um post pode
+// estar em várias redes, o snapshot é por (post, rede) para uma não sobrescrever
+// a outra no mesmo dia.
+async function registrarSnapshotMetricas(postId, platform, { likes, comments, views }) {
   await pool.query(`
-    INSERT INTO post_metrics_history (post_id, captured_on, likes, comments, views)
-    VALUES ($1, CURRENT_DATE, $2, $3, $4)
-    ON CONFLICT (post_id, captured_on) DO UPDATE SET likes = $2, comments = $3, views = $4
-  `, [postId, likes ?? null, comments ?? null, views ?? null])
+    INSERT INTO post_metrics_history (post_id, platform, captured_on, likes, comments, views)
+    VALUES ($1, $2, CURRENT_DATE, $3, $4, $5)
+    ON CONFLICT (post_id, platform, captured_on) DO UPDATE SET likes = $3, comments = $4, views = $5
+  `, [postId, platform, likes ?? null, comments ?? null, views ?? null])
 }
 
-// Histórico diário de curtidas/comentários/views de um post, para o gráfico
-// de linha no Analytics.
+// Histórico diário de curtidas/comentários/views de um post, por rede, para o
+// gráfico de linha no Analytics.
 async function buscarHistoricoMetricas(postId) {
   const { rows } = await pool.query(`
-    SELECT captured_on AS "date", likes, comments, views
+    SELECT captured_on AS "date", platform, likes, comments, views
     FROM post_metrics_history
     WHERE post_id = $1
-    ORDER BY captured_on ASC
+    ORDER BY captured_on ASC, platform ASC
   `, [postId])
   return rows
 }
@@ -228,7 +259,7 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes,
-  salvarPublicacaoExterna, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
+  salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente,
   registrarSnapshotMetricas, buscarHistoricoMetricas,
   listarPostsCalendario, reagendarPost

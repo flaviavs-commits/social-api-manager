@@ -104,14 +104,20 @@ describe('atualizarStatusPost', () => {
 })
 
 describe('salvarPublicacaoExterna', () => {
-  test('salva externalPostId, platform e publishedAt', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [] })
+  test('faz upsert em post_publications (uma linha por rede) e preenche as colunas legadas', async () => {
+    pool.query.mockResolvedValue({ rows: [] })
     const ts = new Date().toISOString()
     await repo.salvarPublicacaoExterna(1, { externalPostId: 'abc', externalPlatform: 'instagram', publishedAt: ts })
-    const params = pool.query.mock.calls[0][1]
-    expect(params[0]).toBe('abc')
-    expect(params[1]).toBe('instagram')
-    expect(params[3]).toBe(1)
+
+    // 1ª query: upsert em post_publications — params [postId, platform, externalPostId, publishedAt]
+    const upsert = pool.query.mock.calls[0]
+    expect(upsert[0]).toMatch(/post_publications/)
+    expect(upsert[1]).toEqual([1, 'instagram', 'abc', ts])
+
+    // 2ª query: colunas legadas em posts, só se ainda vazias (WHERE external_post_id IS NULL)
+    const legacy = pool.query.mock.calls[1]
+    expect(legacy[0]).toMatch(/external_post_id IS NULL/)
+    expect(legacy[1]).toEqual(['abc', 'instagram', ts, 1])
   })
 })
 
@@ -127,21 +133,22 @@ describe('salvarInstagramPending', () => {
 })
 
 describe('registrarSnapshotMetricas', () => {
-  test('passa likes, comments e views', async () => {
+  test('passa post, rede, likes, comments e views', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
-    await repo.registrarSnapshotMetricas(5, { likes: 100, comments: 10, views: 500 })
+    await repo.registrarSnapshotMetricas(5, 'instagram', { likes: 100, comments: 10, views: 500 })
     const params = pool.query.mock.calls[0][1]
     expect(params[0]).toBe(5)
-    expect(params[1]).toBe(100)
-    expect(params[2]).toBe(10)
-    expect(params[3]).toBe(500)
+    expect(params[1]).toBe('instagram')
+    expect(params[2]).toBe(100)
+    expect(params[3]).toBe(10)
+    expect(params[4]).toBe(500)
   })
 
   test('null para métricas ausentes', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
-    await repo.registrarSnapshotMetricas(5, {})
+    await repo.registrarSnapshotMetricas(5, 'facebook', {})
     const params = pool.query.mock.calls[0][1]
-    expect(params[1]).toBeNull()
+    expect(params[2]).toBeNull()
   })
 })
 

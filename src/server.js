@@ -294,6 +294,52 @@ async function runMigrations() {
     pool.query(`
       CREATE INDEX IF NOT EXISTS idx_posts_instagram_pending ON posts (id) WHERE instagram_pending IS NOT NULL;
     `).catch(() => {}),
+    // Uma linha por (post, rede): um post pode ser publicado em várias redes,
+    // e cada uma precisa preservar seu próprio external_post_id para o
+    // Analytics mostrar métricas de todas (o schema antigo só guardava um por
+    // post, sobrescrito ao publicar em paralelo). Ver migrations/015.
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS post_publications (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        platform TEXT NOT NULL,
+        external_post_id TEXT,
+        published_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (post_id, platform)
+      )
+    `).then(() => Promise.all([
+      pool.query(`CREATE INDEX IF NOT EXISTS idx_post_publications_post_id ON post_publications(post_id)`).catch(() => {}),
+      // Backfill dos IDs já salvos no schema antigo (uma vez; ON CONFLICT evita duplicar).
+      pool.query(`
+        INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
+        SELECT id, external_platform, external_post_id, published_at
+        FROM posts
+        WHERE external_post_id IS NOT NULL AND external_platform IS NOT NULL
+        ON CONFLICT (post_id, platform) DO NOTHING
+      `).catch(() => {}),
+    ])).catch(() => {}),
+    // Snapshot de métricas passa a ser por (post, rede): um post em várias
+    // redes precisa de histórico separado por rede, senão uma sobrescreve a
+    // outra no mesmo dia. Adiciona a coluna platform e troca a unique key.
+    // Idempotente — só roda o que ainda falta. Ver migrations/016.
+    (async () => {
+      await pool.query(`CREATE TABLE IF NOT EXISTS post_metrics_history (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        captured_on DATE NOT NULL DEFAULT CURRENT_DATE,
+        likes INTEGER, comments INTEGER, views INTEGER
+      )`).catch(() => {})
+      await pool.query(`ALTER TABLE post_metrics_history ADD COLUMN IF NOT EXISTS platform TEXT`).catch(() => {})
+      // Preenche a rede das linhas antigas com a rede legada do post; o que
+      // sobrar (post sem external_platform) recebe 'unknown' para não colidir
+      // no índice único novo.
+      await pool.query(`UPDATE post_metrics_history h SET platform = COALESCE(p.external_platform, 'unknown')
+        FROM posts p WHERE h.post_id = p.id AND h.platform IS NULL`).catch(() => {})
+      await pool.query(`UPDATE post_metrics_history SET platform = 'unknown' WHERE platform IS NULL`).catch(() => {})
+      await pool.query(`ALTER TABLE post_metrics_history DROP CONSTRAINT IF EXISTS post_metrics_history_post_id_captured_on_key`).catch(() => {})
+      await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS post_metrics_history_post_platform_day
+        ON post_metrics_history (post_id, platform, captured_on)`).catch(() => {})
+    })().catch(() => {}),
   ])
 }
 

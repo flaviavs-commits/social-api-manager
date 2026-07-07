@@ -16,6 +16,7 @@ jest.mock('../../src/repositories/postsRepository', () => ({
   registrarSnapshotMetricas: jest.fn(),
   salvarInstagramPending: jest.fn(),
   listarPostsPublicadosSemExternalId: jest.fn(),
+  listarPublicacoesDosPosts: jest.fn().mockResolvedValue([]),
 }))
 jest.mock('../../src/repositories/contasRepository', () => ({ buscarContaPorId: jest.fn() }))
 jest.mock('../../src/services/commentsService', () => ({
