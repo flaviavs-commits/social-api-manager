@@ -10,9 +10,9 @@ const transporter = nodemailer.createTransport({
 
 async function enviarEmailRedefinicaoSenha(email, resetLink) {
   await transporter.sendMail({
-    from: `"Social API Manager" <${process.env.GMAIL_USER}>`,
+    from: `"Social Api Manager" <${process.env.GMAIL_USER}>`,
     to: email,
-    subject: 'Redefinição de senha — Social API Manager',
+    subject: 'Redefinição de senha — Social Api Manager',
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <h2 style="color: #333;">Redefinir sua senha</h2>

@@ -91,7 +91,7 @@ function validarCodigo(segredoBase32, codigo, janela = 1) {
 
 // Monta a otpauth:// URI lida pelo Google Authenticator (via QR code).
 // label e issuer identificam a conta no app autenticador.
-function gerarOtpauthUri(segredoBase32, contaEmail, issuer = 'Social API Manager') {
+function gerarOtpauthUri(segredoBase32, contaEmail, issuer = 'Social Api Manager') {
   const label = encodeURIComponent(`${issuer}:${contaEmail}`)
   const params = new URLSearchParams({
     secret: segredoBase32,

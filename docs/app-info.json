@@ -1,15 +1,15 @@
 {
   "app": {
-    "name": "Social Manager Pro",
-    "description": "Manage all your TikTok content and social media in one place with Social Manager Pro.",
+    "name": "Social Api Manager",
+    "description": "Manage all your TikTok content and social media in one place with Social Api Manager.",
     "version": "1.0.0",
     "category": "Social Networking",
-    "icon": "https://your-domain.com/public/app-icon-1024x1024.png",
+    "icon": "https://social-api-manager.vercel.app/favicon.png",
     "screenshots": [
-      "https://your-domain.com/screenshots/dashboard.png",
-      "https://your-domain.com/screenshots/publish.png",
-      "https://your-domain.com/screenshots/schedule.png",
-      "https://your-domain.com/screenshots/analytics.png"
+      "https://social-api-manager.vercel.app/screenshots/dashboard.png",
+      "https://social-api-manager.vercel.app/screenshots/publish.png",
+      "https://social-api-manager.vercel.app/screenshots/schedule.png",
+      "https://social-api-manager.vercel.app/screenshots/analytics.png"
     ]
   },
   "tiktok_submission": {
@@ -22,14 +22,29 @@
         "justification": "Required to identify which TikTok account content is being published to"
       },
       {
-        "name": "video.create",
-        "description": "Create video drafts on TikTok",
-        "justification": "Allows users to create and upload video content to their TikTok accounts"
+        "name": "user.info.profile",
+        "description": "Access the user's profile display name and avatar",
+        "justification": "Shown in the dashboard so the user can confirm which connected account they are managing"
+      },
+      {
+        "name": "user.info.stats",
+        "description": "Read follower and like counts for the connected account",
+        "justification": "Displayed in the Analytics screen as follower/like history charts"
+      },
+      {
+        "name": "video.list",
+        "description": "List the videos already published on the user's account",
+        "justification": "Populates the dashboard with the user's own published videos"
+      },
+      {
+        "name": "video.upload",
+        "description": "Upload video content to the user's TikTok account",
+        "justification": "Allows the user to send a video from the app to their own TikTok account"
       },
       {
         "name": "video.publish",
-        "description": "Publish videos from drafts to user's TikTok profile",
-        "justification": "Enables automated or manual publishing of scheduled content directly to TikTok profiles"
+        "description": "Publish uploaded videos to the user's TikTok profile",
+        "justification": "Enables scheduled or manual publishing of content directly to the user's TikTok profile"
       }
     ],
     "features": [
@@ -61,16 +76,16 @@
     ]
   },
   "urls": {
-    "website": "https://your-domain.com",
-    "privacy_policy": "https://your-domain.com/privacy-policy",
-    "terms_of_service": "https://your-domain.com/terms-of-service",
-    "support": "https://your-domain.com/support",
-    "redirect_uri": "https://your-domain.com/oauth/tiktok/callback"
+    "website": "https://social-api-manager.vercel.app",
+    "privacy_policy": "https://social-api-manager.vercel.app/privacy-policy",
+    "terms_of_service": "https://social-api-manager.vercel.app/terms-of-service",
+    "support": "https://social-api-manager.vercel.app/sobre",
+    "redirect_uri": "https://social-api-manager.vercel.app/oauth/tiktok/callback"
   },
   "deployment": {
     "environment": "sandbox_and_production",
     "sandbox_redirect_uri": "http://localhost:3000/oauth/tiktok/callback",
-    "production_redirect_uri": "https://your-domain.com/oauth/tiktok/callback",
+    "production_redirect_uri": "https://social-api-manager.vercel.app/oauth/tiktok/callback",
     "https_required": true,
     "domain_verification": "required_for_production"
   },
@@ -82,8 +97,8 @@
     "https_enforced": true
   },
   "support": {
-    "email": "support@socialmanagerpro.local",
-    "documentation": "https://your-domain.com/docs/tiktok-integration",
-    "issues_contact": "tech@socialmanagerpro.local"
+    "email": "tiago@vitissouls.com",
+    "documentation": "https://social-api-manager.vercel.app/sobre",
+    "issues_contact": "tiago@vitissouls.com"
   }
 }

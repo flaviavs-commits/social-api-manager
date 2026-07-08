@@ -27,7 +27,7 @@ Este vídeo é OBRIGATÓRIO para a verificação dos escopos restritos do YouTub
   visível.
 - Faça login no app (e-mail/senha).
 - Narração/legenda sugerida:
-  > "This is Social API Manager, a dashboard that lets a user schedule and
+  > "This is Social Api Manager, a dashboard that lets a user schedule and
   > publish content to their own social media accounts — including YouTube —
   > from a single place."
 

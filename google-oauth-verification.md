@@ -1,6 +1,6 @@
 # Material para verificação do app no Google Cloud Console
 
-App: Social API Manager — ferramenta de gerenciamento e publicação de posts
+App: Social Api Manager — ferramenta de gerenciamento e publicação de posts
 em múltiplas redes sociais (Instagram, TikTok, YouTube, Kwai, Facebook).
 
 ## Escopos solicitados e por que cada um é necessário

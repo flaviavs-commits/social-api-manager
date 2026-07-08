@@ -1,4 +1,4 @@
-# Social API Manager
+# Social Api Manager
 
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
 Suporta Facebook, Instagram, YouTube, TikTok e Kwai via OAuth 2.0.
