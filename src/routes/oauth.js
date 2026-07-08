@@ -11,7 +11,15 @@ const requireAuth = require('../middleware/requireAuth');
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
 // instância de função serverless diferente, perdendo qualquer Map em memória.
 async function salvarPkceVerifier(state, codeVerifier) {
-  await pool.query(`INSERT INTO oauth_pkce_state (state, code_verifier) VALUES ($1, $2)`, [state, codeVerifier]);
+  // O state é determinístico (signState dos mesmos dados gera o mesmo valor),
+  // então reiniciar um OAuth com a mesma conta reusa a chave. UPSERT sobrescreve
+  // o verifier anterior em vez de estourar a unique constraint — um INSERT cru
+  // lançava um erro não tratado que derrubava o processo inteiro.
+  await pool.query(
+    `INSERT INTO oauth_pkce_state (state, code_verifier) VALUES ($1, $2)
+     ON CONFLICT (state) DO UPDATE SET code_verifier = EXCLUDED.code_verifier, criado_em = NOW()`,
+    [state, codeVerifier]
+  );
 }
 
 async function consumirPkceVerifier(state) {
@@ -455,24 +463,33 @@ async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessag
 
   const { accountName } = req.query;
   const platform = 'tiktok';
-  const state = signState({ accountName, platform, userId: req.user.id, ...stateExtra });
 
-  // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
-  const codeVerifier = crypto.randomBytes(64).toString('base64url');
-  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
-  await salvarPkceVerifier(state, codeVerifier);
+  // Qualquer falha aqui (ex.: banco indisponível ao salvar o PKCE) precisa virar
+  // uma resposta de erro — sem o try/catch, a rejeição não tratada derrubava o
+  // processo inteiro e reiniciava o servidor a cada tentativa de conexão.
+  try {
+    const state = signState({ accountName, platform, userId: req.user.id, ...stateExtra });
 
-  const url = `https://www.tiktok.com/v2/auth/authorize/` +
-    `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
-    `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
-    `&scope=${scopes.join(',')}` +
-    `&state=${state}` +
-    `&response_type=code` +
-    `&code_challenge=${codeChallenge}` +
-    `&code_challenge_method=S256`;
+    // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
+    const codeVerifier = crypto.randomBytes(64).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('hex');
+    await salvarPkceVerifier(state, codeVerifier);
 
-  addLog('info', logMessage, platform, null, req.user.id);
-  res.json({ authUrl: url });
+    const url = `https://www.tiktok.com/v2/auth/authorize/` +
+      `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
+      `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
+      `&scope=${scopes.join(',')}` +
+      `&state=${state}` +
+      `&response_type=code` +
+      `&code_challenge=${codeChallenge}` +
+      `&code_challenge_method=S256`;
+
+    addLog('info', logMessage, platform, null, req.user.id);
+    res.json({ authUrl: url });
+  } catch (err) {
+    addLog('err', `Falha ao iniciar OAuth TikTok: ${err.message}`, platform, null, req.user?.id);
+    res.status(500).json({ error: 'Não foi possível iniciar a conexão com o TikTok. Tente novamente.' });
+  }
 }
 
 // Scopes solicitados no OAuth do TikTok — os mesmos pedidos no App Review.

@@ -346,6 +346,17 @@ async function runMigrations() {
   ])
 }
 
+// Rede de segurança: uma promise rejeitada sem catch (ex.: erro de banco numa
+// rota) derrubava o processo inteiro e reiniciava o servidor em loop. Logar e
+// seguir vivo é preferível a cair — a requisição que falhou já respondeu erro
+// pelo error handler do Express; o resto do servidor não deve morrer junto.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+})
+
 if (require.main === module) {
   const PORT = process.env.PORT || 3000
   runMigrations().catch(err => console.error('Migration error:', err))

@@ -89,7 +89,7 @@ describe('gerarOtpauthUri', () => {
 
   test('contém o issuer padrão', () => {
     const uri = gerarOtpauthUri('JBSWY3DPEHPK3PXP', 'user@example.com')
-    expect(uri).toContain('issuer=Social+API+Manager')
+    expect(uri).toContain('issuer=Social+Api+Manager')
   })
 
   test('aceita issuer customizado', () => {
