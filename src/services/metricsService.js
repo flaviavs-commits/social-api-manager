@@ -1,5 +1,12 @@
 const { buscarContaToken, listarContasToken } = require('./publisher')
 const contasRepo = require('../repositories/contasRepository')
+const tokensRepo = require('../repositories/tokensRepository')
+
+// Access tokens do Google (YouTube) expiram em ~1h. Se o token estiver
+// expirado (ou prestes a expirar) na hora de buscar métricas, a Data API e a
+// Analytics API respondem 401 e o post fica "sem métricas" no Analytics. Uma
+// margem de segurança evita usar um token que expira no meio da chamada.
+const TOKEN_EXPIRY_MARGIN_MS = 2 * 60 * 1000
 
 // Plataformas com API de métricas acessível com os escopos já usados na conexão.
 // TikTok (sem ID público de vídeo) não é suportado.
@@ -116,8 +123,24 @@ async function buscarMetricasPost(post) {
   if (!PLATAFORMAS_COM_METRICAS.includes(post.externalPlatform)) return null
 
   const isSuperAdmin = post.userRole === 'super_admin'
-  const token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
+  let token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
   if (!token) return null
+
+  // O access_token pode ter expirado desde a última renovação proativa (o cron
+  // roda só a cada 6h; o do Google dura ~1h). Renova sob demanda antes de
+  // chamar a API de métricas e recarrega o token já atualizado do banco — sem
+  // isso, vídeos vistos mais de 1h após a conexão apareceriam "sem métricas"
+  // por causa do 401. Best-effort: se a renovação falhar, segue com o token
+  // atual (a chamada pode ainda funcionar, ou simplesmente cair no catch).
+  const expiraEmBreve = token.expiresAt && new Date(token.expiresAt).getTime() - Date.now() < TOKEN_EXPIRY_MARGIN_MS
+  if (expiraEmBreve && token.refreshToken) {
+    try {
+      const renewal = await tokensRepo.renovarToken(token.token_id, post.userId, isSuperAdmin)
+      if (renewal?.success) {
+        token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId) || token
+      }
+    } catch {}
+  }
 
   try {
     return await METRIC_FETCHERS[post.externalPlatform](token, post.externalPostId)
