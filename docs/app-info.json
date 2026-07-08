@@ -79,7 +79,7 @@
     "website": "https://social-api-manager.vercel.app",
     "privacy_policy": "https://social-api-manager.vercel.app/privacy-policy",
     "terms_of_service": "https://social-api-manager.vercel.app/terms-of-service",
-    "support": "https://social-api-manager.vercel.app/sobre",
+    "support": "https://social-api-manager.vercel.app/support",
     "redirect_uri": "https://social-api-manager.vercel.app/oauth/tiktok/callback"
   },
   "deployment": {
@@ -98,7 +98,7 @@
   },
   "support": {
     "email": "tiago@vitissouls.com",
-    "documentation": "https://social-api-manager.vercel.app/sobre",
+    "documentation": "https://social-api-manager.vercel.app/support",
     "issues_contact": "tiago@vitissouls.com"
   }
 }

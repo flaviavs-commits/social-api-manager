@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suporte — Social Api Manager</title>
+<meta name="description" content="Central de suporte do Social Api Manager: contato, dúvidas frequentes e como gerenciar suas contas conectadas.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
+  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+  --text: #eef0f6; --muted: #8b8fa3;
+  --accent: #6c8cff; --red: #fb7185; --green: #4ade80;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
+.logo { font-size: 18px; font-weight: 700; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+h1 { font-size: 30px; font-weight: 700; margin-bottom: 0.75rem; }
+.subtitle { color: var(--muted); font-size: 16px; margin-bottom: 2.5rem; max-width: 560px; }
+section { margin-bottom: 2.25rem; }
+h2 { font-size: 16px; font-weight: 600; margin-bottom: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+.contact-email { font-size: 18px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.contact-email:hover { text-decoration: underline; }
+.faq { border-top: 1px solid var(--border); padding-top: 1.25rem; margin-top: 1.25rem; }
+.faq:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.faq h3 { font-size: 15px; font-weight: 600; margin-bottom: 0.4rem; }
+.faq p { color: var(--muted); }
+ul { margin: 0.5rem 0 0 1.1rem; color: var(--text); font-size: 15px; }
+li { margin-bottom: 0.4rem; }
+footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
+footer a { color: var(--muted); text-decoration: none; }
+footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">Social Api Manager</div>
+    <a href="/login.html" class="btn btn-primary">Entrar</a>
+  </header>
+
+  <h1>Suporte</h1>
+  <p class="subtitle">
+    Precisa de ajuda com o Social Api Manager? Esta página reúne o contato de
+    suporte e respostas para as dúvidas mais comuns sobre contas conectadas,
+    publicação e privacidade.
+  </p>
+
+  <section class="card">
+    <h2>Fale conosco</h2>
+    <p>
+      Para dúvidas, problemas técnicos, solicitações relacionadas aos seus
+      dados ou qualquer questão sobre o aplicativo, escreva para:
+    </p>
+    <p><a class="contact-email" href="mailto:tiago@vitissouls.com">tiago@vitissouls.com</a></p>
+    <p style="color:var(--muted);font-size:14px">
+      Respondemos normalmente em até 2 dias úteis.
+    </p>
+  </section>
+
+  <section>
+    <h2>Perguntas frequentes</h2>
+
+    <div class="faq">
+      <h3>Como conecto uma conta de rede social?</h3>
+      <p>
+        No painel, vá em "Conexões das Contas", escolha a plataforma
+        (YouTube, Instagram, TikTok ou Facebook) e clique em "+ Conta". Você
+        será redirecionado ao fluxo oficial de login da plataforma para
+        autorizar o acesso.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Como publico ou agendo um post?</h3>
+      <p>
+        Em "Programar Post", escreva a legenda, anexe fotos ou vídeos,
+        selecione as redes conectadas e publique imediatamente ou escolha uma
+        data para o agendamento.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Como desconecto uma conta?</h3>
+      <p>
+        Em "Conexões das Contas", clique em "Excluir" na conta desejada e
+        confirme. O token de acesso armazenado é removido imediatamente e o
+        aplicativo deixa de ter qualquer acesso àquela conta.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Quais permissões o aplicativo solicita?</h3>
+      <p>
+        Apenas as necessárias para identificar sua conta, publicar o conteúdo
+        que você criar e exibir métricas básicas das suas próprias
+        publicações. O aplicativo acessa somente os dados da conta que você
+        conectou e autorizou.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Onde vejo a política de privacidade e os termos?</h3>
+      <p>
+        Nos links de <a href="/privacy-policy" style="color:var(--accent)">Política de Privacidade</a>
+        e <a href="/terms-of-service" style="color:var(--accent)">Termos de Uso</a>, disponíveis no
+        rodapé de todas as páginas.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <a href="/sobre">Sobre</a>
+    <a href="/login.html">Entrar</a>
+    <a href="/privacy-policy">Política de Privacidade</a>
+    <a href="/terms-of-service">Termos de Uso</a>
+  </footer>
+</div>
+
+</body>
+</html>

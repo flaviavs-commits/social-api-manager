@@ -170,6 +170,9 @@ app.get('/privacy-policy', (req, res) => {
 app.get('/terms-of-service', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/terms-of-service.html'))
 })
+app.get('/support', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/support.html'))
+})
 
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
 
