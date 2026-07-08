@@ -496,14 +496,16 @@ async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessag
 // Mantidos numa constante única para os dois fluxos (direto e via Google) não
 // divergirem: pedir um scope não aprovado faz o TikTok rejeitar o login.
 // - user.info.basic/profile: identificar a conta conectada (nome, avatar)
-// - user.info.stats: gráfico de seguidores/curtidas no Analytics
-// - video.list: listar os vídeos publicados no painel
 // - video.publish/upload: publicar vídeos/fotos na conta do usuário
+// user.info.stats (Analytics de seguidores/curtidas) e video.list (lista de
+// vídeos no painel) foram removidos da submissão porque não foram demonstrados
+// no vídeo de review — o TikTok reprova scope pedido mas não mostrado. As
+// funções que os usam (metricsStatsAtuaisTiktok/metricsVideosTiktok) já tratam
+// o 403 resultante, então o app degrada sem quebrar. Readicionar aqui + na
+// submissão quando forem demonstrados num vídeo.
 const TIKTOK_SCOPES = [
   'user.info.basic',
   'user.info.profile',
-  'user.info.stats',
-  'video.list',
   'video.publish',
   'video.upload'
 ];

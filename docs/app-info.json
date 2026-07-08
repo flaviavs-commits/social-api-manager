@@ -27,16 +27,6 @@
         "justification": "Shown in the dashboard so the user can confirm which connected account they are managing"
       },
       {
-        "name": "user.info.stats",
-        "description": "Read follower and like counts for the connected account",
-        "justification": "Displayed in the Analytics screen as follower/like history charts"
-      },
-      {
-        "name": "video.list",
-        "description": "List the videos already published on the user's account",
-        "justification": "Populates the dashboard with the user's own published videos"
-      },
-      {
         "name": "video.upload",
         "description": "Upload video content to the user's TikTok account",
         "justification": "Allows the user to send a video from the app to their own TikTok account"
