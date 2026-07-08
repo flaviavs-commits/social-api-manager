@@ -35,6 +35,18 @@ O roteiro abaixo foi desenhado para atender aos 4 pontos de uma vez.
 - [ ] Gravação em **1080p**, sem cortes que escondam etapas. Duração 3–5 min.
 - [ ] Narração/legenda **em inglês** (o revisor do TikTok trabalha em inglês).
 
+### Ferramenta de gravação
+
+Grave com o **Loom** (mesma ferramenta usada no vídeo do Google). Vantagens:
+
+- Já gera um **link de hospedagem** direto — cole esse link no formulário de
+  reenvio do TikTok (não precisa subir no YouTube).
+- Grava tela + microfone de uma vez, mantendo a **barra de URL visível**.
+- Configure a captura em **1080p** e grave a **aba/janela do navegador inteira**
+  (não só uma região) para a URL aparecer sempre.
+- Deixe o vídeo com visibilidade "qualquer pessoa com o link pode ver", senão o
+  revisor não consegue abrir.
+
 ---
 
 ## Roteiro cena a cena
@@ -129,6 +141,6 @@ Mostrar cada escopo em uso real é o que o revisor precisa ver para aprovar.
 - [ ] Barra de URL visível em todas as telas
 - [ ] Todos os 6 escopos aparecem em uso real
 - [ ] Narração/legenda em inglês, sem cortes escondendo etapas
-- [ ] Vídeo hospedado (YouTube "Não listado" ou upload direto) e link colado no
-      formulário de reenvio do TikTok
+- [ ] Vídeo hospedado no **Loom** (link acessível a "qualquer pessoa com o
+      link") e link colado no formulário de reenvio do TikTok
 - [ ] Campos "Website URL" e "App name" atualizados no formulário do TikTok
