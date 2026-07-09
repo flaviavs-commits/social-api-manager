@@ -6142,7 +6142,11 @@ async function aiOpenModelPicker() {
   list.innerHTML = aiAvailableModels.map(m => {
     const pm = AI_MODEL_PICKER_META[m.id] || {}
     const isSelected = m.id === aiSelectedModel
-    const unavail = !m.available
+    // "sem chave no servidor" só bloqueia de verdade quando o modelo NÃO tem
+    // como usar chave própria do usuário — se tem (requiresKey), o clique
+    // ainda deve funcionar, só que leva direto pro modal de configurar a
+    // chave (em vez de selecionar na hora), em aiConfirmModelPick.
+    const unavail = !m.available && !pm.requiresKey
     const keyBadgeHtml = pm.keyBadge ? `
       <div style="margin-top:6px">
         <span onclick="event.stopPropagation();aiCloseModelPicker();aiOpenKeyModal('${m.id}',()=>{})"
