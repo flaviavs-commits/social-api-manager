@@ -6525,6 +6525,14 @@ function aiPodePublicarAgora(plats, temMidia = false) {
   return temMidia || plats.every(p => PLAT_REQUIREMENTS[p]?.media !== 'required')
 }
 
+// Um post pode ser agendado quando ele já tem mídia OU quando nenhuma das
+// suas plataformas exige mídia. Usado tanto no card individual quanto nos
+// chips "Agendar"/"Agendar todos" — sem essa checagem, o chip aparecia
+// mesmo quando o card já tinha escondido os botões por faltar mídia.
+function aiPodeAgendar(post) {
+  return !!post.mediaPath || post.plataformas.every(p => PLAT_REQUIREMENTS[p]?.media !== 'required')
+}
+
 // Monta os botões de ação de um card de post gerado por texto. Se a rede
 // exige mídia e o post ainda não tem uma anexada, mostra só "📎 Anexar mídia"
 // (Agendar/Publicar ficam escondidos até ter mídia, para não sugerir uma ação
@@ -7248,11 +7256,21 @@ async function aiChatProcess(ctx, userMsg) {
       }
 
       await new Promise(r => setTimeout(r, 600))
+      // Só oferece o chip de agendar em massa/rápido se TODOS os posts já
+      // puderem ser agendados (têm mídia, quando a rede exige) — senão o
+      // chip contradiria o card, que já escondeu os botões por faltar mídia.
+      const todosProntos = posts.every(aiPodeAgendar)
       if (posts.length > 1) {
-        aiChatAddMsg(ctx, 'agent', `Quer agendar todos os ${posts.length} posts de uma vez?`)
-        aiChatSetChips(ctx, ['✅ Agendar todos', '✏️ Editar um deles', '↻ Gerar novos posts'])
-      } else {
+        aiChatAddMsg(ctx, 'agent', todosProntos
+          ? `Quer agendar todos os ${posts.length} posts de uma vez?`
+          : `Alguns posts ainda precisam de mídia anexada antes de agendar (veja "📎 Anexar mídia" acima). Os demais você já pode agendar individualmente.`)
+        aiChatSetChips(ctx, todosProntos
+          ? ['✅ Agendar todos', '✏️ Editar um deles', '↻ Gerar novos posts']
+          : ['✏️ Editar um deles', '↻ Gerar novos posts'])
+      } else if (todosProntos) {
         aiChatSetChips(ctx, ['✅ Agendar', '↻ Gerar outro', '🎨 Mudar o tom'])
+      } else {
+        aiChatSetChips(ctx, ['↻ Gerar outro', '🎨 Mudar o tom'])
       }
 
     } catch (err) {
@@ -7365,6 +7383,15 @@ async function aiChatScheduleAll(ctx) {
   const state = aiChat[ctx]
   const posts = state.pendingPost
   if (!posts?.length) return
+
+  // Defesa extra (o chip "Agendar todos" já fica escondido nesse caso, mas o
+  // usuário pode digitar "agendar todos" manualmente): não agenda posts que
+  // ainda não têm a mídia que a rede exige.
+  const semMidia = posts.filter(p => !aiPodeAgendar(p))
+  if (semMidia.length) {
+    aiChatAddMsg(ctx, 'agent', `⚠️ ${semMidia.length === posts.length ? 'Nenhum post está' : 'Alguns posts ainda não estão'} pronto — falta anexar mídia (clique em "📎 Anexar mídia" no card). Anexe primeiro e tente de novo.`)
+    return
+  }
 
   aiChatAddMsg(ctx, 'agent', `⏳ Agendando ${posts.length} posts...`)
   try {
