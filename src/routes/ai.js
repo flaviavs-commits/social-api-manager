@@ -835,19 +835,29 @@ router.get('/models', (req, res) => {
 })
 
 // POST /api/ai/schedule
+// Aceita publishNow (por post ou no nível raiz) para publicar imediatamente
+// em vez de agendar. O Agente IA só gera TEXTO (nunca mídia), então só é
+// seguro publicar agora quando NENHUMA plataforma do post exigir mídia (hoje,
+// só o Facebook aceita post de só texto) — validado aqui mesmo se o front
+// mandar publishNow para uma rede que exige mídia, evitando falha na hora H.
 router.post('/schedule', async (req, res) => {
   try {
     const { posts } = req.body
     if (!Array.isArray(posts) || !posts.length) return res.status(400).json({ erro: 'Nenhum post para agendar' })
 
     const repo = require('../repositories/postsRepository')
+    const { publishPost } = require('../services/publisher')
     const criados = []
 
     for (const p of posts) {
+      const querPublicarAgora = p.publishNow === true || req.body.publishNow === true
+      const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
+      const publishNow = querPublicarAgora && !exigeMidia
+
       const post = await repo.criarPost({
         text:              p.texto,
         platforms:         p.plataformas,
-        scheduledAt:       new Date(p.horario),
+        scheduledAt:       publishNow ? new Date() : new Date(p.horario),
         repeat:            'none',
         mediaPath:         null,
         mediaType:         null,
@@ -857,9 +867,19 @@ router.post('/schedule', async (req, res) => {
         youtubeIsShort:    null,
         accountId:         p.accountId || null,
         userId:            req.user.id,
-        status:            'scheduled',
+        status:            publishNow ? 'processing' : 'scheduled',
       })
-      criados.push(post)
+
+      if (!publishNow) { criados.push(post); continue }
+
+      const results = await publishPost({ ...post, mediaPath: null, mediaType: null, mediaItems: null, accountId: p.accountId || null, userId: req.user.id, userRole: req.user.role })
+      const sucesso = r => r.success === true
+      const status = results.some(r => r.success === 'pending') ? 'processing'
+        : results.every(sucesso) ? 'published'
+        : results.some(sucesso) ? 'partial'
+        : 'error'
+      await repo.atualizarStatusPost(post.id, status)
+      criados.push({ ...post, status, results })
     }
 
     res.status(201).json({ agendados: criados.length, posts: criados })

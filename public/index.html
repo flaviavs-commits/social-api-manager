@@ -6517,6 +6517,14 @@ function aiRequisitosNotice(plats) {
   return `📋 Antes de criar, confira o que cada rede exige:\n\n${linhas.join('\n')}\n\n⚠️ **${nomes}** ${exigemMidia.length > 1 ? 'exigem' : 'exige'} mídia — na hora de agendar você precisará anexar uma imagem/vídeo, senão a publicação vai falhar nessas redes.`
 }
 
+// O Agente IA hoje só gera TEXTO (nunca anexa imagem/vídeo) — "Publicar agora"
+// só é seguro oferecer quando NENHUMA das plataformas do post exige mídia
+// (hoje, só o Facebook aceita post de só texto). Para as demais, o usuário
+// precisa anexar mídia manualmente antes da publicação, então só "Agendar".
+function aiPodePublicarAgora(plats) {
+  return plats.every(p => PLAT_REQUIREMENTS[p]?.media !== 'required')
+}
+
 // Pergunta contextual que o agente faz ao ser aberto a partir de cada página
 const AI_PAGE_HINTS = {
   dashboard:   'Vi que você está no Dashboard. Quer que eu já sugira um post com base no seu desempenho recente?',
@@ -6873,7 +6881,12 @@ async function aiChatProcess(ctx, userMsg) {
 
   // Chips de erro: tentar novamente / usar chave / trocar modelo
   if (msg.includes('tentar novamente') || msg.includes('↻ Tentar')) {
-    if (state.lastInstrucao) {
+    if (state.pendingMediaFile) {
+      // Reaproveita a mídia já enviada (ex: análise falhou por limite de
+      // requisições da IA) — evita o usuário ter que reanexar o vídeo/imagem.
+      const { base64, mimeType, contexto } = state.pendingMediaFile
+      await aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.pendingMediaPlats || state.plats)
+    } else if (state.lastInstrucao) {
       state.step = 'ask_instrucao'
       await aiChatProcess(ctx, state.lastInstrucao)
     } else {
@@ -6965,8 +6978,10 @@ async function aiChatProcess(ctx, userMsg) {
     if (msg.includes('todas') || msg.includes('🌐')) plats.push('instagram','facebook','youtube','tiktok')
     state.plats = plats.length ? [...new Set(plats)] : ['instagram']
     if (state.pendingMediaFile) {
+      // Mantém pendingMediaFile no estado (só limpa depois de agendar/desistir)
+      // — se a análise falhar (ex: limite de requisições da IA), o vídeo/imagem
+      // continua disponível para "tentar novamente" sem o usuário reanexar.
       const { base64, mimeType, contexto } = state.pendingMediaFile
-      state.pendingMediaFile = null
       await aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.plats)
     }
     return
@@ -7167,8 +7182,12 @@ async function aiChatProcess(ctx, userMsg) {
 
         await new Promise(r => setTimeout(r, 200))
 
+        const publicarAgoraBtn = aiPodePublicarAgora(p.plataformas)
+          ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiChatPublicarAgora('${ctx}',${i})">⚡ Publicar agora</button>`
+          : ''
+
         aiChatAddMsg(ctx, 'agent',
-          `${tituloHtml}<div class="ai-chat-post-preview">${esc(p.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${i})">✓ Agendar este</button><button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${i})">↻ Regerar</button></div>`,
+          `${tituloHtml}<div class="ai-chat-post-preview">${esc(p.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${i})">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${i})">↻ Regerar</button></div>`,
           true
         )
       }
@@ -7252,6 +7271,38 @@ async function aiChatSchedulePost(ctx, idx) {
     aiExtractMemories(ctx)
   } catch (err) {
     aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao agendar'}. Tenta de novo?`)
+  }
+}
+
+async function aiChatPublicarAgora(ctx, idx) {
+  const state = aiChat[ctx]
+  const post = state.pendingPost?.[idx]
+  if (!post) return
+
+  aiChatAddMsg(ctx, 'agent', '⚡ Publicando agora...')
+  try {
+    const data = await apiFetch('/api/ai/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts: [{ ...post, publishNow: true }] })
+    })
+    const resultado = data.posts?.[0]
+    const falhou = resultado?.status === 'error'
+    const parcial = resultado?.status === 'partial'
+    if (falhou) {
+      const erro = resultado.results?.find(r => !r.success)?.error || 'motivo desconhecido'
+      aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui publicar agora (${erro}). O post não foi perdido — veja em Logs/Agendador. Quer tentar de novo ou agendar para mais tarde?`)
+    } else if (parcial) {
+      aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — alguma rede falhou. Confira os detalhes em Logs.\n\nPosso criar mais alguma coisa? 😊`)
+    } else {
+      aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.\n\nPosso criar mais alguma coisa para você? 😊`)
+    }
+    aiChatSetChips(ctx, ['➕ Criar mais posts', '📋 Ver Logs', '👋 Por agora é isso'])
+    state.step = 'done'
+    aiLockModelChange(false)
+    aiExtractMemories(ctx)
+  } catch (err) {
+    aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || 'Erro ao publicar'}. Tenta de novo?`)
   }
 }
 
@@ -7560,6 +7611,12 @@ function aiAnalyzeMediaRegen(ctx) {
 }
 
 async function aiScheduleMediaPost(ctx, sugestao) {
+  // Fluxo de mídia terminou (usuário vai completar/agendar no Agendador) —
+  // agora sim pode limpar a mídia guardada no estado do chat.
+  const state = aiChat[ctx]
+  state.pendingMediaFile = null
+  state.pendingMediaSugestoes = null
+
   // Abre agendador com o texto sugerido pré-preenchido
   showPage('agendador')
   await new Promise(r => setTimeout(r, 300))
