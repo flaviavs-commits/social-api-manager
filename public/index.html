@@ -2209,28 +2209,37 @@ async function apiFetch(path, opts = {}) {
   });
   if (res.status === 401) {
     localStorage.removeItem('authToken');
-    // Em modo de revisão, tenta renovar o token automaticamente em vez de redirecionar
-    try {
-      const reviewRes = await fetch(API + '/api/review-token');
-      if (reviewRes.ok) {
-        const { token } = await reviewRes.json();
-        if (token) {
-          localStorage.setItem('authToken', token);
-          // Retenta a chamada original com o novo token
-          const retryOpts = { ...opts, headers: { ...(opts.headers || {}), 'Authorization': 'Bearer ' + token } };
-          if (!(opts.body instanceof FormData)) retryOpts.headers['Content-Type'] = 'application/json';
-          const retryRes = await fetch(API + path, retryOpts);
-          if (retryRes.status !== 401) {
-            if (!retryRes.ok) {
-              let mensagem = 'Não foi possível concluir essa ação. Tente novamente.';
-              try { const d = await retryRes.json(); if (d?.erro || d?.error) mensagem = d.erro || d.error; } catch {}
-              throw new Error(mensagem);
+    // O fallback de auto-login do modo revisão (TIKTOK_REVIEW_MODE) é só para
+    // o avaliador do TikTok, que abre o app SEM NUNCA ter feito login — ou
+    // seja, só deve entrar em ação quando não havia nenhum token salvo antes
+    // desta chamada. Sem essa checagem, um usuário real logado que tomasse um
+    // 401 por qualquer motivo (sessão expirada, erro transitório do backend)
+    // tinha sua sessão substituída silenciosamente pela conta demo do
+    // avaliador — parecia "a página voltou ao dashboard e caiu no login",
+    // mas na real o app tinha trocado de usuário por baixo dos panos.
+    if (!token) {
+      try {
+        const reviewRes = await fetch(API + '/api/review-token');
+        if (reviewRes.ok) {
+          const { token: reviewToken } = await reviewRes.json();
+          if (reviewToken) {
+            localStorage.setItem('authToken', reviewToken);
+            // Retenta a chamada original com o novo token
+            const retryOpts = { ...opts, headers: { ...(opts.headers || {}), 'Authorization': 'Bearer ' + reviewToken } };
+            if (!(opts.body instanceof FormData)) retryOpts.headers['Content-Type'] = 'application/json';
+            const retryRes = await fetch(API + path, retryOpts);
+            if (retryRes.status !== 401) {
+              if (!retryRes.ok) {
+                let mensagem = 'Não foi possível concluir essa ação. Tente novamente.';
+                try { const d = await retryRes.json(); if (d?.erro || d?.error) mensagem = d.erro || d.error; } catch {}
+                throw new Error(mensagem);
+              }
+              return retryRes.json();
             }
-            return retryRes.json();
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
     window.location.href = '/login.html';
     throw new Error('Sessão expirada');
   }
