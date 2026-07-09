@@ -1686,18 +1686,18 @@ input, select, textarea, label, .bottom-nav-item {
 
     <!-- Modal seletor de modelo -->
     <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:24px;width:340px;box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1)">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 24px 16px;flex-shrink:0">
           <div>
             <div style="font-size:14px;font-weight:600">Escolher modelo de IA</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">A mudança vale para a próxima conversa</div>
           </div>
-          <button onclick="aiCloseModelPicker()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px">
+          <button onclick="aiCloseModelPicker()" title="Fechar" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;flex-shrink:0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px"></div>
-        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:0 24px;flex:1;min-height:0"></div>
+        <div style="padding:16px 24px 24px;padding-top:14px;border-top:1px solid var(--border);flex-shrink:0">
           <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#6c8cff,#b39ddb);color:#fff;font-size:13px;font-weight:600;cursor:pointer">
             Confirmar escolha
           </button>
