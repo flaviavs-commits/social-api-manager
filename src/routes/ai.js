@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const { serverError } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
+const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 
 const router = Router()
 
@@ -387,22 +388,28 @@ router.post('/generate', async (req, res) => {
     const qtd    = Math.min(Math.max(parseInt(quantidade) || 3, 1), 10)
     const horariosSugeridos = calcularHorarios(qtd, plataformas)
 
-    // Monta a resposta padronizada a partir de posts já parseados.
-    const montarResposta = (postsRaw, modeloUsado, extra = {}) =>
-      res.json({
+    // Monta a resposta padronizada a partir de posts já parseados. Também
+    // registra a atividade (sucesso ou fallback) no histórico do Agente IA.
+    const montarResposta = (postsRaw, modeloUsado, extra = {}) => {
+      const posts = postsRaw.slice(0, qtd).map((p, i) => ({
+        texto:          p.texto || '',
+        titulo:         p.titulo || '',
+        hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
+        emoji_destaque: p.emoji_destaque || '✨',
+        angulo:         p.angulo || '',
+        plataformas,
+        horario:        horariosSugeridos[i] || horariosSugeridos[0],
+        modelo:         modeloUsado,
+      }))
+      registrarAtividadeIA({
+        userId: req.user.id,
+        acao: 'generate',
+        status: extra.fallback ? 'fallback' : 'sucesso',
         modelo: modeloUsado,
-        ...extra,
-        posts: postsRaw.slice(0, qtd).map((p, i) => ({
-          texto:          p.texto || '',
-          titulo:         p.titulo || '',
-          hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
-          emoji_destaque: p.emoji_destaque || '✨',
-          angulo:         p.angulo || '',
-          plataformas,
-          horario:        horariosSugeridos[i] || horariosSugeridos[0],
-          modelo:         modeloUsado,
-        })),
+        detalhes: `${posts.length} post(s) · plataformas: ${plataformas.join(',')}${extra.fallback ? ` · fallback: ${extra.fallback}` : ''}`,
       })
+      return res.json({ modelo: modeloUsado, ...extra, posts })
+    }
 
     // Cai no gerador por template (ilimitado, sem custo). Usado como fallback
     // do demo quando não há LLM disponível ou o limite diário foi atingido.
@@ -476,6 +483,9 @@ router.post('/generate', async (req, res) => {
 
     return montarResposta(parsed.posts || [], modelo)
   } catch (err) {
+    const modeloTentado = req.body?.modelo || 'gemini'
+    registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo: modeloTentado, detalhes: err.message })
+
     if (err.status === 503) return res.status(503).json({ erro: err.message })
     if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
     if (err.status === 429 || err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
@@ -519,6 +529,68 @@ pool.query(`
     PRIMARY KEY (user_id, dia)
   )
 `).catch(() => {})
+
+// Histórico de atividade do Agente IA — visível só para super_admin, criado
+// para diagnosticar erros (limite de requisições, chave inválida, falha do
+// LLM) sem depender de acessar logs do Railway. Tabela dedicada (em vez de
+// reaproveitar "logs") porque a regra de visibilidade aqui é fixa (só
+// super_admin vê tudo, sem a lógica de "dono da conta" que "logs" usa).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS ai_activity_log (
+    id        SERIAL PRIMARY KEY,
+    user_id   INTEGER,
+    acao      TEXT NOT NULL,
+    status    TEXT NOT NULL,
+    modelo    TEXT,
+    detalhes  TEXT,
+    criado_em TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {})
+
+// Grava uma linha no histórico de atividade do Agente IA. Nunca lança —
+// falha ao registrar não deve derrubar a ação real do usuário (gerar post,
+// agendar, etc.), que é o que de fato importa pra ele.
+async function registrarAtividadeIA({ userId, acao, status, modelo = null, detalhes = null }) {
+  try {
+    await pool.query(
+      `INSERT INTO ai_activity_log (user_id, acao, status, modelo, detalhes) VALUES ($1, $2, $3, $4, $5)`,
+      [userId, acao, status, modelo, detalhes ? String(detalhes).slice(0, 2000) : null]
+    )
+  } catch { /* melhor esforço — nunca bloqueia a ação real do usuário */ }
+}
+
+// GET /api/ai/activity-log — histórico de atividade do Agente IA (só super_admin).
+// Filtros opcionais: ?status=erro|sucesso|fallback|parcial, ?acao=generate|analyze-media|schedule|publish-now,
+// ?userId=<id>. Paginado por limit/offset (padrão 100 mais recentes).
+router.get('/activity-log', requireSuperAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500)
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0)
+
+    const cond = []
+    const params = []
+    if (req.query.status) { params.push(req.query.status); cond.push(`l.status = $${params.length}`) }
+    if (req.query.acao)   { params.push(req.query.acao);   cond.push(`l.acao = $${params.length}`) }
+    if (req.query.userId) { params.push(parseInt(req.query.userId)); cond.push(`l.user_id = $${params.length}`) }
+    const where = cond.length ? `WHERE ${cond.join(' AND ')}` : ''
+
+    params.push(limit); const limitIdx = params.length
+    params.push(offset); const offsetIdx = params.length
+
+    const { rows } = await pool.query(`
+      SELECT l.id, l.user_id AS "userId", u.email AS "userEmail", l.acao, l.status, l.modelo, l.detalhes, l.criado_em AS "criadoEm"
+      FROM ai_activity_log l
+      LEFT JOIN users u ON u.id = l.user_id
+      ${where}
+      ORDER BY l.id DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, params)
+
+    const { rows: [{ total }] } = await pool.query(`SELECT COUNT(*)::int AS total FROM ai_activity_log l ${where}`, params.slice(0, params.length - 2))
+
+    res.json({ logs: rows, total })
+  } catch (err) { serverError(res, err) }
+})
 
 // PUT /api/ai/apikey — salva ou atualiza a API key do usuário para um modelo
 router.put('/apikey', async (req, res) => {
@@ -806,12 +878,18 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
 
+    const sugestoes = parsed.sugestoes || []
+    registrarAtividadeIA({
+      userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
+      detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : 'imagem'} · plataformas: ${plataformas.join(',')}`,
+    })
     res.json({
       descricao_midia: parsed.descricao_midia || '',
-      sugestoes: parsed.sugestoes || [],
+      sugestoes,
     })
   } catch (err) {
     const msg = err.message || ''
+    registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: req.body?.modelo || 'gemini', detalhes: msg })
     if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Tente novamente.' })
     console.error('[AI analyze-media]', msg)
     serverError(res, err)
@@ -873,7 +951,11 @@ router.post('/schedule', async (req, res) => {
         status:            publishNow ? 'processing' : 'scheduled',
       })
 
-      if (!publishNow) { criados.push(post); continue }
+      if (!publishNow) {
+        registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'sucesso', detalhes: `agendado · plataformas: ${(p.plataformas||[]).join(',')} · horário: ${post.scheduledAt || p.horario}` })
+        criados.push(post)
+        continue
+      }
 
       const results = await publishPost({ ...post, mediaPath: p.mediaPath || null, mediaType: p.mediaType || null, mediaItems: null, accountId: p.accountId || null, userId: req.user.id, userRole: req.user.role })
       // Instagram devolve "pending" (container ainda processando) — o cron
@@ -883,11 +965,16 @@ router.post('/schedule', async (req, res) => {
         : results.some(r => r.success === true) ? 'partial'
         : 'error'
       await repo.atualizarStatusPost(post.id, status)
+      registrarAtividadeIA({
+        userId: req.user.id, acao: 'publish-now', status: status === 'error' ? 'erro' : status === 'partial' ? 'parcial' : 'sucesso',
+        detalhes: `plataformas: ${(p.plataformas||[]).join(',')}${status === 'error' || status === 'partial' ? ` · ${results.filter(r=>!r.success).map(r=>`${r.platform}: ${r.error}`).join('; ')}` : ''}`,
+      })
       criados.push({ ...post, status, results })
     }
 
     res.status(201).json({ agendados: criados.length, posts: criados })
   } catch (err) {
+    registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'erro', detalhes: err.message })
     serverError(res, err)
   }
 })

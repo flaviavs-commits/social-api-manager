@@ -1200,6 +1200,10 @@ input, select, textarea, label, .bottom-nav-item {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
     <span id="nav-admin-label">Administração</span>
   </div>
+  <div class="nav-item" id="nav-ai-log" onclick="showPage('ai-log')" style="display:none">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14"/></svg>
+    <span>Histórico do Agente IA</span>
+  </div>
 
   <div class="nav-spacer"></div>
 
@@ -1408,6 +1412,36 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
     </div>
     <div class="log-box" id="log-box"><div style="color:var(--muted);font-size:12px">aguardando novidades...</div></div>
+  </div>
+
+  <!-- HISTÓRICO DO AGENTE IA (só super_admin) -->
+  <div id="page-ai-log" class="section-page">
+    <div class="page-header">
+      <div><div class="page-title">Histórico do Agente IA</div><div class="page-sub">Diagnóstico de erros e uso do Agente IA (só visível para o administrador principal)</div></div>
+      <button class="btn" onclick="loadAiActivityLog()">↻ Atualizar</button>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <select id="ai-log-filter-status" onchange="loadAiActivityLog()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
+        <option value="">Todos os status</option>
+        <option value="erro">Erro</option>
+        <option value="sucesso">Sucesso</option>
+        <option value="fallback">Fallback (caiu no template)</option>
+        <option value="parcial">Parcial</option>
+      </select>
+      <select id="ai-log-filter-acao" onchange="loadAiActivityLog()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
+        <option value="">Todas as ações</option>
+        <option value="generate">Gerar posts</option>
+        <option value="analyze-media">Analisar mídia</option>
+        <option value="schedule">Agendar</option>
+        <option value="publish-now">Publicar agora</option>
+      </select>
+      <div id="ai-log-total" style="font-size:11px;color:var(--muted);margin-left:auto;align-self:center;font-family:var(--mono)"></div>
+    </div>
+
+    <div id="ai-log-list" style="display:flex;flex-direction:column;gap:6px">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>
+    </div>
   </div>
 
   <!-- ANALYTICS -->
@@ -2144,7 +2178,11 @@ function showPage(name) {
   // Sidebar desktop: ativa item correto
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const map = { dashboard:0, tokens:1, agendador:2, integracoes:3, logs:4, analytics:5, rascunhos:6, calendario:7, inbox:8, ai:9 };
-  document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
+  // "ai-log" (Histórico do Agente IA) é um item condicional (só super_admin,
+  // mesmo padrão de "Administração") — fica fora do map de índices fixos
+  // para não deslocar a numeração dos demais itens quando visível/invisível.
+  if (name === 'ai-log') document.getElementById('nav-ai-log')?.classList.add('active');
+  else document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   // Bottom nav mobile: ativa item correto
   document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
@@ -2161,6 +2199,7 @@ function showPage(name) {
   if (name === 'agendador')  startQueueAutoRefresh();
   else                       stopQueueAutoRefresh();
   if (name === 'logs')       startLogStream();
+  if (name === 'ai-log')     loadAiActivityLog();
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics')  startAnalyticsAutoRefresh();
@@ -3174,6 +3213,59 @@ let logPaused = false;
 let logPollTimer = null;
 let lastLogId = 0;
 let lastEventId = 0;
+
+// ── Histórico do Agente IA (só super_admin) ──────────────────────────────────
+const AI_LOG_ACAO_LABEL = { 'generate':'Gerar posts', 'analyze-media':'Analisar mídia', 'schedule':'Agendar', 'publish-now':'Publicar agora' }
+const AI_LOG_STATUS_CFG = {
+  erro:     { label:'Erro',     color:'var(--red)' },
+  sucesso:  { label:'Sucesso',  color:'#22c55e' },
+  fallback: { label:'Fallback', color:'var(--yellow)' },
+  parcial:  { label:'Parcial',  color:'var(--yellow)' },
+}
+
+async function loadAiActivityLog() {
+  const list = document.getElementById('ai-log-list')
+  const totalEl = document.getElementById('ai-log-total')
+  if (!list) return
+  list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>'
+
+  const status = document.getElementById('ai-log-filter-status')?.value || ''
+  const acao = document.getElementById('ai-log-filter-acao')?.value || ''
+  const params = new URLSearchParams({ limit: '150' })
+  if (status) params.set('status', status)
+  if (acao) params.set('acao', acao)
+
+  try {
+    const { logs, total } = await apiFetch(`/api/ai/activity-log?${params}`)
+    if (totalEl) totalEl.textContent = `${total} registro(s) no total`
+
+    if (!logs.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">Nenhum registro encontrado com esse filtro.</div>'
+      return
+    }
+
+    list.innerHTML = logs.map(l => {
+      const cfg = AI_LOG_STATUS_CFG[l.status] || { label: l.status, color: 'var(--muted)' }
+      const quando = new Date(l.criadoEm).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+      return `<div style="display:flex;gap:10px;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:var(--surface2);font-size:12px">
+        <div style="flex-shrink:0;width:6px;border-radius:3px;background:${cfg.color}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-weight:600;color:${cfg.color}">${escapeHtml(cfg.label)}</span>
+            <span style="color:var(--muted)">·</span>
+            <span>${escapeHtml(AI_LOG_ACAO_LABEL[l.acao] || l.acao)}</span>
+            ${l.modelo ? `<span style="color:var(--muted)">·</span><span style="font-family:var(--mono);color:var(--accent)">${escapeHtml(l.modelo)}</span>` : ''}
+            <span style="color:var(--muted);margin-left:auto;font-family:var(--mono);font-size:11px">${quando}</span>
+          </div>
+          <div style="color:var(--muted);font-size:11px">${escapeHtml(l.userEmail || `usuário #${l.userId}`)}</div>
+          ${l.detalhes ? `<div style="margin-top:4px;color:var(--text);word-break:break-word">${escapeHtml(l.detalhes)}</div>` : ''}
+        </div>
+      </div>`
+    }).join('')
+  } catch (e) {
+    list.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:1.5rem">${escapeHtml(e.message)}</div>`
+  }
+}
 
 function startLogStream() {
   if (logPollTimer) return;
@@ -4396,6 +4488,9 @@ apiFetch('/api/me').then(me => {
     if (me.role === 'super_admin') {
       document.getElementById('nav-admin-label').innerHTML = 'Administração <span style="font-size:10px;color:var(--yellow);margin-left:4px">★ principal</span>';
     }
+  }
+  if (me.role === 'super_admin') {
+    document.getElementById('nav-ai-log').style.display = 'flex';
   }
 }).catch(() => {});
 
