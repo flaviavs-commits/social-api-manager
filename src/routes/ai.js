@@ -145,6 +145,237 @@ async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
   }
 }
 
+// ── Gerador local (sem IA / sem chave) ───────────────────────────────────────
+// Monta o texto do post a partir da instrução do usuário usando templates por
+// tom, sem chamar nenhuma API externa. Sempre disponível — é o modo padrão
+// quando o usuário não tem chave de IA configurada. Não é tão criativo quanto
+// um LLM, mas produz posts prontos e válidos para todas as redes.
+const LOCAL_ABERTURAS = {
+  motivacional: ['🔥 Chegou a hora de dar o próximo passo!', '💪 Nada te impede hoje.', '⚡ Sua melhor versão começa agora.', '🚀 Bora fazer acontecer!', '🌟 O único limite é o que você acredita.', '👊 Disciplina hoje, orgulho amanhã.', '🎯 Foco no que realmente importa.', '💥 Pare de esperar o momento perfeito.'],
+  profissional: ['Uma abordagem estratégica faz toda a diferença.', 'Entenda como isto pode transformar o seu resultado.', 'Compartilhamos hoje uma reflexão importante.', 'Resultados consistentes vêm de decisões bem feitas.', 'No mercado de hoje, quem se antecipa sai na frente.', 'A diferença entre o bom e o excelente está nos detalhes.', 'Dados mostram: quem investe nisso colhe resultados.', 'Profissionalismo também é saber a hora de evoluir.'],
+  casual:       ['Ei! 😊 Bora falar sobre uma coisa boa?', 'Passa aqui rapidinho que tenho novidade!', 'Sabe aquela dica que faz diferença? É essa. 👇', 'Chega mais que hoje o papo é bom!', 'Preciso te contar uma coisa 👀', 'Isso aqui mudou meu dia, sério.', 'Se liga nessa, você vai gostar 😌', 'Anota essa que vale ouro! ✨'],
+  informativo:  ['Você sabia disso?', 'Aqui vai uma dica prática pra você.', 'Vamos direto ao ponto:', 'Entenda em poucas linhas:', 'A ciência já explicou isso 👇', 'Muita gente erra nisso — e é simples de resolver.', '3 pontos que ninguém te conta:', 'O que você precisa saber antes de começar:'],
+  humoristico:  ['Confesse: já passou por isso 😂', 'Ninguém avisou, mas eu aviso! 😅', 'Spoiler: você vai rir e concordar.', 'Modo verdade ativado 👇', 'A vida real não avisa, ela acontece 🤡', 'Prometo que não é indireta (é sim) 😏', 'Você lendo isso: "sou eu literalmente" 😆', 'Quem nunca? (todo mundo já) 🙃'],
+}
+
+const LOCAL_FECHAMENTOS = {
+  motivacional: ['Comenta aqui o que você vai começar hoje! 💬', 'Salva este post pra lembrar depois. 📌', 'Marca alguém que precisa ver isso! 👇', 'Compartilhe se isso te tocou. 🙌', 'Bora juntos? Deixa seu ✋ nos comentários.'],
+  profissional: ['Fale com a gente para saber mais.', 'Deixe seu comentário com a sua opinião.', 'Salve este conteúdo para consultar depois.', 'Compartilhe com quem toma decisões no seu time.', 'Quer se aprofundar? Estamos à disposição.'],
+  casual:       ['Conta pra mim nos comentários! 💬', 'Curtiu? Compartilha com a galera! 🙌', 'Salva aí pra não esquecer 😉', 'Marca aquele amigo pra ver também 👇', 'Me conta se você concorda! 😄'],
+  informativo:  ['Salve este post para consultar depois. 📌', 'Ficou com dúvida? Comenta aqui. 💬', 'Compartilhe com quem precisa saber disso.', 'Segue o perfil pra mais conteúdo assim. 🔔', 'Qual dica te surpreendeu mais? Comenta 👇'],
+  humoristico:  ['Marca aquele amigo que é assim 😂', 'Comenta um "eu" se já passou por isso! 👇', 'Salva pra rir de novo depois 😅', 'Compartilha com quem vai se identificar 🤣', 'Reage com 😂 se foi você.'],
+}
+
+const LOCAL_HASHTAGS = {
+  motivacional: ['foco', 'motivacao', 'disciplina', 'metas', 'mindset', 'evolucao', 'proposito'],
+  profissional: ['negocios', 'produtividade', 'estrategia', 'carreira', 'gestao', 'lideranca', 'resultados'],
+  casual:       ['dicas', 'diadia', 'vida', 'bomdia', 'conteudo', 'rotina', 'inspiracao'],
+  informativo:  ['voceSabia', 'dicas', 'aprenda', 'informacao', 'curiosidades', 'passoAPasso', 'saibaMais'],
+  humoristico:  ['humor', 'meme', 'risada', 'relatable', 'segundafeira', 'humordodia', 'rindo'],
+}
+
+const LOCAL_EMOJIS = { motivacional: '🔥', profissional: '💼', casual: '😊', informativo: '📚', humoristico: '😂' }
+
+// Nichos reconhecidos por palavras-chave no tema — cada um traz ganchos e
+// hashtags específicos, deixando o post mais alinhado ao assunto do usuário.
+const LOCAL_NICHOS = [
+  { id: 'fitness',      re: /\b(treino|academia|muscula|fitness|gym|dieta|emagrec|corrida|crossfit|hipertrof|shape|malha)/i,
+    hashtags: ['fitness', 'treino', 'saude', 'vidasaudavel'], gancho: 'Consistência vale mais que intensidade.' },
+  { id: 'gastronomia',  re: /\b(receita|comida|cozinh|gastro|restaurante|prato|café|cafe|bebida|doce|confeita|hamburg|pizza|delivery)/i,
+    hashtags: ['gastronomia', 'receita', 'comida', 'foodlover'], gancho: 'Sabor de verdade começa nos detalhes.' },
+  { id: 'beleza',       re: /\b(beleza|maquiagem|skincare|cabelo|estética|estetica|unha|salão|salao|cosmétic|cosmetic|pele)/i,
+    hashtags: ['beleza', 'skincare', 'autocuidado', 'makeup'], gancho: 'Autocuidado não é luxo, é rotina.' },
+  { id: 'tecnologia',   re: /\b(tecnolog|software|app|aplicativo|programaç|program|dev|startup|ia\b|intelig[êe]ncia|digital|site|sistema)/i,
+    hashtags: ['tecnologia', 'inovacao', 'digital', 'tech'], gancho: 'A tecnologia certa economiza o seu tempo.' },
+  { id: 'moda',         re: /\b(moda|roupa|look|estilo|tend[êe]ncia|acess[óo]rio|fashion|coleç|colec|outfit)/i,
+    hashtags: ['moda', 'estilo', 'look', 'tendencia'], gancho: 'Seu estilo conta a sua história.' },
+  { id: 'educacao',     re: /\b(curso|aula|estud|educaç|educac|aprend|ensino|professor|escola|faculdade|vestibular|concurso|idioma|ingl[êe]s)/i,
+    hashtags: ['educacao', 'aprendizado', 'estudos', 'conhecimento'], gancho: 'Conhecimento é o único investimento que ninguém tira de você.' },
+  { id: 'financas',     re: /\b(dinheiro|finan[çc]|investi|economia|renda|poupar|cripto|a[çc][õo]es|bolsa|or[çc]amento|lucro|venda)/i,
+    hashtags: ['financas', 'investimentos', 'dinheiro', 'educacaofinanceira'], gancho: 'Quem controla o dinheiro controla o futuro.' },
+  { id: 'viagem',       re: /\b(viag|viaj|turismo|destino|hotel|praia|roteiro|passeio|mochil|passagem)/i,
+    hashtags: ['viagem', 'turismo', 'destino', 'wanderlust'], gancho: 'A melhor bagagem é a experiência.' },
+  { id: 'pet',          re: /\b(pet|cachorro|gato|animal|animais|ração|racao|veterin|adoç|adoc)/i,
+    hashtags: ['pet', 'petlover', 'cachorro', 'gato'], gancho: 'Eles dão amor sem pedir nada em troca.' },
+  { id: 'imoveis',      re: /\b(im[óo]vel|imoveis|apartamento|casa|aluguel|corretor|constru|reforma|arquitet|decoraç|decorac)/i,
+    hashtags: ['imoveis', 'decoracao', 'arquitetura', 'lar'], gancho: 'Um bom espaço muda a forma como você vive.' },
+]
+
+function detectarNicho(tema) {
+  return LOCAL_NICHOS.find(n => n.re.test(tema)) || null
+}
+
+// Extrai palavras-chave simples da instrução para virar hashtags temáticas
+function extrairHashtagsDoTema(instrucao) {
+  const stop = new Set(['sobre','para','com','que','uma','umas','uns','dos','das','como','mais','você','voce','seus','suas','post','posts','rede','redes','social','sociais','fazer','criar','quero','preciso','tema','fale','falar','sendo','muito','pouco','bem','tudo','nosso','nossa','nossos','nossas','novo','nova','meu','minha','este','esta','esse','essa','pelo','pela','entre','tipo'])
+  return (instrucao.toLowerCase().match(/[a-záàâãéêíóôõúç]{4,}/gi) || [])
+    .map(w => w.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/gi, ''))
+    .filter(w => w.length >= 4 && !stop.has(w))
+    .slice(0, 3)
+}
+
+function pick(arr, i) { return arr[i % arr.length] }
+function capitalizar(s) { return s ? s[0].toUpperCase() + s.slice(1) : s }
+
+// Cada ângulo monta o miolo do post de um jeito estruturalmente diferente, para
+// que os posts variem de verdade entre si — não só na frase de abertura.
+// Recebe (tema, gancho do nicho) e devolve o corpo central (sem abertura/CTA).
+// São 7 ângulos (número primo em relação ao tamanho das listas de aberturas/
+// fechamentos) para que a combinação abertura+ângulo+fechamento só volte a se
+// repetir depois de muitos posts, mesmo em pedidos grandes (ex: 7 ou 10 posts).
+const LOCAL_ANGULOS = [
+  { nome: 'direto',      build: (tema) => `${capitalizar(tema)}.` },
+  { nome: 'pergunta',    build: (tema) => `Você já parou pra pensar em ${tema}?\n\nÉ mais simples do que parece — e faz toda a diferença no resultado.` },
+  { nome: 'dica',        build: (tema) => `Dica de ouro sobre ${tema}:\n\nComece pequeno, seja constante e ajuste no caminho. O progresso vem de quem não desiste.` },
+  { nome: 'lista',       build: (tema) => `3 motivos pra levar ${tema} a sério:\n\n1️⃣ Traz resultado real\n2️⃣ Todo mundo consegue começar\n3️⃣ Você se sente melhor no processo` },
+  { nome: 'beneficio',   build: (tema) => `${capitalizar(tema)} não é só mais uma tarefa — é o que separa quem fala de quem faz. Os detalhes de hoje são os resultados de amanhã.` },
+  { nome: 'historia',    build: (tema) => `Quando o assunto é ${tema}, muita gente trava no começo. A virada acontece quando você para de planejar e começa a agir.` },
+  { nome: 'erro_comum',  build: (tema) => `O erro mais comum sobre ${tema}? Achar que precisa ser perfeito desde o início.\n\nComece do jeito que der — o ajuste vem com a prática.` },
+]
+
+// Monta a descrição de vídeo do YouTube com uma estrutura mais rica (intro,
+// tópicos e CTA), aproveitando melhor o espaço da plataforma.
+function descricaoYoutube(tema, gancho, hashtagsArr) {
+  const tags = hashtagsArr.map(h => `#${h}`).join(' ')
+  return [
+    `Neste vídeo falamos sobre ${tema}.`,
+    gancho ? `\n${gancho}` : '',
+    `\n\n📌 O que você vai ver:`,
+    `\n• Como começar do jeito certo`,
+    `\n• Os erros mais comuns (e como evitar)`,
+    `\n• Dicas práticas pra aplicar hoje`,
+    `\n\n👍 Curtiu? Deixe o like e se inscreva no canal!`,
+    `\n\n${tags}`,
+  ].join('')
+}
+
+function gerarPostsLocal(instrucao, plataformas, qtd, tom) {
+  const t = LOCAL_ABERTURAS[tom] ? tom : 'casual'
+  const tema = instrucao.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
+  const temaLower = tema.toLowerCase()
+  const nicho = detectarNicho(tema)
+
+  const temaHashtags = extrairHashtagsDoTema(instrucao)
+  const nichoHashtags = nicho ? nicho.hashtags : []
+  const ehYoutube = plataformas.includes('youtube')
+  const ehInstagram = plataformas.includes('instagram')
+  // TikTok exige texto curto — se estiver entre as redes, encurta o corpo.
+  const curto = plataformas.includes('tiktok')
+
+  // Pontos de partida aleatórios nos ciclos de abertura/fechamento/ângulo: sem
+  // isso, duas gerações sobre o mesmo tom sempre começavam pela mesma frase —
+  // "regerar" parecia travado no template. Com offsets, cada geração começa
+  // num ponto diferente do ciclo, ainda garantindo que os posts DENTRO de uma
+  // mesma geração continuem variando entre si (o índice i soma ao offset).
+  const aberturaOffset   = Math.floor(Math.random() * LOCAL_ABERTURAS[t].length)
+  const fechamentoOffset = Math.floor(Math.random() * LOCAL_FECHAMENTOS[t].length)
+  const anguloOffset     = Math.floor(Math.random() * LOCAL_ANGULOS.length)
+
+  const posts = []
+  for (let i = 0; i < qtd; i++) {
+    const abertura   = pick(LOCAL_ABERTURAS[t], i + aberturaOffset)
+    const fechamento = pick(LOCAL_FECHAMENTOS[t], i + fechamentoOffset)
+    // Cada post usa um ângulo diferente (rotaciona pela lista, com offset
+    // aleatório por geração), garantindo variação estrutural real entre eles.
+    const angulo     = pick(LOCAL_ANGULOS, i + anguloOffset)
+    const miolo      = angulo.build(temaLower)
+    // O gancho do nicho entra a partir do 2º post pra não repetir sempre.
+    const ganchoNicho = nicho && i % 2 === 1 ? `\n\n💡 ${nicho.gancho}` : ''
+
+    let corpo
+    if (curto) {
+      // TikTok: abertura + tema, sem CTA nem ângulo longo (limite ~150 chars).
+      corpo = `${abertura}\n\n${capitalizar(temaLower)}.`
+    } else {
+      corpo = `${abertura}\n\n${miolo}${ganchoNicho}\n\n${fechamento}`
+    }
+
+    // Instagram aproveita mais hashtags; TikTok fica enxuto.
+    const maxTags = curto ? 4 : (ehInstagram ? 8 : 6)
+    const hashtags = [...new Set([...temaHashtags, ...nichoHashtags, ...LOCAL_HASHTAGS[t]])].slice(0, maxTags)
+
+    const titulo = ehYoutube
+      ? capitalizar(temaLower).slice(0, 100)
+      : ''
+    // Para YouTube, o corpo vira uma descrição rica em vez do texto curto de post.
+    const texto = ehYoutube && !ehInstagram && !curto && !plataformas.includes('facebook')
+      ? descricaoYoutube(temaLower, nicho?.gancho, hashtags)
+      : corpo
+
+    posts.push({
+      texto,
+      titulo,
+      hashtags,
+      emoji_destaque: LOCAL_EMOJIS[t] || '✨',
+      angulo: `${capitalizar(angulo.nome)}${nicho ? ` · nicho ${nicho.id}` : ''} (tom ${t})`,
+    })
+  }
+  return { posts }
+}
+
+// ── Requisitos de mídia por plataforma ───────────────────────────────────────
+// Fonte da verdade para o que cada rede exige na hora de publicar. Espelha as
+// validações feitas em services/publisher.js. Usado tanto pelo endpoint
+// /requirements (frontend) quanto pela checagem antes de agendar.
+const PLATFORM_REQUIREMENTS = {
+  instagram: { media: 'required', mediaTypes: ['image', 'video'], label: 'Instagram', descricao: 'Exige uma imagem ou vídeo — não publica só texto.' },
+  facebook:  { media: 'optional', mediaTypes: ['image', 'video'], label: 'Facebook',  descricao: 'Aceita só texto; imagem/vídeo são opcionais.' },
+  youtube:   { media: 'required', mediaTypes: ['video'],          label: 'YouTube',   descricao: 'Exige um vídeo e um título.' },
+  tiktok:    { media: 'required', mediaTypes: ['image', 'video'], label: 'TikTok',    descricao: 'Exige ao menos uma mídia (imagem ou vídeo) e texto curto.' },
+}
+
+// GET /api/ai/requirements?plataformas=instagram,youtube — o que cada rede exige
+router.get('/requirements', (req, res) => {
+  const plataformas = String(req.query.plataformas || '').split(',').map(p => p.trim()).filter(Boolean)
+  const lista = (plataformas.length ? plataformas : Object.keys(PLATFORM_REQUIREMENTS))
+    .filter(p => PLATFORM_REQUIREMENTS[p])
+    .map(p => ({ plataforma: p, ...PLATFORM_REQUIREMENTS[p] }))
+  res.json({ requirements: lista })
+})
+
+// ── Demo grátis do LLM (modelo "local") ──────────────────────────────────────
+// O modelo "local" usa o Gemini com a CHAVE DO SERVIDOR — o usuário testa um LLM
+// real sem precisar de conta/chave própria, antes de assinar. Para não estourar
+// o custo da chave do dono, cada usuário tem um limite diário de gerações via
+// demo; ao atingir, cai no gerador por template (que é ilimitado e sem custo).
+const DEMO_LIMITE_DIA = parseInt(process.env.AI_DEMO_LIMITE_DIA || '', 10) || 10
+// A tabela ai_demo_usage é criada mais abaixo, junto das demais (depois que
+// `pool` é definido) — não pode ser criada aqui pois `pool` ainda está na TDZ.
+
+// Retorna quantos usos o usuário já fez hoje no demo (0 se nunca usou).
+async function demoUsosHoje(userId) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT usos FROM ai_demo_usage WHERE user_id = $1 AND dia = CURRENT_DATE`,
+      [userId]
+    )
+    return rows[0]?.usos || 0
+  } catch { return 0 }
+}
+
+// Incrementa o contador de uso do demo do usuário para hoje.
+async function registrarUsoDemo(userId) {
+  try {
+    await pool.query(`
+      INSERT INTO ai_demo_usage (user_id, dia, usos)
+      VALUES ($1, CURRENT_DATE, 1)
+      ON CONFLICT (user_id, dia) DO UPDATE SET usos = ai_demo_usage.usos + 1
+    `, [userId])
+  } catch { /* contagem best-effort: falha aqui não deve bloquear a geração */ }
+}
+
+// GET /api/ai/demo-status — quanto resta do demo grátis hoje (para o frontend)
+router.get('/demo-status', async (req, res) => {
+  const hasServerKey = !!process.env.GEMINI_API_KEY
+  const usados = await demoUsosHoje(req.user.id)
+  res.json({
+    llmDisponivel: hasServerKey,
+    limite: DEMO_LIMITE_DIA,
+    usados,
+    restantes: Math.max(0, DEMO_LIMITE_DIA - usados),
+  })
+})
+
 // POST /api/ai/generate
 router.post('/generate', async (req, res) => {
   try {
@@ -154,8 +385,57 @@ router.post('/generate', async (req, res) => {
     if (!plataformas || !plataformas.length) return res.status(400).json({ erro: 'Selecione ao menos uma plataforma' })
 
     const qtd    = Math.min(Math.max(parseInt(quantidade) || 3, 1), 10)
-    const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
     const horariosSugeridos = calcularHorarios(qtd, plataformas)
+
+    // Monta a resposta padronizada a partir de posts já parseados.
+    const montarResposta = (postsRaw, modeloUsado, extra = {}) =>
+      res.json({
+        modelo: modeloUsado,
+        ...extra,
+        posts: postsRaw.slice(0, qtd).map((p, i) => ({
+          texto:          p.texto || '',
+          titulo:         p.titulo || '',
+          hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
+          emoji_destaque: p.emoji_destaque || '✨',
+          angulo:         p.angulo || '',
+          plataformas,
+          horario:        horariosSugeridos[i] || horariosSugeridos[0],
+          modelo:         modeloUsado,
+        })),
+      })
+
+    // Cai no gerador por template (ilimitado, sem custo). Usado como fallback
+    // do demo quando não há LLM disponível ou o limite diário foi atingido.
+    const responderComTemplate = (motivo = null) => {
+      const parsedLocal = gerarPostsLocal(instrucao, plataformas, qtd, tom)
+      return montarResposta(parsedLocal.posts, 'local', motivo ? { fallback: motivo } : {})
+    }
+
+    // Modo demo (modelo "local"): tenta o LLM real (Gemini) com a CHAVE DO
+    // SERVIDOR, sem exigir conta do usuário — respeitando o limite diário.
+    // Sem chave no servidor OU limite estourado OU erro do LLM → template.
+    if (modelo === 'local') {
+      if (!process.env.GEMINI_API_KEY) return responderComTemplate()
+
+      const usados = await demoUsosHoje(req.user.id)
+      if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
+
+      try {
+        const promptDemo = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
+        // userKey = null → generateWithGemini usa process.env.GEMINI_API_KEY
+        const rawTextDemo = await generateWithGemini(promptDemo, null, 'gemini')
+        const parsedDemo = parseJsonResponse(rawTextDemo)
+        await registrarUsoDemo(req.user.id)
+        return montarResposta(parsedDemo.posts || [], 'local', { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
+      } catch (e) {
+        // Qualquer falha do LLM (quota, formato inválido, rede) → template,
+        // para o usuário nunca ficar sem resposta no modo grátis.
+        console.error('[AI demo] LLM falhou, usando template:', e.message)
+        return responderComTemplate('llm_indisponivel')
+      }
+    }
+
+    const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
 
     // Novos modelos Gemini usam a chave salva como 'gemini' (mesma chave, model ID diferente)
     const keyModelo = GEMINI_MODEL_IDS[modelo] ? 'gemini' : modelo
@@ -172,18 +452,7 @@ router.post('/generate', async (req, res) => {
       return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
     }
 
-    const posts = (parsed.posts || []).slice(0, qtd).map((p, i) => ({
-      texto:          p.texto || '',
-      titulo:         p.titulo || '',
-      hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
-      emoji_destaque: p.emoji_destaque || '✨',
-      angulo:         p.angulo || '',
-      plataformas,
-      horario:        horariosSugeridos[i] || horariosSugeridos[0],
-      modelo,
-    }))
-
-    res.json({ posts, modelo })
+    return montarResposta(parsed.posts || [], modelo)
   } catch (err) {
     if (err.status === 503) return res.status(503).json({ erro: err.message })
     if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
@@ -215,6 +484,17 @@ pool.query(`
     user_id         INTEGER PRIMARY KEY,
     preferred_model TEXT NOT NULL,
     atualizado_em   TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {})
+
+// Contagem de uso do demo grátis (modelo "local") por usuário/dia — usada para
+// limitar o custo da chave do servidor. Ver DEMO_LIMITE_DIA / demoUsosHoje().
+pool.query(`
+  CREATE TABLE IF NOT EXISTS ai_demo_usage (
+    user_id INTEGER NOT NULL,
+    dia     DATE NOT NULL,
+    usos    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, dia)
   )
 `).catch(() => {})
 
@@ -521,6 +801,7 @@ router.get('/models', (req, res) => {
   const hasGemini = !!process.env.GEMINI_API_KEY
   res.json({
     models: [
+      { id: 'local',             name: 'Assistente Rápido',      provider: 'Sem conta',      available: true },
       { id: 'gemini',            name: 'Gemini 2.0 Flash',      provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-flash',  name: 'Gemini 2.5 Flash',      provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-pro',    name: 'Gemini 2.5 Pro',        provider: 'Google',    available: hasGemini },

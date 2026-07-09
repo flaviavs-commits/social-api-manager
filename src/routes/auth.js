@@ -272,6 +272,47 @@ router.get('/google', (req, res) => {
   res.redirect(url)
 })
 
+// ─── "Conectar com Google" no picker de IA (Gemini) ─────────────────────────
+// O Gemini/Generative Language API não aceita OAuth de usuário como forma de
+// autenticação — só API key (ou Vertex AI com service account, fora do escopo
+// aqui). Este fluxo NÃO substitui a API key: só identifica qual conta Google
+// o usuário quer usar, roda num popup (não navega a página principal) e, ao
+// confirmar, devolve o e-mail via postMessage para o front abrir o passo a
+// passo de gerar a chave no AI Studio já com a conta certa em mente.
+router.get('/google-connect', (req, res) => {
+  const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI
+  const scopes = ['openid', 'email', 'profile'].join(' ')
+  const state = gerarGoogleOAuthState({ purpose: 'ai-connect' })
+
+  const url = `https://accounts.google.com/o/oauth2/v2/auth` +
+    `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=code` +
+    `&scope=${encodeURIComponent(scopes)}` +
+    `&state=${state}` +
+    `&prompt=select_account`
+
+  res.redirect(url)
+})
+
+// Página mínima que o popup do "Conectar com Google" (ai-connect) carrega ao
+// terminar — avisa a janela que abriu o popup (window.opener) via postMessage
+// e se fecha sozinha. Não navega/substitui a página principal do app.
+// Backend (Railway) e frontend (Vercel) ficam em origins diferentes, então o
+// postMessage precisa mirar explicitamente a origin do FRONTEND_URL — usar
+// window.location.origin aqui apontaria para a origin do próprio backend.
+function paginaPopupAiConnect({ ok, email, erro }) {
+  const payload = JSON.stringify({ type: 'google-connect-result', ok, email: email || null, erro: erro || null })
+  const targetOrigin = JSON.stringify(process.env.FRONTEND_URL || '*')
+  return `<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f1117;color:#fff">
+    <p>${ok ? 'Conta conectada! Fechando...' : 'Não foi possível conectar. Fechando...'}</p>
+    <script>
+      if (window.opener) window.opener.postMessage(${payload}, ${targetOrigin});
+      window.close();
+    </script>
+  </body></html>`
+}
+
 router.get('/google/callback', async (req, res) => {
   const { code, error, state } = req.query
   if (error) {
@@ -280,11 +321,13 @@ router.get('/google/callback', async (req, res) => {
 
   // Valida a assinatura/expiração do state (proteção CSRF) sem depender de
   // sessão/cookie — o nonce viaja assinado dentro do próprio parâmetro.
+  let stateData
   try {
-    verificarGoogleOAuthState(state)
+    stateData = verificarGoogleOAuthState(state)
   } catch {
     return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.'))
   }
+  const isAiConnect = stateData?.purpose === 'ai-connect'
 
   try {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -299,6 +342,22 @@ router.get('/google/callback', async (req, res) => {
       })
     })
     const tokenData = await tokenRes.json()
+
+    if (isAiConnect) {
+      // Fluxo "Conectar com Google" do picker de IA: só confirma o e-mail da
+      // conta e devolve pro popup — não cria/loga usuário, não mexe em sessão.
+      if (tokenData.error || !tokenData.access_token) {
+        return res.send(paginaPopupAiConnect({ ok: false, erro: 'Não foi possível confirmar a conta Google.' }))
+      }
+      const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      })
+      const profile = await profileRes.json()
+      if (!profile.email) {
+        return res.send(paginaPopupAiConnect({ ok: false, erro: 'Não foi possível obter o e-mail da conta Google.' }))
+      }
+      return res.send(paginaPopupAiConnect({ ok: true, email: profile.email }))
+    }
 
     if (tokenData.error || !tokenData.access_token) {
       addLog('err', `Erro ao obter token de login Google: ${JSON.stringify(tokenData)}`)

@@ -1082,6 +1082,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-model-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--text); }
 .ai-model-btn.unavailable { opacity: 0.38; cursor: not-allowed; }
 .ai-model-btn .ai-model-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ai-model-btn .ai-model-dot.local   { background: #22c55e; }
 .ai-model-btn .ai-model-dot.gemini  { background: #4285f4; }
 .ai-model-btn .ai-model-dot.openai  { background: #10a37f; }
 .ai-model-btn .ai-model-dot.claude  { background: #d97706; }
@@ -1657,7 +1658,16 @@ input, select, textarea, label, .bottom-nav-item {
         <div style="margin-bottom:20px">
           <div id="ai-apikey-modal-title" style="font-size:16px;font-weight:600;margin-bottom:8px"></div>
           <div id="ai-apikey-modal-desc" style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px"></div>
-          <a id="ai-apikey-modal-link" href="#" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-bottom:16px">Acessar →</a>
+          <a id="ai-apikey-modal-link" href="#" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:inline-block;margin-bottom:12px">Acessar →</a>
+
+          <div id="ai-apikey-modal-google-connect" style="display:none;margin-bottom:16px">
+            <button id="ai-apikey-modal-google-btn" type="button" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">
+              <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.5 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.1 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.4 5.7c4.3-4 6.8-9.8 6.8-17.4z"/><path fill="#FBBC05" d="M10.5 19.3c-.5 1.5-.8 3.1-.8 4.7s.3 3.2.8 4.7l-7.9 6.1C1 31.5 0 27.9 0 24s1-7.5 2.6-10.8l7.9 6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.2-8.5 2.2-6.3 0-11.6-3.6-13.5-8.7l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+              <span id="ai-apikey-modal-google-btn-label">Conectar com Google</span>
+            </button>
+            <div id="ai-apikey-modal-google-status" style="font-size:11px;color:var(--muted);margin-top:6px;min-height:14px"></div>
+          </div>
+
           <div style="font-size:12px;color:var(--muted2);margin-bottom:6px">Cole sua chave de acesso abaixo:</div>
           <input id="ai-apikey-modal-input" type="password" placeholder="Sua chave de acesso (API Key)"
             style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none">
@@ -2072,6 +2082,13 @@ const API = 'https://social-api-manager-production.up.railway.app';  // backend 
     history.replaceState({}, '', location.pathname + (resto ? '?' + resto : ''));
   }
 })();
+
+// unreadMap do Inbox — declarado aqui (antes de tentarAutoLoginReview, que chama
+// inboxStartUnreadPolling logo abaixo) para nunca ficar em temporal dead zone,
+// mesmo que algum ambiente externo à página (extensão do navegador, etc.)
+// altere o timing normal de execução do script.
+let inboxUnreadMap = {};
+let inboxUnreadTimer = null;
 
 // Modo de revisão TikTok: se não houver token salvo, tenta buscar um token
 // de acesso automático no backend (só funciona quando TIKTOK_REVIEW_MODE=true).
@@ -4945,9 +4962,10 @@ function calCloseMediaPreview() {
 // ── INBOX ─────────────────────────────────────────────────────────────────────
 const PLAT_SUPPORTS_REPLY = ['instagram']; // demais são só leitura por ora
 
-// unreadMap: { [postId]: count } — vem do backend, atualizado periodicamente
-let inboxUnreadMap = {};
-let inboxUnreadTimer = null;
+// unreadMap: { [postId]: count } — vem do backend, atualizado periodicamente.
+// inboxUnreadMap/inboxUnreadTimer são declarados lá em cima, antes da IIFE
+// tentarAutoLoginReview (que chama inboxStartUnreadPolling), para nunca
+// correr risco de temporal dead zone.
 
 function inboxUpdateBadge() {
   const total = Object.values(inboxUnreadMap).reduce((s, n) => s + n, 0);
@@ -5770,6 +5788,7 @@ let aiSelectedModel = 'gemini'
 let aiModelsLoaded = false
 
 const AI_MODEL_META = {
+  local:             { label: 'Assistente Rápido',      dot: 'local',  provider: 'Sem conta' },
   gemini:            { label: 'Gemini 2.0 Flash',      dot: 'gemini', provider: 'Google' },
   'gemini-2.5-flash':{ label: 'Gemini 2.5 Flash',      dot: 'gemini', provider: 'Google' },
   'gemini-2.5-pro':  { label: 'Gemini 2.5 Pro',        dot: 'gemini', provider: 'Google' },
@@ -5782,6 +5801,18 @@ let aiAvailableModels = []
 let aiPickerSelectedModel = 'gemini' // seleção temporária no picker antes de confirmar
 
 const AI_MODEL_PICKER_META = {
+  local: {
+    icon: '🤖',
+    iconClass: 'local',
+    dotColor: '#22c55e',
+    desc: 'Gerador automático · Grátis · Sem conta ou cartão · Cria posts na hora',
+    badge: 'Grátis',
+    requiresKey: false,
+    keyProvider: null,
+    keyUrl: null,
+    keyHint: null,
+    keyDesc: null,
+  },
   gemini: {
     icon: '✦',
     iconClass: 'gemini',
@@ -5862,6 +5893,10 @@ const AI_MODEL_PICKER_META = {
 
 // Saudações personalizadas por modelo
 const AI_MODEL_GREETINGS = {
+  local: [
+    saudacao => `${saudacao}! 🤖 Sou o Assistente Rápido — crio posts prontos na hora, sem precisar de conta nem cartão.\n\nMe diga o tema e eu monto seus posts! Qual é a ideia de hoje? ✨`,
+    saudacao => `${saudacao}! 🤖 Assistente Rápido no ar! Crio seus posts de graça, sem compromisso — se quiser textos ainda mais elaborados, dá pra assinar depois.\n\nO que vamos postar? Me conta o assunto! 💡`,
+  ],
   'gemini-2.5-flash': [
     saudacao => `${saudacao}! ✦ Sou o Gemini 2.5 Flash — raciocínio avançado com velocidade de produção.\n\nPronto para criar conteúdo de alto nível com você! Qual é o tema de hoje? 🚀`,
     saudacao => `${saudacao}! ✦ Gemini 2.5 Flash aqui — a combinação ideal de qualidade e velocidade do Google.\n\nO que vamos criar? Me conta sua ideia! 💡`,
@@ -5910,6 +5945,44 @@ async function aiSaveUserKey(modelId, apiKey) {
   return apiFetch('/api/ai/apikey', { method: 'PUT', body: JSON.stringify({ modelo: modelId, apiKey }) })
 }
 
+// Abre popup de OAuth do Google só para IDENTIFICAR a conta (não existe OAuth
+// de usuário para o Gemini/Generative Language API — só API key, ou Vertex AI
+// com service account, fora do escopo aqui). Ao confirmar, resolve com o
+// e-mail da conta; ao cancelar/fechar sem concluir, resolve com null.
+function aiConectarGoogle() {
+  return new Promise((resolve) => {
+    // authRoutes (src/routes/auth.js) é montado em /auth/login no server.js —
+    // por isso o path completo leva o prefixo /login mesmo não sendo login.
+    // O backend fica no Railway (API), não no mesmo domínio do front (Vercel).
+    const popup = window.open(API + '/auth/login/google-connect', 'google-connect', 'width=480,height=600')
+    if (!popup) { resolve(null); return }
+
+    let resolved = false
+    function onMessage(ev) {
+      // O popup roda no domínio do backend (Railway), diferente do front
+      // (Vercel) — então valida pela janela de origem (ev.source === popup),
+      // não pela origin, que seria de outro domínio.
+      if (ev.source !== popup) return
+      if (ev.data?.type !== 'google-connect-result') return
+      resolved = true
+      window.removeEventListener('message', onMessage)
+      clearInterval(pollClosed)
+      resolve(ev.data.ok ? ev.data.email : null)
+    }
+    window.addEventListener('message', onMessage)
+
+    // Se o usuário fechar o popup manualmente sem concluir o login, destrava
+    // a Promise em vez de deixar o botão preso em "Conectando...".
+    const pollClosed = setInterval(() => {
+      if (popup.closed && !resolved) {
+        clearInterval(pollClosed)
+        window.removeEventListener('message', onMessage)
+        resolve(null)
+      }
+    }, 500)
+  })
+}
+
 // Abre modal de configuração de API key para modelos que requerem
 function aiOpenKeyModal(modelId, onSuccess) {
   const pm = AI_MODEL_PICKER_META[modelId]
@@ -5922,6 +5995,10 @@ function aiOpenKeyModal(modelId, onSuccess) {
   const link = document.getElementById('ai-apikey-modal-link')
   const input = document.getElementById('ai-apikey-modal-input')
   const err = document.getElementById('ai-apikey-modal-err')
+  const googleWrap = document.getElementById('ai-apikey-modal-google-connect')
+  const googleBtn = document.getElementById('ai-apikey-modal-google-btn')
+  const googleBtnLabel = document.getElementById('ai-apikey-modal-google-btn-label')
+  const googleStatus = document.getElementById('ai-apikey-modal-google-status')
 
   title.textContent = `Conectar conta ${pm.keyProvider}`
   desc.textContent = pm.keyDesc
@@ -5930,6 +6007,30 @@ function aiOpenKeyModal(modelId, onSuccess) {
   link.textContent = `Acessar ${pm.keyProvider} →`
   input.value = ''
   err.textContent = ''
+
+  // "Conectar com Google" só faz sentido para os modelos Gemini (Google AI
+  // Studio) — não substitui a API key, só confirma a conta antes do tutorial.
+  const ehGoogle = pm.keyProvider === 'Google AI Studio'
+  googleWrap.style.display = ehGoogle ? 'block' : 'none'
+  googleStatus.textContent = ''
+  googleBtnLabel.textContent = 'Conectar com Google'
+  googleBtn.disabled = false
+
+  if (ehGoogle) {
+    googleBtn.onclick = async () => {
+      googleBtn.disabled = true
+      googleBtnLabel.textContent = 'Conectando...'
+      const email = await aiConectarGoogle()
+      googleBtn.disabled = false
+      if (email) {
+        googleBtnLabel.textContent = `✓ Conectado como ${email}`
+        googleStatus.innerHTML = `Agora clique em "Acessar Google AI Studio →" acima (com a conta <b>${email}</b> logada no navegador), gere a chave e cole abaixo.`
+      } else {
+        googleBtnLabel.textContent = 'Conectar com Google'
+        googleStatus.textContent = 'Não foi possível confirmar a conta. Tente novamente ou pule direto para colar a chave.'
+      }
+    }
+  }
 
   modal.style.display = 'flex'
 
@@ -5982,9 +6083,11 @@ async function aiLoadModels() {
     // fallback: usa lista estática se API falhar
     aiModelsLoaded = true
     aiAvailableModels = [
+      { id: 'local',  name: 'Assistente Rápido', provider: 'Sem conta', available: true },
       { id: 'gemini', name: 'Gemini 2.0 Flash', provider: 'Google',    available: true },
       { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI',   available: true },
     ]
+    aiSetModel('local', false)
   }
 }
 
@@ -6384,6 +6487,32 @@ const AI_STEPS = {
 const PLAT_NAMES = { instagram:'Instagram', facebook:'Facebook', youtube:'YouTube', tiktok:'TikTok' }
 const TOM_LABELS = { casual:'Casual 😊', motivacional:'Motivacional 🔥', profissional:'Profissional 💼', informativo:'Informativo 📚', humoristico:'Humorístico 😂' }
 
+// Requisitos de cada rede na hora de publicar (espelha PLATFORM_REQUIREMENTS no
+// backend e as validações em services/publisher.js). Usado para avisar o
+// usuário do que cada rede selecionada exige antes de gerar/agendar o post.
+const PLAT_REQUIREMENTS = {
+  instagram: { icon:'📸', media:'required', exige:'imagem ou vídeo', obs:'não publica só texto' },
+  facebook:  { icon:'📘', media:'optional', exige:'só texto (imagem/vídeo opcionais)', obs:'' },
+  youtube:   { icon:'▶️', media:'required', exige:'um vídeo + título', obs:'só aceita vídeo' },
+  tiktok:    { icon:'🎵', media:'required', exige:'imagem ou vídeo', obs:'texto curto (máx. 150 caracteres)' },
+}
+
+// Monta o aviso de requisitos das redes selecionadas. Retorna null se nenhuma
+// das redes exigir mídia (nesse caso não precisa avisar nada).
+function aiRequisitosNotice(plats) {
+  const exigemMidia = plats.filter(p => PLAT_REQUIREMENTS[p]?.media === 'required')
+  if (!exigemMidia.length) return null
+  const linhas = plats.map(p => {
+    const r = PLAT_REQUIREMENTS[p]
+    if (!r) return null
+    const marca = r.media === 'required' ? '📎' : '📝'
+    const obs = r.obs ? ` — ${r.obs}` : ''
+    return `${marca} ${r.icon} **${PLAT_NAMES[p]}**: ${r.exige}${obs}`
+  }).filter(Boolean)
+  const nomes = exigemMidia.map(p => PLAT_NAMES[p]).join(', ')
+  return `📋 Antes de criar, confira o que cada rede exige:\n\n${linhas.join('\n')}\n\n⚠️ **${nomes}** ${exigemMidia.length > 1 ? 'exigem' : 'exige'} mídia — na hora de agendar você precisará anexar uma imagem/vídeo, senão a publicação vai falhar nessas redes.`
+}
+
 // Pergunta contextual que o agente faz ao ser aberto a partir de cada página
 const AI_PAGE_HINTS = {
   dashboard:   'Vi que você está no Dashboard. Quer que eu já sugira um post com base no seu desempenho recente?',
@@ -6554,10 +6683,11 @@ async function aiChatStart(ctx) {
     }
   }
 
+  // O Assistente Rápido não precisa de chave nenhuma — pula a pergunta de assinatura.
   // Verifica se usuário tem chave própria — se não tiver, pergunta sobre assinatura
   let hasKey = false
   try { const k = await apiFetch(`/api/ai/apikey/${aiSelectedModel}`); hasKey = k.hasKey } catch {}
-  if (!hasKey && !state.askedAboutKey) {
+  if (aiSelectedModel !== 'local' && !hasKey && !state.askedAboutKey) {
     state.askedAboutKey = true
     await new Promise(r => setTimeout(r, 700))
     aiChatTyping(ctx, true)
@@ -6765,11 +6895,16 @@ async function aiChatProcess(ctx, userMsg) {
 
   if (state.step === 'ask_has_key') {
     if (msg.includes('❌') || msg.includes('não tenho')) {
+      // Sem chave de IA: passa a usar o Assistente Rápido (gerador automático,
+      // sem exigir conta), para o usuário conseguir criar posts mesmo assim.
+      // Se um dia GEMINI_API_KEY existir no servidor, o backend usa LLM real
+      // automaticamente dentro do limite diário — sem precisar mudar nada aqui.
+      aiSetModel('local', false)
       state.step = 'ask_plats'
       aiChatTyping(ctx, true)
       await new Promise(r => setTimeout(r, 600))
       aiChatTyping(ctx, false)
-      aiChatAddMsg(ctx, 'agent', `Sem problema! 😊\n\nA **Vitis Souls** pode te indicar o melhor plano de IA com o melhor custo-benefício para o seu negócio.\n\n📩 Entre em contato: **tiago@vitissouls.com**\n\nPor enquanto, pode usar o agente normalmente. Para quais redes você quer postar?`)
+      aiChatAddMsg(ctx, 'agent', `Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 tiago@vitissouls.com). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?`)
       aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     } else {
       // Tem assinatura — abre modal para inserir a chave de API
@@ -6895,7 +7030,21 @@ async function aiChatProcess(ctx, userMsg) {
 
     state.step = 'ask_tom'
     aiChatTyping(ctx, false)
-    aiChatAddMsg(ctx, 'agent', `Ótimo! Vou criar posts para: ${state.plats.map(p => PLAT_NAMES[p]).join(', ')} ✅\n\nQual tom de voz você quer usar?`)
+    aiChatAddMsg(ctx, 'agent', `Ótimo! Vou criar posts para: ${state.plats.map(p => PLAT_NAMES[p]).join(', ')} ✅`)
+
+    // Avisa os requisitos de mídia de cada rede selecionada (Instagram/YouTube/
+    // TikTok exigem mídia; Facebook aceita só texto) antes de seguir.
+    const requisitos = aiRequisitosNotice(state.plats)
+    if (requisitos) {
+      await new Promise(r => setTimeout(r, 500))
+      aiChatTyping(ctx, true)
+      await new Promise(r => setTimeout(r, 700))
+      aiChatTyping(ctx, false)
+      aiChatAddMsg(ctx, 'agent', requisitos)
+    }
+
+    await new Promise(r => setTimeout(r, 400))
+    aiChatAddMsg(ctx, 'agent', `Qual tom de voz você quer usar?`)
     aiChatSetChips(ctx, ['😊 Casual', '🔥 Motivacional', '💼 Profissional', '📚 Informativo', '😂 Humorístico'])
     return
   }
@@ -6967,6 +7116,20 @@ async function aiChatProcess(ctx, userMsg) {
         aiChatAddMsg(ctx, 'agent', 'Hmm, não consegui gerar o post agora. Pode tentar novamente? 🙏')
         state.step = 'ask_instrucao'
         return
+      }
+
+      // Avisos do Assistente Rápido: quando o servidor tem um LLM configurado
+      // (GEMINI_API_KEY), o backend tenta usá-lo dentro do limite diário e sinaliza
+      // via data.llm/data.fallback — essas mensagens só aparecem nesse cenário.
+      // Sem LLM configurado no servidor, o backend nunca envia esses campos.
+      if (aiSelectedModel === 'local') {
+        if (data.fallback === 'limite_diario') {
+          aiChatAddMsg(ctx, 'agent', `🎁 Você usou todas as suas gerações turbinadas de hoje! Estes posts foram montados no modo padrão.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`)
+        } else if (data.fallback === 'llm_indisponivel') {
+          aiChatAddMsg(ctx, 'agent', `⚠️ O modo turbinado está indisponível agora, então montei estes posts no modo padrão. Pode tentar de novo em instantes. 😊`)
+        } else if (data.llm && typeof data.restantes === 'number' && data.restantes <= 3) {
+          aiChatAddMsg(ctx, 'agent', `✨ Post turbinado! Você ainda tem **${data.restantes}** geração(ões) turbinada(s) gratuita(s) hoje.`)
+        }
       }
 
       state.step = 'review_post'
