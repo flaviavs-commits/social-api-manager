@@ -6911,17 +6911,26 @@ async function aiChatProcess(ctx, userMsg) {
       aiChatAddMsg(ctx, 'agent', `Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 tiago@vitissouls.com). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?`)
       aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     } else {
-      // Tem assinatura — abre modal para inserir a chave de API
+      // Tem assinatura — só faz sentido pedir a chave se o modelo atual
+      // realmente exigir uma. Todos os Gemini já funcionam com a chave do
+      // servidor (requiresKey: false), então o modal de chave é oferecido
+      // apenas como opção avançada, não como bloqueio antes de postar.
+      const pmAtual = AI_MODEL_PICKER_META[aiSelectedModel]
       state.step = 'ask_plats'
       aiChatTyping(ctx, true)
       await new Promise(r => setTimeout(r, 600))
       aiChatTyping(ctx, false)
-      aiChatAddMsg(ctx, 'agent', `Ótimo! 🎉 Para conectar sua conta, informe sua chave de API abaixo. Ela fica salva com segurança e você não precisa inserir de novo.`)
-      aiChatSetChips(ctx, [])
-      aiOpenKeyModal(aiSelectedModel, () => {
-        aiChatAddMsg(ctx, 'agent', `Chave configurada com sucesso! ✅ Agora vamos criar seus posts. Para quais redes você quer postar?`)
+      if (pmAtual?.requiresKey) {
+        aiChatAddMsg(ctx, 'agent', `Ótimo! 🎉 Para conectar sua conta, informe sua chave de API abaixo. Ela fica salva com segurança e você não precisa inserir de novo.`)
+        aiChatSetChips(ctx, [])
+        aiOpenKeyModal(aiSelectedModel, () => {
+          aiChatAddMsg(ctx, 'agent', `Chave configurada com sucesso! ✅ Agora vamos criar seus posts. Para quais redes você quer postar?`)
+          aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+        })
+      } else {
+        aiChatAddMsg(ctx, 'agent', `Ótimo! 🎉 O ${AI_MODEL_META[aiSelectedModel]?.label || 'modelo atual'} já funciona sem precisar configurar nada. Para quais redes você quer postar?`)
         aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
-      })
+      }
     }
     return
   }
