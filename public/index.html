@@ -5787,6 +5787,10 @@ let aiSelectedPlats = new Set(['instagram'])
 let aiSelectedModel = 'gemini'
 let aiModelsLoaded = false
 
+// Todos usam a chave do servidor (com limite diário compartilhado) — nenhum
+// exige chave própria do usuário. Ver GEMINI_MODEL_IDS no backend (src/routes/ai.js).
+const GEMINI_MODEL_IDS_FRONT = ['gemini', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-lite']
+
 const AI_MODEL_META = {
   local:             { label: 'Assistente Rápido',      dot: 'local',  provider: 'Sem conta' },
   gemini:            { label: 'Gemini 2.0 Flash',      dot: 'gemini', provider: 'Google' },
@@ -5832,12 +5836,12 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#4285f4',
     desc: 'Google · Melhor custo-benefício · Raciocínio avançado · Recomendado para produção',
     badge: 'Novo',
-    requiresKey: true,
+    requiresKey: false,
     keyProvider: 'Google AI Studio',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'Começa com "AIza..."',
-    keyDesc: 'Para usar o Gemini 2.5 Flash você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
-    keyBadge: 'Usar minha conta Google',
+    keyDesc: 'O Gemini 2.5 Flash já funciona sem nenhuma chave — usamos nossa própria cota. Se quiser usar sua conta Google para ter mais limite, cole sua chave do AI Studio aqui (opcional).',
+    keyBadge: 'Usar minha conta Google (opcional)',
   },
   'gemini-2.5-pro': {
     icon: '✦',
@@ -5845,12 +5849,12 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#0d47a1',
     desc: 'Google · Modelo mais avançado · Máxima qualidade · Ideal para conteúdo complexo',
     badge: 'Pro',
-    requiresKey: true,
+    requiresKey: false,
     keyProvider: 'Google AI Studio',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'Começa com "AIza..."',
-    keyDesc: 'Para usar o Gemini 2.5 Pro você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
-    keyBadge: 'Usar minha conta Google',
+    keyDesc: 'O Gemini 2.5 Pro já funciona sem nenhuma chave — usamos nossa própria cota. Se quiser usar sua conta Google para ter mais limite, cole sua chave do AI Studio aqui (opcional).',
+    keyBadge: 'Usar minha conta Google (opcional)',
   },
   'gemini-2.5-lite': {
     icon: '✦',
@@ -5858,12 +5862,12 @@ const AI_MODEL_PICKER_META = {
     dotColor: '#42a5f5',
     desc: 'Google · Mais leve e rápido · Baixo custo · Ideal para alto volume',
     badge: 'Lite',
-    requiresKey: true,
+    requiresKey: false,
     keyProvider: 'Google AI Studio',
     keyUrl: 'https://aistudio.google.com/apikey',
     keyHint: 'Começa com "AIza..."',
-    keyDesc: 'Para usar o Gemini 2.5 Flash-Lite você precisa de uma chave de API do Google AI Studio com billing ativo. Acesse aistudio.google.com, gere sua chave e cole aqui.',
-    keyBadge: 'Usar minha conta Google',
+    keyDesc: 'O Gemini 2.5 Flash-Lite já funciona sem nenhuma chave — usamos nossa própria cota. Se quiser usar sua conta Google para ter mais limite, cole sua chave do AI Studio aqui (opcional).',
+    keyBadge: 'Usar minha conta Google (opcional)',
   },
   openai: {
     icon: '◆',
@@ -7118,13 +7122,16 @@ async function aiChatProcess(ctx, userMsg) {
         return
       }
 
-      // Avisos do Assistente Rápido: quando o servidor tem um LLM configurado
-      // (GEMINI_API_KEY), o backend tenta usá-lo dentro do limite diário e sinaliza
-      // via data.llm/data.fallback — essas mensagens só aparecem nesse cenário.
-      // Sem LLM configurado no servidor, o backend nunca envia esses campos.
-      if (aiSelectedModel === 'local') {
+      // Avisos de limite: TODOS os modelos Gemini (incluindo 2.5 Pro/Flash/Lite)
+      // usam a chave do servidor com um limite diário compartilhado — o backend
+      // sinaliza isso via data.llm/data.fallback. Sem chave configurada no
+      // servidor, esses campos nunca aparecem (segue o fluxo normal de erro).
+      if (aiSelectedModel === 'local' || GEMINI_MODEL_IDS_FRONT.includes(aiSelectedModel)) {
         if (data.fallback === 'limite_diario') {
-          aiChatAddMsg(ctx, 'agent', `🎁 Você usou todas as suas gerações turbinadas de hoje! Estes posts foram montados no modo padrão.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`)
+          const msgLimite = aiSelectedModel === 'local'
+            ? `🎁 Você usou todas as suas gerações turbinadas de hoje! Estes posts foram montados no modo padrão.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`
+            : `🎁 Você usou todas as gerações gratuitas de hoje com este modelo! Estes posts foram montados no modo padrão (Assistente Rápido).\n\nQuer mais gerações? Use sua própria chave do Google AI Studio (opcional) ou tente de novo amanhã.`
+          aiChatAddMsg(ctx, 'agent', msgLimite)
         } else if (data.fallback === 'llm_indisponivel') {
           aiChatAddMsg(ctx, 'agent', `⚠️ O modo turbinado está indisponível agora, então montei estes posts no modo padrão. Pode tentar de novo em instantes. 😊`)
         } else if (data.llm && typeof data.restantes === 'number' && data.restantes <= 3) {

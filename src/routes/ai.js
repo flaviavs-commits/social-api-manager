@@ -437,9 +437,31 @@ router.post('/generate', async (req, res) => {
 
     const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
 
-    // Novos modelos Gemini usam a chave salva como 'gemini' (mesma chave, model ID diferente)
-    const keyModelo = GEMINI_MODEL_IDS[modelo] ? 'gemini' : modelo
-    const userKey = await getUserApiKey(pool, req.user.id, keyModelo)
+    // Um usuário comum não sabe gerar uma API key do Google AI Studio (é uma
+    // credencial técnica, exige projeto no Cloud, às vezes billing) — por isso
+    // TODOS os modelos Gemini (incluindo 2.5 Pro/Flash/Lite) usam a CHAVE DO
+    // SERVIDOR sempre, com o mesmo limite diário do modo "local". Só OpenAI e
+    // Claude continuam exigindo chave própria do usuário (não há chave deles
+    // configurada no servidor).
+    if (GEMINI_MODEL_IDS[modelo]) {
+      if (!process.env.GEMINI_API_KEY) {
+        throw Object.assign(new Error('Nenhum modelo Gemini está disponível no momento.'), { status: 503 })
+      }
+      const usados = await demoUsosHoje(req.user.id)
+      if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
+
+      const rawTextGemini = await generateWithGemini(prompt, null, modelo)
+      await registrarUsoDemo(req.user.id)
+      let parsedGemini
+      try {
+        parsedGemini = parseJsonResponse(rawTextGemini)
+      } catch {
+        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+      }
+      return montarResposta(parsedGemini.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
+    }
+
+    const userKey = await getUserApiKey(pool, req.user.id, modelo)
     let rawText
     if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt, userKey)
     else if (modelo === 'claude')  rawText = await generateWithClaude(prompt, userKey)
