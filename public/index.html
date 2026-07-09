@@ -7483,6 +7483,13 @@ async function aiAnalyzeMedia(ctx, file, contexto) {
 
   const isVideo = file.type.startsWith('video/')
 
+  // Sobe o arquivo original pro Blob em paralelo com a análise (não espera
+  // um terminar pro outro começar) — é essa URL real que permite publicar/
+  // agendar o post com a mídia de fato, não só o texto sugerido pela IA.
+  // Falha de upload não trava a análise: o usuário ainda recebe o texto
+  // sugerido, só não pode publicar/agendar direto do chat (fica avisado).
+  const uploadPromise = uploadArquivoDireto(file).catch(() => null)
+
   aiChatTyping(ctx, true)
   aiChatAddMsg(ctx, 'agent', isVideo
     ? `🎬 Recebi seu vídeo! Extraindo um frame para analisar o conteúdo visualmente... ✨`
@@ -7531,6 +7538,7 @@ async function aiAnalyzeMedia(ctx, file, contexto) {
 
   // Usa as plataformas já selecionadas no estado ou pede para selecionar
   const plats = state.plats?.length ? state.plats : null
+  const mediaTypeSimples = isVideo ? 'video' : 'image'
 
   if (!plats) {
     // Ainda não selecionou plataformas — pede antes de analisar
@@ -7538,15 +7546,15 @@ async function aiAnalyzeMedia(ctx, file, contexto) {
     aiChatAddMsg(ctx, 'agent', `Para qual rede você quer o texto?`)
     aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     // Guarda arquivo e contexto para usar depois que o usuário escolher a rede
-    state.pendingMediaFile = { base64, mimeType: mimeTypeToSend, nome: file.name, contexto }
+    state.pendingMediaFile = { base64, mimeType: mimeTypeToSend, nome: file.name, contexto, uploadPromise, mediaTypeSimples }
     state.step = 'ask_plats_for_media'
     return
   }
 
-  await aiDoAnalyzeMedia(ctx, base64, mimeTypeToSend, contexto, plats)
+  await aiDoAnalyzeMedia(ctx, base64, mimeTypeToSend, contexto, plats, uploadPromise, mediaTypeSimples)
 }
 
-async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {
+async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPromise, mediaTypeSimples) {
   const state = aiChat[ctx]
   aiChatTyping(ctx, true)
 
@@ -7569,6 +7577,15 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {
       aiChatAddMsg(ctx, 'agent', `🔍 Identifiquei: *${data.descricao_midia}*\n\nAqui estão as sugestões de texto para cada rede:`)
     }
 
+    // O upload do arquivo original pro Blob já foi disparado em paralelo à
+    // análise (aiAnalyzeMedia) — só espera aqui, na hora de montar os cards.
+    // Se falhar (upload = null), ainda mostra as sugestões, mas sem os
+    // botões de Agendar/Publicar agora (precisaria reanexar no Agendador).
+    const upload = uploadPromise ? await uploadPromise : null
+    if (uploadPromise && !upload) {
+      aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui enviar o arquivo da mídia agora — as sugestões abaixo servem só de texto. Para publicar com a mídia, copie o texto e anexe o arquivo manualmente no Agendador.`)
+    }
+
     const PLAT_ICONS = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' }
     for (const s of sugestoes) {
       const icon = PLAT_ICONS[s.plataforma] || '🌐'
@@ -7576,15 +7593,24 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {
       const hashtags = s.hashtags?.length ? '\n\n' + s.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
       const tituloHtml = s.titulo ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Título YouTube</div><div style="font-weight:600;margin-bottom:8px;font-size:12px">${escapeHtml(s.titulo)}</div>` : ''
 
+      // Com a mídia real anexada, publicar agora é seguro em qualquer rede
+      // (Instagram/YouTube/TikTok deixam de faltar o que exigem).
+      const sComMidia = upload ? { ...s, mediaPath: upload.url, mediaType: mediaTypeSimples } : s
+      const sJson = JSON.stringify(sComMidia).replace(/'/g, "&#39;")
+      const publicarAgoraBtn = upload
+        ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true)">⚡ Publicar agora</button>`
+        : ''
+
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
-        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${JSON.stringify(s).replace(/'/g,"&#39;")})">✓ Agendar este</button><button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
+        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson})">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
         true
       )
     }
 
-    // Salva sugestões no estado para agendamento
-    state.pendingMediaSugestoes = sugestoes
+    // Salva sugestões no estado para agendamento (já com mediaPath/mediaType
+    // quando o upload deu certo, para "Agendar todos" também usar a mídia real)
+    state.pendingMediaSugestoes = upload ? sugestoes.map(s => ({ ...s, mediaPath: upload.url, mediaType: mediaTypeSimples })) : sugestoes
     state.pendingMediaPlats = plats
     state.step = 'review_media'
 
@@ -7605,31 +7631,82 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats) {
 function aiAnalyzeMediaRegen(ctx) {
   const state = aiChat[ctx]
   if (state.pendingMediaFile) {
-    const { base64, mimeType, contexto } = state.pendingMediaFile
-    aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.pendingMediaPlats || state.plats)
+    const { base64, mimeType, contexto, uploadPromise, mediaTypeSimples } = state.pendingMediaFile
+    aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.pendingMediaPlats || state.plats, uploadPromise, mediaTypeSimples)
   }
 }
 
-async function aiScheduleMediaPost(ctx, sugestao) {
-  // Fluxo de mídia terminou (usuário vai completar/agendar no Agendador) —
-  // agora sim pode limpar a mídia guardada no estado do chat.
+// Agenda ou publica uma sugestão de mídia. Quando a mídia real já foi
+// enviada ao Blob (sugestao.mediaPath presente), publica/agenda direto via
+// API — sem mídia, cai no comportamento antigo de copiar o texto pro
+// Agendador (usuário precisa reanexar o arquivo manualmente).
+async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false) {
   const state = aiChat[ctx]
-  state.pendingMediaFile = null
-  state.pendingMediaSugestoes = null
 
-  // Abre agendador com o texto sugerido pré-preenchido
-  showPage('agendador')
-  await new Promise(r => setTimeout(r, 300))
-  const textArea = document.getElementById('post-text')
-  if (textArea) {
-    textArea.value = sugestao.texto + (sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h}`).join(' ') : '')
-    textArea.dispatchEvent(new Event('input'))
+  if (!sugestao.mediaPath) {
+    state.pendingMediaFile = null
+    state.pendingMediaSugestoes = null
+    showPage('agendador')
+    await new Promise(r => setTimeout(r, 300))
+    const textArea = document.getElementById('post-text')
+    if (textArea) {
+      textArea.value = sugestao.texto + (sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h}`).join(' ') : '')
+      textArea.dispatchEvent(new Event('input'))
+    }
+    if (sugestao.titulo) {
+      const titleInput = document.getElementById('youtube-title')
+      if (titleInput) titleInput.value = sugestao.titulo
+    }
+    showToast('Texto copiado para o agendador! Complete o post e agende. ✅', 'ok')
+    return
   }
-  if (sugestao.titulo) {
-    const titleInput = document.getElementById('youtube-title')
-    if (titleInput) titleInput.value = sugestao.titulo
+
+  aiChatAddMsg(ctx, 'agent', publicarAgora ? '⚡ Publicando agora...' : '⏳ Agendando...')
+  try {
+    const hashtags = sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
+    const horas = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }[sugestao.plataforma] || [9,12,18]
+    const horarioSugerido = new Date()
+    horarioSugerido.setDate(horarioSugerido.getDate() + 1)
+    horarioSugerido.setHours(horas[0], 0, 0, 0)
+
+    const data = await apiFetch('/api/ai/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts: [{
+        texto: sugestao.texto + hashtags,
+        titulo: sugestao.titulo || null,
+        plataformas: [sugestao.plataforma],
+        horario: horarioSugerido.toISOString(),
+        mediaPath: sugestao.mediaPath,
+        mediaType: sugestao.mediaType,
+        publishNow: publicarAgora,
+      }] })
+    })
+
+    const resultado = data.posts?.[0]
+    if (publicarAgora) {
+      const falhou = resultado?.status === 'error'
+      const parcial = resultado?.status === 'partial'
+      if (falhou) {
+        const erro = resultado.results?.find(r => !r.success)?.error || 'motivo desconhecido'
+        aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui publicar agora (${erro}). Veja em Logs/Agendador.`)
+      } else if (parcial) {
+        aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — confira os detalhes em Logs.`)
+      } else {
+        aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.`)
+      }
+    } else {
+      const horarioFmt = horarioSugerido.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      aiChatAddMsg(ctx, 'agent', `✅ Post agendado para ${horarioFmt}! Aparecerá no Calendário e no Agendador.`)
+    }
+    aiChatSetChips(ctx, ['➕ Criar mais posts', '📅 Ver Calendário', '👋 Por agora é isso'])
+    state.step = 'done'
+    state.pendingMediaFile = null
+    state.pendingMediaSugestoes = null
+    aiLockModelChange(false)
+  } catch (err) {
+    aiChatAddMsg(ctx, 'agent', `Ops! ${err.message || (publicarAgora ? 'Erro ao publicar' : 'Erro ao agendar')}. Tenta de novo?`)
   }
-  showToast('Texto copiado para o agendador! Complete o post e agende. ✅', 'ok')
 }
 
 // Extrai memórias da conversa atual via IA e salva no banco

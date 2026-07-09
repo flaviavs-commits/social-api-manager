@@ -836,10 +836,12 @@ router.get('/models', (req, res) => {
 
 // POST /api/ai/schedule
 // Aceita publishNow (por post ou no nível raiz) para publicar imediatamente
-// em vez de agendar. O Agente IA só gera TEXTO (nunca mídia), então só é
-// seguro publicar agora quando NENHUMA plataforma do post exigir mídia (hoje,
-// só o Facebook aceita post de só texto) — validado aqui mesmo se o front
-// mandar publishNow para uma rede que exige mídia, evitando falha na hora H.
+// em vez de agendar. Também aceita mediaPath/mediaType — quando presentes
+// (post veio do fluxo de análise de mídia do agente, com o arquivo já
+// enviado ao Blob), publishNow é liberado mesmo para redes que exigem mídia
+// (Instagram/YouTube/TikTok). Sem mídia, só é seguro publicar agora quando
+// NENHUMA plataforma do post exigir mídia (hoje, só o Facebook aceita post
+// de só texto) — validado aqui mesmo se o front mandar publishNow errado.
 router.post('/schedule', async (req, res) => {
   try {
     const { posts } = req.body
@@ -851,16 +853,17 @@ router.post('/schedule', async (req, res) => {
 
     for (const p of posts) {
       const querPublicarAgora = p.publishNow === true || req.body.publishNow === true
+      const temMidia = !!p.mediaPath
       const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
-      const publishNow = querPublicarAgora && !exigeMidia
+      const publishNow = querPublicarAgora && (temMidia || !exigeMidia)
 
       const post = await repo.criarPost({
         text:              p.texto,
         platforms:         p.plataformas,
         scheduledAt:       publishNow ? new Date() : new Date(p.horario),
         repeat:            'none',
-        mediaPath:         null,
-        mediaType:         null,
+        mediaPath:         p.mediaPath || null,
+        mediaType:         p.mediaType || null,
         mediaItems:        null,
         youtubeTitle:      p.titulo || null,
         youtubeVisibility: 'public',
@@ -872,11 +875,12 @@ router.post('/schedule', async (req, res) => {
 
       if (!publishNow) { criados.push(post); continue }
 
-      const results = await publishPost({ ...post, mediaPath: null, mediaType: null, mediaItems: null, accountId: p.accountId || null, userId: req.user.id, userRole: req.user.role })
-      const sucesso = r => r.success === true
+      const results = await publishPost({ ...post, mediaPath: p.mediaPath || null, mediaType: p.mediaType || null, mediaItems: null, accountId: p.accountId || null, userId: req.user.id, userRole: req.user.role })
+      // Instagram devolve "pending" (container ainda processando) — o cron
+      // finaliza depois; não é sucesso nem erro ainda nesse momento.
       const status = results.some(r => r.success === 'pending') ? 'processing'
-        : results.every(sucesso) ? 'published'
-        : results.some(sucesso) ? 'partial'
+        : results.every(r => r.success === true) ? 'published'
+        : results.some(r => r.success === true) ? 'partial'
         : 'error'
       await repo.atualizarStatusPost(post.id, status)
       criados.push({ ...post, status, results })
