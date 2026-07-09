@@ -388,7 +388,15 @@ router.post('/', async (req, res) => {
         if (!f.mimetype.startsWith('image/')) return f
         if (f.mimetype === 'image/jpeg' && !resizeForTiktok) return f
         const fetchRes = await fetch(f.url)
-        let sharpPipeline = sharp(fetchRes.body)
+        // fetch nativo devolve um Web ReadableStream em .body, que o sharp NÃO
+        // aceita como input (só Buffer, path ou Node Readable clássico) — sem
+        // converter para Buffer aqui, toda conversão pra JPEG falha com
+        // "Unsupported input" e o post inteiro quebra com 500.
+        const inputBuffer = Buffer.from(await fetchRes.arrayBuffer())
+        // Achata a transparência (ex: PNG/sticker com fundo transparente) sobre
+        // branco antes de converter — sem isso, o sharp preenche com preto por
+        // padrão ao gerar o JPEG (que não suporta canal alfa).
+        let sharpPipeline = sharp(inputBuffer).flatten({ background: '#ffffff' })
         if (resizeForTiktok) sharpPipeline = sharpPipeline.resize(1080, 1920, { fit: 'cover', position: 'centre' })
         const jpegBuffer = await sharpPipeline.jpeg({ quality: 90 }).toBuffer()
         const { url } = await put(`${crypto.randomUUID()}.jpg`, jpegBuffer, { access: 'public', contentType: 'image/jpeg' })
