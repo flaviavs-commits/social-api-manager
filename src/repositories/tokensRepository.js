@@ -123,6 +123,19 @@ async function renovarTokenYoutube(token) {
   return newExpiry
 }
 
+// Busca a foto de perfil atual na rede social e atualiza contas.avatar_url —
+// contas antigas (conectadas antes de existir essa captura, ou em que a rede
+// não devolveu a foto na hora) nunca ganhavam avatar depois disso; renovar o
+// token é o único momento em que já temos um access_token válido em mãos sem
+// precisar refazer o OAuth inteiro, então aproveitamos para atualizar aqui.
+// Falha ao buscar a foto não deve derrubar a renovação do token em si.
+async function atualizarAvatarConta(contaId, avatarUrl) {
+  if (!avatarUrl) return
+  try {
+    await pool.query(`UPDATE contas SET avatar_url = $1 WHERE id = $2`, [avatarUrl, contaId])
+  } catch { /* melhor esforço — não bloqueia a renovação do token */ }
+}
+
 // ── Renova o access_token do Instagram via long-lived token refresh ──────────
 async function renovarTokenInstagram(token) {
   const res = await fetch(`https://graph.instagram.com/refresh_access_token` +
@@ -136,6 +149,12 @@ async function renovarTokenInstagram(token) {
   const newExpiry = new Date(Date.now() + (data.expires_in || 60 * 86400) * 1000)
   await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
     [encrypt(data.access_token), newExpiry.toISOString(), token.id])
+
+  try {
+    const profileRes = await fetch(`https://graph.instagram.com/v19.0/me?fields=profile_picture_url&access_token=${encodeURIComponent(data.access_token)}`)
+    const profileData = await profileRes.json()
+    await atualizarAvatarConta(token.conta_id, profileData.profile_picture_url)
+  } catch { /* melhor esforço — não bloqueia a renovação do token */ }
 
   return newExpiry
 }
@@ -163,6 +182,14 @@ async function renovarTokenTiktok(token) {
   const newExpiry = new Date(Date.now() + (data.expires_in || 86400) * 1000)
   await pool.query(`UPDATE tokens SET access_token = $1, refresh_token = $2, expires_at = $3, status = 'valid', atualizado_em = NOW() WHERE id = $4`,
     [encrypt(data.access_token), encrypt(data.refresh_token || token.refresh_token), newExpiry.toISOString(), token.id])
+
+  try {
+    const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=avatar_url', {
+      headers: { Authorization: `Bearer ${data.access_token}` }
+    })
+    const profileData = await profileRes.json()
+    await atualizarAvatarConta(token.conta_id, profileData?.data?.user?.avatar_url)
+  } catch { /* melhor esforço — não bloqueia a renovação do token */ }
 
   return newExpiry
 }
