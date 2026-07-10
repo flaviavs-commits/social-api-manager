@@ -7499,11 +7499,11 @@ async function aiChatProcess(ctx, userMsg) {
       if (aiSelectedModel === 'local' || GEMINI_MODEL_IDS_FRONT.includes(aiSelectedModel)) {
         if (data.fallback === 'limite_diario') {
           const msgLimite = aiSelectedModel === 'local'
-            ? `🎁 Você usou todas as suas gerações turbinadas de hoje! Estes posts foram montados no modo padrão.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`
-            : `🎁 Você usou todas as gerações gratuitas de hoje com este modelo! Estes posts foram montados no modo padrão (Assistente Rápido).\n\nQuer mais gerações? Use sua própria chave do Google AI Studio (opcional) ou tente de novo amanhã.`
+            ? `🎁 Você usou todas as suas gerações turbinadas de hoje! Já montei seu(s) post(s) no modo padrão — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`
+            : `🎁 Você usou todas as gerações gratuitas de hoje com este modelo! Já montei seu(s) post(s) no modo padrão (Assistente Rápido) — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações? Use sua própria chave do Google AI Studio (opcional) ou tente de novo amanhã.`
           aiChatAddMsg(ctx, 'agent', msgLimite)
         } else if (data.fallback === 'llm_indisponivel') {
-          aiChatAddMsg(ctx, 'agent', `⚠️ O modo turbinado está indisponível agora, então montei estes posts no modo padrão. Pode tentar de novo em instantes. 😊`)
+          aiChatAddMsg(ctx, 'agent', `⚠️ O modo turbinado está indisponível agora, mas já montei seu(s) post(s) no modo padrão — veja abaixo, já dá pra agendar ou publicar normalmente. Se quiser tentar o modo turbinado de novo, é só gerar outro em instantes. 😊`)
         } else if (data.llm && typeof data.restantes === 'number' && data.restantes <= 3) {
           aiChatAddMsg(ctx, 'agent', `✨ Post turbinado! Você ainda tem **${data.restantes}** geração(ões) turbinada(s) gratuita(s) hoje.`)
         }
