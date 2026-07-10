@@ -7461,6 +7461,11 @@ async function aiChatProcess(ctx, userMsg) {
 
       state.step = 'review_post'
 
+      // Já apareceu um aviso de fallback acima (que já diz "veja abaixo, já dá
+      // pra agendar ou publicar") — repetir "🎉 Pronto! Aqui está:" no primeiro
+      // post seria redundante, então nesse caso pulamos direto pro card.
+      const jaAvisouFallback = data.fallback === 'limite_diario' || data.fallback === 'llm_indisponivel'
+
       // Mostra cada post gerado
       for (let i = 0; i < posts.length; i++) {
         const p = posts[i]
@@ -7471,10 +7476,10 @@ async function aiChatProcess(ctx, userMsg) {
 
         await new Promise(r => setTimeout(r, i === 0 ? 200 : 800))
 
-        aiChatAddMsg(ctx, 'agent',
-          `${i === 0 ? '🎉 Pronto! Aqui está' + (posts.length > 1 ? ` o post ${i+1} de ${posts.length}` : '') + ':' : `📝 Post ${i+1} de ${posts.length}:`}\n\n${platIcons} · ${horarioFmt}`,
-          false
-        )
+        const prefixo = i === 0
+          ? (jaAvisouFallback ? '' : '🎉 Pronto! Aqui está' + (posts.length > 1 ? ` o post ${i+1} de ${posts.length}` : '') + ':\n\n')
+          : `📝 Post ${i+1} de ${posts.length}:\n\n`
+        aiChatAddMsg(ctx, 'agent', `${prefixo}${platIcons} · ${horarioFmt}`, false)
 
         await new Promise(r => setTimeout(r, 200))
 
@@ -7748,6 +7753,11 @@ async function aiChatSend(ctx) {
   if (val.includes('Ver Calendário') || val.includes('📅')) {
     aiFabClose()
     showPage('calendario')
+    return
+  }
+  if (val.includes('Ver Logs') || val.includes('📋')) {
+    aiFabClose()
+    showPage('logs')
     return
   }
   if (val.includes('Por agora é isso') || val.includes('👋')) {
