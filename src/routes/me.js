@@ -6,8 +6,90 @@ const credentialsRepo = require('../repositories/credentialsRepository')
 const { serverError, validarComplexidadeSenha } = require('../utils/http')
 const { addLog } = require('../middleware/logger')
 const totp = require('../services/totp')
+const pool = require('../db/pool')
 
 const router = Router()
+
+// Tabela de conquistas já vistas pelo usuário — evita mostrar o popup de
+// "desbloqueou!" de novo a cada vez que o streak atual bate um marco já
+// alcançado antes (ex: reabrir o app no mesmo dia).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_achievements (
+    user_id      INTEGER NOT NULL,
+    marco        INTEGER NOT NULL,
+    desbloqueado_em TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, marco)
+  )
+`).catch(() => {})
+
+const STREAK_MARCOS = [3, 7, 14, 30, 60, 100]
+
+// Conta dias consecutivos (terminando hoje ou ontem — não zera só porque o
+// usuário ainda não postou hoje) com pelo menos 1 post PUBLICADO de verdade
+// (published_at preenchido), refletindo uso real do app, não só agendamentos
+// que podem falhar depois.
+async function calcularStreak(userId) {
+  const { rows } = await pool.query(`
+    SELECT DISTINCT DATE(published_at AT TIME ZONE 'America/Sao_Paulo') AS dia
+    FROM posts
+    WHERE user_id = $1 AND published_at IS NOT NULL
+    ORDER BY dia DESC
+  `, [userId])
+
+  if (!rows.length) return 0
+
+  const hoje = new Date()
+  const hojeStr = hoje.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+  const diasComPost = new Set(rows.map(r => {
+    const d = new Date(r.dia)
+    return d.toISOString().slice(0, 10)
+  }))
+
+  // Começa de hoje ou ontem — se não postou hoje ainda, o streak de ontem
+  // continua "vivo" até o fim do dia de hoje.
+  let cursor = new Date(hojeStr + 'T00:00:00')
+  if (!diasComPost.has(hojeStr)) {
+    cursor.setDate(cursor.getDate() - 1)
+    const ontemStr = cursor.toISOString().slice(0, 10)
+    if (!diasComPost.has(ontemStr)) return 0
+  }
+
+  let streak = 0
+  while (diasComPost.has(cursor.toISOString().slice(0, 10))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+// GET /api/me/streak — sequência atual de dias postando + se acabou de
+// desbloquear um novo marco (comparado com o que já estava salvo).
+router.get('/streak', async (req, res) => {
+  try {
+    const streak = await calcularStreak(req.user.id)
+    const marcoAtual = [...STREAK_MARCOS].reverse().find(m => streak >= m) || null
+    const proximoMarco = STREAK_MARCOS.find(m => m > streak) || null
+
+    let novoDesbloqueio = null
+    if (marcoAtual) {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM user_achievements WHERE user_id = $1 AND marco = $2`,
+        [req.user.id, marcoAtual]
+      )
+      if (!rows.length) {
+        await pool.query(
+          `INSERT INTO user_achievements (user_id, marco) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [req.user.id, marcoAtual]
+        )
+        novoDesbloqueio = marcoAtual
+      }
+    }
+
+    res.json({ streak, marcoAtual, proximoMarco, novoDesbloqueio })
+  } catch (e) {
+    serverError(res, e, 'Não foi possível calcular sua sequência agora.')
+  }
+})
 
 // POST /api/me/password — usuário logado troca a própria senha.
 // Exige a senha atual para confirmar identidade (impede que alguém com a
