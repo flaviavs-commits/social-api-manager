@@ -506,10 +506,16 @@ pool.query(`
     user_id   INTEGER NOT NULL,
     modelo    TEXT NOT NULL,
     api_key   TEXT NOT NULL,
+    last_four TEXT,
+    status    TEXT NOT NULL DEFAULT 'valid',
     criado_em TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, modelo)
   )
-`).catch(() => {})
+`).then(() => pool.query(`
+  ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_four TEXT
+`)).then(() => pool.query(`
+  ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'valid'
+`)).catch(() => {})
 
 pool.query(`
   CREATE TABLE IF NOT EXISTS user_ai_prefs (
@@ -592,17 +598,71 @@ router.get('/activity-log', requireSuperAdmin, async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
+// Faz uma chamada mínima e barata ao provedor para confirmar que a chave é
+// válida antes de salvar — evita que o usuário só descubra que errou a chave
+// quando tentar gerar um post de verdade, minutos depois.
+async function testarChaveProvedor(modelo, apiKey) {
+  if (modelo === 'openai') {
+    const OpenAI = require('openai')
+    const client = new OpenAI({ apiKey })
+    await client.models.list()
+    return
+  }
+  if (modelo === 'claude') {
+    const Anthropic = require('@anthropic-ai/sdk')
+    const client = new Anthropic({ apiKey })
+    // Anthropic não tem endpoint de "list models" público simples — usamos uma
+    // chamada de 1 token, que é a forma mais barata de validar a chave.
+    await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1,
+      messages: [{ role: 'user', content: 'oi' }],
+    })
+    return
+  }
+  if (GEMINI_MODEL_IDS[modelo]) {
+    const { GoogleGenAI } = require('@google/genai')
+    const savedGoogleKey = process.env.GOOGLE_API_KEY
+    delete process.env.GOOGLE_API_KEY
+    try {
+      const client = new GoogleGenAI({ apiKey })
+      await client.models.generateContent({ model: GEMINI_MODEL_IDS[modelo], contents: 'oi' })
+    } finally {
+      if (savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+    }
+    return
+  }
+  throw Object.assign(new Error('Modelo não suporta teste de chave.'), { status: 400 })
+}
+
+// POST /api/ai/apikey/test — valida a chave do usuário direto no provedor,
+// sem salvar nada. O frontend chama isso antes do PUT /apikey para mostrar
+// erro imediato ("chave inválida ou sem permissão") em vez de só descobrir
+// depois, ao tentar gerar um post de verdade.
+router.post('/apikey/test', async (req, res) => {
+  try {
+    const { modelo, apiKey } = req.body || {}
+    if (!modelo || !apiKey?.trim()) return res.status(400).json({ erro: 'modelo e apiKey são obrigatórios' })
+    await testarChaveProvedor(modelo, apiKey.trim())
+    res.json({ valid: true })
+  } catch (err) {
+    res.status(400).json({ valid: false, erro: 'Chave inválida ou sem permissão para esse modelo.' })
+  }
+})
+
 // PUT /api/ai/apikey — salva ou atualiza a API key do usuário para um modelo
 router.put('/apikey', async (req, res) => {
   try {
     const { modelo, apiKey } = req.body || {}
     if (!modelo || !apiKey?.trim()) return res.status(400).json({ erro: 'modelo e apiKey são obrigatórios' })
-    const encrypted = encrypt(apiKey.trim())
+    const chave = apiKey.trim()
+    const encrypted = encrypt(chave)
+    const lastFour = chave.slice(-4)
     await pool.query(`
-      INSERT INTO user_ai_keys (user_id, modelo, api_key)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, modelo) DO UPDATE SET api_key = EXCLUDED.api_key, criado_em = NOW()
-    `, [req.user.id, modelo, encrypted])
+      INSERT INTO user_ai_keys (user_id, modelo, api_key, last_four, status)
+      VALUES ($1, $2, $3, $4, 'valid')
+      ON CONFLICT (user_id, modelo) DO UPDATE SET api_key = EXCLUDED.api_key, last_four = EXCLUDED.last_four, status = 'valid', criado_em = NOW()
+    `, [req.user.id, modelo, encrypted, lastFour])
     res.json({ ok: true })
   } catch (err) { serverError(res, err) }
 })
@@ -611,10 +671,11 @@ router.put('/apikey', async (req, res) => {
 router.get('/apikey/:modelo', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
+      `SELECT last_four, status FROM user_ai_keys WHERE user_id = $1 AND modelo = $2`,
       [req.user.id, req.params.modelo]
     )
-    res.json({ hasKey: rows.length > 0 })
+    const row = rows[0]
+    res.json({ hasKey: !!row, lastFour: row?.last_four || null, status: row?.status || null })
   } catch (err) { serverError(res, err) }
 })
 
