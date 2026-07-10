@@ -5620,22 +5620,87 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Sequência de dias postando (streak) ──────────────────────────────────────
-// Ícones 3D "estáticos" (emoji + sombra/gradiente via CSS) por marco — sem
-// depender de gerar imagem via IA a cada desbloqueio (lento, caro e
-// inconsistente entre execuções). Cada marco tem uma cor/intensidade maior,
-// para transmitir progressão visual (igual ao efeito de "chama" crescendo).
+// Ícones 3D próprios (SVG com gradientes/sombras/highlights, no estilo de
+// badge renderizado) por marco — sem depender de gerar imagem via IA a cada
+// desbloqueio (lento, caro e inconsistente entre execuções). "forma" define
+// qual ilustração usar (chama/troféu/estrela); a cor de fundo intensifica
+// conforme o marco cresce, para transmitir progressão visual.
 const STREAK_MARCOS_INFO = {
-  3:   { icon: '🔥', cor: '#ff9800', titulo: 'Chama inicial',     desc: '3 dias seguidos postando. Continue assim!' },
-  7:   { icon: '🔥', cor: '#ff7043', titulo: 'Uma semana em chamas', desc: '7 dias seguidos postando — hábito criado!' },
-  14:  { icon: '🔥', cor: '#f4511e', titulo: 'Sequência forte',   desc: '14 dias seguidos! Sua constância está valendo a pena.' },
-  30:  { icon: '🏆', cor: '#ffd54f', titulo: 'Troféu de 30 dias', desc: 'Um mês inteiro postando todos os dias. Impressionante!' },
-  60:  { icon: '🏆', cor: '#ffca28', titulo: 'Troféu de 60 dias', desc: '2 meses de consistência — você é referência.' },
-  100: { icon: '⭐', cor: '#42a5f5', titulo: 'Estrela dos 100 dias', desc: '100 dias seguidos! Nível avançado de constância.' },
+  3:   { forma: 'chama',  bg: '#ff9800', titulo: 'Chama inicial',        desc: '3 dias seguidos postando. Continue assim!' },
+  7:   { forma: 'chama',  bg: '#f4511e', titulo: 'Uma semana em chamas', desc: '7 dias seguidos postando — hábito criado!' },
+  14:  { forma: 'chama',  bg: '#e64a19', titulo: 'Sequência forte',      desc: '14 dias seguidos! Sua constância está valendo a pena.' },
+  30:  { forma: 'trofeu', bg: '#43a047', titulo: 'Troféu de 30 dias',    desc: 'Um mês inteiro postando todos os dias. Impressionante!' },
+  60:  { forma: 'trofeu', bg: '#2e7d32', titulo: 'Troféu de 60 dias',    desc: '2 meses de consistência — você é referência.' },
+  100: { forma: 'estrela',bg: '#1e88e5', titulo: 'Estrela dos 100 dias',desc: '100 dias seguidos! Nível avançado de constância.' },
 }
 
+// Cada "forma" é um SVG com gradiente 3D (radial pro fundo circular + linear
+// no elemento principal) e um destaque (highlight) simulando luz incidindo —
+// mesmo efeito visual de badge renderizado em 3D do print de referência.
+const STREAK_SVG_FORMAS = {
+  chama: (id, bg) => `
+    <defs>
+      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
+        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
+      </radialGradient>
+      <linearGradient id="flame${id}" x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0%" stop-color="#ffb300"/>
+        <stop offset="55%" stop-color="#ff7043"/>
+        <stop offset="100%" stop-color="#ffe082"/>
+      </linearGradient>
+    </defs>
+    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
+    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
+    <path d="M50 20c4 10-6 14-6 24 0 6 5 8 8 8 5 0 9-4 9-10 0-4-2-6-2-6s6 4 6 14c0 10-8 18-18 18s-18-8-18-18c0-14 10-18 12-28 1-5 4-9 9-2z" fill="url(#flame${id})" stroke="#bf360c" stroke-width="1" stroke-opacity="0.25"/>
+    <path d="M48 42c1 4-3 6-3 11 0 3 2 4 4 4 3 0 4-2 4-4 0-3-2-4-2-4s3 2 3 6c0 4-3 7-7 7s-7-3-7-7c0-6 5-8 5-12 0-2 1-3 3-1z" fill="#fff7e0" opacity="0.85"/>
+  `,
+  trofeu: (id, bg) => `
+    <defs>
+      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
+        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
+      </radialGradient>
+      <linearGradient id="gold${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fff59d"/>
+        <stop offset="45%" stop-color="#ffd54f"/>
+        <stop offset="100%" stop-color="#f9a825"/>
+      </linearGradient>
+    </defs>
+    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
+    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
+    <path d="M34 28h32v14c0 10-7 17-16 17s-16-7-16-17V28z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
+    <path d="M34 30h-8c0 8 3 13 9 15-1-2-1-4-1-4v-11z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
+    <path d="M66 30h8c0 8-3 13-9 15 1-2 1-4 1-4v-11z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
+    <rect x="46" y="58" width="8" height="9" fill="url(#gold${id})"/>
+    <rect x="38" y="67" width="24" height="6" rx="2" fill="url(#gold${id})"/>
+    <ellipse cx="44" cy="35" rx="5" ry="7" fill="#fff8e1" opacity="0.7"/>
+  `,
+  estrela: (id, bg) => `
+    <defs>
+      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
+        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
+      </radialGradient>
+      <linearGradient id="star${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#fff9c4"/>
+        <stop offset="50%" stop-color="#ffd54f"/>
+        <stop offset="100%" stop-color="#ff8f00"/>
+      </linearGradient>
+    </defs>
+    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
+    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
+    <path d="M50 20l7.5 16.5L75 39l-13 12.5L65.5 70 50 60.5 34.5 70 38 51.5 25 39l17.5-2.5z" fill="url(#star${id})" stroke="#e65100" stroke-width="1.2" stroke-opacity="0.25"/>
+    <ellipse cx="45" cy="35" rx="5" ry="7" fill="#fffde7" opacity="0.7"/>
+  `,
+}
+
+let _streakSvgSeq = 0
 function streakIconHtml(marco, size) {
   const info = STREAK_MARCOS_INFO[marco] || STREAK_MARCOS_INFO[3]
-  return `<span style="font-size:${size}px;filter:drop-shadow(0 4px 10px ${info.cor}66)">${info.icon}</span>`
+  const id = `sk${_streakSvgSeq++}`
+  const conteudo = (STREAK_SVG_FORMAS[info.forma] || STREAK_SVG_FORMAS.chama)(id, info.bg)
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" style="filter:drop-shadow(0 4px 10px ${info.bg}66);display:block">${conteudo}</svg>`
 }
 
 async function loadStreak() {
@@ -5651,7 +5716,7 @@ async function loadStreak() {
       badge.style.display = 'flex'
       document.getElementById('streak-badge-icon').innerHTML = streakIconHtml(marco, 15)
       document.getElementById('streak-badge-count').textContent = data.streak
-      document.getElementById('streak-badge-count').style.color = info.cor
+      document.getElementById('streak-badge-count').style.color = info.bg
     } else {
       badge.style.display = 'none'
     }
