@@ -2269,12 +2269,19 @@ async function apiFetch(path, opts = {}) {
   await reviewReadyPromise; // aguarda auto-login de review antes de qualquer chamada
   const isFormData = opts.body instanceof FormData;
   const token = localStorage.getItem('authToken');
+  // "...opts" precisa vir ANTES de "headers" (não depois) — senão um opts.headers
+  // explícito (comum: quase toda chamada passa {'Content-Type':'application/json'})
+  // substitui o objeto headers inteiro, apagando silenciosamente o Authorization
+  // que acabamos de montar. O resultado real era uma requisição SEM token nenhum
+  // (não token inválido) — o backend responde 401 normalmente, e por fora parece
+  // "a sessão expirou", quando na verdade o token nunca foi enviado.
   const res = await fetch(API + path, {
+    ...opts,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: 'Bearer ' + token } : {})
-    },
-    ...opts
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(opts.headers || {})
+    }
   });
   if (res.status === 401) {
     localStorage.removeItem('authToken');
