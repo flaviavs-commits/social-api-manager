@@ -322,11 +322,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   from { opacity: 0; transform: scale(0.88) translateY(12px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-@keyframes streak-pop {
-  0%   { opacity: 0; transform: scale(0.6) translateY(20px); }
-  60%  { opacity: 1; transform: scale(1.05) translateY(-4px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
 
 /* Chat head */
 .ai-chat-head {
@@ -1141,32 +1136,7 @@ input, select, textarea, label, .bottom-nav-item {
     <img src="/favicon.svg" alt="" class="logo-icon">
     Social Api Manager
   </div>
-  <div id="streak-badge" onclick="openStreakModal()" style="display:none;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,0.06);cursor:pointer;margin-right:10px;flex-shrink:0" title="Sua sequência de dias postando">
-    <span id="streak-badge-icon" style="font-size:15px;line-height:1"></span>
-    <span id="streak-badge-count" style="font-size:12px;font-weight:700;font-family:var(--sans)"></span>
-  </div>
   <div id="user-avatar-placeholder-top" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">—</div>
-</div>
-
-<!-- Modal de detalhes da sequência (streak) -->
-<div id="streak-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center" onclick="if(event.target===this)closeStreakModal()">
-  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:28px 24px;width:300px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg);text-align:center">
-    <div id="streak-modal-icon" style="font-size:64px;line-height:1;margin-bottom:12px"></div>
-    <div id="streak-modal-title" style="font-size:16px;font-weight:700;margin-bottom:4px"></div>
-    <div id="streak-modal-desc" style="font-size:12px;color:var(--muted);margin-bottom:18px"></div>
-    <button onclick="closeStreakModal()" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#6c8cff,#b39ddb);color:#fff;font-size:13px;font-weight:600;cursor:pointer">Entendi</button>
-  </div>
-</div>
-
-<!-- Popup de celebração ao desbloquear um novo marco de sequência -->
-<div id="streak-unlock-popup" style="display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid rgba(255,183,77,0.4);border-radius:var(--radius-lg);padding:32px 28px;width:320px;max-width:calc(100vw - 2rem);box-shadow:0 0 60px rgba(255,152,0,0.25);text-align:center;animation:streak-pop .5s cubic-bezier(.34,1.56,.64,1)">
-    <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#ffb74d;font-weight:700;margin-bottom:10px">Conquista desbloqueada!</div>
-    <div id="streak-unlock-icon" style="font-size:88px;line-height:1;margin-bottom:14px;filter:drop-shadow(0 6px 16px rgba(255,152,0,0.4))"></div>
-    <div id="streak-unlock-title" style="font-size:18px;font-weight:700;margin-bottom:6px"></div>
-    <div id="streak-unlock-desc" style="font-size:13px;color:var(--muted);margin-bottom:20px"></div>
-    <button onclick="closeStreakUnlockPopup()" style="width:100%;padding:11px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#ff9800,#ffb74d);color:#fff;font-size:13px;font-weight:700;cursor:pointer">Continuar 🔥</button>
-  </div>
 </div>
 
 <!-- Overlay para fechar sidebar no mobile -->
@@ -3123,7 +3093,6 @@ async function schedulePost(publishNow = false) {
   if (publishNow) {
     if (post.status === 'published') {
       showToast('Post publicado com sucesso!', 'ok');
-      loadStreak();
     } else if (post.status === 'processing') {
       // Instagram cria o container e confirma a publicação de fato em até ~1min
       // (via cron) — não é erro, só ainda não terminou de processar a mídia.
@@ -5623,143 +5592,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const postText = document.getElementById('post-text');
   if (postText) postText.addEventListener('input', updatePostScore);
   startPlatformHealthPolling();
-  loadStreak();
 });
-
-// ── Sequência de dias postando (streak) ──────────────────────────────────────
-// Ícones 3D próprios (SVG com gradientes/sombras/highlights, no estilo de
-// badge renderizado) por marco — sem depender de gerar imagem via IA a cada
-// desbloqueio (lento, caro e inconsistente entre execuções). "forma" define
-// qual ilustração usar (chama/troféu/estrela); a cor de fundo intensifica
-// conforme o marco cresce, para transmitir progressão visual.
-const STREAK_MARCOS_INFO = {
-  3:   { forma: 'chama',  bg: '#ff9800', titulo: 'Chama inicial',        desc: '3 dias seguidos postando. Continue assim!' },
-  7:   { forma: 'chama',  bg: '#f4511e', titulo: 'Uma semana em chamas', desc: '7 dias seguidos postando — hábito criado!' },
-  14:  { forma: 'chama',  bg: '#e64a19', titulo: 'Sequência forte',      desc: '14 dias seguidos! Sua constância está valendo a pena.' },
-  30:  { forma: 'trofeu', bg: '#43a047', titulo: 'Troféu de 30 dias',    desc: 'Um mês inteiro postando todos os dias. Impressionante!' },
-  60:  { forma: 'trofeu', bg: '#2e7d32', titulo: 'Troféu de 60 dias',    desc: '2 meses de consistência — você é referência.' },
-  100: { forma: 'estrela',bg: '#1e88e5', titulo: 'Estrela dos 100 dias',desc: '100 dias seguidos! Nível avançado de constância.' },
-}
-
-// Cada "forma" é um SVG com gradiente 3D (radial pro fundo circular + linear
-// no elemento principal) e um destaque (highlight) simulando luz incidindo —
-// mesmo efeito visual de badge renderizado em 3D do print de referência.
-const STREAK_SVG_FORMAS = {
-  chama: (id, bg) => `
-    <defs>
-      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
-        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
-        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
-      </radialGradient>
-      <linearGradient id="flame${id}" x1="0" y1="1" x2="0" y2="0">
-        <stop offset="0%" stop-color="#ffb300"/>
-        <stop offset="55%" stop-color="#ff7043"/>
-        <stop offset="100%" stop-color="#ffe082"/>
-      </linearGradient>
-    </defs>
-    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
-    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
-    <path d="M50 20c4 10-6 14-6 24 0 6 5 8 8 8 5 0 9-4 9-10 0-4-2-6-2-6s6 4 6 14c0 10-8 18-18 18s-18-8-18-18c0-14 10-18 12-28 1-5 4-9 9-2z" fill="url(#flame${id})" stroke="#bf360c" stroke-width="1" stroke-opacity="0.25"/>
-    <path d="M48 42c1 4-3 6-3 11 0 3 2 4 4 4 3 0 4-2 4-4 0-3-2-4-2-4s3 2 3 6c0 4-3 7-7 7s-7-3-7-7c0-6 5-8 5-12 0-2 1-3 3-1z" fill="#fff7e0" opacity="0.85"/>
-  `,
-  trofeu: (id, bg) => `
-    <defs>
-      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
-        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
-        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
-      </radialGradient>
-      <linearGradient id="gold${id}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#fff59d"/>
-        <stop offset="45%" stop-color="#ffd54f"/>
-        <stop offset="100%" stop-color="#f9a825"/>
-      </linearGradient>
-    </defs>
-    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
-    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
-    <path d="M34 28h32v14c0 10-7 17-16 17s-16-7-16-17V28z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
-    <path d="M34 30h-8c0 8 3 13 9 15-1-2-1-4-1-4v-11z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
-    <path d="M66 30h8c0 8-3 13-9 15 1-2 1-4 1-4v-11z" fill="url(#gold${id})" stroke="#e65100" stroke-width="1" stroke-opacity="0.2"/>
-    <rect x="46" y="58" width="8" height="9" fill="url(#gold${id})"/>
-    <rect x="38" y="67" width="24" height="6" rx="2" fill="url(#gold${id})"/>
-    <ellipse cx="44" cy="35" rx="5" ry="7" fill="#fff8e1" opacity="0.7"/>
-  `,
-  estrela: (id, bg) => `
-    <defs>
-      <radialGradient id="bg${id}" cx="35%" cy="30%" r="75%">
-        <stop offset="0%" stop-color="${bg}" stop-opacity="1"/>
-        <stop offset="100%" stop-color="${bg}" stop-opacity="0.75"/>
-      </radialGradient>
-      <linearGradient id="star${id}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#fff9c4"/>
-        <stop offset="50%" stop-color="#ffd54f"/>
-        <stop offset="100%" stop-color="#ff8f00"/>
-      </linearGradient>
-    </defs>
-    <circle cx="50" cy="50" r="46" fill="url(#bg${id})"/>
-    <ellipse cx="38" cy="30" rx="16" ry="10" fill="#fff" opacity="0.16"/>
-    <path d="M50 20l7.5 16.5L75 39l-13 12.5L65.5 70 50 60.5 34.5 70 38 51.5 25 39l17.5-2.5z" fill="url(#star${id})" stroke="#e65100" stroke-width="1.2" stroke-opacity="0.25"/>
-    <ellipse cx="45" cy="35" rx="5" ry="7" fill="#fffde7" opacity="0.7"/>
-  `,
-}
-
-let _streakSvgSeq = 0
-function streakIconHtml(marco, size) {
-  const info = STREAK_MARCOS_INFO[marco] || STREAK_MARCOS_INFO[3]
-  const id = `sk${_streakSvgSeq++}`
-  const conteudo = (STREAK_SVG_FORMAS[info.forma] || STREAK_SVG_FORMAS.chama)(id, info.bg)
-  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" style="filter:drop-shadow(0 4px 10px ${info.bg}66);display:block">${conteudo}</svg>`
-}
-
-async function loadStreak() {
-  const badge = document.getElementById('streak-badge')
-  if (!badge) return
-  try {
-    const data = await apiFetch('/api/me/streak')
-    window._streakData = data
-
-    if (data.streak > 0) {
-      const marco = data.marcoAtual || 3
-      const info = STREAK_MARCOS_INFO[marco] || STREAK_MARCOS_INFO[3]
-      badge.style.display = 'flex'
-      document.getElementById('streak-badge-icon').innerHTML = streakIconHtml(marco, 15)
-      document.getElementById('streak-badge-count').textContent = data.streak
-      document.getElementById('streak-badge-count').style.color = info.bg
-    } else {
-      badge.style.display = 'none'
-    }
-
-    if (data.novoDesbloqueio) showStreakUnlockPopup(data.novoDesbloqueio)
-  } catch { /* sem streak ainda ou erro pontual — não interrompe o carregamento da página */ }
-}
-
-function openStreakModal() {
-  const data = window._streakData
-  if (!data) return
-  const marco = data.marcoAtual || 3
-  const info = STREAK_MARCOS_INFO[marco] || STREAK_MARCOS_INFO[3]
-  document.getElementById('streak-modal-icon').innerHTML = streakIconHtml(marco, 64)
-  document.getElementById('streak-modal-title').textContent = `${data.streak} dia(s) seguidos postando 🔥`
-  document.getElementById('streak-modal-desc').textContent = data.proximoMarco
-    ? `Faltam ${data.proximoMarco - data.streak} dia(s) para desbloquear "${STREAK_MARCOS_INFO[data.proximoMarco]?.titulo}".`
-    : 'Você já desbloqueou todas as conquistas de sequência disponíveis!'
-  document.getElementById('streak-modal').style.display = 'flex'
-}
-
-function closeStreakModal() {
-  document.getElementById('streak-modal').style.display = 'none'
-}
-
-function showStreakUnlockPopup(marco) {
-  const info = STREAK_MARCOS_INFO[marco] || STREAK_MARCOS_INFO[3]
-  document.getElementById('streak-unlock-icon').innerHTML = streakIconHtml(marco, 88)
-  document.getElementById('streak-unlock-title').textContent = info.titulo
-  document.getElementById('streak-unlock-desc').textContent = info.desc
-  document.getElementById('streak-unlock-popup').style.display = 'flex'
-}
-
-function closeStreakUnlockPopup() {
-  document.getElementById('streak-unlock-popup').style.display = 'none'
-}
 
 // Patch: chamar updatePostScore ao mudar plataforma e data (ver patches abaixo)
 
@@ -7651,7 +7484,6 @@ async function aiChatPublicarAgora(ctx, idx) {
       aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — alguma rede falhou. Confira os detalhes em Logs.\n\nPosso criar mais alguma coisa? 😊`)
     } else {
       aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.\n\nPosso criar mais alguma coisa para você? 😊`)
-      loadStreak()
     }
     aiChatSetChips(ctx, ['➕ Criar mais posts', '📋 Ver Logs', '👋 Por agora é isso'])
     state.step = 'done'
@@ -8060,7 +7892,6 @@ async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false) {
         aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — confira os detalhes em Logs.`)
       } else {
         aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.`)
-        loadStreak()
       }
     } else {
       const horarioFmt = horarioSugerido.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
