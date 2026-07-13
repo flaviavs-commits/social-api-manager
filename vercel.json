@@ -4,6 +4,10 @@
   "rewrites": [
     { "source": "/", "destination": "/sobre.html" },
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
-    { "source": "/terms-of-service", "destination": "/terms-of-service.html" }
+    { "source": "/terms-of-service", "destination": "/terms-of-service.html" },
+    { "source": "/oauth/tiktok/callback", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/callback" },
+    { "source": "/oauth/tiktok/callback/:path*", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/callback/:path*" },
+    { "source": "/oauth/tiktok/webhook", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/webhook" },
+    { "source": "/oauth/tiktok/webhook/:path*", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/webhook/:path*" }
   ]
 }
