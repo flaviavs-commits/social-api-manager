@@ -252,9 +252,38 @@ async function buscarHistoricoStatsTiktok(userId, isAdmin) {
   return rows
 }
 
+// Salva o número de inscritos atual de um canal do YouTube — mesmo padrão
+// do Instagram/TikTok, já que a Data API v3 também não dá histórico
+// retroativo de inscritos.
+async function registrarSnapshotSeguidoresYoutube(contaId, subscriberCount) {
+  await pool.query(`
+    INSERT INTO youtube_stats_history (conta_id, captured_on, subscriber_count)
+    VALUES ($1, CURRENT_DATE, $2)
+    ON CONFLICT (conta_id, captured_on) DO UPDATE SET subscriber_count = $2
+  `, [contaId, subscriberCount ?? null])
+}
+
+// Soma diária de inscritos de todos os canais do YouTube do usuário, a
+// partir do dia em que o snapshot começou a ser coletado.
+async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
+  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
+  const params = isAdmin ? [] : [userId]
+
+  const { rows } = await pool.query(`
+    SELECT h.captured_on AS "date", SUM(h.subscriber_count)::int AS "subscriberCount"
+    FROM youtube_stats_history h
+    JOIN contas c ON c.id = h.conta_id
+    WHERE c.platform = 'youtube' ${ownerFilter}
+    GROUP BY h.captured_on
+    ORDER BY h.captured_on ASC
+  `, params)
+  return rows
+}
+
 module.exports = {
   getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
-  registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok
+  registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok,
+  registrarSnapshotSeguidoresYoutube, buscarHistoricoSeguidoresYoutube
 }

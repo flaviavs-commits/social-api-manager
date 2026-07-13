@@ -260,16 +260,18 @@ router.get('/analytics', async (req, res) => {
       metrics.filter(m => m.metrics).map(m => repo.registrarSnapshotMetricas(m.postId, m.platform, m.metrics))
     )
 
-    // Saldo de seguidores e alcance do Instagram + TikTok em paralelo —
-    // métricas de conta, não de post. Falha silenciosa por plataforma.
-    const [igResult, ttResult] = await Promise.allSettled([
+    // Saldo de seguidores e alcance do Instagram + TikTok + YouTube em
+    // paralelo — métricas de conta, não de post. Falha silenciosa por plataforma.
+    const [igResult, ttResult, ytResult] = await Promise.allSettled([
       metricsService.buscarSeriesSeguidoresInstagram(req.user.id, isAdminRole(req.user.role)),
       metricsService.buscarSeriesStatsTiktok(req.user.id, isAdminRole(req.user.role)),
+      metricsService.buscarSeriesInscritosYoutube(req.user.id, isAdminRole(req.user.role)),
     ])
     const instagramFollowers = igResult.status === 'fulfilled' ? igResult.value : {}
     const tiktokStats = ttResult.status === 'fulfilled' ? ttResult.value : {}
+    const youtubeSubscribers = ytResult.status === 'fulfilled' ? ytResult.value : {}
 
-    res.json({ series: porDia, metrics, instagramFollowers, tiktokStats })
+    res.json({ series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers })
   } catch (e) {
     serverError(res, e)
   }

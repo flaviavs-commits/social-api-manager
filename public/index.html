@@ -3412,7 +3412,7 @@ const ANALYTICS_REFRESH_MS = 30000;
 let queueRefreshTimer = null;
 const QUEUE_REFRESH_MS = 30000;
 
-let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {} };
+let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {}, youtubeSubscribers: {} };
 let analyticsActiveNet = 'instagram';
 let analyticsActiveTab = 'community';
 let analyticsPeriodDays = 7;
@@ -3489,6 +3489,7 @@ function analyticsDetectNetworks() {
   if (Object.keys(analyticsData.instagramFollowers).length) nets.add('instagram');
   if (Object.keys(analyticsData.tiktokStats).length) nets.add('tiktok');
   if (analyticsTiktokVideos.length) nets.add('tiktok');
+  if (Object.keys(analyticsData.youtubeSubscribers).length) nets.add('youtube');
   // preserve order
   return ['instagram','facebook','youtube','tiktok'].filter(n => nets.has(n));
 }
@@ -3529,6 +3530,7 @@ function analyticsRenderCards(net, tab) {
   const metrics = analyticsFilterByPeriod(analyticsData.metrics).filter(m => m.platform === net);
   const igFollowers = analyticsFilterByPeriod(analyticsData.instagramFollowers);
   const tiktokStats = analyticsFilterByPeriod(analyticsData.tiktokStats);
+  const youtubeSubscribers = analyticsFilterByPeriod(analyticsData.youtubeSubscribers);
 
   let cards = [];
 
@@ -3562,12 +3564,15 @@ function analyticsRenderCards(net, tab) {
       { label:'Posts publicados', val: fmtNum(metrics.length), accent:'accent-yellow' }
     ];
   } else if (net === 'youtube') {
+    const ytDias = Object.keys(youtubeSubscribers).sort();
+    const subscribers = ytDias.length ? youtubeSubscribers[ytDias[ytDias.length-1]].subscriberCount : null;
     const totalViews = metrics.reduce((a,m) => a + (m.metrics?.views||0), 0);
     const totalLikes = metrics.reduce((a,m) => a + (m.metrics?.likes||0), 0);
     const watchArr = metrics.filter(m => m.metrics?.watchTimeSeconds != null).map(m => m.metrics.watchTimeSeconds);
     const avgWatch = watchArr.length ? watchArr.reduce((a,b)=>a+b,0)/watchArr.length : null;
     cards = [
-      { label:'Views', val: fmtNum(totalViews), accent:'accent-purple' },
+      { label:'Inscritos', val: fmtNum(subscribers), accent:'accent-purple' },
+      { label:'Views', val: fmtNum(totalViews), accent:'accent-green' },
       { label:'Likes', val: fmtNum(totalLikes), accent:'accent-pink' },
       { label:'Watch time médio', val: fmtWatchTime(avgWatch), accent:'accent-green' },
       { label:'Vídeos publicados', val: fmtNum(metrics.length), accent:'accent-yellow' }
@@ -3602,6 +3607,7 @@ function analyticsRenderChart(net, tab) {
   const metrics = analyticsFilterByPeriod(analyticsData.metrics).filter(m => m.platform === net);
   const igFollowers = analyticsFilterByPeriod(analyticsData.instagramFollowers);
   const tiktokStats = analyticsFilterByPeriod(analyticsData.tiktokStats);
+  const youtubeSubscribers = analyticsFilterByPeriod(analyticsData.youtubeSubscribers);
 
   wrap.innerHTML = '<canvas id="analytics-chart" height="100"></canvas>';
   const ctx = document.getElementById('analytics-chart');
@@ -3631,6 +3637,19 @@ function analyticsRenderChart(net, tab) {
       data: { labels: dias.map(formatDiaBR), datasets: [
         { label:'Seguidores', data: dias.map(d => tiktokStats[d].followerCount), borderColor: ANALYTICS_PLAT_COLORS.tiktok, backgroundColor:'rgba(160,160,176,0.08)', fill:true, tension:0.3, pointRadius:3 },
         { label:'Curtidas totais', data: dias.map(d => tiktokStats[d].likesCount), borderColor:'#8b8fa3', backgroundColor:'transparent', tension:0.3, pointRadius:3 }
+      ] },
+      options: chartDefaults
+    });
+    return;
+  }
+
+  if (net === 'youtube' && (tab === 'community' || tab === 'growth')) {
+    const dias = Object.keys(youtubeSubscribers).sort();
+    if (!dias.length) { wrap.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:13px">Sem dados de inscritos no período.</div>'; return; }
+    analyticsChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: dias.map(formatDiaBR), datasets: [
+        { label:'Inscritos', data: dias.map(d => youtubeSubscribers[d].subscriberCount), borderColor: ANALYTICS_PLAT_COLORS.youtube, backgroundColor:'rgba(255,92,92,0.1)', fill:true, tension:0.3, pointRadius:3 }
       ] },
       options: chartDefaults
     });
@@ -3787,8 +3806,8 @@ function stopAnalyticsAutoRefresh() {
 
 async function loadAnalytics() {
   try {
-    const { series, metrics, instagramFollowers, tiktokStats } = await apiFetch('/api/posts/analytics');
-    analyticsData = { series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {} };
+    const { series, metrics, instagramFollowers, tiktokStats, youtubeSubscribers } = await apiFetch('/api/posts/analytics');
+    analyticsData = { series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {}, youtubeSubscribers: youtubeSubscribers || {} };
 
     // Detect first available network and select it if none active
     const nets = analyticsDetectNetworks();

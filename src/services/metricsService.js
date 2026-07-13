@@ -190,6 +190,34 @@ async function metricsStatsAtuaisTiktok(token) {
   return { followerCount: user.follower_count ?? null, likesCount: user.likes_count ?? null, videoCount: user.video_count ?? null }
 }
 
+// Número atual de inscritos de um canal do YouTube (Data API v3,
+// channels?part=statistics). Usa o mesmo scope youtube.readonly já
+// concedido pelas contas conectadas — não exige novo consentimento.
+async function metricsInscritosAtuaisYoutube(token) {
+  const url = 'https://www.googleapis.com/youtube/v3/channels?part=statistics&mine=true'
+  const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
+  const stats = data.items?.[0]?.statistics
+  return stats?.subscriberCount != null ? Number(stats.subscriberCount) : null
+}
+
+// Busca o número atual de inscritos de cada canal do YouTube do usuário,
+// grava um snapshot de hoje para cada um, e devolve o histórico diário
+// somado entre as contas — construído a partir de hoje em diante, sem
+// retroativo (mesmo padrão do Instagram/TikTok).
+async function buscarSeriesInscritosYoutube(userId, isAdmin) {
+  const tokens = await listarContasToken('youtube', userId, isAdmin)
+
+  await Promise.allSettled(tokens.map(async t => {
+    const subscriberCount = await metricsInscritosAtuaisYoutube({ accessToken: t.accessToken })
+    if (subscriberCount != null) await contasRepo.registrarSnapshotSeguidoresYoutube(t.contaId, subscriberCount)
+  }))
+
+  const historico = await contasRepo.buscarHistoricoSeguidoresYoutube(userId, isAdmin)
+  return Object.fromEntries(historico.map(h => [h.date.toISOString().slice(0, 10), { subscriberCount: h.subscriberCount }]))
+}
+
 // Busca as estatísticas atuais de cada conta do TikTok do usuário, grava um
 // snapshot de hoje para cada uma, e devolve o histórico diário somado entre
 // as contas — construído a partir de hoje em diante, sem retroativo.
@@ -252,4 +280,4 @@ async function buscarVideosTiktok(userId, isAdmin) {
     .sort((a, b) => b.createTime - a.createTime)
 }
 
-module.exports = { buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, PLATAFORMAS_COM_METRICAS }
+module.exports = { buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, buscarSeriesInscritosYoutube, PLATAFORMAS_COM_METRICAS }
