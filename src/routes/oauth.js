@@ -525,6 +525,13 @@ router.get('/tiktok/google', requireAuth, async (req, res) => {
   });
 });
 
+// Verificação de propriedade do domínio exigida pelo TikTok Developer Portal
+// ao cadastrar o redirect_uri de produção — o portal baixa esse arquivo em
+// /oauth/tiktok/callback/<arquivo>.txt e espera o conteúdo exato de volta.
+router.get('/tiktok/callback/tiktok8RW5tE6U5KtspoaJfaF4BrZNNqLurSkp.txt', (req, res) => {
+  res.type('text/plain').send('tiktok-developers-site-verification=8RW5tE6U5KtspoaJfaF4BrZNNqLurSkp');
+});
+
 router.get('/tiktok/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
