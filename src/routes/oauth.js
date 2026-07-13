@@ -648,6 +648,13 @@ function verificarAssinaturaWebhookTiktok(rawBody, signatureHeader) {
   return crypto.timingSafeEqual(sigBuf, expectedBuf);
 }
 
+// Verificação de propriedade do domínio exigida pelo TikTok Developer Portal
+// ao cadastrar a webhook URL de produção — mesmo esquema da verificação do
+// redirect_uri, mas servida sob /tiktok/webhook/<arquivo>.txt.
+router.get('/tiktok/webhook/tiktokVJrQeuVTcCX3GoxtvKkHE17EL032WtiC.txt', (req, res) => {
+  res.type('text/plain').send('tiktok-developers-site-verification=VJrQeuVTcCX3GoxtvKkHE17EL032WtiC');
+});
+
 // O TikTok envia eventos assíncronos (ex: revogação de autorização) via POST
 // para este endpoint, separado do redirect_uri do login (que só recebe GET
 // do navegador do usuário). req.rawBody é capturado em server.js, antes do
