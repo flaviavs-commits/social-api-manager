@@ -3576,9 +3576,13 @@ function analyticsRenderCards(net, tab) {
     const tkDias = Object.keys(tiktokStats).sort();
     const followers = tkDias.length ? tiktokStats[tkDias[tkDias.length-1]].followerCount : null;
     const likesTotal = tkDias.length ? tiktokStats[tkDias[tkDias.length-1]].likesCount : null;
+    const viewsTotal = analyticsTiktokVideos.reduce((a,v) => a + (v.viewCount||0), 0);
+    const sharesTotal = analyticsTiktokVideos.reduce((a,v) => a + (v.shareCount||0), 0);
     cards = [
       { label:'Seguidores', val: fmtNum(followers), accent:'accent-purple' },
       { label:'Curtidas acumuladas', val: fmtNum(likesTotal), accent:'accent-pink' },
+      { label:'Views totais', val: fmtNum(viewsTotal), accent:'accent-green' },
+      { label:'Compartilhamentos', val: fmtNum(sharesTotal), accent:'accent-purple' },
       { label:'Vídeos publicados', val: fmtNum(analyticsTiktokVideos.length), accent:'accent-yellow' }
     ];
   }
@@ -3708,6 +3712,7 @@ function analyticsRenderPostsList(net, tab) {
             <span>👁 ${fmtNum(v.viewCount)}</span>
             <span style="margin-left:8px">❤ ${fmtNum(v.likeCount)}</span>
             <span style="margin-left:8px">💬 ${fmtNum(v.commentCount)}</span>
+            <span style="margin-left:8px">🔁 ${fmtNum(v.shareCount)}</span>
           </div>
         </a>`;
       }).join('') + '</div>';
