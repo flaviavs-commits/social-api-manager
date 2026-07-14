@@ -3,6 +3,7 @@
   "outputDirectory": "public",
   "rewrites": [
     { "source": "/", "destination": "/sobre.html" },
+    { "source": "/support", "destination": "/support.html" },
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
     { "source": "/terms-of-service", "destination": "/terms-of-service.html" },
     { "source": "/oauth/tiktok/callback", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/callback" },
