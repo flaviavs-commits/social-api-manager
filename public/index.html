@@ -7191,6 +7191,34 @@ async function aiChatProcess(ctx, userMsg) {
   const state = aiChat[ctx]
   const msg = userMsg.trim().toLowerCase()
 
+  // Chips de navegação mostrados após agendar/publicar (step 'done') — o
+  // clique chama aiChatProcess direto (via aiChipClick), sem passar pelo
+  // handler de texto digitado que já tratava esses mesmos rótulos, então
+  // caíam no fallback genérico do fim da função sem fazer nada do esperado.
+  if (state.step === 'done') {
+    if (msg.includes('ver calendário') || msg.includes('📅')) {
+      aiFabClose()
+      showPage('calendario')
+      return
+    }
+    if (msg.includes('ver logs') || msg.includes('📋')) {
+      aiFabClose()
+      showPage('logs')
+      return
+    }
+    if (msg.includes('por agora é isso') || msg.includes('👋')) {
+      aiFabClose()
+      aiChatAddMsg(ctx, 'agent', 'Até logo! Qualquer hora que precisar criar posts é só me chamar 😊✨')
+      return
+    }
+    if (msg.includes('criar mais posts') || msg.includes('➕')) {
+      state.step = 'ask_instrucao'
+      state.pendingPost = null
+      aiChatAddMsg(ctx, 'agent', 'Ótimo! Me conta o tema do próximo post 😊')
+      return
+    }
+  }
+
   // Detecta pedido de imagem em qualquer etapa
   if (aiIsImageRequest(userMsg)) {
     await aiHandleImageRequest(ctx, userMsg)
