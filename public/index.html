@@ -6809,13 +6809,39 @@ function aiPodeAgendar(post) {
 // (Agendar/Publicar ficam escondidos até ter mídia, para não sugerir uma ação
 // que vai falhar). Com mídia (anexada aqui ou quando a rede não exige),
 // mostra os botões normais de Agendar/Publicar agora/Regerar.
+// Converte um ISO string para o formato que <input type="datetime-local">
+// aceita (sem timezone, "YYYY-MM-DDTHH:mm"), preservando o horário local do
+// navegador — new Date(iso) já converte para local ao ler os componentes.
+function aiDatetimeLocalValue(iso) {
+  const d = new Date(iso)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Lê o valor atual do <input datetime-local> do card e atualiza p.horario
+// antes de agendar — o horário calculado pela IA é só uma sugestão inicial;
+// quem decide a data/hora final é sempre o usuário, ajustando esse campo.
+function aiSyncHorarioFromInput(ctx, idx, cardId) {
+  const state = aiChat[ctx]
+  const post = state?.pendingPost?.[idx]
+  const input = document.getElementById(`ai-post-horario-${cardId}`)
+  if (post && input?.value) post.horario = new Date(input.value).toISOString()
+}
+
 function aiPostCardActionsHtml(ctx, idx, p, cardId) {
   const exigeMidia = p.plataformas.some(plat => PLAT_REQUIREMENTS[plat]?.media === 'required')
   const temMidia = !!p.mediaPath
 
+  // Data/hora sugerida pela IA, sempre editável antes de confirmar — ela
+  // nunca agenda sozinha nesse horário, só pré-preenche o campo.
+  const horarioInput = `<div style="margin-bottom:8px">
+      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">📅 Data e hora (sugestão — ajuste se quiser)</label>
+      <input type="datetime-local" id="ai-post-horario-${cardId}" value="${aiDatetimeLocalValue(p.horario)}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--sans)">
+    </div>`
+
   if (exigeMidia && !temMidia) {
     const plataformasQueExigem = p.plataformas.filter(plat => PLAT_REQUIREMENTS[plat]?.media === 'required').map(plat => PLAT_NAMES[plat]).join(', ')
-    return `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📎 ${plataformasQueExigem} exige imagem ou vídeo para publicar este post.</div>
+    return `${horarioInput}<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📎 ${plataformasQueExigem} exige imagem ou vídeo para publicar este post.</div>
       <div class="ai-chat-post-actions">
         <button class="ai-chat-post-btn" style="background:rgba(108,140,255,0.15);color:var(--accent);border-color:rgba(108,140,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">📎 Anexar mídia</button>
         <button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ Regerar</button>
@@ -6827,8 +6853,8 @@ function aiPostCardActionsHtml(ctx, idx, p, cardId) {
     ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiChatPublicarAgora('${ctx}',${idx})">⚡ Publicar agora</button>`
     : ''
   const midiaTag = temMidia ? `<div style="font-size:11px;color:#22c55e;margin-bottom:8px">📎 Mídia anexada</div>` : ''
-  return `${midiaTag}<div class="ai-chat-post-actions">
-      <button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${idx})">✓ Agendar este</button>${publicarAgoraBtn}
+  return `${midiaTag}${horarioInput}<div class="ai-chat-post-actions">
+      <button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${idx},'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}
       <button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ Regerar</button>
     </div>`
 }
@@ -7509,16 +7535,17 @@ async function aiChatProcess(ctx, userMsg) {
       for (let i = 0; i < posts.length; i++) {
         const p = posts[i]
         const platIcons = p.plataformas.map(pl => ({ instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' })[pl] || pl).join(' ')
-        const horarioFmt = new Date(p.horario).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
         const hashtags = p.hashtags?.length ? '\n\n' + p.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
         const tituloHtml = p.titulo ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Título YouTube</div><div style="font-weight:600;margin-bottom:8px;font-size:12px">${esc(p.titulo)}</div>` : ''
 
         await new Promise(r => setTimeout(r, i === 0 ? 200 : 800))
 
+        // Não mostra mais o horário aqui como se já estivesse decidido — ele
+        // aparece logo abaixo, no card, como campo editável antes de agendar.
         const prefixo = i === 0
           ? (jaAvisouFallback ? '' : '🎉 Pronto! Aqui está' + (posts.length > 1 ? ` o post ${i+1} de ${posts.length}` : '') + ':\n\n')
           : `📝 Post ${i+1} de ${posts.length}:\n\n`
-        aiChatAddMsg(ctx, 'agent', `${prefixo}${platIcons} · ${horarioFmt}`, false)
+        aiChatAddMsg(ctx, 'agent', `${prefixo}${platIcons}`, false)
 
         await new Promise(r => setTimeout(r, 200))
 
@@ -7600,10 +7627,11 @@ async function aiChatProcess(ctx, userMsg) {
   aiChatAddMsg(ctx, 'agent', 'Pode me contar mais sobre o que quer postar? 😊')
 }
 
-async function aiChatSchedulePost(ctx, idx) {
+async function aiChatSchedulePost(ctx, idx, cardId) {
   const state = aiChat[ctx]
   const post = state.pendingPost?.[idx]
   if (!post) return
+  if (cardId) aiSyncHorarioFromInput(ctx, idx, cardId)
 
   aiChatAddMsg(ctx, 'agent', '⏳ Agendando...')
   try {
@@ -7951,11 +7979,21 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
     }
 
     const PLAT_ICONS = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' }
+    const MELHOR_HORA = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }
     for (const s of sugestoes) {
       const icon = PLAT_ICONS[s.plataforma] || '🌐'
       const platLabel = s.plataforma.charAt(0).toUpperCase() + s.plataforma.slice(1)
       const hashtags = s.hashtags?.length ? '\n\n' + s.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
       const tituloHtml = s.titulo ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Título YouTube</div><div style="font-weight:600;margin-bottom:8px;font-size:12px">${escapeHtml(s.titulo)}</div>` : ''
+
+      // Data/hora sugerida (mesmo "melhor horário" já usado como default),
+      // sempre exibida como campo editável — nunca agenda nesse horário sem
+      // o usuário ver e poder ajustar antes de confirmar.
+      const horas = MELHOR_HORA[s.plataforma] || [9,12,18]
+      const horarioSugerido = new Date()
+      horarioSugerido.setDate(horarioSugerido.getDate() + 1)
+      horarioSugerido.setHours(horas[0], 0, 0, 0)
+      const cardId = `ai-media-card-${ctx}-${Date.now()}-${s.plataforma}`
 
       // Com a mídia real anexada, publicar agora é seguro em qualquer rede
       // (Instagram/YouTube/TikTok deixam de faltar o que exigem).
@@ -7964,10 +8002,14 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
       const publicarAgoraBtn = upload
         ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true)">⚡ Publicar agora</button>`
         : ''
+      const horarioInput = `<div style="margin-bottom:8px">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">📅 Data e hora (sugestão — ajuste se quiser)</label>
+          <input type="datetime-local" id="ai-post-horario-${cardId}" value="${aiDatetimeLocalValue(horarioSugerido.toISOString())}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--sans)">
+        </div>`
 
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
-        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson})">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
+        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div>${horarioInput}<div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
         true
       )
     }
@@ -8004,7 +8046,7 @@ function aiAnalyzeMediaRegen(ctx) {
 // enviada ao Blob (sugestao.mediaPath presente), publica/agenda direto via
 // API — sem mídia, cai no comportamento antigo de copiar o texto pro
 // Agendador (usuário precisa reanexar o arquivo manualmente).
-async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false) {
+async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false, cardId = null) {
   const state = aiChat[ctx]
 
   if (!sugestao.mediaPath) {
@@ -8028,10 +8070,19 @@ async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false) {
   aiChatAddMsg(ctx, 'agent', publicarAgora ? '⚡ Publicando agora...' : '⏳ Agendando...')
   try {
     const hashtags = sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
-    const horas = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }[sugestao.plataforma] || [9,12,18]
-    const horarioSugerido = new Date()
-    horarioSugerido.setDate(horarioSugerido.getDate() + 1)
-    horarioSugerido.setHours(horas[0], 0, 0, 0)
+    // Lê a data/hora do input do card (ajustável pelo usuário) — só cai no
+    // "melhor horário" calculado como fallback se o input não existir mais
+    // por algum motivo (ex: card antigo antes desta mudança).
+    const horarioInput = cardId ? document.getElementById(`ai-post-horario-${cardId}`) : null
+    let horarioSugerido
+    if (horarioInput?.value) {
+      horarioSugerido = new Date(horarioInput.value)
+    } else {
+      const horas = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }[sugestao.plataforma] || [9,12,18]
+      horarioSugerido = new Date()
+      horarioSugerido.setDate(horarioSugerido.getDate() + 1)
+      horarioSugerido.setHours(horas[0], 0, 0, 0)
+    }
 
     const data = await apiFetch('/api/ai/schedule', {
       method: 'POST',
