@@ -10,9 +10,17 @@ const { validarComplexidadeSenha } = require('../utils/http')
 const totp = require('../services/totp')
 const { gerarTokenSessao, verificarTokenPending2fa, gerarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
 
-function friendlyAuthError(msg) {
+// O caminho precisa ser absoluto e não relativo: essa página é servida pelo
+// backend (Railway) dentro do callback do Google, então um caminho relativo
+// como '/login.html' navegava para o domínio do Railway, não para o domínio
+// de onde o login começou (Vercel ou um domínio customizado) — o usuário
+// ficava "preso" no domínio errado ao ver o erro. baseUrl vem da origem
+// validada no início do fluxo (ver origensPermitidas), com fallback pro
+// FRONTEND_URL padrão quando não há origem capturada/válida.
+function friendlyAuthError(msg, baseUrl) {
+  const loginUrl = (baseUrl || process.env.FRONTEND_URL || '') + '/login.html?error=' + encodeURIComponent(msg)
   return `<!DOCTYPE html><html><body><script>
-    window.location.href = '/login.html?error=${encodeURIComponent(msg)}';
+    window.location.href = ${JSON.stringify(loginUrl)};
   </script></body></html>`
 }
 
@@ -252,14 +260,33 @@ router.post('/reset-password', loginLimiter, async (req, res) => {
 
 // ─── Login com Google ────────────────────────────────────────────────────
 
+// Domínios com permissão de iniciar/receber o fluxo de login com Google —
+// mesma lista usada no CORS (FRONTEND_ORIGIN). Restringir a essa lista evita
+// que o parâmetro de origem vindo do Referer vire um open redirect (alguém
+// forjando um Referer de domínio arbitrário para roubar o token de sessão
+// devolvido no fim do fluxo).
+function origensPermitidas() {
+  return (process.env.FRONTEND_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean)
+}
+
 router.get('/google', (req, res) => {
   const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI
   const scopes = ['openid', 'email', 'profile'].join(' ')
 
+  // Guarda o domínio de onde o login começou (ex: um domínio customizado
+  // diferente do FRONTEND_URL padrão) para devolver o usuário ao mesmo lugar
+  // no callback, em vez de sempre cair no FRONTEND_URL fixo. Só aceita
+  // origens já autorizadas no CORS — nunca um valor arbitrário do Referer.
+  let origin = null
+  try {
+    const refererOrigin = req.headers.referer ? new URL(req.headers.referer).origin : null
+    if (refererOrigin && origensPermitidas().includes(refererOrigin)) origin = refererOrigin
+  } catch {}
+
   // state CSRF: nonce assinado (HMAC) devolvido pelo Google no callback e
   // validado ali sem depender de sessão/cookie. Sem ele, um atacante poderia
   // forjar o callback (login CSRF), logando a vítima numa conta controlada por ele.
-  const state = gerarGoogleOAuthState()
+  const state = gerarGoogleOAuthState(origin ? { origin } : {})
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
@@ -315,8 +342,15 @@ function paginaPopupAiConnect({ ok, email, erro }) {
 
 router.get('/google/callback', async (req, res) => {
   const { code, error, state } = req.query
+
+  // Extrai o domínio de origem do state (se presente e ainda válido) antes
+  // de qualquer redirect de erro, para devolver o usuário ao mesmo domínio
+  // de onde o login começou em vez de sempre cair no FRONTEND_URL padrão.
+  let origin = null
+  try { origin = verificarGoogleOAuthState(state)?.origin || null } catch {}
+
   if (error) {
-    return res.send(friendlyAuthError('Login com Google cancelado.'))
+    return res.send(friendlyAuthError('Login com Google cancelado.', origin))
   }
 
   // Valida a assinatura/expiração do state (proteção CSRF) sem depender de
@@ -325,7 +359,7 @@ router.get('/google/callback', async (req, res) => {
   try {
     stateData = verificarGoogleOAuthState(state)
   } catch {
-    return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.'))
+    return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.', origin))
   }
   const isAiConnect = stateData?.purpose === 'ai-connect'
 
@@ -361,7 +395,7 @@ router.get('/google/callback', async (req, res) => {
 
     if (tokenData.error || !tokenData.access_token) {
       addLog('err', `Erro ao obter token de login Google: ${JSON.stringify(tokenData)}`)
-      return res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.'))
+      return res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))
     }
 
     const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -370,7 +404,7 @@ router.get('/google/callback', async (req, res) => {
     const profile = await profileRes.json()
 
     if (!profile.email) {
-      return res.send(friendlyAuthError('Não foi possível obter seu e-mail do Google.'))
+      return res.send(friendlyAuthError('Não foi possível obter seu e-mail do Google.', origin))
     }
 
     let user = await usersRepo.buscarPorGoogleId(profile.id)
@@ -387,16 +421,18 @@ router.get('/google/callback', async (req, res) => {
       }
     }
 
+    const baseUrl = origin || process.env.FRONTEND_URL || ''
+
     if (user.totp_enabled) {
       addLog('ok', 'Login com Google confirmado, aguardando código 2FA', null, null, user.id)
-      return res.redirect((process.env.FRONTEND_URL || '') + '/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
+      return res.redirect(baseUrl + '/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
     }
 
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
-    res.redirect((process.env.FRONTEND_URL || '') + '/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
+    res.redirect(baseUrl + '/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
   } catch (err) {
     addLog('err', `Falha no login com Google: ${err.message}`)
-    res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.'))
+    res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))
   }
 })
 
