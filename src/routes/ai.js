@@ -455,7 +455,14 @@ router.post('/generate', async (req, res) => {
         throw Object.assign(new Error('Nenhum modelo Gemini está disponível no momento.'), { status: 503 })
       }
       const usados = await demoUsosHoje(req.user.id)
-      if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
+      // Diferente do modelo "local" (modo grátis/padrão, onde cair no
+      // template é o comportamento esperado): aqui o usuário escolheu um
+      // modelo Gemini específico de propósito — trocar silenciosamente pelo
+      // template dava um texto genérico sem avisar direito que a IA de
+      // verdade não rodou. Agora vira um erro explícito no limite.
+      if (usados >= DEMO_LIMITE_DIA) {
+        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
+      }
 
       const rawTextGemini = await generateWithGemini(prompt, null, modelo)
       await registrarUsoDemo(req.user.id)
@@ -488,7 +495,13 @@ router.post('/generate', async (req, res) => {
 
     if (err.status === 503) return res.status(503).json({ erro: err.message })
     if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
-    if (err.status === 429 || err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
+    // O SDK do Gemini lança status 429 com a mensagem curta e genérica
+    // "quota" para rate-limit momentâneo (segundos/minutos) — cai no fallback
+    // padrão abaixo. Mensagens 429 mais longas são erros customizados nossos
+    // (ex: limite diário do demo, que só reseta amanhã) e preservam o texto
+    // original, que já é claro sobre o que aconteceu e o que fazer.
+    if (err.status === 429 && err.message !== 'quota') return res.status(429).json({ erro: err.message })
+    if (err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
       return res.status(429).json({ erro: 'Limite de requisições da IA atingido. Aguarde alguns segundos e tente novamente.' })
     }
     console.error('[AI] Erro ao gerar:', err.message, err.status, err.constructor?.name)

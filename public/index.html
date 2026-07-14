@@ -6850,13 +6850,22 @@ function aiPostCardActionsHtml(ctx, idx, p, cardId) {
   }
 
   const publicarAgoraBtn = aiPodePublicarAgora(p.plataformas, temMidia)
-    ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiChatPublicarAgora('${ctx}',${idx})">⚡ Publicar agora</button>`
+    ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiChatPublicarAgora('${ctx}',${idx},'${cardId}')">⚡ Publicar agora</button>`
     : ''
   const midiaTag = temMidia ? `<div style="font-size:11px;color:#22c55e;margin-bottom:8px">📎 Mídia anexada</div>` : ''
-  return `${midiaTag}${horarioInput}<div class="ai-chat-post-actions">
+  return `${midiaTag}${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions">
       <button class="ai-chat-post-btn confirm" onclick="aiChatSchedulePost('${ctx}',${idx},'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}
       <button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ Regerar</button>
     </div>`
+}
+
+// Desabilita os botões de um card assim que qualquer ação (agendar/publicar)
+// é confirmada — sem isso, o card continuava clicável após "Agendar este",
+// permitindo um segundo clique em "Publicar agora" no mesmo post já
+// agendado (post duplicado: um agendado + um publicado na hora).
+function aiLockCard(cardId) {
+  const actionsEl = document.getElementById(`${cardId}-actions`)
+  if (actionsEl) actionsEl.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; b.style.pointerEvents = 'none' })
 }
 
 // Clique em "📎 Anexar mídia" — abre o seletor de arquivo escondido do card.
@@ -7606,9 +7615,17 @@ async function aiChatProcess(ctx, userMsg) {
 
     } catch (err) {
       aiChatTyping(ctx, false)
-      const msg429 = err.message?.toLowerCase().includes('limite') || err.message?.includes('429') || err.message?.toLowerCase().includes('quota')
+      // Limite DIÁRIO (só reseta amanhã) é diferente de limite momentâneo da
+      // API externa (segundos/minutos) — misturar os dois fazia o usuário
+      // ficar clicando "Tentar novamente" contra um limite que só volta amanhã.
+      const msgLimiteDiario = err.message?.toLowerCase().includes('limite diário')
+      const msg429 = !msgLimiteDiario && (err.message?.toLowerCase().includes('limite') || err.message?.includes('429') || err.message?.toLowerCase().includes('quota'))
       const msg401 = err.message?.toLowerCase().includes('chave') || err.message?.toLowerCase().includes('inválid')
-      if (msg429) {
+      if (msgLimiteDiario) {
+        const pm = AI_MODEL_PICKER_META[aiSelectedModel]
+        aiChatAddMsg(ctx, 'agent', `📅 ${err.message}`)
+        aiChatSetChips(ctx, pm?.requiresKey || pm?.keyBadge ? ['🔑 Usar minha chave'] : [])
+      } else if (msg429) {
         const pm = AI_MODEL_PICKER_META[aiSelectedModel]
         aiChatAddMsg(ctx, 'agent', `⏳ O modelo ${AI_MODEL_META[aiSelectedModel]?.label || aiSelectedModel} atingiu o limite de requisições gratuitas agora.\n\nVocê pode:\n• Aguardar alguns segundos e tentar de novo\n• Usar sua própria chave de API para ter mais limite`)
         if (pm?.requiresKey || pm?.keyBadge) {
@@ -7659,7 +7676,10 @@ async function aiChatSchedulePost(ctx, idx, cardId) {
   const state = aiChat[ctx]
   const post = state.pendingPost?.[idx]
   if (!post) return
-  if (cardId) aiSyncHorarioFromInput(ctx, idx, cardId)
+  if (cardId) {
+    aiSyncHorarioFromInput(ctx, idx, cardId)
+    aiLockCard(cardId)
+  }
 
   aiChatAddMsg(ctx, 'agent', '⏳ Agendando...')
   try {
@@ -7679,10 +7699,11 @@ async function aiChatSchedulePost(ctx, idx, cardId) {
   }
 }
 
-async function aiChatPublicarAgora(ctx, idx) {
+async function aiChatPublicarAgora(ctx, idx, cardId) {
   const state = aiChat[ctx]
   const post = state.pendingPost?.[idx]
   if (!post) return
+  if (cardId) aiLockCard(cardId)
 
   aiChatAddMsg(ctx, 'agent', '⚡ Publicando agora...')
   try {
@@ -8028,7 +8049,7 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
       const sComMidia = upload ? { ...s, mediaPath: upload.url, mediaType: mediaTypeSimples } : s
       const sJson = JSON.stringify(sComMidia).replace(/'/g, "&#39;")
       const publicarAgoraBtn = upload
-        ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true)">⚡ Publicar agora</button>`
+        ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true,'${cardId}')">⚡ Publicar agora</button>`
         : ''
       const horarioInput = `<div style="margin-bottom:8px">
           <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">📅 Data e hora (sugestão — ajuste se quiser)</label>
@@ -8037,7 +8058,7 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
 
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
-        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div>${horarioInput}<div class="ai-chat-post-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
+        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
         true
       )
     }
@@ -8076,6 +8097,7 @@ function aiAnalyzeMediaRegen(ctx) {
 // Agendador (usuário precisa reanexar o arquivo manualmente).
 async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false, cardId = null) {
   const state = aiChat[ctx]
+  if (cardId) aiLockCard(cardId)
 
   if (!sugestao.mediaPath) {
     state.pendingMediaFile = null
