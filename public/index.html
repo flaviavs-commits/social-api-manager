@@ -2590,16 +2590,31 @@ async function loadTokens() {
 
 async function renewToken(id, btn) {
   btn.disabled = true; btn.textContent = '...';
+
+  // Abre a janela em branco já dentro do clique do usuário (gesto síncrono),
+  // com nome único — senão o navegador bloqueia o popup quando window.open só
+  // é chamado depois do await abaixo (a URL do OAuth só é conhecida na
+  // resposta da API). Mesmo padrão usado no login TikTok/Google — sem isso,
+  // window.open(url, '_blank') após o await abre como aba solta em vez de
+  // popup de verdade, e a tela final ("window.close()") fica em branco.
+  const popupName = 'oauth_renew_' + Date.now();
+  const popup = window.open('', popupName, 'width=640,height=720');
+
   try {
     const data = await apiFetch(`/api/tokens/renew/${id}`, { method: 'POST' });
     if (data.success) {
+      if (popup) popup.close();
       showToast('Conexão renovada com sucesso!', 'ok');
     } else if (data.requiresReconnect) {
       showToast('Essa conta precisa ser reconectada manualmente — abrindo...', 'err');
-      window.open(data.oauthUrl, '_blank');
+      if (popup && !popup.closed) popup.location.href = data.oauthUrl;
+      else window.open(data.oauthUrl, popupName, 'width=640,height=720');
+    } else if (popup) {
+      popup.close();
     }
     loadTokens();
   } catch (e) {
+    if (popup) popup.close();
     showToast('Erro ao renovar: ' + e.message, 'err');
     btn.disabled = false; btn.textContent = 'Renovar';
   }
