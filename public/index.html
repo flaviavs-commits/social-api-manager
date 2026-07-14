@@ -486,6 +486,82 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-chat-post-btn.regen { background:var(--surface2); color:var(--muted2); border:1px solid var(--border2); }
 .ai-chat-post-btn.regen:hover { border-color:var(--yellow); color:var(--yellow); }
 
+/* Seletor de data/hora do card de post da IA — substitui o <input type="datetime-local">
+   nativo do navegador (inconsistente entre SO/browser) por um popover no mesmo
+   sistema visual do chat. */
+.ai-when {
+  position:relative; margin-bottom:8px;
+}
+.ai-when-label {
+  font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em;
+  margin-bottom:4px; display:block;
+}
+.ai-when-trigger {
+  display:flex; align-items:center; gap:7px; width:100%;
+  background:var(--surface3); border:1px solid var(--border2); border-radius:10px;
+  padding:8px 10px; cursor:pointer; transition:border-color 0.15s;
+  font-family:var(--sans); color:var(--text); font-size:12px;
+}
+.ai-when-trigger:hover, .ai-when-trigger.open { border-color:var(--accent); }
+.ai-when-trigger svg { flex-shrink:0; color:var(--accent); }
+.ai-when-trigger-text { flex:1; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.ai-when-trigger-caret { color:var(--muted); transition:transform 0.15s; flex-shrink:0; }
+.ai-when-trigger.open .ai-when-trigger-caret { transform:rotate(180deg); }
+
+.ai-when-pop {
+  position:absolute; top:calc(100% + 6px); left:0; z-index:80;
+  width:264px; max-width:calc(100vw - 48px);
+  background:var(--surface2); border:1px solid var(--border2); border-radius:12px;
+  box-shadow:var(--shadow-lg); padding:12px;
+  opacity:0; transform:translateY(-4px) scale(0.98); pointer-events:none;
+  transition:opacity 0.14s, transform 0.14s;
+}
+.ai-when-pop.open { opacity:1; transform:translateY(0) scale(1); pointer-events:all; }
+
+.ai-when-quick { display:flex; gap:5px; margin-bottom:10px; }
+.ai-when-quick-btn {
+  flex:1; padding:6px 4px; border-radius:8px; border:1px solid var(--border2);
+  background:var(--surface3); color:var(--muted2); font-size:10.5px; font-weight:600;
+  cursor:pointer; transition:all 0.15s; font-family:var(--sans);
+}
+.ai-when-quick-btn:hover { border-color:var(--accent); color:var(--accent); }
+.ai-when-quick-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+.ai-when-days { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:10px; }
+.ai-when-day {
+  aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-radius:8px; border:1px solid transparent; background:transparent; cursor:pointer;
+  color:var(--text); font-family:var(--sans); transition:all 0.15s; gap:1px;
+}
+.ai-when-day:hover { background:var(--surface3); }
+.ai-when-day.selected { background:var(--accent); color:#fff; }
+.ai-when-day-dow { font-size:8.5px; color:var(--muted); text-transform:uppercase; }
+.ai-when-day.selected .ai-when-day-dow { color:rgba(255,255,255,0.75); }
+.ai-when-day-num { font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+
+.ai-when-time { display:flex; align-items:center; justify-content:center; gap:4px; margin-bottom:10px; }
+.ai-when-time-field { display:flex; flex-direction:column; align-items:center; }
+.ai-when-time-btn {
+  width:26px; height:18px; border:none; background:var(--surface3); color:var(--muted2);
+  cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;
+}
+.ai-when-time-btn:hover { color:var(--accent); background:var(--surface); }
+.ai-when-time-btn:first-child { border-radius:6px 6px 0 0; }
+.ai-when-time-btn:last-child { border-radius:0 0 6px 6px; }
+.ai-when-time-val {
+  width:40px; text-align:center; font-family:var(--mono); font-variant-numeric:tabular-nums;
+  font-size:17px; font-weight:600; color:var(--text); padding:3px 0; background:var(--surface3);
+}
+.ai-when-time-sep { font-size:17px; font-weight:600; color:var(--muted); padding-bottom:2px; }
+
+.ai-when-confirm {
+  width:100%; padding:8px; border-radius:8px; border:none;
+  background:linear-gradient(135deg,#6c8cff,#b39ddb); color:#fff;
+  font-size:11.5px; font-weight:600; cursor:pointer; transition:opacity 0.15s;
+  font-family:var(--sans);
+}
+.ai-when-confirm:hover { opacity:0.88; }
+
 /* Versão página cheia do chat */
 .ai-chat-fullpage {
   display:flex; flex-direction:column;
@@ -6837,18 +6913,19 @@ function aiPodeAgendar(post) {
 // (Agendar/Publicar ficam escondidos até ter mídia, para não sugerir uma ação
 // que vai falhar). Com mídia (anexada aqui ou quando a rede não exige),
 // mostra os botões normais de Agendar/Publicar agora/Regerar.
-// Converte um ISO string para o formato que <input type="datetime-local">
-// aceita (sem timezone, "YYYY-MM-DDTHH:mm"), preservando o horário local do
-// navegador — new Date(iso) já converte para local ao ler os componentes.
+// Converte um ISO string para o formato "YYYY-MM-DDTHH:mm" (sem timezone),
+// preservando o horário local do navegador — new Date(iso) já converte pra
+// local ao ler os componentes. É o formato guardado no <input hidden> que
+// aiSyncHorarioFromInput/aiScheduleMediaPost leem para montar o agendamento.
 function aiDatetimeLocalValue(iso) {
   const d = new Date(iso)
   const pad = n => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// Lê o valor atual do <input datetime-local> do card e atualiza p.horario
-// antes de agendar — o horário calculado pela IA é só uma sugestão inicial;
-// quem decide a data/hora final é sempre o usuário, ajustando esse campo.
+// Lê o valor atual do campo de horário do card e atualiza p.horario antes de
+// agendar — o horário calculado pela IA é só uma sugestão inicial; quem
+// decide a data/hora final é sempre o usuário, ajustando o seletor.
 function aiSyncHorarioFromInput(ctx, idx, cardId) {
   const state = aiChat[ctx]
   const post = state?.pendingPost?.[idx]
@@ -6856,16 +6933,151 @@ function aiSyncHorarioFromInput(ctx, idx, cardId) {
   if (post && input?.value) post.horario = new Date(input.value).toISOString()
 }
 
+const AI_WHEN_DOW = ['dom','seg','ter','qua','qui','sex','sáb']
+
+// Monta o seletor de data/hora customizado do card (substitui o
+// <input type="datetime-local"> nativo, cujo visual varia entre navegador/SO
+// e destoa do resto da interface). Guarda o valor real num <input hidden>
+// com o mesmo id que o resto do código já espera (ai-post-horario-<cardId>).
+function aiWhenPickerHtml(cardId, iso) {
+  const value = aiDatetimeLocalValue(iso)
+  const d = new Date(iso)
+  const label = d.toLocaleString('pt-BR', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+  return `<div class="ai-when">
+      <label class="ai-when-label">📅 Data e hora — sugestão, ajuste se quiser</label>
+      <input type="hidden" id="ai-post-horario-${cardId}" value="${value}">
+      <button type="button" class="ai-when-trigger" id="ai-when-trigger-${cardId}" onclick="aiWhenToggle('${cardId}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <span class="ai-when-trigger-text" id="ai-when-label-${cardId}">${label}</span>
+        <svg class="ai-when-trigger-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="ai-when-pop" id="ai-when-pop-${cardId}"></div>
+    </div>`
+}
+
+// Estado temporário de edição do popover — só existe enquanto ele está
+// aberto, e só é gravado no <input hidden> real ao clicar "Confirmar".
+const aiWhenDraft = {}
+
+function aiWhenToggle(cardId) {
+  const isOpen = aiWhenDraft[cardId] != null
+  aiWhenCloseAll()
+  if (!isOpen) aiWhenOpen(cardId)
+}
+
+function aiWhenCloseAll() {
+  for (const id of Object.keys(aiWhenDraft)) {
+    document.getElementById(`ai-when-pop-${id}`)?.classList.remove('open')
+    document.getElementById(`ai-when-trigger-${id}`)?.classList.remove('open')
+    delete aiWhenDraft[id]
+  }
+}
+
+function aiWhenOpen(cardId) {
+  const input = document.getElementById(`ai-post-horario-${cardId}`)
+  const current = input?.value ? new Date(input.value) : new Date()
+  aiWhenDraft[cardId] = { date: new Date(current.getFullYear(), current.getMonth(), current.getDate()), hours: current.getHours(), minutes: current.getMinutes() }
+  aiWhenRenderPop(cardId)
+  document.getElementById(`ai-when-pop-${cardId}`)?.classList.add('open')
+  document.getElementById(`ai-when-trigger-${cardId}`)?.classList.add('open')
+}
+
+function aiWhenRenderPop(cardId) {
+  const pop = document.getElementById(`ai-when-pop-${cardId}`)
+  const draft = aiWhenDraft[cardId]
+  if (!pop || !draft) return
+
+  const today = new Date(); today.setHours(0,0,0,0)
+  const quickOffsets = [{ label:'Hoje', days:0 }, { label:'Amanhã', days:1 }, { label:'+3 dias', days:3 }]
+  const quickHtml = quickOffsets.map(q => {
+    const target = new Date(today); target.setDate(target.getDate() + q.days)
+    const active = target.getTime() === draft.date.getTime()
+    return `<button type="button" class="ai-when-quick-btn${active ? ' active' : ''}" onclick="aiWhenSetDays('${cardId}',${q.days})">${q.label}</button>`
+  }).join('')
+
+  // Faixa de 7 dias a partir de hoje — ajuste rápido, não um calendário de
+  // planejamento completo (esse já existe na página Calendário do app).
+  let daysHtml = ''
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(today); day.setDate(day.getDate() + i)
+    const selected = day.getTime() === draft.date.getTime()
+    daysHtml += `<button type="button" class="ai-when-day${selected ? ' selected' : ''}" onclick="aiWhenPickDay('${cardId}',${i})">
+        <span class="ai-when-day-dow">${AI_WHEN_DOW[day.getDay()]}</span>
+        <span class="ai-when-day-num">${day.getDate()}</span>
+      </button>`
+  }
+
+  const pad = n => String(n).padStart(2,'0')
+  pop.innerHTML = `
+    <div class="ai-when-quick">${quickHtml}</div>
+    <div class="ai-when-days">${daysHtml}</div>
+    <div class="ai-when-time">
+      <div class="ai-when-time-field">
+        <button type="button" class="ai-when-time-btn" onclick="aiWhenAdjustTime('${cardId}','hours',1)">▲</button>
+        <div class="ai-when-time-val">${pad(draft.hours)}</div>
+        <button type="button" class="ai-when-time-btn" onclick="aiWhenAdjustTime('${cardId}','hours',-1)">▼</button>
+      </div>
+      <div class="ai-when-time-sep">:</div>
+      <div class="ai-when-time-field">
+        <button type="button" class="ai-when-time-btn" onclick="aiWhenAdjustTime('${cardId}','minutes',5)">▲</button>
+        <div class="ai-when-time-val">${pad(draft.minutes)}</div>
+        <button type="button" class="ai-when-time-btn" onclick="aiWhenAdjustTime('${cardId}','minutes',-5)">▼</button>
+      </div>
+    </div>
+    <button type="button" class="ai-when-confirm" onclick="aiWhenConfirm('${cardId}')">Confirmar</button>`
+}
+
+function aiWhenSetDays(cardId, days) {
+  const draft = aiWhenDraft[cardId]
+  if (!draft) return
+  const today = new Date(); today.setHours(0,0,0,0)
+  draft.date = new Date(today); draft.date.setDate(draft.date.getDate() + days)
+  aiWhenRenderPop(cardId)
+}
+
+function aiWhenPickDay(cardId, offsetFromToday) {
+  aiWhenSetDays(cardId, offsetFromToday)
+}
+
+function aiWhenAdjustTime(cardId, unit, delta) {
+  const draft = aiWhenDraft[cardId]
+  if (!draft) return
+  if (unit === 'hours') draft.hours = (draft.hours + delta + 24) % 24
+  else draft.minutes = (draft.minutes + delta + 60) % 60
+  aiWhenRenderPop(cardId)
+}
+
+function aiWhenConfirm(cardId) {
+  const draft = aiWhenDraft[cardId]
+  if (!draft) return
+  const result = new Date(draft.date)
+  result.setHours(draft.hours, draft.minutes, 0, 0)
+
+  const input = document.getElementById(`ai-post-horario-${cardId}`)
+  const pad = n => String(n).padStart(2,'0')
+  if (input) input.value = `${result.getFullYear()}-${pad(result.getMonth()+1)}-${pad(result.getDate())}T${pad(result.getHours())}:${pad(result.getMinutes())}`
+
+  const labelEl = document.getElementById(`ai-when-label-${cardId}`)
+  if (labelEl) labelEl.textContent = result.toLocaleString('pt-BR', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+
+  aiWhenCloseAll()
+}
+
+// Fecha o popover aberto ao clicar fora dele.
+document.addEventListener('click', (ev) => {
+  const openIds = Object.keys(aiWhenDraft)
+  if (!openIds.length) return
+  if (ev.target.closest('.ai-when')) return
+  aiWhenCloseAll()
+})
+
 function aiPostCardActionsHtml(ctx, idx, p, cardId) {
   const exigeMidia = p.plataformas.some(plat => PLAT_REQUIREMENTS[plat]?.media === 'required')
   const temMidia = !!p.mediaPath
 
   // Data/hora sugerida pela IA, sempre editável antes de confirmar — ela
   // nunca agenda sozinha nesse horário, só pré-preenche o campo.
-  const horarioInput = `<div style="margin-bottom:8px">
-      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">📅 Data e hora (sugestão — ajuste se quiser)</label>
-      <input type="datetime-local" id="ai-post-horario-${cardId}" value="${aiDatetimeLocalValue(p.horario)}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--sans)">
-    </div>`
+  const horarioInput = aiWhenPickerHtml(cardId, p.horario)
 
   if (exigeMidia && !temMidia) {
     const plataformasQueExigem = p.plataformas.filter(plat => PLAT_REQUIREMENTS[plat]?.media === 'required').map(plat => PLAT_NAMES[plat]).join(', ')
@@ -8079,10 +8291,7 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
       const publicarAgoraBtn = upload
         ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true,'${cardId}')">⚡ Publicar agora</button>`
         : ''
-      const horarioInput = `<div style="margin-bottom:8px">
-          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">📅 Data e hora (sugestão — ajuste se quiser)</label>
-          <input type="datetime-local" id="ai-post-horario-${cardId}" value="${aiDatetimeLocalValue(horarioSugerido.toISOString())}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--sans)">
-        </div>`
+      const horarioInput = aiWhenPickerHtml(cardId, horarioSugerido.toISOString())
 
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
