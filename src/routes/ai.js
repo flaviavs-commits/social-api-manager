@@ -76,26 +76,36 @@ async function getUserApiKey(pool, userId, modelo) {
   } catch { return null }
 }
 
-async function generateWithClaude(prompt, userKey) {
+const CLAUDE_MODEL_IDS = {
+  'claude':        'claude-haiku-4-5-20251001',
+  'claude-sonnet': 'claude-sonnet-5',
+}
+
+const OPENAI_MODEL_IDS = {
+  'openai':      'gpt-4o-mini',
+  'openai-4o':   'gpt-4o',
+}
+
+async function generateWithClaude(prompt, userKey, modelId = 'claude') {
   const key = userKey || process.env.ANTHROPIC_API_KEY
   if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
   const Anthropic = require('@anthropic-ai/sdk')
   const client = new Anthropic({ apiKey: key })
   const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: CLAUDE_MODEL_IDS[modelId] || CLAUDE_MODEL_IDS.claude,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })
   return msg.content[0]?.text || ''
 }
 
-async function generateWithOpenAI(prompt, userKey) {
+async function generateWithOpenAI(prompt, userKey, modelId = 'openai') {
   const key = userKey || process.env.OPENAI_API_KEY
   if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key })
   const msg = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: OPENAI_MODEL_IDS[modelId] || OPENAI_MODEL_IDS.openai,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -476,10 +486,36 @@ router.post('/generate', async (req, res) => {
     }
 
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
+
+    // OpenAI (GPT-4o Mini/GPT-4o) roda com a chave do servidor quando o
+    // usuário não tem chave própria salva — mesmo padrão de custo controlado
+    // já usado pelo Gemini, com o mesmo limite diário compartilhado. Claude
+    // continua exigindo chave própria do usuário (sem ANTHROPIC_API_KEY no
+    // servidor); sem chave própria, generateWithClaude já lança erro 503
+    // claro pedindo pra configurar.
+    if (OPENAI_MODEL_IDS[modelo] && !userKey) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw Object.assign(new Error('Para usar o GPT sem sua própria chave, configure a chave de API da OpenAI no servidor.'), { status: 503 })
+      }
+      const usados = await demoUsosHoje(req.user.id)
+      if (usados >= DEMO_LIMITE_DIA) {
+        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
+      }
+      const rawTextOpenai = await generateWithOpenAI(prompt, null, modelo)
+      await registrarUsoDemo(req.user.id)
+      let parsedOpenai
+      try {
+        parsedOpenai = parseJsonResponse(rawTextOpenai)
+      } catch {
+        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+      }
+      return montarResposta(parsedOpenai.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
+    }
+
     let rawText
-    if (modelo === 'openai')       rawText = await generateWithOpenAI(prompt, userKey)
-    else if (modelo === 'claude')  rawText = await generateWithClaude(prompt, userKey)
-    else                           rawText = await generateWithGemini(prompt, userKey, modelo)
+    if (OPENAI_MODEL_IDS[modelo])       rawText = await generateWithOpenAI(prompt, userKey, modelo)
+    else if (CLAUDE_MODEL_IDS[modelo])  rawText = await generateWithClaude(prompt, userKey, modelo)
+    else                                 rawText = await generateWithGemini(prompt, userKey, modelo)
 
     let parsed
     try {
@@ -615,19 +651,19 @@ router.get('/activity-log', requireSuperAdmin, async (req, res) => {
 // válida antes de salvar — evita que o usuário só descubra que errou a chave
 // quando tentar gerar um post de verdade, minutos depois.
 async function testarChaveProvedor(modelo, apiKey) {
-  if (modelo === 'openai') {
+  if (OPENAI_MODEL_IDS[modelo]) {
     const OpenAI = require('openai')
     const client = new OpenAI({ apiKey })
     await client.models.list()
     return
   }
-  if (modelo === 'claude') {
+  if (CLAUDE_MODEL_IDS[modelo]) {
     const Anthropic = require('@anthropic-ai/sdk')
     const client = new Anthropic({ apiKey })
     // Anthropic não tem endpoint de "list models" público simples — usamos uma
     // chamada de 1 token, que é a forma mais barata de validar a chave.
     await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: CLAUDE_MODEL_IDS[modelo],
       max_tokens: 1,
       messages: [{ role: 'user', content: 'oi' }],
     })
@@ -970,9 +1006,12 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   }
 })
 
-// GET /api/ai/models — retorna quais modelos estão disponíveis (chave configurada)
+// GET /api/ai/models — retorna quais modelos estão disponíveis (chave
+// configurada no servidor OU exige chave própria do usuário, marcado como
+// sempre "disponível" já que basta o usuário colar a chave dele).
 router.get('/models', (req, res) => {
   const hasGemini = !!process.env.GEMINI_API_KEY
+  const hasOpenai = !!process.env.OPENAI_API_KEY
   res.json({
     models: [
       { id: 'local',             name: 'Assistente Rápido',      provider: 'Sem conta',      available: true },
@@ -980,8 +1019,14 @@ router.get('/models', (req, res) => {
       { id: 'gemini-2.5-flash',  name: 'Gemini 2.5 Flash',      provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-pro',    name: 'Gemini 2.5 Pro',        provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-lite',   name: 'Gemini 2.5 Flash-Lite', provider: 'Google',    available: hasGemini },
-      { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: !!process.env.OPENAI_API_KEY },
-      { id: 'claude',            name: 'Claude Haiku',           provider: 'Anthropic', available: !!process.env.ANTHROPIC_API_KEY },
+      { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: hasOpenai },
+      { id: 'openai-4o',         name: 'GPT-4o',                 provider: 'OpenAI',   available: hasOpenai },
+      // Claude não tem chave do servidor configurada — "available: false" aqui
+      // não bloqueia o uso, só evita que o app selecione Claude como modelo
+      // padrão automático (o usuário ainda escolhe manualmente no seletor e
+      // configura a própria chave, via requiresKey no picker do frontend).
+      { id: 'claude',            name: 'Claude Haiku',           provider: 'Anthropic', available: false },
+      { id: 'claude-sonnet',     name: 'Claude Sonnet 5',        provider: 'Anthropic', available: false },
     ]
   })
 })
