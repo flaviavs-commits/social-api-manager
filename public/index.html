@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="L_ElhsDaGFfQYCzvmrqYOdFgNrCO3RQ2g-a1p-0c2mA" />
+<script>
+// Guarda de autenticação o mais cedo possível — antes do navegador desenhar
+// qualquer HTML do dashboard. Sem essa checagem aqui no <head>, o
+// <script> lá no fim do body só rodava depois de todo o HTML/CSS já
+// pintados na tela, deixando a interface do dashboard visível (menu, cards)
+// por uma fração de segundo para qualquer visitante sem sessão, antes do
+// redirect. Replica a captura do token vindo por URL (login Google/review)
+// para não redirecionar por engano nesse fluxo específico.
+(function guardaAutenticacaoInicial() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('token') || localStorage.getItem('authToken')) return;
+  window.location.replace('/login.html');
+})();
+</script>
 <title>Social Api Manager</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
