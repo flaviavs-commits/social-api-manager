@@ -1373,7 +1373,7 @@ input, select, textarea, label, .bottom-nav-item {
   <div id="page-tokens" class="section-page">
     <div class="page-header">
       <div><div class="page-title">Conexões das Contas</div><div class="page-sub">Veja se suas contas estão conectadas e funcionando</div></div>
-      <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Reconectar expiradas</button><button class="btn btn-accent" onclick="openModal('add-token')">+ Adicionar conexão</button></div>
+      <div style="display:flex;gap:8px"><button class="btn" onclick="renewAll()">↻ Reconectar expiradas</button></div>
     </div>
     <div class="plat-list" id="token-body" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="text-align:center;color:var(--muted);padding:2rem">carregando...</div>
@@ -2069,51 +2069,6 @@ input, select, textarea, label, .bottom-nav-item {
     <div class="modal-actions">
       <button class="btn" onclick="closeDeleteAccountModal()">Cancelar</button>
       <button class="btn" id="delete-account-confirm-btn" disabled style="color:var(--red);border-color:rgba(251,113,133,0.3)" onclick="confirmDeleteAccount()">Excluir</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal-add-token">
-  <div class="modal" style="width:580px;max-width:95vw">
-    <div class="modal-title">Adicionar conexão manualmente</div>
-    <div class="modal-sub">Use esta opção apenas se já tiver um código de acesso gerado para essa conta.</div>
-
-    <div class="form-group">
-      <label>Plataforma</label>
-      <select id="at-platform" onchange="atChangePlat(this.value)">
-        <option value="facebook">Facebook</option>
-        <option value="instagram">Instagram</option>
-        <option value="youtube">YouTube</option>
-        <option value="tiktok">TikTok</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label>Nome ou link da conta</label>
-      <input type="text" id="at-name" placeholder="@nickname ou https://facebook.com/pagina" oninput="extractNickname(this, 'at-name-preview')"/>
-      <div id="at-name-preview" style="font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:5px;min-height:16px"></div>
-    </div>
-
-    <div class="form-group">
-      <label>Código de acesso</label>
-      <input type="text" id="at-token" placeholder="Cole o código aqui..." style="font-family:var(--mono);font-size:12px"/>
-    </div>
-
-    <div class="form-group" id="at-refresh-group">
-      <label>Código de renovação <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(apenas YouTube — permite renovação automática)</span></label>
-      <input type="text" id="at-refresh" placeholder="1//0g_xxxxxx..." style="font-family:var(--mono);font-size:12px"/>
-    </div>
-
-    <div class="form-group">
-      <label id="at-expiry-label">Válido até</label>
-      <input type="datetime-local" id="at-expiry"/>
-    </div>
-
-    <div id="at-hint" style="border-radius:6px;padding:10px 12px;font-size:12px;line-height:1.6;margin-bottom:0.5rem"></div>
-
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-accent" id="at-save-btn" onclick="saveToken()">Salvar token</button>
     </div>
   </div>
 </div>
@@ -4049,72 +4004,6 @@ async function sendCommentReply(commentId, btn) {
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 
-// ── Add Token Modal ─────────────────────────────────────────────────────────
-const AT_CONFIG = {
-  facebook: {
-    hint: '<strong>Facebook:</strong> esta conexão costuma durar até 60 dias antes de precisar ser renovada.',
-    expiryDays: 60,
-    expiryLabel: 'Válido até (Facebook: até 60 dias)',
-    showRefresh: false
-  },
-  instagram: {
-    hint: '<strong>Instagram:</strong> precisa ser uma conta comercial (Business). A conexão dura até 60 dias.',
-    expiryDays: 60,
-    expiryLabel: 'Válido até (Instagram: até 60 dias)',
-    showRefresh: false
-  },
-  youtube: {
-    hint: '<strong>YouTube:</strong> com o código de renovação preenchido, a conexão se renova automaticamente sem precisar refazer esse passo.',
-    expiryDays: 0,
-    expiryLabel: 'Válido até (YouTube: cerca de 1 hora sem renovação)',
-    showRefresh: true
-  },
-  tiktok: {
-    hint: '<strong>TikTok:</strong> esta conexão dura cerca de 24 horas.',
-    expiryDays: 1,
-    expiryLabel: 'Válido até (TikTok: 24 horas)',
-    showRefresh: false
-  }
-};
-
-function atChangePlat(plat) {
-  const cfg = AT_CONFIG[plat];
-  if (!cfg) return;
-
-  // Hint
-  const hint = document.getElementById('at-hint');
-  if (hint) {
-    hint.innerHTML = cfg.hint;
-    const colors = { facebook:'rgba(79,125,240,0.1)', instagram:'rgba(225,48,108,0.1)', youtube:'rgba(255,68,68,0.1)', tiktok:'rgba(52,211,153,0.1)' };
-    const borders = { facebook:'rgba(79,125,240,0.3)', instagram:'rgba(225,48,108,0.3)', youtube:'rgba(255,68,68,0.3)', tiktok:'rgba(52,211,153,0.3)' };
-    hint.style.background = colors[plat];
-    hint.style.border = `1px solid ${borders[plat]}`;
-    hint.style.color = 'var(--text)';
-  }
-
-  // Refresh token — só YouTube
-  const refreshGroup = document.getElementById('at-refresh-group');
-  if (refreshGroup) refreshGroup.style.display = cfg.showRefresh ? 'block' : 'none';
-
-  // Label e valor padrão da expiração
-  const label = document.getElementById('at-expiry-label');
-  if (label) label.textContent = cfg.expiryLabel;
-
-  const expEl = document.getElementById('at-expiry');
-  if (expEl) {
-    const exp = new Date();
-    if (cfg.expiryDays === 0) {
-      exp.setHours(exp.getHours() + 1); // YouTube: 1 hora
-    } else {
-      exp.setDate(exp.getDate() + cfg.expiryDays);
-    }
-    expEl.value = new Date(exp.getTime() - exp.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  }
-
-  // Atualizar campo nome conforme plataforma
-  updateNameField('at-name', 'at-name-preview', plat);
-}
-
 function openModal(name, fixedPlatform) {
   if (name === 'nova-conta') {
     const select = document.getElementById('modal-platform');
@@ -4126,63 +4015,7 @@ function openModal(name, fixedPlatform) {
     }
     updatePlatformUI(select.value || 'facebook');
   }
-  if (name === 'add-token') {
-    // Inicializar com Facebook como padrão
-    atChangePlat('facebook');
-    document.getElementById('at-platform').value = 'facebook';
-    document.getElementById('at-token').value = '';
-    document.getElementById('at-refresh').value = '';
-    updateNameField('at-name', 'at-name-preview', 'facebook');
-    document.getElementById('at-platform').value = 'facebook';
-  }
   document.getElementById('modal-' + name).classList.add('open');
-}
-
-async function saveToken() {
-  const platform    = document.getElementById('at-platform').value;
-  const name        = resolveInputName('at-name');
-  const accessToken = document.getElementById('at-token').value.trim();
-  const refreshToken= document.getElementById('at-refresh').value.trim();
-  const expiresAt   = document.getElementById('at-expiry').value;
-
-  if (!name)        return showToast('Informe o nome ou link da conta.', 'err');
-  if (!accessToken) return showToast('Cole o access token.', 'err');
-  if (!expiresAt)   return showToast('Defina a data de expiração.', 'err');
-
-  const btn = document.getElementById('at-save-btn');
-  btn.disabled = true;
-  btn.textContent = 'Salvando...';
-
-  try {
-    // 1. Criar a conta primeiro
-    const accData = await apiFetch('/api/accounts', {
-      method: 'POST',
-      body: JSON.stringify({ name, platform })
-    });
-    const accountId = accData.account.id;
-
-    // 2. Salvar o token vinculado à conta
-    await apiFetch('/api/tokens', {
-      method: 'POST',
-      body: JSON.stringify({
-        accountId,
-        platform,
-        accessToken,
-        refreshToken: refreshToken || null,
-        expiresAt
-      })
-    });
-
-    showToast(`Token de "${name}" salvo com sucesso!`, 'ok');
-    closeModal();
-    loadTokens();
-    loadDashboard();
-  } catch (e) {
-    showToast('Erro ao salvar: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Salvar token';
-  }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -4233,7 +4066,7 @@ function extractNickname(input, previewId) {
 
   // Detectar plataforma pelo select mais próximo no mesmo modal
   const modal = input.closest('.modal');
-  const platSel = modal ? (modal.querySelector('#at-platform') || modal.querySelector('#modal-platform')) : null;
+  const platSel = modal ? modal.querySelector('#modal-platform') : null;
   const plat = platSel ? platSel.value : null;
   const cfg = PLAT_FIELD_CFG[plat] || null;
 
