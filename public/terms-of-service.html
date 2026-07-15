@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MeuEcooMedia Terms of Service</title>
-<meta name="description" content="Termos de Uso do MeuEcooMedia.">
+<meta name="description" content="Termos de Uso do MeuEcooMedia, em conformidade com a LGPD, o Marco Civil da Internet e o Código de Defesa do Consumidor.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -22,12 +22,21 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .legal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.5rem; }
 .legal-header img { width: 48px; height: 48px; border-radius: 10px; }
 .legal-header h1 { font-size: 24px; font-weight: 700; }
-.updated { color: var(--muted); font-size: 13px; margin-bottom: 2.25rem; }
+.updated { color: var(--muted); font-size: 13px; margin-bottom: 1.25rem; }
+.intro { color: var(--text); font-size: 15px; margin-bottom: 2rem; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 h2 { font-size: 16px; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+h3 { font-size: 14px; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--text); }
 p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
-ul { margin: 0.5rem 0 0 1.1rem; color: var(--text); font-size: 15px; }
+ul { margin: 0.5rem 0 0.75rem 1.1rem; color: var(--text); font-size: 15px; }
 li { margin-bottom: 0.4rem; }
 a { color: var(--accent); }
+.callout { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; font-size: 14px; margin: 0.75rem 0 1.25rem; }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 2rem; }
+.toc p { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.6rem; }
+.toc ol { margin: 0 0 0 1.1rem; font-size: 14px; }
+.toc li { margin-bottom: 0.3rem; }
+.toc a { text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
 footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
 footer a { color: var(--muted); text-decoration: none; }
 footer a:hover { color: var(--text); }
@@ -38,63 +47,165 @@ footer a:hover { color: var(--text); }
 <div class="wrap">
   <div class="legal-header">
     <img src="/favicon.png" alt="MeuEcooMedia">
-    <h1>MeuEcooMedia Terms of Service</h1>
+    <h1>Termos de Uso</h1>
   </div>
-  <p class="updated">Última atualização: junho de 2026</p>
+  <p class="updated">Última atualização: 15 de julho de 2026 · Vigente desde: junho de 2026</p>
 
-  <h2>Descrição do serviço</h2>
-  <p>
-    O MeuEcooMedia permite conectar contas de redes sociais via OAuth
-    e agendar, publicar e acompanhar o desempenho de conteúdo nas
-    plataformas YouTube, Instagram, TikTok e Facebook a partir de um único
-    painel.
+  <p class="intro">
+    Estes Termos de Uso regem o acesso e a utilização do <strong>MeuEcooMedia</strong> ("aplicativo",
+    "serviço", "nós"). Ao criar uma conta ou utilizar o serviço, você declara ter lido, compreendido e
+    aceitado integralmente estes termos, bem como a nossa
+    <a href="/privacy-policy">Política de Privacidade</a>.
   </p>
 
-  <h2>Responsabilidades do usuário</h2>
+  <div class="toc">
+    <p>Nesta página</p>
+    <ol>
+      <li><a href="#servico">1. Descrição do serviço</a></li>
+      <li><a href="#elegibilidade">2. Elegibilidade e cadastro</a></li>
+      <li><a href="#responsabilidades">3. Responsabilidades do usuário</a></li>
+      <li><a href="#proibidas">4. Atividades proibidas</a></li>
+      <li><a href="#propriedade">5. Propriedade intelectual e conteúdo</a></li>
+      <li><a href="#terceiros">6. Dependência de plataformas de terceiros</a></li>
+      <li><a href="#disponibilidade">7. Disponibilidade do serviço</a></li>
+      <li><a href="#encerramento">8. Suspensão e encerramento de conta</a></li>
+      <li><a href="#garantias">9. Isenção de garantias e limitação de responsabilidade</a></li>
+      <li><a href="#indenizacao">10. Indenização</a></li>
+      <li><a href="#privacidade">11. Privacidade e proteção de dados</a></li>
+      <li><a href="#alteracoes">12. Alterações destes termos</a></li>
+      <li><a href="#lei">13. Lei aplicável e foro</a></li>
+      <li><a href="#contato">14. Contato</a></li>
+    </ol>
+  </div>
+
+  <h2 id="servico">1. Descrição do serviço</h2>
   <p>
-    Você é responsável por manter a confidencialidade das suas credenciais,
-    garantir que possui os direitos sobre todo o conteúdo publicado e
-    cumprir as políticas de cada plataforma conectada. Você é responsável
-    por qualquer conteúdo publicado em seu nome através do aplicativo.
+    O MeuEcooMedia permite conectar contas de redes sociais via OAuth 2.0 e agendar, publicar e
+    acompanhar o desempenho de conteúdo nas plataformas YouTube, Instagram, TikTok e Facebook a
+    partir de um único painel. O serviço é oferecido conforme descrito nesta página e pode ser
+    ajustado ao longo do tempo, conforme a seção 12.
   </p>
 
-  <h2>Atividades proibidas</h2>
+  <h2 id="elegibilidade">2. Elegibilidade e cadastro</h2>
+  <p>
+    Para usar o serviço, você deve ter no mínimo 18 anos e capacidade civil plena para contratar, nos
+    termos da legislação brasileira. Você é responsável por fornecer informações verdadeiras, exatas
+    e atualizadas no cadastro, e por manter a confidencialidade de sua senha e das credenciais de
+    acesso à sua conta.
+  </p>
+
+  <h2 id="responsabilidades">3. Responsabilidades do usuário</h2>
+  <p>
+    Você é responsável por:
+  </p>
   <ul>
-    <li>Publicar conteúdo ilegal ou que viole direitos de terceiros.</li>
-    <li>Tentar acessar contas de outros usuários sem autorização.</li>
-    <li>Interferir no funcionamento do aplicativo ou das APIs de terceiros que ele utiliza.</li>
+    <li>Manter a confidencialidade das suas credenciais de acesso e das contas de redes sociais conectadas;</li>
+    <li>Garantir que possui todos os direitos necessários (autorais, de imagem, de marca) sobre todo o conteúdo que publica através do aplicativo;</li>
+    <li>Cumprir as políticas, diretrizes da comunidade e termos de uso de cada plataforma conectada (Google/YouTube, Meta/Facebook e Instagram, TikTok);</li>
+    <li>Qualquer conteúdo publicado em seu nome através do aplicativo, mesmo quando agendado com antecedência.</li>
   </ul>
 
-  <h2>Dependência de terceiros</h2>
+  <h2 id="proibidas">4. Atividades proibidas</h2>
+  <p>Ao usar o MeuEcooMedia, você concorda em não:</p>
+  <ul>
+    <li>Publicar conteúdo ilegal, difamatório, discriminatório ou que viole direitos de terceiros (autorais, de imagem, de marca ou de propriedade intelectual);</li>
+    <li>Tentar acessar contas, dados ou conteúdo de outros usuários sem autorização;</li>
+    <li>Interferir, sobrecarregar ou comprometer o funcionamento do aplicativo, de sua infraestrutura ou das APIs de terceiros que ele utiliza;</li>
+    <li>Utilizar o serviço para fins de spam, disseminação de malware, phishing ou qualquer atividade fraudulenta;</li>
+    <li>Tentar contornar mecanismos de segurança, autenticação ou limitação de uso do aplicativo.</li>
+  </ul>
   <p>
-    O aplicativo depende de APIs externas (YouTube, Instagram, TikTok,
-    Facebook). Alterações nessas APIs por parte dos provedores podem afetar
-    ou interromper funcionalidades do aplicativo, sem que isso seja de
-    nossa responsabilidade.
+    O descumprimento destas regras pode resultar em suspensão ou encerramento imediato da conta, sem
+    prejuízo de outras medidas legais cabíveis.
   </p>
 
-  <h2>Disponibilidade do serviço</h2>
+  <h2 id="propriedade">5. Propriedade intelectual e conteúdo</h2>
   <p>
-    Não garantimos operação ininterrupta ou livre de erros. Manutenções,
-    atualizações ou falhas de infraestrutura podem causar indisponibilidade
-    temporária.
+    Você mantém todos os direitos sobre o conteúdo que cria e publica através do aplicativo. Ao usar
+    o MeuEcooMedia para publicar conteúdo em suas contas de redes sociais conectadas, você nos concede
+    apenas a licença estritamente necessária para processar, transmitir e publicar esse conteúdo nas
+    plataformas indicadas por você, conforme sua própria instrução. O software, a marca, o layout e os
+    demais elementos do aplicativo em si são de propriedade do MeuEcooMedia e protegidos pela
+    legislação de propriedade intelectual aplicável.
   </p>
 
-  <h2>Encerramento de conta</h2>
+  <h2 id="terceiros">6. Dependência de plataformas de terceiros</h2>
   <p>
-    Você pode desconectar suas contas de rede social a qualquer momento
-    pelo painel. Reservamo-nos o direito de suspender contas que violem
-    estes termos.
+    O aplicativo depende de APIs externas (YouTube, Instagram, TikTok, Facebook) para funcionar.
+    Alterações, instabilidades, descontinuações ou mudanças de política por parte desses provedores
+    podem afetar, limitar ou interromper funcionalidades do aplicativo, sem que isso configure
+    descumprimento contratual de nossa parte. Não somos afiliados, endossados ou patrocinados pelas
+    plataformas mencionadas.
   </p>
 
-  <h2>Limitação de responsabilidade</h2>
+  <h2 id="disponibilidade">7. Disponibilidade do serviço</h2>
   <p>
-    O serviço é fornecido "como está", sem garantias. Não nos
-    responsabilizamos por problemas causados pelas APIs de terceiros ou por
-    decisões de moderação de conteúdo tomadas pelas próprias redes sociais.
+    Empregamos esforços razoáveis para manter o serviço disponível, mas não garantimos operação
+    ininterrupta ou livre de erros. Manutenções programadas, atualizações, falhas de infraestrutura
+    ou eventos fora do nosso controle razoável podem causar indisponibilidade temporária.
   </p>
 
-  <h2>Contato</h2>
+  <h2 id="encerramento">8. Suspensão e encerramento de conta</h2>
+  <p>
+    Você pode desconectar suas contas de rede social ou encerrar sua conta no MeuEcooMedia a qualquer
+    momento, diretamente pelo painel ou solicitando pelo contato indicado na seção 14. Reservamo-nos o
+    direito de suspender ou encerrar contas que violem estes termos, mediante notificação quando
+    tecnicamente possível, exceto em casos de violação grave ou risco à segurança do serviço ou de
+    terceiros.
+  </p>
+
+  <h2 id="garantias">9. Isenção de garantias e limitação de responsabilidade</h2>
+  <p>
+    O serviço é fornecido <strong>"como está"</strong> e <strong>"conforme disponível"</strong>, sem
+    garantias de qualquer natureza, expressas ou implícitas, incluindo garantias de adequação a uma
+    finalidade específica. Na máxima extensão permitida pela legislação aplicável, não nos
+    responsabilizamos por:
+  </p>
+  <ul>
+    <li>Problemas causados por instabilidade, alteração ou indisponibilidade das APIs de terceiros;</li>
+    <li>Decisões de moderação, remoção de conteúdo ou suspensão de conta tomadas pelas próprias redes sociais;</li>
+    <li>Danos indiretos, incidentais ou consequenciais decorrentes do uso ou da impossibilidade de uso do serviço.</li>
+  </ul>
+  <p class="callout">
+    Nada nesta seção pretende excluir ou limitar direitos que não possam ser validamente limitados
+    perante o Código de Defesa do Consumidor (Lei nº 8.078/1990), quando aplicável à relação entre o
+    MeuEcooMedia e o usuário.
+  </p>
+
+  <h2 id="indenizacao">10. Indenização</h2>
+  <p>
+    Você concorda em nos indenizar e isentar de responsabilidade por quaisquer reclamações, danos ou
+    prejuízos decorrentes do uso indevido do serviço, da violação destes termos ou da publicação de
+    conteúdo que infrinja direitos de terceiros.
+  </p>
+
+  <h2 id="privacidade">11. Privacidade e proteção de dados</h2>
+  <p>
+    O tratamento de dados pessoais realizado no âmbito deste serviço é regido pela nossa
+    <a href="/privacy-policy">Política de Privacidade</a>, elaborada em conformidade com a Lei Geral
+    de Proteção de Dados Pessoais (LGPD — Lei nº 13.709/2018), que é parte integrante destes Termos de
+    Uso.
+  </p>
+
+  <h2 id="alteracoes">12. Alterações destes termos</h2>
+  <p>
+    Podemos atualizar estes Termos de Uso periodicamente para refletir mudanças legais, técnicas ou
+    operacionais do serviço. A data da última atualização é sempre indicada no topo desta página.
+    Alterações materiais serão comunicadas por e-mail ou aviso no aplicativo com antecedência razoável
+    antes de entrarem em vigor. O uso continuado do serviço após a vigência das alterações constitui
+    aceitação dos novos termos.
+  </p>
+
+  <h2 id="lei">13. Lei aplicável e foro</h2>
+  <p>
+    Estes Termos de Uso são regidos pelas leis da República Federativa do Brasil, incluindo o Marco
+    Civil da Internet (Lei nº 12.965/2014) e a LGPD (Lei nº 13.709/2018). Fica eleito o foro do
+    domicílio do usuário consumidor para dirimir eventuais controvérsias, conforme facultado pelo
+    Código de Defesa do Consumidor, sem prejuízo de outro foro que a legislação aplicável venha a
+    determinar.
+  </p>
+
+  <h2 id="contato">14. Contato</h2>
   <p>
     Para dúvidas sobre estes termos, entre em contato pelo e-mail
     <a href="mailto:tiago@vitissouls.com">tiago@vitissouls.com</a>.

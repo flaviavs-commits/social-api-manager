@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MeuEcooMedia Privacy Policy</title>
-<meta name="description" content="Política de Privacidade do MeuEcooMedia.">
+<meta name="description" content="Política de Privacidade do MeuEcooMedia, em conformidade com a LGPD (Lei 13.709/2018).">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -22,12 +22,25 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); line
 .legal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.5rem; }
 .legal-header img { width: 48px; height: 48px; border-radius: 10px; }
 .legal-header h1 { font-size: 24px; font-weight: 700; }
-.updated { color: var(--muted); font-size: 13px; margin-bottom: 2.25rem; }
+.updated { color: var(--muted); font-size: 13px; margin-bottom: 1.25rem; }
+.intro { color: var(--text); font-size: 15px; margin-bottom: 2rem; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 h2 { font-size: 16px; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+h3 { font-size: 14px; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--text); }
 p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
-ul { margin: 0.5rem 0 0 1.1rem; color: var(--text); font-size: 15px; }
+ul { margin: 0.5rem 0 0.75rem 1.1rem; color: var(--text); font-size: 15px; }
 li { margin-bottom: 0.4rem; }
 a { color: var(--accent); }
+table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1.25rem; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border: 1px solid var(--border); vertical-align: top; }
+th { background: var(--surface2); color: var(--text); font-weight: 600; }
+td { color: var(--text); }
+.callout { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; font-size: 14px; margin: 0.75rem 0 1.25rem; }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 2rem; }
+.toc p { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.6rem; }
+.toc ol { margin: 0 0 0 1.1rem; font-size: 14px; }
+.toc li { margin-bottom: 0.3rem; }
+.toc a { text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
 footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
 footer a { color: var(--muted); text-decoration: none; }
 footer a:hover { color: var(--text); }
@@ -38,50 +51,216 @@ footer a:hover { color: var(--text); }
 <div class="wrap">
   <div class="legal-header">
     <img src="/favicon.png" alt="MeuEcooMedia">
-    <h1>MeuEcooMedia Privacy Policy</h1>
+    <h1>Política de Privacidade</h1>
   </div>
-  <p class="updated">Última atualização: junho de 2026</p>
+  <p class="updated">Última atualização: 15 de julho de 2026 · Vigente desde: junho de 2026</p>
 
-  <h2>Coleta de dados</h2>
-  <p>
-    O aplicativo acessa informações somente quando você conecta uma conta de
-    rede social através do fluxo oficial OAuth 2.0 de cada plataforma. Para o
-    YouTube, por exemplo, coletamos o e-mail e nome da conta Google (usados
-    para identificar a conexão), além de dados do canal e permissão para
-    enviar vídeos. O MeuEcooMedia não acessa Gmail, Google Drive,
-    Google Agenda ou qualquer outro serviço Google além do YouTube.
+  <p class="intro">
+    Esta Política de Privacidade descreve como o <strong>MeuEcooMedia</strong> ("nós", "aplicativo",
+    "serviço") coleta, usa, armazena, compartilha e protege dados pessoais de seus usuários, em
+    conformidade com a <strong>Lei Geral de Proteção de Dados Pessoais — LGPD (Lei nº 13.709/2018)</strong>
+    e, no que for aplicável a usuários conectados a plataformas internacionais, com princípios
+    equivalentes ao Regulamento Geral de Proteção de Dados europeu (GDPR).
   </p>
 
-  <h2>Uso dos dados</h2>
+  <div class="toc">
+    <p>Nesta página</p>
+    <ol>
+      <li><a href="#controlador">1. Quem é o controlador dos dados</a></li>
+      <li><a href="#dados-coletados">2. Quais dados coletamos</a></li>
+      <li><a href="#bases-legais">3. Bases legais do tratamento (LGPD art. 7º)</a></li>
+      <li><a href="#uso-dados">4. Como usamos os dados</a></li>
+      <li><a href="#compartilhamento">5. Compartilhamento de dados</a></li>
+      <li><a href="#transferencia">6. Transferência internacional de dados</a></li>
+      <li><a href="#retencao">7. Retenção e eliminação de dados</a></li>
+      <li><a href="#seguranca">8. Segurança da informação</a></li>
+      <li><a href="#direitos">9. Seus direitos como titular (LGPD art. 18)</a></li>
+      <li><a href="#encarregado">10. Encarregado de Proteção de Dados (DPO)</a></li>
+      <li><a href="#criancas">11. Crianças e adolescentes</a></li>
+      <li><a href="#alteracoes">12. Alterações desta política</a></li>
+      <li><a href="#contato">13. Contato</a></li>
+    </ol>
+  </div>
+
+  <h2 id="controlador">1. Quem é o controlador dos dados</h2>
   <p>
-    As informações coletadas são usadas exclusivamente para publicar, nas
-    redes sociais conectadas, o conteúdo que você mesmo cria e envia dentro
-    do aplicativo, e para exibir métricas de desempenho dessas publicações
-    (curtidas, comentários, visualizações). Os dados não são usados para
-    marketing, treinamento de modelos de IA ou análise comportamental por
-    terceiros.
+    O <strong>MeuEcooMedia</strong> atua como <strong>controlador</strong> dos dados pessoais tratados
+    dentro do aplicativo, nos termos do art. 5º, VI, da LGPD — é quem toma as decisões sobre a
+    finalidade e a forma do tratamento de dados descrito nesta política.
   </p>
 
-  <h2>Compartilhamento e segurança</h2>
+  <h2 id="dados-coletados">2. Quais dados coletamos</h2>
   <p>
-    Não vendemos nem alugamos informações pessoais a terceiros, exceto
-    quando exigido por lei. Os tokens de acesso obtidos via OAuth são
-    armazenados de forma segura e usados apenas para as ações que você
-    solicitar dentro do aplicativo.
+    Coletamos dados apenas quando você conecta uma conta de rede social através do fluxo oficial
+    <strong>OAuth 2.0</strong> de cada plataforma, ou quando você mesmo insere informações no
+    aplicativo (e-mail de cadastro, senha, conteúdo de posts, mídias enviadas).
   </p>
 
-  <h2>Seus direitos</h2>
+  <table>
+    <tr><th>Categoria</th><th>Exemplos</th><th>Origem</th></tr>
+    <tr>
+      <td>Dados de identificação e conta</td>
+      <td>Nome, e-mail, senha (armazenada com hash), foto de perfil</td>
+      <td>Cadastro direto no aplicativo</td>
+    </tr>
+    <tr>
+      <td>Dados de conexão com redes sociais</td>
+      <td>Nome de usuário/página, ID da conta na rede, token de acesso OAuth (nunca a senha da rede social)</td>
+      <td>Fluxo OAuth 2.0 do provedor (Google/YouTube, Meta/Facebook e Instagram, TikTok)</td>
+    </tr>
+    <tr>
+      <td>Conteúdo gerado pelo usuário</td>
+      <td>Textos, imagens e vídeos enviados para agendamento/publicação</td>
+      <td>Inserido por você no aplicativo</td>
+    </tr>
+    <tr>
+      <td>Métricas de desempenho</td>
+      <td>Curtidas, comentários, visualizações, seguidores das publicações feitas via aplicativo</td>
+      <td>APIs das redes sociais conectadas</td>
+    </tr>
+    <tr>
+      <td>Dados técnicos</td>
+      <td>Logs de acesso, endereço IP, registros de erro e uso do aplicativo</td>
+      <td>Coleta automática durante o uso</td>
+    </tr>
+  </table>
+
+  <p>
+    Para o YouTube, especificamente, coletamos o e-mail e nome da conta Google usados para
+    identificar a conexão, além de dados do canal e a permissão para enviar vídeos. O MeuEcooMedia
+    <strong>não acessa</strong> Gmail, Google Drive, Google Agenda ou qualquer outro serviço Google
+    além do YouTube.
+  </p>
+
+  <h2 id="bases-legais">3. Bases legais do tratamento (LGPD art. 7º)</h2>
+  <p>Tratamos seus dados pessoais com base nas seguintes hipóteses legais previstas no art. 7º da LGPD:</p>
   <ul>
-    <li>Você pode desconectar qualquer conta de rede social a qualquer momento, diretamente pelo painel.</li>
-    <li>Você pode revogar as permissões concedidas ao aplicativo a qualquer momento, diretamente com o provedor (Google, Meta, TikTok, etc).</li>
-    <li>Você pode solicitar a exclusão dos seus dados a qualquer momento pelo contato abaixo.</li>
+    <li><strong>Execução de contrato (art. 7º, V):</strong> tratamento necessário para prestar o serviço de agendamento e publicação de conteúdo que você contratou.</li>
+    <li><strong>Consentimento (art. 7º, I):</strong> ao autorizar a conexão de cada conta de rede social via OAuth, você consente expressamente com o acesso aos escopos de dados solicitados por aquele provedor.</li>
+    <li><strong>Legítimo interesse (art. 7º, IX):</strong> para fins de segurança, prevenção a fraudes e melhoria do serviço, sempre respeitando suas expectativas legítimas de privacidade.</li>
+    <li><strong>Cumprimento de obrigação legal ou regulatória (art. 7º, II):</strong> quando exigido por autoridade competente.</li>
   </ul>
 
-  <h2>Contato</h2>
+  <h2 id="uso-dados">4. Como usamos os dados</h2>
   <p>
-    Para dúvidas sobre privacidade ou solicitações relacionadas a dados,
-    entre em contato pelo e-mail
-    <a href="mailto:tiago@vitissouls.com">tiago@vitissouls.com</a>.
+    As informações coletadas são usadas exclusivamente para:
+  </p>
+  <ul>
+    <li>Publicar, nas redes sociais conectadas, o conteúdo que você mesmo cria e envia dentro do aplicativo;</li>
+    <li>Exibir métricas de desempenho dessas publicações (curtidas, comentários, visualizações, seguidores);</li>
+    <li>Autenticar seu acesso e manter sua sessão segura;</li>
+    <li>Enviar comunicações operacionais essenciais (ex.: aviso de token expirado, necessidade de reconexão).</li>
+  </ul>
+  <p>
+    Os dados <strong>não são usados</strong> para marketing de terceiros, treinamento de modelos de
+    IA de terceiros ou análise comportamental para fins publicitários.
+  </p>
+
+  <h2 id="compartilhamento">5. Compartilhamento de dados</h2>
+  <p>
+    Não vendemos, alugamos ou comercializamos dados pessoais. O compartilhamento ocorre apenas:
+  </p>
+  <ul>
+    <li>Com as próprias redes sociais que você conectou (Google/YouTube, Meta/Facebook e Instagram, TikTok), na medida necessária para publicar o conteúdo que você solicitou e obter métricas;</li>
+    <li>Com provedores de infraestrutura que operam o serviço em nosso nome (hospedagem, banco de dados, armazenamento de mídia), sob obrigações contratuais de confidencialidade e segurança;</li>
+    <li>Quando exigido por lei, ordem judicial ou requisição de autoridade competente.</li>
+  </ul>
+
+  <h2 id="transferencia">6. Transferência internacional de dados</h2>
+  <p>
+    Como o aplicativo se integra a plataformas globais (Google/YouTube, Meta, TikTok) e utiliza
+    provedores de nuvem que podem processar dados fora do Brasil, alguns dados pessoais podem ser
+    transferidos internacionalmente. Essas transferências ocorrem apenas para provedores que adotam
+    padrões reconhecidos de proteção de dados (como cláusulas contratuais padrão ou certificações
+    equivalentes), conforme permitido pelo art. 33 da LGPD.
+  </p>
+
+  <h2 id="retencao">7. Retenção e eliminação de dados</h2>
+  <p>
+    Mantemos seus dados pessoais apenas pelo tempo necessário para cumprir as finalidades descritas
+    nesta política, ou enquanto sua conta estiver ativa. Os tokens de acesso de uma rede social são
+    apagados imediatamente quando você desconecta a conta pelo painel. Ao solicitar a exclusão da sua
+    conta, todos os dados pessoais associados são removidos permanentemente do nosso banco de dados,
+    exceto quando a retenção for exigida por obrigação legal.
+  </p>
+  <p>
+    Também processamos automaticamente solicitações de exclusão de dados enviadas diretamente pela
+    Meta (Facebook/Instagram) por meio do <em>Data Deletion Callback</em>, quando você remove o
+    aplicativo pelas configurações da própria rede social.
+  </p>
+
+  <h2 id="seguranca">8. Segurança da informação</h2>
+  <p>
+    Adotamos medidas técnicas e administrativas para proteger seus dados pessoais contra acessos não
+    autorizados, perda, alteração ou destruição, incluindo:
+  </p>
+  <ul>
+    <li>Criptografia dos tokens de acesso (access token/refresh token) em repouso, com algoritmo AES-256-GCM;</li>
+    <li>Senhas armazenadas exclusivamente em formato criptografado (hash), nunca em texto puro;</li>
+    <li>Conexões criptografadas (HTTPS/TLS) em todo o tráfego entre seu navegador e nossos servidores;</li>
+    <li>Controle de acesso restrito à infraestrutura e aos bancos de dados.</li>
+  </ul>
+  <p class="callout">
+    Nenhum sistema é 100% livre de riscos. Caso ocorra um incidente de segurança que possa acarretar
+    risco relevante aos seus dados, comunicaremos os titulares afetados e a Autoridade Nacional de
+    Proteção de Dados (ANPD), conforme exigido pelo art. 48 da LGPD.
+  </p>
+
+  <h2 id="direitos">9. Seus direitos como titular (LGPD art. 18)</h2>
+  <p>Como titular de dados pessoais, você tem direito a:</p>
+  <ul>
+    <li><strong>Confirmação e acesso:</strong> saber se tratamos seus dados e obter uma cópia deles;</li>
+    <li><strong>Correção:</strong> solicitar a atualização de dados incompletos, inexatos ou desatualizados;</li>
+    <li><strong>Anonimização, bloqueio ou eliminação:</strong> de dados desnecessários, excessivos ou tratados em desconformidade com a lei;</li>
+    <li><strong>Portabilidade:</strong> solicitar a transferência dos seus dados a outro fornecedor de serviço;</li>
+    <li><strong>Eliminação:</strong> solicitar a exclusão dos dados tratados com base no seu consentimento;</li>
+    <li><strong>Informação sobre compartilhamento:</strong> saber com quais entidades públicas ou privadas compartilhamos seus dados;</li>
+    <li><strong>Revogação do consentimento:</strong> a qualquer momento, sem afetar a licitude do tratamento realizado anteriormente;</li>
+    <li><strong>Oposição:</strong> a tratamentos realizados com base em hipótese legal diversa do consentimento, quando descumpridas as disposições da lei.</li>
+  </ul>
+  <ul>
+    <li>Você pode desconectar qualquer conta de rede social a qualquer momento, diretamente pelo painel.</li>
+    <li>Você pode revogar as permissões concedidas ao aplicativo a qualquer momento, diretamente com o provedor (Google, Meta, TikTok).</li>
+    <li>Você pode exercer qualquer um dos direitos acima entrando em contato pelo canal indicado na seção 13.</li>
+  </ul>
+
+  <h2 id="encarregado">10. Encarregado de Proteção de Dados (DPO)</h2>
+  <p>
+    Nos termos do art. 41 da LGPD, o encarregado pelo tratamento de dados pessoais (Data Protection
+    Officer) do MeuEcooMedia é:
+  </p>
+  <div class="callout">
+    <strong>Breno</strong><br>
+    E-mail: <a href="mailto:brenoaugusto@vitissouls.com">brenoaugusto@vitissouls.com</a>
+  </div>
+  <p>
+    O encarregado é o canal de comunicação entre o controlador, os titulares dos dados e a
+    Autoridade Nacional de Proteção de Dados (ANPD), e pode ser contatado para dúvidas, reclamações
+    ou solicitações relacionadas ao tratamento de dados pessoais.
+  </p>
+
+  <h2 id="criancas">11. Crianças e adolescentes</h2>
+  <p>
+    O MeuEcooMedia não é destinado a menores de 18 anos. Não coletamos intencionalmente dados de
+    crianças ou adolescentes. Caso identifiquemos que uma conta pertence a um menor, tomaremos as
+    medidas cabíveis para encerrar a conta e eliminar os dados associados.
+  </p>
+
+  <h2 id="alteracoes">12. Alterações desta política</h2>
+  <p>
+    Esta Política de Privacidade pode ser atualizada periodicamente para refletir mudanças legais,
+    técnicas ou operacionais. A data da última atualização é sempre indicada no topo desta página.
+    Alterações materiais serão comunicadas por e-mail ou aviso no aplicativo antes de entrarem em vigor.
+  </p>
+
+  <h2 id="contato">13. Contato</h2>
+  <p>
+    Para dúvidas sobre privacidade, exercício de direitos ou solicitações relacionadas a dados
+    pessoais, entre em contato pelo e-mail
+    <a href="mailto:tiago@vitissouls.com">tiago@vitissouls.com</a> ou diretamente com o encarregado,
+    <a href="mailto:brenoaugusto@vitissouls.com">brenoaugusto@vitissouls.com</a>. Você também pode
+    apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD) em
+    <a href="https://www.gov.br/anpd" target="_blank" rel="noopener">gov.br/anpd</a>.
   </p>
 
   <footer>
