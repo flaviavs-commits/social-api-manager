@@ -5886,6 +5886,7 @@ const AI_MODEL_META = {
   'gemini-2.5-lite': { label: 'Gemini 2.5 Flash-Lite', dot: 'gemini', provider: 'Google' },
   openai:            { label: 'GPT-4o Mini',            dot: 'openai', provider: 'OpenAI' },
   'openai-4o':       { label: 'GPT-4o',                 dot: 'openai', provider: 'OpenAI' },
+  openrouter:        { label: 'GPT-OSS 20B (OpenRouter)', dot: 'openrouter', provider: 'OpenRouter' },
   claude:            { label: 'Claude Haiku',           dot: 'claude', provider: 'Anthropic' },
   'claude-sonnet':   { label: 'Claude Sonnet 5',        dot: 'claude', provider: 'Anthropic' },
 }
@@ -5971,6 +5972,19 @@ const AI_MODEL_PICKER_META = {
     keyDesc: 'O GPT-4o Mini já funciona sem nenhuma chave — usamos nossa própria cota. Se quiser usar sua conta OpenAI para ter mais limite, cole sua chave da platform.openai.com aqui (opcional).',
     keyBadge: 'Usar minha conta OpenAI (opcional)',
   },
+  openrouter: {
+    icon: '◇',
+    iconClass: 'openrouter',
+    dotColor: '#6E56CF',
+    desc: 'OpenRouter · GPT-OSS 20B · Gratuito · Acesso unificado a múltiplos modelos de IA',
+    badge: 'Grátis',
+    requiresKey: false,
+    keyProvider: 'OpenRouter',
+    keyUrl: 'https://openrouter.ai/keys',
+    keyHint: 'Começa com "sk-or-..."',
+    keyDesc: 'O GPT-OSS 20B via OpenRouter já funciona sem nenhuma chave — é um modelo gratuito. Se quiser usar sua conta OpenRouter para acessar outros modelos, cole sua chave de openrouter.ai/keys aqui (opcional).',
+    keyBadge: 'Usar minha conta OpenRouter (opcional)',
+  },
   'openai-4o': {
     icon: '◆',
     iconClass: 'openai',
@@ -6037,6 +6051,11 @@ const AI_MODEL_GREETINGS = {
     saudacao => `${saudacao}! ◆ Sou o GPT-4o Mini, da OpenAI — especialista em texto criativo e persuasivo.\n\nJá tem alguma ideia de post ou campanha? Adoro trabalhar com briefings desafiadores! ✍️`,
     saudacao => `${saudacao}! ◆ GPT-4o Mini online. Estou aqui para transformar suas ideias em conteúdo que engaja de verdade.\n\nO que você quer comunicar hoje? 🎨`,
     saudacao => `${saudacao}! ◆ Ótima escolha! Sou o GPT-4o Mini, criativo e preciso.\n\nTem algum tema, produto ou campanha que quer explorar? Vamos criar algo incrível juntos! 💫`,
+  ],
+  openrouter: [
+    saudacao => `${saudacao}! ◇ Sou o GPT-OSS 20B, rodando via OpenRouter — gratuito e de código aberto.\n\nJá tem alguma ideia de post ou campanha? Vamos criar algo ótimo! ✍️`,
+    saudacao => `${saudacao}! ◇ OpenRouter online. Estou aqui para transformar suas ideias em conteúdo que engaja de verdade.\n\nO que você quer comunicar hoje? 🎨`,
+    saudacao => `${saudacao}! ◇ Ótima escolha! Rodando via OpenRouter, criativo e preciso.\n\nTem algum tema, produto ou campanha que quer explorar? Vamos criar algo incrível juntos! 💫`,
   ],
   claude: [
     saudacao => `${saudacao}! ● Sou o Claude Haiku, da Anthropic — gosto de um texto natural, fluido e autêntico.\n\nO que vamos criar hoje? Tem alguma ideia de post ou precisa de inspiração? 🌿`,
