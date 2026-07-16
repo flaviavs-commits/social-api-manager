@@ -133,6 +133,101 @@ async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
   return msg.choices[0]?.message?.content || ''
 }
 
+// O modelo gratuito padrão do OpenRouter (gpt-oss-20b:free) não suporta
+// imagem — usamos um modelo de visão barato do próprio OpenRouter só para
+// análise de mídia, mantendo a mesma chave/conta do usuário.
+const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
+
+// Analisa uma imagem/vídeo respeitando o modelo escolhido pelo usuário no
+// seletor — cada provedor recebe a mídia no formato nativo do seu SDK.
+// Vídeo (sem mediaBase64) não tem suporte a mídia nativa em nenhum provedor
+// aqui; o prompt já avisa isso e pede sugestão baseada só no contexto.
+async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo }) {
+  if (isVideo) {
+    const promptVideo = `${prompt}\n\n(Nota: o usuário enviou um vídeo. Crie sugestões com base no contexto disponível.)`
+    if (OPENAI_MODEL_IDS[modelo])          return generateWithOpenAI(promptVideo, userKey, modelo)
+    if (OPENROUTER_MODEL_IDS[modelo])      return generateWithOpenRouter(promptVideo, userKey, modelo)
+    if (CLAUDE_MODEL_IDS[modelo])          return generateWithClaude(promptVideo, userKey, modelo)
+    return generateWithGemini(promptVideo, userKey, modelo)
+  }
+
+  if (OPENAI_MODEL_IDS[modelo]) {
+    const key = userKey || process.env.OPENAI_API_KEY
+    if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
+    const OpenAI = require('openai')
+    const client = new OpenAI({ apiKey: key })
+    const msg = await client.chat.completions.create({
+      model: OPENAI_MODEL_IDS[modelo],
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
+        ],
+      }],
+    })
+    return msg.choices[0]?.message?.content || ''
+  }
+
+  if (OPENROUTER_MODEL_IDS[modelo]) {
+    const key = userKey || process.env.OPENROUTER_API_KEY
+    if (!key) throw Object.assign(new Error('Para usar o OpenRouter, configure sua chave de API.'), { status: 503 })
+    const OpenAI = require('openai')
+    const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
+    const msg = await client.chat.completions.create({
+      model: OPENROUTER_VISION_MODEL,
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
+        ],
+      }],
+    })
+    return msg.choices[0]?.message?.content || ''
+  }
+
+  if (CLAUDE_MODEL_IDS[modelo]) {
+    const key = userKey || process.env.ANTHROPIC_API_KEY
+    if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
+    const Anthropic = require('@anthropic-ai/sdk')
+    const client = new Anthropic({ apiKey: key })
+    const msg = await client.messages.create({
+      model: CLAUDE_MODEL_IDS[modelo],
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: mediaBase64 } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    })
+    return msg.content[0]?.text || ''
+  }
+
+  // Gemini (padrão) — cobre 'gemini*' e qualquer modelo desconhecido, igual
+  // ao comportamento original desta rota.
+  const key = userKey || process.env.GEMINI_API_KEY
+  if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
+  const { GoogleGenAI } = require('@google/genai')
+  const savedGoogleKey = process.env.GOOGLE_API_KEY
+  if (userKey) delete process.env.GOOGLE_API_KEY
+  const client = new GoogleGenAI({ apiKey: key })
+  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+  const geminiModel = GEMINI_MODEL_IDS[modelo] || 'gemini-2.0-flash'
+  const result = await client.models.generateContent({
+    model: geminiModel,
+    contents: [
+      { inlineData: { mimeType, data: mediaBase64 } },
+      { text: prompt },
+    ],
+  })
+  return result.text
+}
+
 const GEMINI_MODEL_IDS = {
   'gemini':            'gemini-2.0-flash',
   'gemini-2.5-flash':  'gemini-2.5-flash',
@@ -970,21 +1065,16 @@ router.post('/image/lead', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
-// POST /api/ai/analyze-media — analisa imagem/vídeo via Gemini Vision e sugere texto para redes sociais
+// POST /api/ai/analyze-media — analisa imagem/vídeo e sugere texto para redes
+// sociais, usando o modelo escolhido pelo usuário no seletor do Agente IA
+// (Gemini, OpenAI, OpenRouter ou Claude) — mesma checagem de chave própria vs.
+// chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
     const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
 
-    const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
-    const key = userKey || process.env.GEMINI_API_KEY
-    if (!key) return res.status(503).json({ erro: 'GEMINI_API_KEY não configurada no servidor' })
-
-    const { GoogleGenAI } = require('@google/genai')
-    const savedGoogleKey = process.env.GOOGLE_API_KEY
-    if (userKey) delete process.env.GOOGLE_API_KEY
-    const client = new GoogleGenAI({ apiKey: key })
-    if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+    const userKey = await getUserApiKey(pool, req.user.id, modelo)
 
     const PLAT_HINTS = {
       instagram: 'Instagram (máx 2200 chars, 5-10 hashtags, tom visual e engajante)',
@@ -1017,24 +1107,8 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   ]
 }`
 
-    const geminiModel = GEMINI_MODEL_IDS[modelo] || 'gemini-2.0-flash'
     const isVideo = !mediaBase64
-    let rawText
-
-    if (isVideo) {
-      rawText = await client.models.generateContent({
-        model: geminiModel,
-        contents: `${prompt}\n\n(Nota: o usuário enviou um vídeo. Contexto fornecido: "${contexto || 'sem contexto adicional'}". Crie sugestões com base no contexto disponível.)`,
-      }).then(r => r.text)
-    } else {
-      rawText = await client.models.generateContent({
-        model: geminiModel,
-        contents: [
-          { inlineData: { mimeType, data: mediaBase64 } },
-          { text: prompt },
-        ],
-      }).then(r => r.text)
-    }
+    const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
 
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
