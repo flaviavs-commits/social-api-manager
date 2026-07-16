@@ -6490,9 +6490,6 @@ function aiApplyModelChange(newModel) {
     const fabPanel = document.getElementById('ai-fab-panel')
     if (fabPanel && fabPanel.style.display !== 'none') aiChatStart('fab')
   }, 100)
-
-  // Trava o botão de troca até o próximo post ser criado
-  aiLockModelChange(true)
 }
 
 function aiLockModelChange(lock) {
@@ -7148,7 +7145,6 @@ function aiChatSetChips(ctx, chips) {
 function aiChipClick(ctx, val, el) {
   document.querySelectorAll(`#${ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'} .ai-chip`).forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '0.5' })
   el.style.background = 'rgba(108,140,255,0.3)'; el.style.opacity = '1'
-  if (ctx === 'page') aiLockModelChange(true)
   aiChatAddMsg(ctx, 'user', val)
   aiChatSetChips(ctx, [])
   setTimeout(() => aiChatProcess(ctx, val), 400)
@@ -8079,7 +8075,6 @@ async function aiChatSend(ctx) {
   input.value = ''
   input.style.height = 'auto'
   sendBtn.disabled = true
-  if (ctx === 'page') aiLockModelChange(true)
 
   // Se há arquivo pendente, analisa com IA e sugere texto para redes
   if (file) {
