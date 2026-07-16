@@ -7356,13 +7356,18 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
 
       const sugestao = { plataforma, texto: data.texto || userMsg, hashtags: [], titulo: '', mediaPath: upload.url, mediaType: 'image' }
       sugestoes.push(sugestao)
-      const sJson = JSON.stringify(sugestao).replace(/'/g, "&#39;")
-      const publicarAgoraBtn = `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true,'${cardId}')">⚡ Publicar agora</button>`
+      // onclick delimitado por aspas simples (o JSON usa aspas duplas) — e
+      // tanto " quanto ' viram entidade HTML antes de entrar no atributo,
+      // porque o texto gerado pela IA frequentemente tem aspas simples
+      // dentro (ex: nomes entre 'aspas'). Sem escapar as duas, qualquer aspa
+      // no texto corta o onclick no meio e o clique não faz nada, sem erro.
+      const sJson = JSON.stringify(sugestao).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+      const publicarAgoraBtn = `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick='aiScheduleMediaPost("${ctx}",${sJson},true,"${cardId}")'>⚡ Publicar agora</button>`
       const horarioInput = aiWhenPickerHtml(cardId, horarioSugerido.toISOString())
 
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
-        `${icon} **${platLabel}**\n\n<img src="${data.image}" alt="Imagem gerada" style="max-width:280px;border-radius:12px;margin-bottom:8px" onclick="window.open('${data.image}')"><div class="ai-chat-post-preview">${escapeHtml(sugestao.texto)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}</div>`,
+        `${icon} **${platLabel}**\n\n<img src="${data.image}" alt="Imagem gerada" style="max-width:280px;border-radius:12px;margin-bottom:8px" onclick="window.open('${data.image}')"><div class="ai-chat-post-preview">${escapeHtml(sugestao.texto)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick='aiScheduleMediaPost("${ctx}",${sJson},false,"${cardId}")'>✓ Agendar este</button>${publicarAgoraBtn}</div>`,
         true
       )
     }
@@ -8317,15 +8322,20 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
       // Com a mídia real anexada, publicar agora é seguro em qualquer rede
       // (Instagram/YouTube/TikTok deixam de faltar o que exigem).
       const sComMidia = upload ? { ...s, mediaPath: upload.url, mediaType: mediaTypeSimples } : s
-      const sJson = JSON.stringify(sComMidia).replace(/'/g, "&#39;")
+      // onclick delimitado por aspas simples (o JSON usa aspas duplas) — e
+      // tanto " quanto ' viram entidade HTML antes de entrar no atributo,
+      // porque o texto gerado pela IA frequentemente tem aspas simples
+      // dentro (ex: nomes entre 'aspas'). Sem escapar as duas, qualquer aspa
+      // no texto corta o onclick no meio e o clique não faz nada, sem erro.
+      const sJson = JSON.stringify(sComMidia).replace(/"/g, '&quot;').replace(/'/g, '&#39;')
       const publicarAgoraBtn = upload
-        ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true,'${cardId}')">⚡ Publicar agora</button>`
+        ? `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick='aiScheduleMediaPost("${ctx}",${sJson},true,"${cardId}")'>⚡ Publicar agora</button>`
         : ''
       const horarioInput = aiWhenPickerHtml(cardId, horarioSugerido.toISOString())
 
       await new Promise(r => setTimeout(r, 300))
       aiChatAddMsg(ctx, 'agent',
-        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
+        `${icon} **${platLabel}**\n\n${tituloHtml}<div class="ai-chat-post-preview">${escapeHtml(s.texto + hashtags)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick='aiScheduleMediaPost("${ctx}",${sJson},false,"${cardId}")'>✓ Agendar este</button>${publicarAgoraBtn}<button class="ai-chat-post-btn regen" onclick="aiAnalyzeMediaRegen('${ctx}')">↻ Regerar</button></div>`,
         true
       )
     }
