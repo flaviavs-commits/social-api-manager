@@ -7262,9 +7262,30 @@ function aiIsImageRequest(msg) {
     || lower.includes('me faz um') && (lower.includes('banner') || lower.includes('logo') || lower.includes('poster'))
 }
 
+// Converte uma imagem em data URI (data:image/...;base64,...) ou URL http(s)
+// num Blob e sobe pro Vercel Blob reusando o mesmo endpoint assinado que o
+// upload de arquivo do usuário já usa — assim a imagem gerada pela IA vira um
+// mediaPath real, agendável/publicável como qualquer outra mídia.
+async function aiUploadImagemGerada(imageSrc, nomeArquivo) {
+  let blob
+  if (imageSrc.startsWith('data:')) {
+    const resp = await fetch(imageSrc)
+    blob = await resp.blob()
+  } else {
+    // URL http(s) devolvida pelo provedor — baixa e reenvia pro nosso Blob.
+    const resp = await fetch(imageSrc)
+    blob = await resp.blob()
+  }
+  const file = new File([blob], nomeArquivo, { type: blob.type || 'image/png' })
+  return uploadArquivoDireto(file)
+}
+
 // Fluxo de geração de imagem via OpenRouter (Nano Banana 2 Lite) — gera texto
 // e imagem juntos, na mesma resposta. Exige sempre chave própria do usuário
 // no OpenRouter, sem fallback de lead (diferente do fluxo Gemini/Imagen).
+// Depois de gerar, pergunta a(s) rede(s) (se ainda não escolhidas na
+// conversa) e monta o mesmo card de Agendar/Publicar agora usado no fluxo de
+// mídia analisada (aiScheduleMediaPost), com a imagem já enviada ao Blob.
 async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
   const state = aiChat[ctx]
   const hasKey = await aiCheckUserKey('openrouter')
@@ -7275,6 +7296,18 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
     return
   }
 
+  const plats = state.plats?.length ? state.plats : null
+  if (!plats) {
+    // Ainda não escolheu a rede — pergunta antes de gerar, guardando o pedido
+    // para retomar assim que o usuário responder (mesmo padrão do fluxo de
+    // mídia anexada em ask_plats_for_media).
+    state.pendingOpenRouterImageMsg = userMsg
+    state.step = 'ask_plats_for_openrouter_image'
+    aiChatAddMsg(ctx, 'agent', `Para qual rede você quer o post com essa imagem?`)
+    aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
+    return
+  }
+
   aiChatAddMsg(ctx, 'agent', `🖼️ Sua imagem e o texto estão sendo criados pelo OpenRouter em segundo plano... isso pode levar alguns segundos! 🎨`)
   aiChatTyping(ctx, true)
   try {
@@ -7282,20 +7315,64 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
       method: 'POST',
       body: JSON.stringify({ descricao: userMsg })
     })
+
+    // Sobe a imagem gerada pro Blob antes de montar os cards — sem isso não
+    // há mediaPath válido para agendar/publicar de verdade.
+    let upload = null
+    try { upload = await aiUploadImagemGerada(data.image, `openrouter-${Date.now()}.png`) } catch {}
+
     aiChatTyping(ctx, false)
-    const msgEl = document.createElement('div')
-    msgEl.className = 'ai-msg agent'
-    const textoHtml = data.texto ? `<div class="ai-msg-bubble agent" style="white-space:pre-wrap">${escapeHtml(data.texto)}</div>` : ''
-    msgEl.innerHTML = `
-      <div class="ai-msg-avatar" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
-      <div style="display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 36px)">
-        <img src="${data.image}" alt="Imagem gerada" style="max-width:320px;border-radius:12px;cursor:pointer" onclick="window.open(this.src)">
-        ${textoHtml}
-        <div class="ai-msg-bubble agent" style="white-space:pre-wrap">Aqui está sua imagem com texto! 🎉\n\nClique nela para abrir em tamanho completo. Quer fazer algum ajuste ou criar outra?</div>
-      </div>`
-    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
-    if (msgsEl) { msgsEl.appendChild(msgEl); msgsEl.scrollTop = msgsEl.scrollHeight }
-    aiChatSetChips(ctx, ['🎨 Criar outra imagem', '➕ Criar post'])
+
+    if (!upload) {
+      // Upload falhou — ainda mostra a imagem/texto, mas sem os botões de
+      // Agendar/Publicar (igual ao fluxo de mídia anexada nesse mesmo caso).
+      const msgEl = document.createElement('div')
+      msgEl.className = 'ai-msg agent'
+      const textoHtml = data.texto ? `<div class="ai-msg-bubble agent" style="white-space:pre-wrap">${escapeHtml(data.texto)}</div>` : ''
+      msgEl.innerHTML = `
+        <div class="ai-msg-avatar" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 36px)">
+          <img src="${data.image}" alt="Imagem gerada" style="max-width:320px;border-radius:12px;cursor:pointer" onclick="window.open(this.src)">
+          ${textoHtml}
+          <div class="ai-msg-bubble agent" style="white-space:pre-wrap">⚠️ Não consegui enviar a imagem para publicação agora — aqui está o resultado só para visualização. Tente novamente para agendar/publicar.</div>
+        </div>`
+      const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
+      if (msgsEl) { msgsEl.appendChild(msgEl); msgsEl.scrollTop = msgsEl.scrollHeight }
+      aiChatSetChips(ctx, ['🎨 Criar outra imagem', '➕ Criar post'])
+      return
+    }
+
+    const PLAT_ICONS = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' }
+    const MELHOR_HORA = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }
+    const sugestoes = []
+    for (const plataforma of plats) {
+      const icon = PLAT_ICONS[plataforma] || '🌐'
+      const platLabel = plataforma.charAt(0).toUpperCase() + plataforma.slice(1)
+      const horas = MELHOR_HORA[plataforma] || [9,12,18]
+      const horarioSugerido = new Date()
+      horarioSugerido.setDate(horarioSugerido.getDate() + 1)
+      horarioSugerido.setHours(horas[0], 0, 0, 0)
+      const cardId = `ai-openrouter-card-${ctx}-${Date.now()}-${plataforma}`
+
+      const sugestao = { plataforma, texto: data.texto || userMsg, hashtags: [], titulo: '', mediaPath: upload.url, mediaType: 'image' }
+      sugestoes.push(sugestao)
+      const sJson = JSON.stringify(sugestao).replace(/'/g, "&#39;")
+      const publicarAgoraBtn = `<button class="ai-chat-post-btn" style="background:rgba(34,197,94,0.15);color:#22c55e;border-color:rgba(34,197,94,0.3)" onclick="aiScheduleMediaPost('${ctx}',${sJson},true,'${cardId}')">⚡ Publicar agora</button>`
+      const horarioInput = aiWhenPickerHtml(cardId, horarioSugerido.toISOString())
+
+      await new Promise(r => setTimeout(r, 300))
+      aiChatAddMsg(ctx, 'agent',
+        `${icon} **${platLabel}**\n\n<img src="${data.image}" alt="Imagem gerada" style="max-width:280px;border-radius:12px;margin-bottom:8px" onclick="window.open('${data.image}')"><div class="ai-chat-post-preview">${escapeHtml(sugestao.texto)}</div>${horarioInput}<div class="ai-chat-post-actions" id="${cardId}-actions"><button class="ai-chat-post-btn confirm" onclick="aiScheduleMediaPost('${ctx}',${sJson},false,'${cardId}')">✓ Agendar este</button>${publicarAgoraBtn}</div>`,
+        true
+      )
+    }
+
+    state.pendingMediaSugestoes = sugestoes
+    state.pendingMediaPlats = plats
+    state.step = 'review_media'
+
+    await new Promise(r => setTimeout(r, 400))
+    aiChatSetChips(ctx, sugestoes.length > 1 ? ['✅ Agendar todos'] : ['✅ Agendar'])
   } catch (err) {
     aiChatTyping(ctx, false)
     aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar agora. ${err.message || 'Tente novamente em alguns instantes.'} 🙏`)
@@ -7562,6 +7639,20 @@ async function aiChatProcess(ctx, userMsg) {
       const { base64, mimeType, contexto } = state.pendingMediaFile
       await aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, state.plats)
     }
+    return
+  }
+
+  if (state.step === 'ask_plats_for_openrouter_image') {
+    const plats = []
+    if (msg.includes('instagram') || msg.includes('ig') || msg.includes('📸')) plats.push('instagram')
+    if (msg.includes('facebook') || msg.includes('fb') || msg.includes('📘')) plats.push('facebook')
+    if (msg.includes('youtube') || msg.includes('yt') || msg.includes('▶')) plats.push('youtube')
+    if (msg.includes('tiktok') || msg.includes('tt') || msg.includes('🎵')) plats.push('tiktok')
+    if (msg.includes('todas') || msg.includes('🌐')) plats.push('instagram','facebook','youtube','tiktok')
+    state.plats = plats.length ? [...new Set(plats)] : ['instagram']
+    const pendingMsg = state.pendingOpenRouterImageMsg
+    state.pendingOpenRouterImageMsg = null
+    if (pendingMsg) await aiHandleImageRequestOpenRouter(ctx, pendingMsg)
     return
   }
 
