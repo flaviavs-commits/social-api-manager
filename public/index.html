@@ -7267,8 +7267,11 @@ async function aiHandleImageRequest(ctx, userMsg) {
     return
   }
 
-  // Tem chave — gera a imagem
-  aiChatAddMsg(ctx, 'agent', `Gerando sua imagem... isso pode levar alguns segundos! 🎨`)
+  // Tem chave — gera a imagem. O Gemini roda em segundo plano (a chamada real
+  // pode levar vários segundos); o indicador de "digitando" fica visível
+  // durante toda a espera, não só um flash inicial, para deixar claro que
+  // ainda está processando.
+  aiChatAddMsg(ctx, 'agent', `🖼️ Sua imagem está sendo criada pelo Gemini em segundo plano... isso pode levar alguns segundos! 🎨`)
   aiChatTyping(ctx, true)
   try {
     const data = await apiFetch('/api/ai/image/generate', {
