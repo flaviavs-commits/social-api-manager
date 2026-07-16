@@ -5887,6 +5887,7 @@ const AI_MODEL_META = {
   openai:            { label: 'GPT-4o Mini',            dot: 'openai', provider: 'OpenAI' },
   'openai-4o':       { label: 'GPT-4o',                 dot: 'openai', provider: 'OpenAI' },
   openrouter:        { label: 'GPT-OSS 20B (OpenRouter)', dot: 'openrouter', provider: 'OpenRouter' },
+  'openrouter-image':{ label: 'Texto + Imagem (OpenRouter)', dot: 'openrouter', provider: 'OpenRouter' },
   claude:            { label: 'Claude Haiku',           dot: 'claude', provider: 'Anthropic' },
   'claude-sonnet':   { label: 'Claude Sonnet 5',        dot: 'claude', provider: 'Anthropic' },
 }
@@ -5985,6 +5986,19 @@ const AI_MODEL_PICKER_META = {
     keyDesc: 'O GPT-OSS 20B via OpenRouter já funciona sem nenhuma chave — é um modelo gratuito. Se quiser usar sua conta OpenRouter para acessar outros modelos, cole sua chave de openrouter.ai/keys aqui (opcional).',
     keyBadge: 'Usar minha conta OpenRouter (opcional)',
   },
+  'openrouter-image': {
+    icon: '🖼️',
+    iconClass: 'openrouter',
+    dotColor: '#6E56CF',
+    desc: 'OpenRouter · Nano Banana 2 Lite · Gera texto e imagem juntos, na mesma resposta',
+    badge: 'Requer chave',
+    requiresKey: true,
+    keyProvider: 'OpenRouter',
+    keyUrl: 'https://openrouter.ai/keys',
+    keyHint: 'Começa com "sk-or-..."',
+    keyDesc: 'Este modelo gera texto e imagem na mesma resposta — exige sua própria chave do OpenRouter (openrouter.ai/keys), sem custo compartilhado com outros usuários.',
+    keyBadge: 'Configurar minha chave OpenRouter',
+  },
   'openai-4o': {
     icon: '◆',
     iconClass: 'openai',
@@ -6056,6 +6070,10 @@ const AI_MODEL_GREETINGS = {
     saudacao => `${saudacao}! ◇ Sou o GPT-OSS 20B, rodando via OpenRouter — gratuito e de código aberto.\n\nJá tem alguma ideia de post ou campanha? Vamos criar algo ótimo! ✍️`,
     saudacao => `${saudacao}! ◇ OpenRouter online. Estou aqui para transformar suas ideias em conteúdo que engaja de verdade.\n\nO que você quer comunicar hoje? 🎨`,
     saudacao => `${saudacao}! ◇ Ótima escolha! Rodando via OpenRouter, criativo e preciso.\n\nTem algum tema, produto ou campanha que quer explorar? Vamos criar algo incrível juntos! 💫`,
+  ],
+  'openrouter-image': [
+    saudacao => `${saudacao}! 🖼️ Sou o Nano Banana 2 Lite, via OpenRouter — gero texto e imagem juntos, na mesma resposta!\n\nMe conta o que você quer criar hoje? 🎨`,
+    saudacao => `${saudacao}! 🖼️ Texto + Imagem online. Descreva a ideia e eu já devolvo o post pronto com uma imagem gerada na hora.\n\nO que vamos criar? ✨`,
   ],
   claude: [
     saudacao => `${saudacao}! ● Sou o Claude Haiku, da Anthropic — gosto de um texto natural, fluido e autêntico.\n\nO que vamos criar hoje? Tem alguma ideia de post ou precisa de inspiração? 🌿`,
@@ -7248,9 +7266,56 @@ function aiIsImageRequest(msg) {
     || lower.includes('me faz um') && (lower.includes('banner') || lower.includes('logo') || lower.includes('poster'))
 }
 
+// Fluxo de geração de imagem via OpenRouter (Nano Banana 2 Lite) — gera texto
+// e imagem juntos, na mesma resposta. Exige sempre chave própria do usuário
+// no OpenRouter, sem fallback de lead (diferente do fluxo Gemini/Imagen).
+async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
+  const state = aiChat[ctx]
+  const hasKey = await aiCheckUserKey('openrouter')
+  if (!hasKey) {
+    aiChatAddMsg(ctx, 'agent',
+      `Para gerar texto + imagem com este modelo, você precisa configurar sua chave própria do OpenRouter.\n\nAbra o seletor de modelo (topo do chat) e clique em "Configurar minha chave OpenRouter" para colar sua chave de openrouter.ai/keys. 🔑`
+    )
+    return
+  }
+
+  aiChatAddMsg(ctx, 'agent', `🖼️ Sua imagem e o texto estão sendo criados pelo OpenRouter em segundo plano... isso pode levar alguns segundos! 🎨`)
+  aiChatTyping(ctx, true)
+  try {
+    const data = await apiFetch('/api/ai/image/generate-openrouter', {
+      method: 'POST',
+      body: JSON.stringify({ descricao: userMsg })
+    })
+    aiChatTyping(ctx, false)
+    const msgEl = document.createElement('div')
+    msgEl.className = 'ai-msg agent'
+    const textoHtml = data.texto ? `<div class="ai-msg-bubble agent" style="white-space:pre-wrap">${escapeHtml(data.texto)}</div>` : ''
+    msgEl.innerHTML = `
+      <div class="ai-msg-avatar" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 36px)">
+        <img src="${data.image}" alt="Imagem gerada" style="max-width:320px;border-radius:12px;cursor:pointer" onclick="window.open(this.src)">
+        ${textoHtml}
+        <div class="ai-msg-bubble agent" style="white-space:pre-wrap">Aqui está sua imagem com texto! 🎉\n\nClique nela para abrir em tamanho completo. Quer fazer algum ajuste ou criar outra?</div>
+      </div>`
+    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
+    if (msgsEl) { msgsEl.appendChild(msgEl); msgsEl.scrollTop = msgsEl.scrollHeight }
+    aiChatSetChips(ctx, ['🎨 Criar outra imagem', '➕ Criar post'])
+  } catch (err) {
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `Hmm, não consegui gerar agora. ${err.message || 'Tente novamente em alguns instantes.'} 🙏`)
+  }
+}
+
 // Fluxo de geração de imagem — verifica chave e gera ou coleta lead
 async function aiHandleImageRequest(ctx, userMsg) {
   const state = aiChat[ctx]
+
+  // Modelo escolhido gera texto+imagem juntos via OpenRouter — segue um
+  // fluxo totalmente separado do Imagen/Gemini abaixo.
+  if (aiSelectedModel === 'openrouter-image') {
+    return aiHandleImageRequestOpenRouter(ctx, userMsg)
+  }
+
   aiChatTyping(ctx, true)
   await new Promise(r => setTimeout(r, 700))
   aiChatTyping(ctx, false)

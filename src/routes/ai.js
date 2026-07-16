@@ -138,6 +138,13 @@ async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
 // análise de mídia, mantendo a mesma chave/conta do usuário.
 const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
 
+// "Nano Banana 2 Lite" — modelo multimodal do OpenRouter que gera TEXTO e
+// IMAGEM na mesma resposta (modalities: ["image","text"]), diferente do
+// Imagen do Google (só imagem, endpoint separado generateImages). Usado no
+// modelo "openrouter-image" do Agente IA — sempre exige chave própria do
+// usuário no OpenRouter, mesmo padrão já usado para o Imagen/Gemini.
+const OPENROUTER_IMAGE_MODEL = 'google/gemini-3.1-flash-lite-image'
+
 // Analisa uma imagem/vídeo respeitando o modelo escolhido pelo usuário no
 // seletor — cada provedor recebe a mídia no formato nativo do seu SDK.
 // Vídeo (sem mediaBase64) não tem suporte a mídia nativa em nenhum provedor
@@ -1052,6 +1059,38 @@ router.post('/image/generate', async (req, res) => {
   }
 })
 
+// POST /api/ai/image/generate-openrouter — gera TEXTO e IMAGEM juntos, na
+// mesma chamada, via modelo multimodal do OpenRouter (Nano Banana 2 Lite).
+// Sempre exige chave própria do usuário no OpenRouter (mesmo padrão do
+// Imagen/Gemini em /image/generate) — sem chave do servidor aqui.
+router.post('/image/generate-openrouter', async (req, res) => {
+  try {
+    const { descricao } = req.body || {}
+    if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
+
+    const userKey = await getUserApiKey(pool, req.user.id, 'openrouter')
+    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
+
+    const OpenAI = require('openai')
+    const client = new OpenAI({ apiKey: userKey, baseURL: 'https://openrouter.ai/api/v1' })
+    const completion = await client.chat.completions.create({
+      model: OPENROUTER_IMAGE_MODEL,
+      modalities: ['image', 'text'],
+      messages: [{ role: 'user', content: descricao.trim() }],
+    })
+
+    const message = completion.choices[0]?.message
+    const imageUrl = message?.images?.[0]?.image_url?.url
+    if (!imageUrl) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
+
+    res.json({ image: imageUrl, texto: message?.content || '' })
+  } catch (err) {
+    console.error('[AI Image OpenRouter]', err.message)
+    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
+    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
+  }
+})
+
 // POST /api/ai/image/lead — salva lead de usuário interessado em geração de imagem
 router.post('/image/lead', async (req, res) => {
   try {
@@ -1148,6 +1187,11 @@ router.get('/models', (req, res) => {
       { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: hasOpenai },
       { id: 'openai-4o',         name: 'GPT-4o',                 provider: 'OpenAI',   available: hasOpenai },
       { id: 'openrouter',        name: 'GPT-OSS 20B (OpenRouter)', provider: 'OpenRouter', available: hasOpenrouter },
+      // Gera texto E imagem juntos na mesma resposta (Nano Banana 2 Lite) —
+      // sempre exige chave própria do usuário no OpenRouter, por isso
+      // "available: false" fixo aqui (mesmo padrão do Claude acima): não
+      // bloqueia o uso, só evita seleção automática como modelo padrão.
+      { id: 'openrouter-image',  name: 'Texto + Imagem (OpenRouter)', provider: 'OpenRouter', available: false },
       // Claude não tem chave do servidor configurada — "available: false" aqui
       // não bloqueia o uso, só evita que o app selecione Claude como modelo
       // padrão automático (o usuário ainda escolhe manualmente no seletor e
