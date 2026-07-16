@@ -7307,12 +7307,21 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
 }
 
 // Fluxo de geração de imagem — verifica chave e gera ou coleta lead
+//
+// Gerar imagem é independente do modelo de TEXTO selecionado no chat: o
+// usuário pode estar conversando no GPT-OSS 20B, Claude, etc., e ainda assim
+// pedir uma imagem sem precisar trocar de modelo manualmente. Aqui a função
+// escolhe sozinha qual provedor de imagem usar (OpenRouter, se o usuário já
+// tiver chave própria configurada; senão Gemini/Imagen do Google) e nunca
+// mexe em aiSelectedModel — o modelo de texto do chat continua o mesmo antes
+// e depois do pedido de imagem, sem precisar "voltar" porque nunca mudou.
 async function aiHandleImageRequest(ctx, userMsg) {
   const state = aiChat[ctx]
 
-  // Modelo escolhido gera texto+imagem juntos via OpenRouter — segue um
-  // fluxo totalmente separado do Imagen/Gemini abaixo.
-  if (aiSelectedModel === 'openrouter-image') {
+  // Prioriza OpenRouter se o usuário já tiver chave própria cadastrada (gera
+  // texto+imagem juntos, sem precisar de conta Google/Imagen).
+  const hasOpenrouterKey = await aiCheckUserKey('openrouter')
+  if (hasOpenrouterKey) {
     return aiHandleImageRequestOpenRouter(ctx, userMsg)
   }
 
