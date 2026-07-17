@@ -6572,6 +6572,21 @@ async function aiGenerate() {
 // porque a mídia ainda não foi anexada nesta etapa; o limite mais restrito de
 // foto (90) é aplicado de fato pelo backend na hora de publicar.
 const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200 }
+// Só para o TikTok com FOTO (não vídeo) o limite real cai para 90 — usado
+// pelo fluxo de geração de imagem (OpenRouter), que já sabe que a mídia é
+// sempre uma foto nesse ponto.
+const AI_LIMITS_PHOTO = { ...AI_LIMITS, tiktok: 90 }
+
+// Corta texto livre de LLM (sem limite embutido no prompt, ex: resposta do
+// OpenRouter) para caber no limite real da plataforma, preservando palavra
+// inteira quando possível — mesma lógica de domain/posts/platformLimits.js
+// no backend, reimplementada aqui porque o frontend não importa módulos Node.
+function aiCortarParaLimite(texto, max) {
+  if (!texto || texto.length <= max) return texto
+  const cortado = texto.slice(0, max)
+  const ultimoEspaco = cortado.lastIndexOf(' ')
+  return ultimoEspaco > max * 0.6 ? cortado.slice(0, ultimoEspaco) : cortado
+}
 
 function aiRenderCards() {
   const container = document.getElementById('ai-cards')
@@ -6734,8 +6749,13 @@ let aiFabOpen = false
 
 // Estado compartilhado entre o FAB e a página cheia
 const aiChat = {
-  fab:  { msgs: [], step: 'greeting', plats: ['instagram'], tom: 'casual', qtd: 1,  pendingPost: null, greeted: false },
-  page: { msgs: [], step: 'greeting', plats: ['instagram'], tom: 'casual', qtd: 3,  pendingPost: null, greeted: false },
+  // plats começa vazio de propósito — [] significa "usuário ainda não
+  // escolheu rede nesta conversa" (checado com state.plats?.length em
+  // aiHandleImageRequestOpenRouter/aiHandleImageRequest antes de pular a
+  // pergunta). Um valor padrão como ['instagram'] aqui faria esses fluxos
+  // nunca perguntarem a rede, mesmo na primeira mensagem do chat.
+  fab:  { msgs: [], step: 'greeting', plats: [], tom: 'casual', qtd: 1,  pendingPost: null, greeted: false },
+  page: { msgs: [], step: 'greeting', plats: [], tom: 'casual', qtd: 3,  pendingPost: null, greeted: false },
 }
 
 const AI_STEPS = {
@@ -7349,6 +7369,7 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
     const PLAT_ICONS = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵' }
     const MELHOR_HORA = { instagram:[9,12,18,20], facebook:[9,13,17,19], youtube:[14,17,20], tiktok:[7,12,19,21] }
     const sugestoes = []
+    const platsCortadas = []
     for (const plataforma of plats) {
       const icon = PLAT_ICONS[plataforma] || '🌐'
       const platLabel = plataforma.charAt(0).toUpperCase() + plataforma.slice(1)
@@ -7358,7 +7379,14 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
       horarioSugerido.setHours(horas[0], 0, 0, 0)
       const cardId = `ai-openrouter-card-${ctx}-${Date.now()}-${plataforma}`
 
-      const sugestao = { plataforma, texto: data.texto || userMsg, hashtags: [], titulo: '', mediaPath: upload.url, mediaType: 'image' }
+      // O texto vem livre do OpenRouter (não passa por um prompt JSON com
+      // dica de limite embutida como em /generate) — sem cortar aqui, um
+      // texto longo do LLM causa "caption was too long" ao publicar de fato.
+      const textoLivre = data.texto || userMsg
+      const limitePlat = AI_LIMITS_PHOTO[plataforma] ?? AI_LIMITS[plataforma] ?? 2200
+      const textoAjustado = aiCortarParaLimite(textoLivre, limitePlat)
+      if (textoAjustado.length < textoLivre.length) platsCortadas.push(platLabel)
+      const sugestao = { plataforma, texto: textoAjustado, hashtags: [], titulo: '', mediaPath: upload.url, mediaType: 'image' }
       sugestoes.push(sugestao)
       // onclick delimitado por aspas simples (o JSON usa aspas duplas) — e
       // tanto " quanto ' viram entidade HTML antes de entrar no atributo,
@@ -7379,6 +7407,10 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
     state.pendingMediaSugestoes = sugestoes
     state.pendingMediaPlats = plats
     state.step = 'review_media'
+
+    if (platsCortadas.length) {
+      aiChatAddMsg(ctx, 'agent', `✂️ Texto ajustado ao limite de caracteres para: ${platsCortadas.join(', ')}`)
+    }
 
     await new Promise(r => setTimeout(r, 400))
     aiChatSetChips(ctx, sugestoes.length > 1 ? ['✅ Agendar todos'] : ['✅ Agendar'])
