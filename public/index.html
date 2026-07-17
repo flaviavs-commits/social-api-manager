@@ -6567,7 +6567,11 @@ async function aiGenerate() {
   }
 }
 
-const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 150 }
+// Limites reais de caracteres por rede (espelha domain/posts/platformLimits.js
+// no backend). TikTok usa aqui o limite de vídeo (2200) — o mais permissivo —
+// porque a mídia ainda não foi anexada nesta etapa; o limite mais restrito de
+// foto (90) é aplicado de fato pelo backend na hora de publicar.
+const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200 }
 
 function aiRenderCards() {
   const container = document.getElementById('ai-cards')
@@ -6755,7 +6759,7 @@ const PLAT_REQUIREMENTS = {
   instagram: { icon:'📸', media:'required', exige:'imagem ou vídeo', obs:'não publica só texto' },
   facebook:  { icon:'📘', media:'optional', exige:'só texto (imagem/vídeo opcionais)', obs:'' },
   youtube:   { icon:'▶️', media:'required', exige:'um vídeo + título', obs:'só aceita vídeo' },
-  tiktok:    { icon:'🎵', media:'required', exige:'imagem ou vídeo', obs:'texto curto (máx. 150 caracteres)' },
+  tiktok:    { icon:'🎵', media:'required', exige:'imagem ou vídeo', obs:'texto até 2200 caracteres (vídeo) ou 90 (foto)' },
 }
 
 // Monta o aviso de requisitos das redes selecionadas. Retorna null se nenhuma
@@ -7837,6 +7841,13 @@ async function aiChatProcess(ctx, userMsg) {
         }
       }
 
+      // O backend corta automaticamente texto/título que estourem o limite
+      // real da rede (ex: TikTok foto = 90 chars) — sem avisar, o usuário só
+      // veria um texto mais curto do que pediu, sem entender por quê.
+      if (data.avisos?.length) {
+        aiChatAddMsg(ctx, 'agent', `✂️ ${data.avisos.join('\n')}`)
+      }
+
       state.step = 'review_post'
 
       // Já apareceu um aviso de fallback acima (que já diz "veja abaixo, já dá
@@ -8054,6 +8065,7 @@ async function aiChatRegenOne(ctx, idx) {
     const novo = data.posts?.[0]
     if (novo) {
       state.pendingPost[idx] = novo
+      if (data.avisos?.length) aiChatAddMsg(ctx, 'agent', `✂️ ${data.avisos.join('\n')}`)
       const hashtags = novo.hashtags?.length ? '\n\n' + novo.hashtags.map(h => `#${h.replace(/^#/,'')}`).join(' ') : ''
       const cardId = `ai-post-card-${ctx}-${Date.now()}-${idx}`
       aiChatAddMsg(ctx, 'agent',
