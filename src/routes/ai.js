@@ -2,14 +2,21 @@ const { Router } = require('express')
 const { serverError } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
+const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
 
 const router = Router()
 
+// Dicas de ESTILO para o prompt do LLM — o "máximo 150 caracteres" do TikTok
+// aqui é uma recomendação de tom (post curto costuma performar melhor), não
+// o limite técnico real da API (2200 para vídeo, 90 para foto — ver
+// domain/posts/platformLimits.js). O LLM pode não respeitar essas dicas à
+// risca; a garantia real de que o texto cabe é aplicada depois, em
+// ajustarPostParaPlataformas() dentro de montarResposta().
 const PLATFORM_HINTS = {
   instagram: 'Instagram: máximo 2200 caracteres, use hashtags relevantes (5-10), emojis são bem-vindos, tom visual e engajante.',
   facebook:  'Facebook: máximo 63206 caracteres, texto mais longo e descritivo é aceito, pode incluir chamada para ação, menos hashtags (1-3).',
   youtube:   'YouTube: forneça um título chamativo (máximo 100 caracteres) e descrição otimizada para SEO (200-400 palavras com palavras-chave). Sem hashtags excessivos.',
-  tiktok:    'TikTok: texto curto e direto (máximo 150 caracteres), use 3-5 hashtags trending, linguagem jovem e descontraída.',
+  tiktok:    'TikTok: texto curto e direto (idealmente até 150 caracteres para melhor engajamento, limite técnico real é maior), use 3-5 hashtags trending, linguagem jovem e descontraída.',
 }
 
 const TONE_HINTS = {
@@ -463,7 +470,13 @@ router.get('/requirements', (req, res) => {
   const plataformas = String(req.query.plataformas || '').split(',').map(p => p.trim()).filter(Boolean)
   const lista = (plataformas.length ? plataformas : Object.keys(PLATFORM_REQUIREMENTS))
     .filter(p => PLATFORM_REQUIREMENTS[p])
-    .map(p => ({ plataforma: p, ...PLATFORM_REQUIREMENTS[p] }))
+    .map(p => ({
+      plataforma: p,
+      ...PLATFORM_REQUIREMENTS[p],
+      textMax: limiteTexto(p, 'video'),
+      ...(p === 'tiktok' ? { textMaxPhoto: limiteTexto(p, 'image') } : {}),
+      ...(p === 'youtube' ? { titleMax: YOUTUBE_TITLE_MAX } : {}),
+    }))
   res.json({ requirements: lista })
 })
 
@@ -523,17 +536,34 @@ router.post('/generate', async (req, res) => {
 
     // Monta a resposta padronizada a partir de posts já parseados. Também
     // registra a atividade (sucesso ou fallback) no histórico do Agente IA.
+    //
+    // Ajusta cada post aos limites reais de caracteres das plataformas
+    // selecionadas (ver domain/posts/platformLimits.js) — o LLM recebe uma
+    // dica desses limites no prompt (PLATFORM_HINTS), mas nada garante que
+    // ele respeite de fato, então o corte aqui é a garantia real. Mídia
+    // ainda não foi anexada nesta etapa (isso só acontece no /schedule), por
+    // isso usa o limite de vídeo do TikTok (mais permissivo) — o limite mais
+    // restrito de foto (90 chars) é aplicado de novo na hora de publicar.
     const montarResposta = (postsRaw, modeloUsado, extra = {}) => {
-      const posts = postsRaw.slice(0, qtd).map((p, i) => ({
-        texto:          p.texto || '',
-        titulo:         p.titulo || '',
-        hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
-        emoji_destaque: p.emoji_destaque || '✨',
-        angulo:         p.angulo || '',
-        plataformas,
-        horario:        horariosSugeridos[i] || horariosSugeridos[0],
-        modelo:         modeloUsado,
-      }))
+      const avisosGerais = new Set()
+      const posts = postsRaw.slice(0, qtd).map((p, i) => {
+        const { post: ajustado, avisos } = ajustarPostParaPlataformas(
+          { texto: p.texto || '', titulo: p.titulo || '' },
+          plataformas,
+          null
+        )
+        avisos.forEach(a => avisosGerais.add(a))
+        return {
+          texto:          ajustado.texto,
+          titulo:         ajustado.titulo,
+          hashtags:       Array.isArray(p.hashtags) ? p.hashtags : [],
+          emoji_destaque: p.emoji_destaque || '✨',
+          angulo:         p.angulo || '',
+          plataformas,
+          horario:        horariosSugeridos[i] || horariosSugeridos[0],
+          modelo:         modeloUsado,
+        }
+      })
       registrarAtividadeIA({
         userId: req.user.id,
         acao: 'generate',
@@ -541,7 +571,8 @@ router.post('/generate', async (req, res) => {
         modelo: modeloUsado,
         detalhes: `${posts.length} post(s) · plataformas: ${plataformas.join(',')}${extra.fallback ? ` · fallback: ${extra.fallback}` : ''}`,
       })
-      return res.json({ modelo: modeloUsado, ...extra, posts })
+      const avisos = Array.from(avisosGerais)
+      return res.json({ modelo: modeloUsado, ...extra, posts, ...(avisos.length ? { avisos } : {}) })
     }
 
     // Cai no gerador por template (ilimitado, sem custo). Usado como fallback
@@ -1115,13 +1146,7 @@ router.post('/analyze-media', async (req, res) => {
 
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
 
-    const PLAT_HINTS = {
-      instagram: 'Instagram (máx 2200 chars, 5-10 hashtags, tom visual e engajante)',
-      facebook:  'Facebook (texto mais longo, 1-3 hashtags, chamada para ação)',
-      youtube:   'YouTube (título chamativo + descrição SEO com palavras-chave)',
-      tiktok:    'TikTok (texto curto máx 150 chars, 3-5 hashtags trending, linguagem jovem)',
-    }
-    const platDesc = plataformas.map(p => PLAT_HINTS[p] || p).join('; ')
+    const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
 
     const prompt = `Você é um especialista em marketing digital. Analise esta mídia e crie sugestões de posts para redes sociais.
@@ -1152,7 +1177,19 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
 
-    const sugestoes = parsed.sugestoes || []
+    // Diferente de /generate, aqui já se sabe o tipo real da mídia (imagem ou
+    // vídeo) — então aplica o limite exato da plataforma de cada sugestão
+    // (ex: TikTok foto = 90 chars, TikTok vídeo = 2200), em vez do limite
+    // genérico mais permissivo.
+    const mediaType = isVideo ? 'video' : 'image'
+    const sugestoes = (parsed.sugestoes || []).map(s => {
+      const { post: ajustado } = ajustarPostParaPlataformas(
+        { texto: s.texto || '', titulo: s.titulo || '' },
+        [s.plataforma],
+        mediaType
+      )
+      return { ...s, texto: ajustado.texto, titulo: ajustado.titulo }
+    })
     registrarAtividadeIA({
       userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
       detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : 'imagem'} · plataformas: ${plataformas.join(',')}`,
