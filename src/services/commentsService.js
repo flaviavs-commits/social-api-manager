@@ -1,4 +1,4 @@
-const { buscarContaToken } = require('./publisher')
+const { buscarContaToken } = require('../infra/social/publisher')
 
 // Redes onde já é possível listar comentários reais com o escopo OAuth que
 // a conexão atual já solicita. TikTok (Content Posting API) não expõe

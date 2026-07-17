@@ -1,7 +1,7 @@
-// Testes unitários — src/services/mediaToken.js
+// Testes unitários — src/infra/storage/mediaToken.js
 process.env.SESSION_SECRET = 'test-session-secret-xyz'
 
-const { gerarTokenMedia, validarTokenMedia } = require('../../src/services/mediaToken')
+const { gerarTokenMedia, validarTokenMedia } = require('../../../../src/infra/storage/mediaToken')
 
 describe('gerarTokenMedia / validarTokenMedia', () => {
   test('token gerado é válido para o mesmo filename', () => {

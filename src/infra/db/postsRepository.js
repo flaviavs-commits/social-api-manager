@@ -1,4 +1,4 @@
-const pool = require('../db/pool')
+const pool = require('../../db/pool')
 
 async function criarPost({ text, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`

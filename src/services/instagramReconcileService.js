@@ -1,5 +1,5 @@
-const { listarContasToken } = require('./publisher')
-const postsRepo = require('../repositories/postsRepository')
+const { listarContasToken } = require('../infra/social/publisher')
+const postsRepo = require('../infra/db/postsRepository')
 
 const FETCH_TIMEOUT_MS = 4000
 // Tolerância de horário ao casar um post do banco com um post real do

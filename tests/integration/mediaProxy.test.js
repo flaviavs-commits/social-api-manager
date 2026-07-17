@@ -7,7 +7,7 @@ const request = require('supertest')
 jest.mock('../../src/db/pool', () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }))
 
 const app = require('../../src/server')
-const { gerarTokenMedia } = require('../../src/services/mediaToken')
+const { gerarTokenMedia } = require('../../src/infra/storage/mediaToken')
 
 describe('GET /uploads/:file — token de mídia', () => {
   test('sem token retorna 403', async () => {

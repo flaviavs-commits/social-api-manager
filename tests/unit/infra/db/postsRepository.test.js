@@ -1,8 +1,8 @@
 // Testes unitários — postsRepository (pool mockado)
-jest.mock('../../src/db/pool', () => ({ query: jest.fn() }))
+jest.mock('../../../../src/db/pool', () => ({ query: jest.fn() }))
 
-const pool = require('../../src/db/pool')
-const repo = require('../../src/repositories/postsRepository')
+const pool = require('../../../../src/db/pool')
+const repo = require('../../../../src/infra/db/postsRepository')
 
 beforeEach(() => jest.clearAllMocks())
 

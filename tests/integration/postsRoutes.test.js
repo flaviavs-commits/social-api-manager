@@ -6,7 +6,7 @@ const request = require('supertest')
 
 jest.mock('../../src/db/pool', () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }))
 jest.mock('../../src/repositories/usersRepository', () => ({ buscarPorId: jest.fn() }))
-jest.mock('../../src/repositories/postsRepository', () => ({
+jest.mock('../../src/infra/db/postsRepository', () => ({
   listarPosts: jest.fn(),
   buscarPostPorId: jest.fn(),
   deletarPost: jest.fn(),
@@ -34,10 +34,10 @@ jest.mock('../../src/services/metricsService', () => ({
 jest.mock('../../src/services/instagramReconcileService', () => ({
   reconciliarPostsInstagram: jest.fn().mockResolvedValue(undefined),
 }))
-jest.mock('../../src/services/publisher', () => ({ publishPost: jest.fn() }))
+jest.mock('../../src/infra/social/publisher', () => ({ publishPost: jest.fn() }))
 
 const usersRepo = require('../../src/repositories/usersRepository')
-const postsRepo = require('../../src/repositories/postsRepository')
+const postsRepo = require('../../src/infra/db/postsRepository')
 const commentsService = require('../../src/services/commentsService')
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 

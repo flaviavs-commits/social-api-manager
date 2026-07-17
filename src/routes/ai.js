@@ -1215,8 +1215,8 @@ router.post('/schedule', async (req, res) => {
     const { posts } = req.body
     if (!Array.isArray(posts) || !posts.length) return res.status(400).json({ erro: 'Nenhum post para agendar' })
 
-    const repo = require('../repositories/postsRepository')
-    const { publishPost } = require('../services/publisher')
+    const repo = require('../infra/db/postsRepository')
+    const { publishPost } = require('../infra/social/publisher')
     const criados = []
 
     for (const p of posts) {

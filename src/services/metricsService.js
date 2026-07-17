@@ -1,4 +1,4 @@
-const { buscarContaToken, listarContasToken } = require('./publisher')
+const { buscarContaToken, listarContasToken } = require('../infra/social/publisher')
 const contasRepo = require('../repositories/contasRepository')
 const tokensRepo = require('../repositories/tokensRepository')
 
