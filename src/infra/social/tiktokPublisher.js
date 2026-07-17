@@ -6,6 +6,13 @@ const { fetchComRateLimit } = require('./rateLimitedFetch')
 // para a conta antes de publicar (ex: contas de menores de idade não podem
 // postar público) — publicar direto com PUBLIC_TO_EVERYONE sem checar falha
 // com privacy_level_option_mismatch mesmo em apps aprovados.
+//
+// Importante: essa lista reflete o que a CONTA do usuário permite, não o que
+// o APP está autorizado a usar de fato. Um app que ainda não passou pelo
+// audit de conteúdo do TikTok (https://developers.tiktok.com/doc/content-sharing-guidelines/)
+// recebe PUBLIC_TO_EVERYONE aqui mesmo assim, e só descobre a restrição real
+// ao tentar publicar (erro unaudited_client_can_only_post_to_private_accounts,
+// tratado em initComFallbackPrivado abaixo).
 async function buscarPrivacyLevelPermitido(accessToken) {
   const res = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
     method: 'POST',
@@ -20,6 +27,33 @@ async function buscarPrivacyLevelPermitido(accessToken) {
   // Conta não pode postar público (ex: restrição de idade) — usa a opção
   // mais aberta disponível em vez de falhar, para o post ainda sair.
   return options[0] || 'SELF_ONLY'
+}
+
+// Apps ainda não auditados pelo TikTok para publicação pública só podem
+// postar em contas privadas — a API aceita PUBLIC_TO_EVERYONE no
+// creator_info/query/, mas rejeita na hora de publicar de fato com esse
+// código de erro específico.
+function isErroClienteNaoAuditado(initData) {
+  return initData?.error?.code === 'unaudited_client_can_only_post_to_private_accounts'
+}
+
+// Chama o endpoint de init (video ou photo) com o privacyLevel pedido; se o
+// TikTok recusar por falta de audit do app, tenta de novo automaticamente
+// com SELF_ONLY em vez de falhar o post inteiro — sem isso, todo post
+// pararia de sair assim que o app tentasse ir público sem estar auditado.
+async function initComFallbackPrivado(url, montarBody, privacyLevel, headers) {
+  const initRes = await fetchComRateLimit(url, { method: 'POST', headers, body: montarBody(privacyLevel) })
+  const initData = await initRes.json()
+  if (initRes.ok && initData?.error?.code === 'ok') return initData
+
+  if (isErroClienteNaoAuditado(initData) && privacyLevel !== 'SELF_ONLY') {
+    const retryRes = await fetchComRateLimit(url, { method: 'POST', headers, body: montarBody('SELF_ONLY') })
+    const retryData = await retryRes.json()
+    if (retryRes.ok && retryData?.error?.code === 'ok') return retryData
+    throw new Error(`[${retryData?.error?.code || retryRes.status}] ${retryData?.error?.message || 'Erro desconhecido'}`)
+  }
+
+  throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
 }
 
 // Consulta o status real do processamento depois do upload — o /init/ só
@@ -52,27 +86,26 @@ async function publicarTiktok(token, post) {
   // ── Vídeo ──
   if (isVideo) {
     const { buffer } = await mediaToBlob(items[0].path)
-    const initRes = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/video/init/', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
-        // diretrizes de integração do TikTok — sem eles, o
-        // post/publish/video/init/ responde "Please review our integration
-        // guidelines".
-        post_info: {
-          title: post.text || '',
-          privacy_level: privacyLevel,
-          disable_duet: false,
-          disable_comment: false,
-          disable_stitch: false
-        },
-        source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
-      })
+    // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
+    // diretrizes de integração do TikTok — sem eles, o
+    // post/publish/video/init/ responde "Please review our integration
+    // guidelines".
+    const montarBody = privacy => JSON.stringify({
+      post_info: {
+        title: post.text || '',
+        privacy_level: privacy,
+        disable_duet: false,
+        disable_comment: false,
+        disable_stitch: false
+      },
+      source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
     })
-    const initData = await initRes.json()
-    if (!initRes.ok || initData?.error?.code !== 'ok')
-      throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
+    const initData = await initComFallbackPrivado(
+      'https://open.tiktokapis.com/v2/post/publish/video/init/',
+      montarBody,
+      privacyLevel,
+      { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' }
+    )
 
     const uploadRes = await fetch(initData.data.upload_url, {
       method: 'PUT',
@@ -92,31 +125,30 @@ async function publicarTiktok(token, post) {
   // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
   const photoImages = items.map(item => mediaUrlTiktok(item.path))
 
-  const initRes = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/content/init/', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      post_info: {
-        title: post.text || '',
-        privacy_level: privacyLevel,
-        disable_comment: false,
-        // disable_duet/disable_stitch só fazem sentido para vídeo, mas o
-        // TikTok também exige presença desses campos no media_type: PHOTO.
-        disable_duet: false,
-        disable_stitch: false
-      },
-      source_info: {
-        source: 'PULL_FROM_URL',
-        photo_cover_index: 0,
-        photo_images: photoImages
-      },
-      post_mode: 'DIRECT_POST',
-      media_type: 'PHOTO'
-    })
+  const montarBody = privacy => JSON.stringify({
+    post_info: {
+      title: post.text || '',
+      privacy_level: privacy,
+      disable_comment: false,
+      // disable_duet/disable_stitch só fazem sentido para vídeo, mas o
+      // TikTok também exige presença desses campos no media_type: PHOTO.
+      disable_duet: false,
+      disable_stitch: false
+    },
+    source_info: {
+      source: 'PULL_FROM_URL',
+      photo_cover_index: 0,
+      photo_images: photoImages
+    },
+    post_mode: 'DIRECT_POST',
+    media_type: 'PHOTO'
   })
-  const initData = await initRes.json()
-  if (!initRes.ok || initData?.error?.code !== 'ok')
-    throw new Error(`[${initData?.error?.code || initRes.status}] ${initData?.error?.message || 'Erro desconhecido'}`)
+  const initData = await initComFallbackPrivado(
+    'https://open.tiktokapis.com/v2/post/publish/content/init/',
+    montarBody,
+    privacyLevel,
+    { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' }
+  )
 
   const { status, failReason } = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
   if (status === 'FAILED') throw new Error(`TikTok rejeitou a foto após o envio (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
