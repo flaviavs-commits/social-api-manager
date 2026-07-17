@@ -1,7 +1,8 @@
 const { Router } = require('express')
-const { serverError } = require('../utils/http')
+const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
+const requireAdmin = require('../middleware/requireAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
 
 const router = Router()
@@ -790,6 +791,96 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
     )
   } catch { /* melhor esforço — nunca bloqueia a ação real do usuário */ }
 }
+
+// Histórico das mensagens trocadas no chat do Agente IA — até aqui vivia só
+// em memória do navegador (aiChat.fab/page.msgs, public/index.html) e se
+// perdia a cada reload. Persistido para que admin/super_admin consigam
+// acompanhar as conversas dos usuários (ex.: suporte, diagnóstico).
+pool.query(`
+  CREATE TABLE IF NOT EXISTS ai_chat_messages (
+    id        SERIAL PRIMARY KEY,
+    user_id   INTEGER NOT NULL,
+    contexto  TEXT NOT NULL,
+    role      TEXT NOT NULL,
+    conteudo  TEXT NOT NULL,
+    criado_em TIMESTAMPTZ DEFAULT NOW()
+  )
+`).catch(() => {})
+pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user ON ai_chat_messages (user_id, criado_em DESC)`).catch(() => {})
+
+// POST /api/ai/chat-messages — grava uma mensagem do chat (chamado pelo
+// frontend a cada mensagem enviada/recebida). Nunca lança para o cliente
+// além do essencial — perder uma mensagem do histórico não deve travar a
+// conversa em andamento.
+router.post('/chat-messages', async (req, res) => {
+  try {
+    const { contexto, role, conteudo } = req.body || {}
+    if (!['fab', 'page'].includes(contexto)) return res.status(400).json({ erro: 'contexto inválido' })
+    if (!['user', 'agent'].includes(role)) return res.status(400).json({ erro: 'role inválido' })
+    if (!conteudo || typeof conteudo !== 'string') return res.status(400).json({ erro: 'conteudo é obrigatório' })
+
+    await pool.query(
+      `INSERT INTO ai_chat_messages (user_id, contexto, role, conteudo) VALUES ($1, $2, $3, $4)`,
+      [req.user.id, contexto, role, conteudo.slice(0, 8000)]
+    )
+    res.status(201).json({ ok: true })
+  } catch (err) { serverError(res, err) }
+})
+
+// GET /api/ai/chat-messages — histórico de conversas do Agente IA.
+// Usuário comum só vê o próprio histórico; admin/super_admin pode ver de
+// qualquer usuário via ?userId=<id> (mesma convenção de /activity-log).
+// Paginado por limit/offset (padrão 200 mais recentes).
+router.get('/chat-messages', async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 200, 1), 1000)
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0)
+
+    let userId = req.user.id
+    if (req.query.userId) {
+      if (!isAdminRole(req.user.role)) return res.status(403).json({ erro: 'Você não tem permissão para ver o histórico de outro usuário.' })
+      userId = parseInt(req.query.userId)
+    }
+
+    const cond = ['m.user_id = $1']
+    const params = [userId]
+    if (req.query.contexto) { params.push(req.query.contexto); cond.push(`m.contexto = $${params.length}`) }
+
+    params.push(limit); const limitIdx = params.length
+    params.push(offset); const offsetIdx = params.length
+
+    const { rows } = await pool.query(`
+      SELECT m.id, m.user_id AS "userId", u.email AS "userEmail", m.contexto, m.role, m.conteudo, m.criado_em AS "criadoEm"
+      FROM ai_chat_messages m
+      LEFT JOIN users u ON u.id = m.user_id
+      WHERE ${cond.join(' AND ')}
+      ORDER BY m.id DESC
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, params)
+
+    const { rows: [{ total }] } = await pool.query(`SELECT COUNT(*)::int AS total FROM ai_chat_messages m WHERE ${cond.join(' AND ')}`, params.slice(0, params.length - 2))
+
+    res.json({ mensagens: rows, total })
+  } catch (err) { serverError(res, err) }
+})
+
+// GET /api/ai/chat-messages/users — lista, para admin/super_admin, os
+// usuários que têm histórico de chat, com contagem de mensagens e data da
+// última — usado para montar a lista de conversas no painel admin sem
+// precisar carregar tudo de uma vez.
+router.get('/chat-messages/users', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT m.user_id AS "userId", u.email AS "userEmail", u.full_name AS "userName",
+             COUNT(*)::int AS "totalMensagens", MAX(m.criado_em) AS "ultimaMensagemEm"
+      FROM ai_chat_messages m
+      LEFT JOIN users u ON u.id = m.user_id
+      GROUP BY m.user_id, u.email, u.full_name
+      ORDER BY "ultimaMensagemEm" DESC
+    `)
+    res.json({ data: rows })
+  } catch (err) { serverError(res, err) }
+})
 
 // GET /api/ai/activity-log — histórico de atividade do Agente IA (só super_admin).
 // Filtros opcionais: ?status=erro|sucesso|fallback|parcial, ?acao=generate|analyze-media|schedule|publish-now,
