@@ -125,15 +125,17 @@ async function publicarTiktok(token, post) {
   // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
   const photoImages = items.map(item => mediaUrlTiktok(item.path))
 
+  // Para media_type PHOTO, o schema de post_info é diferente do de vídeo:
+  // não existem disable_duet/disable_stitch (causam invalid_params se
+  // enviados), title tem limite de 90 caracteres (não 2200), e
+  // brand_content_toggle/brand_organic_toggle são obrigatórios.
   const montarBody = privacy => JSON.stringify({
     post_info: {
-      title: post.text || '',
+      title: (post.text || '').slice(0, 90),
       privacy_level: privacy,
       disable_comment: false,
-      // disable_duet/disable_stitch só fazem sentido para vídeo, mas o
-      // TikTok também exige presença desses campos no media_type: PHOTO.
-      disable_duet: false,
-      disable_stitch: false
+      brand_content_toggle: false,
+      brand_organic_toggle: false
     },
     source_info: {
       source: 'PULL_FROM_URL',
