@@ -1,5 +1,26 @@
 // Adapter TikTok (Content Posting API v2).
 const { mediaToBlob, mediaUrlTiktok } = require('./mediaFetch')
+const { fetchComRateLimit } = require('./rateLimitedFetch')
+
+// A Content Posting API exige consultar as opções de privacidade permitidas
+// para a conta antes de publicar (ex: contas de menores de idade não podem
+// postar público) — publicar direto com PUBLIC_TO_EVERYONE sem checar falha
+// com privacy_level_option_mismatch mesmo em apps aprovados.
+async function buscarPrivacyLevelPermitido(accessToken) {
+  const res = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+  })
+  const data = await res.json()
+  if (!res.ok || data?.error?.code !== 'ok')
+    throw new Error(data?.error?.message || `TikTok respondeu ${res.status} ao consultar permissões da conta`)
+
+  const options = data.data?.privacy_level_options || []
+  if (options.includes('PUBLIC_TO_EVERYONE')) return 'PUBLIC_TO_EVERYONE'
+  // Conta não pode postar público (ex: restrição de idade) — usa a opção
+  // mais aberta disponível em vez de falhar, para o post ainda sair.
+  return options[0] || 'SELF_ONLY'
+}
 
 // Consulta o status real do processamento depois do upload — o /init/ só
 // confirma que o TikTok aceitou o envio, não que o vídeo já foi publicado de
@@ -8,7 +29,7 @@ const { mediaToBlob, mediaUrlTiktok } = require('./mediaFetch')
 async function aguardarStatusPublicacaoTiktok(publishId, accessToken) {
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     await new Promise(r => setTimeout(r, 2000))
-    const res = await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+    const res = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ publish_id: publishId })
@@ -26,21 +47,22 @@ async function publicarTiktok(token, post) {
   if (!items.length) throw new Error('TikTok exige ao menos uma mídia para publicar')
 
   const isVideo = items.length === 1 && items[0].type === 'video'
+  const privacyLevel = await buscarPrivacyLevelPermitido(token.accessToken)
 
   // ── Vídeo ──
   if (isVideo) {
     const { buffer } = await mediaToBlob(items[0].path)
-    const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+    const initRes = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/video/init/', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
-        // diretrizes de integração do TikTok para apps não auditados — sem
-        // eles, o post/publish/video/init/ responde "Please review our
-        // integration guidelines".
+        // diretrizes de integração do TikTok — sem eles, o
+        // post/publish/video/init/ responde "Please review our integration
+        // guidelines".
         post_info: {
           title: post.text || '',
-          privacy_level: 'SELF_ONLY',
+          privacy_level: privacyLevel,
           disable_duet: false,
           disable_comment: false,
           disable_stitch: false
@@ -70,13 +92,13 @@ async function publicarTiktok(token, post) {
   // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
   const photoImages = items.map(item => mediaUrlTiktok(item.path))
 
-  const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
+  const initRes = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/content/init/', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       post_info: {
         title: post.text || '',
-        privacy_level: 'SELF_ONLY',
+        privacy_level: privacyLevel,
         disable_comment: false,
         // disable_duet/disable_stitch só fazem sentido para vídeo, mas o
         // TikTok também exige presença desses campos no media_type: PHOTO.
