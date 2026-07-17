@@ -6772,6 +6772,53 @@ const AI_STEPS = {
 const PLAT_NAMES = { instagram:'Instagram', facebook:'Facebook', youtube:'YouTube', tiktok:'TikTok' }
 const TOM_LABELS = { casual:'Casual 😊', motivacional:'Motivacional 🔥', profissional:'Profissional 💼', informativo:'Informativo 📚', humoristico:'Humorístico 😂' }
 
+// Extrai rede(s)/tom/quantidade de UMA mensagem em texto livre, para quem
+// escreve tudo de uma vez ("post motivacional pro instagram e tiktok sobre
+// academia, 3 posts") não precisar passar pelas perguntas guiadas uma a uma.
+// Detecção por palavra-chave (mesmo vocabulário já usado nas etapas
+// ask_plats/ask_tom/ask_qtd) — determinística, sem chamar IA. O que não for
+// reconhecido como rede/tom/quantidade sobra como "resto", candidato a tema
+// do post (a etapa ask_instrucao decide se usa isso ou pede de novo).
+function aiExtrairIntencaoLivre(msgOriginal) {
+  const msg = msgOriginal.toLowerCase()
+  let resto = msgOriginal
+
+  const plats = []
+  if (/\binstagram\b|\big\b|📸/.test(msg)) plats.push('instagram')
+  if (/\bfacebook\b|\bfb\b|📘/.test(msg)) plats.push('facebook')
+  if (/\byoutube\b|\byt\b|▶/.test(msg)) plats.push('youtube')
+  if (/\btiktok\b|\btt\b|🎵/.test(msg)) plats.push('tiktok')
+  if (/\btodas\b|\btodas as redes\b|🌐/.test(msg)) plats.push('instagram','facebook','youtube','tiktok')
+
+  let tom = null
+  if (/\bmotiv/.test(msg) || msg.includes('🔥')) tom = 'motivacional'
+  else if (/\bprofiss/.test(msg) || msg.includes('💼')) tom = 'profissional'
+  else if (/\binforma/.test(msg) || msg.includes('📚')) tom = 'informativo'
+  else if (/\bhumor/.test(msg) || msg.includes('😂')) tom = 'humoristico'
+  else if (/\bcasual\b/.test(msg) || msg.includes('😊')) tom = 'casual'
+
+  // "3 posts" / "5 post" — exige a palavra "post(s)" perto do número para não
+  // confundir com outros números que apareçam no tema (ex: "dicas com 5 passos").
+  const qtdMatch = msg.match(/(\d+)\s*posts?\b/)
+  const qtd = qtdMatch ? Math.min(Math.max(parseInt(qtdMatch[1], 10), 1), 10) : null
+
+  // Remove os trechos reconhecidos do texto para sobrar só o tema — best
+  // effort, não precisa ser perfeito (o resto vira sugestão de instrução,
+  // não é usado com validação rígida).
+  const termosParaRemover = [
+    'instagram', 'facebook', 'youtube', 'tiktok', 'todas as redes', 'todas',
+    'tom motivacional', 'tom profissional', 'tom informativo', 'tom humoristico', 'tom humorístico', 'tom casual',
+    'motivacional', 'profissional', 'informativo', 'humoristico', 'humorístico', 'casual',
+    qtdMatch?.[0]
+  ].filter(Boolean)
+  for (const termo of termosParaRemover) {
+    resto = resto.replace(new RegExp(termo, 'gi'), '')
+  }
+  resto = resto.replace(/\bquero\b|\bum\b|\bpara\b|\bpra\b|\bpro\b|\bno\b|\bna\b|\be\b|\bcom\b|,/gi, ' ').replace(/\s+/g, ' ').trim()
+
+  return { plats: [...new Set(plats)], tom, qtd, resto }
+}
+
 // Requisitos de cada rede na hora de publicar (espelha PLATFORM_REQUIREMENTS no
 // backend e as validações em services/publisher.js). Usado para avisar o
 // usuário do que cada rede selecionada exige antes de gerar/agendar o post.
@@ -7494,9 +7541,61 @@ async function aiHandleImageRequest(ctx, userMsg) {
   }
 }
 
+// Etapas guiadas em que faz sentido tentar entender tudo de uma vez (fora
+// delas — ex: state.step === 'done', 'review_media' — a mensagem já tem
+// outro significado esperado, então a extração livre não se aplica).
+const AI_STEPS_COM_EXTRACAO_LIVRE = new Set(['ask_plats', 'ask_tom', 'ask_qtd', 'ask_instrucao'])
+
+// Aplica tom/quantidade já extraídos de uma mensagem anterior (ex: "post
+// motivacional pro instagram, 3 posts") direto no estado, sem perguntar de
+// novo — avança na cadeia ask_tom → ask_qtd → ask_instrucao até faltar algo
+// que realmente precise ser perguntado ao usuário.
+async function aiAvancarComExtracao(ctx) {
+  const state = aiChat[ctx]
+  const extraido = state.pendingExtracao
+
+  if (state.step === 'ask_tom' && extraido?.tom) {
+    state.tom = extraido.tom
+    state.step = 'ask_qtd'
+    aiChatAddMsg(ctx, 'agent', `Tom ${TOM_LABELS[state.tom]} identificado! 👌`)
+    if (extraido.qtd) return aiAvancarComExtracao(ctx)
+    await new Promise(r => setTimeout(r, 300))
+    aiChatAddMsg(ctx, 'agent', `Quantos posts você quer criar?`)
+    aiChatSetChips(ctx, ['1 post', '3 posts', '5 posts', '7 posts'])
+    return
+  }
+
+  if (state.step === 'ask_qtd' && extraido?.qtd) {
+    state.qtd = extraido.qtd
+    state.step = 'ask_instrucao'
+    const temaExtraido = extraido.resto
+    if (temaExtraido && temaExtraido.length >= 5) {
+      state.pendingExtracao = null
+      return aiChatProcess(ctx, temaExtraido)
+    }
+    aiChatAddMsg(ctx, 'agent', `${state.qtd} post(s)! Perfeito. 💪\n\nAgora me conta: sobre o que você quer postar?`)
+    aiChatSetChips(ctx, [])
+    return
+  }
+
+  // Nada mais para pular automaticamente — segue o fluxo normal a partir daqui.
+}
+
 async function aiChatProcess(ctx, userMsg) {
   const state = aiChat[ctx]
   const msg = userMsg.trim().toLowerCase()
+
+  // Quem escreve tudo de uma vez ("post motivacional pro instagram e tiktok
+  // sobre academia, 3 posts") não deveria precisar responder rede/tom/
+  // quantidade de novo em turnos separados — extrai o que der da mensagem e
+  // guarda em state.pendingExtracao para os handlers de cada etapa abaixo
+  // (ask_plats/ask_tom/ask_qtd) usarem em vez de perguntar de novo.
+  if (AI_STEPS_COM_EXTRACAO_LIVRE.has(state.step)) {
+    const extraido = aiExtrairIntencaoLivre(userMsg)
+    if (extraido.plats.length || extraido.tom || extraido.qtd) {
+      state.pendingExtracao = extraido
+    }
+  }
 
   // Chips de navegação mostrados após agendar/publicar (step 'done') — o
   // clique chama aiChatProcess direto (via aiChipClick), sem passar pelo
@@ -7781,6 +7880,13 @@ async function aiChatProcess(ctx, userMsg) {
       aiChatAddMsg(ctx, 'agent', requisitos)
     }
 
+    // Já veio tom/quantidade na mesma mensagem ("post motivacional pro
+    // instagram, 3 posts")? Pula direto pra próxima pergunta que ainda falta,
+    // em vez de perguntar de novo o que a pessoa já respondeu.
+    if (state.pendingExtracao?.tom || state.pendingExtracao?.qtd) {
+      return aiAvancarComExtracao(ctx)
+    }
+
     await new Promise(r => setTimeout(r, 400))
     aiChatAddMsg(ctx, 'agent', `Qual tom de voz você quer usar?`)
     aiChatSetChips(ctx, ['😊 Casual', '🔥 Motivacional', '💼 Profissional', '📚 Informativo', '😂 Humorístico'])
@@ -7798,6 +7904,9 @@ async function aiChatProcess(ctx, userMsg) {
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 600))
     aiChatTyping(ctx, false)
+
+    if (state.pendingExtracao?.qtd) return aiAvancarComExtracao(ctx)
+
     aiChatAddMsg(ctx, 'agent', `Tom ${TOM_LABELS[state.tom]} selecionado! 👌\n\nQuantos posts você quer criar?`)
     aiChatSetChips(ctx, ['1 post', '3 posts', '5 posts', '7 posts'])
     return
@@ -7811,6 +7920,16 @@ async function aiChatProcess(ctx, userMsg) {
     aiChatTyping(ctx, true)
     await new Promise(r => setTimeout(r, 700))
     aiChatTyping(ctx, false)
+
+    // Se a mensagem original que trouxe a quantidade também tinha um tema
+    // reconhecível (ex: "3 posts sobre academia"), usa ele direto em vez de
+    // perguntar "sobre o que" de novo.
+    const temaExtraido = state.pendingExtracao?.resto
+    if (temaExtraido && temaExtraido.length >= 5) {
+      state.pendingExtracao = null
+      return aiChatProcess(ctx, temaExtraido)
+    }
+
     aiChatAddMsg(ctx, 'agent', `${state.qtd} post(s)! Perfeito. 💪\n\nAgora me conta: sobre o que você quer postar? Quanto mais detalhe você der, mais personalizado fica o resultado!\n\nPor exemplo: "Posts sobre treino de academia para iniciantes com dicas práticas"`)
     aiChatSetChips(ctx, [])
     return
@@ -7822,6 +7941,7 @@ async function aiChatProcess(ctx, userMsg) {
       return
     }
 
+    state.pendingExtracao = null
     state.step = 'generating'
     state.lastInstrucao = userMsg
     aiChatTyping(ctx, true)
