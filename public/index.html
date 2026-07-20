@@ -312,8 +312,62 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .step.active .step-label { color: var(--accent); }
 
 /* ── Scheduler ───────────────────────────────────────────────────────────── */
-.sched-grid { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
-.sched-form, .sched-queue { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+.sched-grid { display: grid; grid-template-columns: 300px 360px 1fr; gap: 16px; }
+.sched-form, .sched-queue, .sched-preview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+
+/* ── Preview visual por rede (Agendador) ────────────────────────────────── */
+.sched-preview { display: flex; flex-direction: column; align-items: center; }
+.preview-header { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 1rem; }
+.preview-device-toggle { display: flex; gap: 4px; }
+.preview-device-toggle button { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: var(--surface2); color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.preview-device-toggle button.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+.preview-tab-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.preview-tab-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.preview-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 3rem 1rem; }
+
+.preview-frame-mobile { width: 100%; max-width: 300px; transition: max-width var(--transition); }
+.preview-frame-desktop { width: 100%; max-width: 420px; transition: max-width var(--transition); }
+
+.preview-card { background: #fff; color: #000; border-radius: 10px; overflow: hidden; font-family: var(--sans); border: 1px solid rgba(0,0,0,0.08); }
+.preview-card-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.preview-card-header img, .preview-card-header .preview-avatar-fallback { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.preview-card-header .preview-avatar-fallback { display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; }
+.preview-card-handle { font-size: 13px; font-weight: 600; }
+.preview-card-meta { font-size: 11px; color: #8e8e8e; }
+.preview-card-media { width: 100%; aspect-ratio: 1/1; background: #f0f0f0; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+.preview-card-media img, .preview-card-media video { width: 100%; height: 100%; object-fit: cover; }
+.preview-card-media-empty { color: #b0b0b0; font-size: 12px; text-align: center; padding: 1rem; }
+.preview-card-actions { display: flex; gap: 12px; padding: 10px 12px 4px; font-size: 18px; }
+.preview-card-caption { padding: 4px 12px 12px; font-size: 12px; line-height: 1.5; word-break: break-word; white-space: pre-wrap; }
+.preview-card-caption b { font-weight: 600; }
+.preview-carousel-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; gap: 4px; }
+.preview-carousel-dots span { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.6); }
+
+.preview-story { aspect-ratio: 9/16; background: #000; border-radius: 14px; overflow: hidden; position: relative; }
+.preview-story img, .preview-story video { width: 100%; height: 100%; object-fit: cover; }
+.preview-story-bar { position: absolute; top: 8px; left: 8px; right: 8px; height: 2px; background: rgba(255,255,255,0.35); border-radius: 2px; }
+.preview-story-bar::after { content: ''; display: block; width: 40%; height: 100%; background: #fff; border-radius: 2px; }
+.preview-story-header { position: absolute; top: 16px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px; }
+.preview-story-header img, .preview-story-header .preview-avatar-fallback { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid #fff; }
+.preview-story-header span { color: #fff; font-size: 11px; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+.preview-story-empty { color: #666; font-size: 12px; text-align: center; padding: 2rem 1rem; }
+
+.preview-vertical { aspect-ratio: 9/16; background: #000; border-radius: 14px; overflow: hidden; position: relative; color: #fff; }
+.preview-vertical img, .preview-vertical video { width: 100%; height: 100%; object-fit: cover; }
+.preview-vertical-empty { color: #666; font-size: 12px; text-align: center; padding: 2rem 1rem; }
+.preview-vertical-sidebar { position: absolute; right: 8px; bottom: 60px; display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: 20px; }
+.preview-vertical-sidebar span { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.preview-vertical-sidebar small { font-size: 9px; }
+.preview-vertical-footer { position: absolute; left: 10px; right: 60px; bottom: 14px; font-size: 12px; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,0.6); word-break: break-word; }
+.preview-vertical-footer b { display: block; margin-bottom: 3px; }
+
+.preview-yt-thumb { width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 8px; overflow: hidden; }
+.preview-yt-thumb img, .preview-yt-thumb video { width: 100%; height: 100%; object-fit: cover; }
+.preview-yt-thumb-empty { color: #999; font-size: 12px; }
+.preview-yt-play { position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.preview-yt-info { display: flex; gap: 8px; padding: 10px 2px; }
+.preview-yt-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.preview-yt-channel { font-size: 11px; color: #606060; margin-top: 3px; }
 .queue-item { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
 .queue-item:last-child { border-bottom: none; }
 .queue-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -1447,7 +1501,7 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
-          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" oninput="if (typeof renderValidationPanel === 'function') renderValidationPanel()"/>
+          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" oninput="if (typeof renderValidationPanel === 'function') renderValidationPanel(); if (typeof renderPreviewContent === 'function') renderPreviewContent();"/>
         </div>
         <div class="form-group" id="post-youtube-visibility-group" style="display:none">
           <label>Visibilidade (YouTube)</label>
@@ -1552,6 +1606,18 @@ input, select, textarea, label, .bottom-nav-item {
         <div style="display:flex;gap:8px">
           <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(false)">💾 Salvar rascunho</button>
           <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(true)">📋 Salvar template</button>
+        </div>
+      </div>
+      <div class="sched-preview">
+        <div class="preview-header">
+          <div id="preview-tabs" style="display:flex;gap:6px"></div>
+          <div class="preview-device-toggle">
+            <button type="button" id="preview-device-mobile" class="active" onclick="setPreviewDevice('mobile')" title="Celular">📱</button>
+            <button type="button" id="preview-device-desktop" onclick="setPreviewDevice('desktop')" title="Computador">🖥️</button>
+          </div>
+        </div>
+        <div id="preview-frame" class="preview-frame-mobile">
+          <div id="preview-content"></div>
         </div>
       </div>
       <div class="sched-queue">
@@ -2767,6 +2833,7 @@ function applyPlatformSelection(plats) {
   renderIgFormatPills();
   renderYoutubeFormatPills();
   renderValidationPanel();
+  renderPreviewTabs();
 }
 
 // ── Preview de conta conectada por rede (Agendador) ─────────────────────────
@@ -2842,6 +2909,7 @@ function setIgFormat(value) {
   igFormat = igFormat === value ? null : value;
   renderIgFormatPills();
   renderValidationPanel();
+  renderPreviewContent();
 }
 
 // ── Formato por rede: YouTube (Video/Short) ─────────────────────────────────
@@ -2896,6 +2964,203 @@ function setYoutubeFormat(value) {
   youtubeFormat = youtubeFormat === value ? null : value;
   renderYoutubeFormatPills();
   renderValidationPanel();
+  renderPreviewContent();
+}
+
+// ── Preview visual por rede (Agendador) ─────────────────────────────────────
+// Simula como o post vai aparecer em cada rede marcada — puramente visual,
+// não afeta o envio real (schedulePost() continua enviando pra todas as
+// redes marcadas simultaneamente). Reaproveita os mesmos dados já mantidos
+// em memória pelo resto do formulário: mediaFiles, apContas, textByPlatform,
+// igFormat, youtubeFormat.
+let activePreviewTab = null;
+let previewDevice = 'mobile';
+
+function previewAvatarHtml(cfg, conta) {
+  const fallback = `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+  if (conta?.avatarUrl) {
+    return `<img src="${escapeHtml(conta.avatarUrl)}" onerror="this.outerHTML='${fallback}'">`;
+  }
+  return `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`;
+}
+
+// Texto resolvido para uma rede específica — mesma regra de textByPlatform
+// já usada em schedulePost() (aba editada individualmente > texto principal).
+function previewTextForPlatform(plat) {
+  if (Object.keys(textByPlatform).length && textByPlatform[plat] !== undefined) return textByPlatform[plat] || '';
+  return (document.getElementById('post-text')?.value || '');
+}
+
+function previewFirstConta(plat) {
+  return apContas.find(c => c.platform === plat && c.handle) || null;
+}
+
+function previewMediaEl(file) {
+  const url = URL.createObjectURL(file);
+  return file.type.startsWith('video/')
+    ? `<video src="${url}" muted playsinline></video>`
+    : `<img src="${url}">`;
+}
+
+function renderPreviewTabs() {
+  const tabsEl = document.getElementById('preview-tabs');
+  if (!tabsEl) return;
+  const plats = [...selectedPlats];
+
+  if (!activePreviewTab || !plats.includes(activePreviewTab)) activePreviewTab = plats[0] || null;
+
+  tabsEl.innerHTML = plats.map(p => {
+    const cfg = PLAT_ROW_CFG[p];
+    if (!cfg) return '';
+    const ativo = activePreviewTab === p;
+    return `<button type="button" class="preview-tab-btn plat-icon ${cfg.cls}${ativo ? ' active' : ''}" style="width:28px;height:28px;font-size:11px" onclick="setPreviewTab('${p}')" title="${escapeHtml(cfg.label)}">${escapeHtml(cfg.icon)}</button>`;
+  }).join('');
+
+  renderPreviewContent();
+}
+
+function setPreviewTab(plat) {
+  activePreviewTab = plat;
+  renderPreviewTabs();
+}
+
+function setPreviewDevice(device) {
+  previewDevice = device;
+  document.getElementById('preview-device-mobile').classList.toggle('active', device === 'mobile');
+  document.getElementById('preview-device-desktop').classList.toggle('active', device === 'desktop');
+  const frame = document.getElementById('preview-frame');
+  if (frame) frame.className = device === 'mobile' ? 'preview-frame-mobile' : 'preview-frame-desktop';
+}
+
+const PREVIEW_RENDERERS = {
+  instagram: renderInstagramPreviewHtml,
+  facebook: renderFacebookPreviewHtml,
+  youtube: renderYoutubePreviewHtml,
+  tiktok: renderTiktokPreviewHtml,
+};
+
+function renderPreviewContent() {
+  const content = document.getElementById('preview-content');
+  if (!content) return;
+
+  if (!activePreviewTab) {
+    content.innerHTML = `<div class="preview-empty">Marque uma rede social para ver o preview</div>`;
+    return;
+  }
+
+  const renderer = PREVIEW_RENDERERS[activePreviewTab];
+  content.innerHTML = renderer ? renderer() : '';
+}
+
+function renderInstagramPreviewHtml() {
+  const cfg = PLAT_ROW_CFG.instagram;
+  const conta = previewFirstConta('instagram');
+  const handle = conta?.handle || 'sua_conta';
+  const texto = previewTextForPlatform('instagram');
+  const isCarrossel = mediaFiles.length > 1;
+
+  if (igFormat === 'story') {
+    const midia = mediaFiles.length
+      ? previewMediaEl(mediaFiles[0].file)
+      : `<div class="preview-story-empty" style="display:flex;align-items:center;justify-content:center;height:100%">Anexe uma imagem ou vídeo</div>`;
+    return `<div class="preview-story">
+      <div class="preview-story-bar"></div>
+      <div class="preview-story-header">${previewAvatarHtml(cfg, conta)}<span>${escapeHtml(handle)}</span></div>
+      ${midia}
+    </div>`;
+  }
+
+  const midia = mediaFiles.length
+    ? previewMediaEl(mediaFiles[0].file)
+    : `<div class="preview-card-media-empty">Anexe uma imagem ou vídeo</div>`;
+
+  return `<div class="preview-card">
+    <div class="preview-card-header">
+      ${previewAvatarHtml(cfg, conta)}
+      <div><div class="preview-card-handle">${escapeHtml(handle)}</div></div>
+    </div>
+    <div class="preview-card-media">
+      ${midia}
+      ${isCarrossel ? `<div class="preview-carousel-dots">${mediaFiles.map(() => '<span></span>').join('')}</div>` : ''}
+    </div>
+    <div class="preview-card-actions">❤️ 💬 ✈️</div>
+    <div class="preview-card-caption"><b>${escapeHtml(handle)}</b> ${escapeHtml(texto)}</div>
+  </div>`;
+}
+
+function renderFacebookPreviewHtml() {
+  const cfg = PLAT_ROW_CFG.facebook;
+  const conta = previewFirstConta('facebook');
+  const handle = conta?.handle || 'sua_página';
+  const texto = previewTextForPlatform('facebook');
+  const isCarrossel = mediaFiles.length > 1;
+  const midia = mediaFiles.length
+    ? previewMediaEl(mediaFiles[0].file)
+    : '';
+
+  return `<div class="preview-card">
+    <div class="preview-card-header">
+      ${previewAvatarHtml(cfg, conta)}
+      <div><div class="preview-card-handle">${escapeHtml(handle)}</div><div class="preview-card-meta">agora · 🌐</div></div>
+    </div>
+    ${texto ? `<div class="preview-card-caption">${escapeHtml(texto)}</div>` : ''}
+    ${mediaFiles.length ? `<div class="preview-card-media">${midia}${isCarrossel ? `<div class="preview-carousel-dots">${mediaFiles.map(() => '<span></span>').join('')}</div>` : ''}</div>` : ''}
+    <div class="preview-card-actions">👍 Curtir &nbsp; 💬 Comentar &nbsp; ↗️ Compartilhar</div>
+  </div>`;
+}
+
+function renderYoutubePreviewHtml() {
+  const cfg = PLAT_ROW_CFG.youtube;
+  const conta = previewFirstConta('youtube');
+  const handle = conta?.handle || 'seu_canal';
+  const titulo = document.getElementById('post-youtube-title')?.value || 'Título do vídeo';
+  const videoFile = mediaFiles.find(m => m.file.type.startsWith('video/'))?.file;
+
+  if (youtubeFormat === 'short') {
+    const midia = videoFile ? previewMediaEl(videoFile) : `<div class="preview-vertical-empty">Anexe um vídeo</div>`;
+    return `<div class="preview-vertical">
+      ${midia}
+      <div class="preview-vertical-sidebar">
+        <span>❤️<small>0</small></span>
+        <span>💬<small>0</small></span>
+        <span>↗️<small>0</small></span>
+      </div>
+      <div class="preview-vertical-footer"><b>${escapeHtml(handle)}</b>${escapeHtml(titulo)}</div>
+    </div>`;
+  }
+
+  const thumb = videoFile
+    ? `${previewMediaEl(videoFile)}<div class="preview-yt-play">▶</div>`
+    : `<div class="preview-yt-thumb-empty">Vídeo não disponível</div>`;
+
+  return `<div>
+    <div class="preview-yt-thumb">${thumb}</div>
+    <div class="preview-yt-info">
+      ${previewAvatarHtml(cfg, conta)}
+      <div>
+        <div class="preview-yt-title">${escapeHtml(titulo)}</div>
+        <div class="preview-yt-channel">${escapeHtml(handle)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTiktokPreviewHtml() {
+  const cfg = PLAT_ROW_CFG.tiktok;
+  const conta = previewFirstConta('tiktok');
+  const handle = conta?.handle || 'sua_conta';
+  const texto = previewTextForPlatform('tiktok');
+  const midia = mediaFiles.length ? previewMediaEl(mediaFiles[0].file) : `<div class="preview-vertical-empty">Anexe uma imagem ou vídeo</div>`;
+
+  return `<div class="preview-vertical">
+    ${midia}
+    <div class="preview-vertical-sidebar">
+      <span>❤️<small>0</small></span>
+      <span>💬<small>0</small></span>
+      <span>↗️<small>0</small></span>
+    </div>
+    <div class="preview-vertical-footer"><b>${escapeHtml(handle)}</b>${escapeHtml(texto)}</div>
+  </div>`;
 }
 
 // ── Texto separado por rede (Agendador) ─────────────────────────────────────
@@ -2944,6 +3209,7 @@ function onPostTextInput() {
   updateTextTabsCounter();
   if (typeof updatePostScore === 'function') updatePostScore();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
 }
 
 function unifyPlatformTexts() {
@@ -3311,11 +3577,12 @@ function updateMediaPreview() {
     : mediaFiles.length === 1 ? '1 arquivo selecionado'
     : `${mediaFiles.length} arquivos selecionados`;
 
-  // Pills de formato dependem de quanta/qual mídia foi anexada — recalcula
-  // sempre, inclusive quando a mídia é removida (oculta as pills).
+  // Pills de formato e o preview visual dependem de quanta/qual mídia foi
+  // anexada — recalcula sempre, inclusive quando a mídia é removida.
   if (typeof renderIgFormatPills === 'function') renderIgFormatPills();
   if (typeof renderYoutubeFormatPills === 'function') renderYoutubeFormatPills();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
 
   if (!mediaFiles.length) {
     hint.textContent = restriction;
