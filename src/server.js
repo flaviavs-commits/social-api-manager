@@ -181,6 +181,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
     googleApiKey: process.env.GOOGLE_API_KEY || null,
+    facebookAppId: process.env.META_APP_ID || null,
     reviewMode: process.env.TIKTOK_REVIEW_MODE === 'true'
   })
 })

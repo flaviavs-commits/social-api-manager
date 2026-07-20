@@ -166,6 +166,46 @@ router.get('/meta', requireAuth, (req, res) => {
   res.json({ authUrl: url });
 });
 
+// Troca um access_token de usuário do Facebook (curta ou já longa duração)
+// por um long-lived token (60 dias), busca o perfil e salva a conta —
+// compartilhado pelo callback de redirect (/meta/callback) e pelo login via
+// JS SDK (/meta/sdk-login), que chegam num access_token de formas diferentes
+// mas terminam no mesmo lugar: token trocado + conta salva.
+async function finalizarConexaoFacebook(shortLivedToken, { accountName, userId }) {
+  const platform = 'facebook';
+
+  const { data: longData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/oauth/access_token` +
+    `?grant_type=fb_exchange_token` +
+    `&client_id=${process.env.META_APP_ID}` +
+    `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
+    `&fb_exchange_token=${encodeURIComponent(shortLivedToken)}`);
+
+  const accessToken = longData.access_token || shortLivedToken;
+  const expiresIn = longData.expires_in || 60 * 86400;
+
+  const { data: profileData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
+  const nomeFinal = accountName || profileData.name || 'Nova Conta Facebook';
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  const conta = await contasRepo.criarContaRapida({
+    name: nomeFinal,
+    platform,
+    userId,
+    externalUserId: profileData.id ? String(profileData.id) : null
+  });
+
+  await tokensRepo.salvarToken({
+    accountId: conta.id,
+    platform,
+    accessToken,
+    expiresAt,
+    accountName: nomeFinal
+  });
+
+  addLog('ok', `Conta Facebook conectada: "${nomeFinal}" — token expira em ${Math.round(expiresIn / 86400)} dias`, platform, conta.id, userId);
+  return conta;
+}
+
 router.get('/meta/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
@@ -183,8 +223,6 @@ router.get('/meta/callback', async (req, res) => {
   }
 
   try {
-    const platform = 'facebook';
-
     // 1. Troca o code por um access_token real
     const { data: tokenData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/oauth/access_token` +
       `?client_id=${process.env.META_APP_ID}` +
@@ -193,45 +231,38 @@ router.get('/meta/callback', async (req, res) => {
       `&code=${encodeURIComponent(code)}`);
 
     if (tokenData.error || !tokenData.access_token) {
-      addLog('err', `Erro ao obter token Facebook: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      addLog('err', `Erro ao obter token Facebook: ${JSON.stringify(tokenData)}`, 'facebook', null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
-    // 2. Troca o token de curta duração por um long-lived token (60 dias)
-    const { data: longData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/oauth/access_token` +
-      `?grant_type=fb_exchange_token` +
-      `&client_id=${process.env.META_APP_ID}` +
-      `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
-      `&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`);
-
-    const accessToken = longData.access_token || tokenData.access_token;
-    const expiresIn = longData.expires_in || tokenData.expires_in || 60 * 86400;
-
-    // 3. Busca o ID e o nome do usuário/página conectada
-    const { data: profileData } = await fetchJsonWithRetry(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
-    const accountName = meta.accountName || profileData.name || 'Nova Conta Facebook';
-    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-
-    const conta = await contasRepo.criarContaRapida({
-      name: accountName,
-      platform,
-      userId: meta.userId,
-      externalUserId: profileData.id ? String(profileData.id) : null
-    });
-
-    await tokensRepo.salvarToken({
-      accountId: conta.id,
-      platform,
-      accessToken,
-      expiresAt,
-      accountName
-    });
-
-    addLog('ok', `Conta Facebook conectada: "${accountName}" — token expira em ${Math.round(expiresIn / 86400)} dias`, platform, conta.id, meta.userId);
+    // 2. Troca o token de curta duração, busca o perfil e salva a conta
+    await finalizarConexaoFacebook(tokenData.access_token, { accountName: meta.accountName, userId: meta.userId });
     res.send(popupSuccess());
   } catch (err) {
     addLog('err', `Falha no callback Facebook: ${err.message}`, null, null, meta.userId);
     res.send(popupError('oauth_failed'));
+  }
+});
+
+// Conexão via Facebook JS SDK (FB.login() no navegador) — o front-end já
+// recebe um access_token de usuário pronto do próprio SDK (popup gerenciado
+// pelo Facebook, sem redirect de página inteira) e só repassa esse token
+// aqui para virar long-lived e salvar a conta. Diferente de /meta/callback,
+// não há "state" assinado: a requisição já chega autenticada (requireAuth),
+// então o userId vem direto de req.user, não precisa viajar escondido numa URL.
+router.post('/meta/sdk-login', requireAuth, async (req, res) => {
+  const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET'], 'facebook');
+  if (configError) return res.status(400).json(configError);
+
+  const { accessToken, accountName } = req.body || {};
+  if (!accessToken) return res.status(400).json({ error: 'accessToken é obrigatório' });
+
+  try {
+    const conta = await finalizarConexaoFacebook(accessToken, { accountName, userId: req.user.id });
+    res.json({ success: true, accountId: conta.id });
+  } catch (err) {
+    addLog('err', `Falha no login via SDK do Facebook: ${err.message}`, null, null, req.user.id);
+    res.status(500).json({ error: 'Não foi possível conectar a conta do Facebook.' });
   }
 });
 
