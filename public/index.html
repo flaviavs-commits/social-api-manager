@@ -1392,8 +1392,9 @@ input, select, textarea, label, .bottom-nav-item {
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
         <div class="form-group">
           <label>Onde publicar</label>
-          <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center" onclick="openAccountPickerModal()">
-            <span id="account-picker-label">Carregando redes...</span>
+          <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openAccountPickerModal()">
+            <span id="account-picker-icons" style="display:flex;align-items:center"></span>
+            <span id="account-picker-label" style="flex:1">Carregando redes...</span>
             <span style="font-size:10px;color:var(--muted)">▾</span>
           </button>
         </div>
@@ -2675,9 +2676,14 @@ function applyPlatformSelection(plats) {
 // marcada, de quantas contas dessa rede estão conectadas.
 function updateAccountPickerLabel() {
   const el = document.getElementById('account-picker-label');
+  const iconsEl = document.getElementById('account-picker-icons');
   if (!el) return;
   const plats = [...selectedPlats];
-  if (!plats.length) { el.textContent = 'Escolha ao menos uma rede...'; return; }
+  if (!plats.length) {
+    el.textContent = 'Escolha ao menos uma rede...';
+    if (iconsEl) iconsEl.innerHTML = '';
+    return;
+  }
 
   const totalContas = plats.reduce((n, p) => n + apContas.filter(c => c.platform === p && c.handle).length, 0);
   const todasComConta = Object.keys(AP_PLAT_LABELS).filter(p => apContas.some(c => c.platform === p && c.handle));
@@ -2685,6 +2691,13 @@ function updateAccountPickerLabel() {
     ? 'Todas as redes'
     : plats.map(p => AP_PLAT_LABELS[p] || p).join(', ');
   el.textContent = `${label} (${totalContas} conta${totalContas === 1 ? '' : 's'})`;
+
+  if (iconsEl) {
+    iconsEl.innerHTML = plats.map(p => {
+      const cfg = PLAT_ROW_CFG[p];
+      return cfg ? `<div class="plat-icon ${cfg.cls}" style="width:20px;height:20px;font-size:10px;margin-right:4px">${escapeHtml(cfg.icon)}</div>` : '';
+    }).join('');
+  }
 }
 
 // Carrega as contas conectadas e marca por padrão todas as redes que têm ao
@@ -2715,21 +2728,41 @@ async function openAccountPickerModal() {
   document.getElementById('modal-account-picker').classList.add('open');
 }
 
+// Avatares empilhados das contas de uma rede (até 3 visíveis + "+N" se sobrar) —
+// mesmo padrão de fallback ícone↔foto já usado em loadTokens()/PLAT_ROW_CFG.
+function apAccountAvatarsHtml(cfg, contas) {
+  const visiveis = contas.slice(0, 3);
+  const resto = contas.length - visiveis.length;
+  const avatares = visiveis.map(c => {
+    const fallback = `<div class="plat-icon ${cfg.cls}" style="width:22px;height:22px;font-size:10px;border:2px solid var(--surface2)">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+    return c.avatarUrl
+      ? `<img src="${escapeHtml(c.avatarUrl)}" title="${escapeHtml(c.handle)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid var(--surface2);margin-left:-6px" onerror="this.outerHTML='${fallback}'">`
+      : `<div class="plat-icon ${cfg.cls}" title="${escapeHtml(c.handle)}" style="width:22px;height:22px;font-size:10px;border:2px solid var(--surface2);margin-left:-6px">${escapeHtml(cfg.icon)}</div>`;
+  }).join('');
+  const maisContas = resto > 0
+    ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--surface3,var(--border2));border:2px solid var(--surface2);margin-left:-6px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)">+${resto}</div>`
+    : '';
+  return `<div style="display:flex;align-items:center;margin-left:6px">${avatares}${maisContas}</div>`;
+}
+
 function renderApPlatformList() {
   const list = document.getElementById('ap-platform-list');
   const okBtn = document.getElementById('ap-ok-btn');
 
-  list.innerHTML = Object.entries(AP_PLAT_LABELS).map(([plat, label]) => {
+  list.innerHTML = Object.entries(PLAT_ROW_CFG).map(([plat, cfg]) => {
     const contasDaRede = apContas.filter(c => c.platform === plat && c.handle);
     const temConta = contasDaRede.length > 0;
     const checked = selectedPlats.has(plat) && temConta;
     const contagem = temConta
       ? `${contasDaRede.length} conta${contasDaRede.length === 1 ? '' : 's'}`
       : 'nenhuma conta conectada';
+    const avatares = temConta ? apAccountAvatarsHtml(cfg, contasDaRede) : '';
     return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;${temConta ? 'cursor:pointer' : 'opacity:0.5'}">
       <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
-      <span style="flex:1">${escapeHtml(label)}</span>
-      <span style="font-size:11px;color:var(--muted)">${escapeHtml(contagem)}</span>
+      <div class="plat-icon ${cfg.cls}" style="width:26px;height:26px;font-size:12px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
+      <span style="flex:1;font-weight:500">${escapeHtml(cfg.label)}</span>
+      ${avatares}
+      <span style="font-size:11px;color:var(--muted);white-space:nowrap">${escapeHtml(contagem)}</span>
     </label>`;
   }).join('');
 
