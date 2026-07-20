@@ -234,14 +234,17 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .expiry-bad { color: var(--red); font-size: 12px; font-family: var(--mono); }
 
 /* ── Seletor de redes (modal "Onde publicar") ───────────────────────────── */
-.ap-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--border2); border-radius: var(--radius); cursor: pointer; transition: border-color var(--transition), background var(--transition); background: var(--surface2); }
+.ap-card { border: 1px solid var(--border2); border-radius: var(--radius); transition: border-color var(--transition), background var(--transition); background: var(--surface2); overflow: hidden; }
 .ap-card:hover { border-color: var(--accent); }
 .ap-card.checked { border-color: var(--accent); background: var(--accent-glow); }
-.ap-card.disabled { cursor: default; opacity: 0.5; }
+.ap-card.disabled { opacity: 0.5; }
 .ap-card.disabled:hover { border-color: var(--border2); }
+.ap-card-toggle-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; cursor: pointer; }
+.ap-card.disabled .ap-card-toggle-row { cursor: default; }
 .ap-card-body { flex: 1; min-width: 0; }
 .ap-card-name { font-size: 14px; font-weight: 600; }
 .ap-card-meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.ap-card-notice { padding: 0 14px 12px 60px; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--yellow); line-height: 1.5; }
 .ap-avatars { display: flex; align-items: center; flex-shrink: 0; }
 .ap-avatars img, .ap-avatars .ap-avatar-fallback { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface2); margin-left: -8px; flex-shrink: 0; }
 .ap-avatars img { object-fit: cover; }
@@ -2765,6 +2768,74 @@ function apAccountAvatarsHtml(cfg, contas) {
   return `<div class="ap-avatars">${avatares}${maisContas}</div>`;
 }
 
+// Adequações do post atual (texto + mídia já anexados) para uma rede — só
+// avisos síncronos aqui (limite de caracteres, exigência de mídia/vídeo,
+// título do YouTube); o aviso de proporção da mídia chega depois, de forma
+// assíncrona, via apRenderRatioNotice (leitura de metadata é assíncrona).
+function apPlatformNoticeLines(plat) {
+  const req = PLAT_REQUIREMENTS[plat];
+  if (!req) return [];
+  const linhas = [];
+
+  const temMidia = mediaFiles.length > 0;
+  const isFotoTikTok = plat === 'tiktok' && temMidia && mediaFiles.every(m => m.file.type.startsWith('image/'));
+  if (req.media === 'required' && !temMidia) {
+    linhas.push(`📎 exige ${req.exige}`);
+  } else if (plat === 'youtube' && temMidia && !mediaFiles.some(m => m.file.type.startsWith('video/'))) {
+    linhas.push('📎 só aceita vídeo — a mídia atual não tem vídeo');
+  }
+
+  if (plat === 'youtube') {
+    const titulo = document.getElementById('post-youtube-title')?.value.trim();
+    if (!titulo) linhas.push('📝 título do vídeo é obrigatório no YouTube');
+  }
+
+  const texto = document.getElementById('post-text')?.value || '';
+  const limite = isFotoTikTok ? AI_LIMITS_PHOTO[plat] : AI_LIMITS[plat];
+  if (limite && texto.length > limite) {
+    linhas.push(`✂️ texto tem ${texto.length} caracteres, limite é ${limite} — será cortado ao publicar`);
+  }
+
+  return linhas;
+}
+
+function apNoticeHtml(plat) {
+  const linhas = apPlatformNoticeLines(plat);
+  if (!linhas.length) return '';
+  return `<div class="ap-card-notice" id="ap-notice-${plat}">${linhas.map(l => `<div>${escapeHtml(l)}</div>`).join('')}</div>`;
+}
+
+// Depois que os cards já estão na tela, busca (assíncrono) a proporção de
+// cada mídia anexada e injeta um aviso extra por rede marcada, sem re-renderizar
+// os cards inteiros (evitaria perder foco/estado de outros elementos).
+async function apRenderRatioNotices() {
+  const plats = [...selectedPlats];
+  if (!mediaFiles.length || !plats.length) return;
+
+  for (const plat of plats) {
+    const cfg = MEDIA_IDEAL_RATIOS[plat];
+    if (!cfg) continue;
+    const foraDaFaixa = [];
+    for (let i = 0; i < mediaFiles.length; i++) {
+      const file = mediaFiles[i].file;
+      const isVideo = file.type.startsWith('video/');
+      const faixa = cfg[isVideo ? 'video' : 'image'];
+      if (!faixa) continue;
+      const ratio = await getMediaRatio(file);
+      if (!ratio) continue;
+      const [min, max] = faixa;
+      if (ratio < min - 0.03 || ratio > max + 0.03) foraDaFaixa.push(i + 1);
+    }
+    if (!foraDaFaixa.length) continue;
+    const box = document.getElementById(`ap-notice-${plat}`);
+    if (!box) continue;
+    const prefixo = mediaFiles.length > 1 ? `item ${foraDaFaixa.join(', ')}: ` : '';
+    const linha = document.createElement('div');
+    linha.textContent = `📐 ${prefixo}proporção fora do ideal — pode ficar cortado`;
+    box.appendChild(linha);
+  }
+}
+
 function renderApPlatformList() {
   const list = document.getElementById('ap-platform-list');
   const okBtn = document.getElementById('ap-ok-btn');
@@ -2779,19 +2850,24 @@ function renderApPlatformList() {
       : `<span class="ap-empty-note">nenhuma conta conectada</span>`;
     const avatares = temConta ? apAccountAvatarsHtml(cfg, contasDaRede) : '';
     const cls = ['ap-card', checked ? 'checked' : '', temConta ? '' : 'disabled'].filter(Boolean).join(' ');
-    return `<label class="${cls}">
-      <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
-      <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
-      <div class="ap-card-body">
-        <div class="ap-card-name">${escapeHtml(cfg.label)}</div>
-        <div class="ap-card-meta">${meta}</div>
-      </div>
-      ${avatares}
-      <div class="ap-toggle"></div>
-    </label>`;
+    const notice = checked ? apNoticeHtml(plat) : '';
+    return `<div class="${cls}">
+      <label class="ap-card-toggle-row">
+        <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
+        <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
+        <div class="ap-card-body">
+          <div class="ap-card-name">${escapeHtml(cfg.label)}</div>
+          <div class="ap-card-meta">${meta}</div>
+        </div>
+        ${avatares}
+        <div class="ap-toggle"></div>
+      </label>
+      ${notice}
+    </div>`;
   }).join('');
 
   okBtn.disabled = ![...selectedPlats].some(p => apContas.some(c => c.platform === p && c.handle));
+  apRenderRatioNotices();
 }
 
 function apTogglePlatform(plat, checked) {
@@ -2861,48 +2937,63 @@ const MEDIA_IDEAL_RATIOS = {
   tiktok:    { image: [0.5625, 1.778], video: [0.5625, 1.778] },
 };
 
+// Cache de proporção (largura/altura) por File — a leitura de metadata via
+// <img>/<video> é assíncrona, e tanto o box de avisos abaixo da mídia quanto
+// os cards do modal "Onde publicar" (apPlatformNoticeHtml) precisam do mesmo
+// dado; sem cache, cada re-render (ex: alternar um toggle no modal) recriaria
+// elementos <video> e relesse o arquivo do zero.
+const mediaRatioCache = new Map();
+
+function getMediaRatio(file) {
+  if (mediaRatioCache.has(file)) return mediaRatioCache.get(file);
+  const isVideo = file.type.startsWith('video/');
+  const promise = new Promise(resolve => {
+    const el = document.createElement(isVideo ? 'video' : 'img');
+    const url = URL.createObjectURL(file);
+    if (isVideo) { el.preload = 'metadata'; el.muted = true; }
+    const onReady = () => {
+      const w = isVideo ? el.videoWidth : el.naturalWidth;
+      const h = isVideo ? el.videoHeight : el.naturalHeight;
+      URL.revokeObjectURL(url);
+      resolve(w && h ? w / h : null);
+    };
+    if (isVideo) el.onloadedmetadata = onReady; else el.onload = onReady;
+    el.onerror = () => resolve(null);
+    el.src = url;
+  });
+  mediaRatioCache.set(file, promise);
+  return promise;
+}
+
 // Avisa (sem bloquear) quando a mídia anexada está fora da proporção ideal
-// de alguma rede marcada — lê width/height no navegador, mesmo padrão de
-// checkYoutubeShortHint.
-function checkMediaGuidelinesHint(mediaFiles, plats) {
+// de alguma rede marcada.
+async function checkMediaGuidelinesHint(mediaFiles, plats) {
   const box = document.getElementById('post-media-guidelines');
   if (!box) return;
   box.innerHTML = '';
   if (!mediaFiles.length || !plats.length) return;
 
-  mediaFiles.forEach((m, idx) => {
+  mediaFiles.forEach(async (m, idx) => {
     const isVideo = m.file.type.startsWith('video/');
-    const el = document.createElement(isVideo ? 'video' : 'img');
-    const url = URL.createObjectURL(m.file);
-    if (isVideo) { el.preload = 'metadata'; el.muted = true; }
-    el.src = url;
+    const ratio = await getMediaRatio(m.file);
+    if (!ratio) return;
 
-    const onReady = () => {
-      const w = isVideo ? el.videoWidth : el.naturalWidth;
-      const h = isVideo ? el.videoHeight : el.naturalHeight;
-      URL.revokeObjectURL(url);
-      if (!w || !h) return;
-      const ratio = w / h;
-
-      const avisos = [];
-      for (const plat of plats) {
-        const cfg = MEDIA_IDEAL_RATIOS[plat];
-        const faixa = cfg?.[isVideo ? 'video' : 'image'];
-        if (!faixa) continue;
-        const [min, max] = faixa;
-        if (ratio < min - 0.03 || ratio > max + 0.03) {
-          avisos.push(AP_PLAT_LABELS[plat] || plat);
-        }
+    const avisos = [];
+    for (const plat of plats) {
+      const cfg = MEDIA_IDEAL_RATIOS[plat];
+      const faixa = cfg?.[isVideo ? 'video' : 'image'];
+      if (!faixa) continue;
+      const [min, max] = faixa;
+      if (ratio < min - 0.03 || ratio > max + 0.03) {
+        avisos.push(AP_PLAT_LABELS[plat] || plat);
       }
-      if (avisos.length) {
-        const linha = document.createElement('div');
-        const prefixo = mediaFiles.length > 1 ? `Item ${idx + 1}: ` : '';
-        linha.textContent = `ℹ️ ${prefixo}proporção fora do ideal para ${avisos.join(', ')} — ainda pode publicar, mas a imagem/vídeo pode ficar cortado.`;
-        box.appendChild(linha);
-      }
-    };
-    if (isVideo) el.onloadedmetadata = onReady;
-    else el.onload = onReady;
+    }
+    if (avisos.length) {
+      const linha = document.createElement('div');
+      const prefixo = mediaFiles.length > 1 ? `Item ${idx + 1}: ` : '';
+      linha.textContent = `ℹ️ ${prefixo}proporção fora do ideal para ${avisos.join(', ')} — ainda pode publicar, mas a imagem/vídeo pode ficar cortado.`;
+      box.appendChild(linha);
+    }
   });
 }
 
