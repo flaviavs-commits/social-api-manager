@@ -233,6 +233,28 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .expiry-warn { color: var(--yellow); font-size: 12px; font-family: var(--mono); }
 .expiry-bad { color: var(--red); font-size: 12px; font-family: var(--mono); }
 
+/* ── Seletor de redes (modal "Onde publicar") ───────────────────────────── */
+.ap-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--border2); border-radius: var(--radius); cursor: pointer; transition: border-color var(--transition), background var(--transition); background: var(--surface2); }
+.ap-card:hover { border-color: var(--accent); }
+.ap-card.checked { border-color: var(--accent); background: var(--accent-glow); }
+.ap-card.disabled { cursor: default; opacity: 0.5; }
+.ap-card.disabled:hover { border-color: var(--border2); }
+.ap-card-body { flex: 1; min-width: 0; }
+.ap-card-name { font-size: 14px; font-weight: 600; }
+.ap-card-meta { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.ap-avatars { display: flex; align-items: center; flex-shrink: 0; }
+.ap-avatars img, .ap-avatars .ap-avatar-fallback { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface2); margin-left: -8px; flex-shrink: 0; }
+.ap-avatars img { object-fit: cover; }
+.ap-avatars .ap-avatar-fallback { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+.ap-avatars .ap-avatar-more { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--surface2); margin-left: -8px; background: var(--surface3); color: var(--muted2); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.ap-avatars > *:first-child { margin-left: 0; }
+.ap-toggle { position: relative; width: 40px; height: 24px; border-radius: 12px; background: var(--surface3); border: 1px solid var(--border2); flex-shrink: 0; transition: background var(--transition), border-color var(--transition); }
+.ap-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted2); transition: transform var(--transition), background var(--transition); }
+.ap-card.checked .ap-toggle { background: var(--accent); border-color: var(--accent); }
+.ap-card.checked .ap-toggle::after { transform: translateX(16px); background: #fff; }
+.ap-card input[type="checkbox"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ap-empty-note { font-size: 11px; color: var(--muted); }
+
 /* ── Logs ────────────────────────────────────────────────────────────────── */
 .log-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; font-family: var(--sans); font-size: 13px; line-height: 1.8; height: 420px; overflow-y: auto; }
 .log-line { display: flex; gap: 12px; padding: 1px 0; }
@@ -2107,7 +2129,7 @@ input, select, textarea, label, .bottom-nav-item {
 
     <div class="form-group">
       <label>Redes sociais</label>
-      <div style="display:flex;flex-direction:column;gap:6px" id="ap-platform-list"></div>
+      <div style="display:flex;flex-direction:column;gap:8px" id="ap-platform-list"></div>
     </div>
 
     <div class="modal-actions">
@@ -2728,21 +2750,19 @@ async function openAccountPickerModal() {
   document.getElementById('modal-account-picker').classList.add('open');
 }
 
-// Avatares empilhados das contas de uma rede (até 3 visíveis + "+N" se sobrar) —
+// Avatares empilhados das contas de uma rede (até 4 visíveis + "+N" se sobrar) —
 // mesmo padrão de fallback ícone↔foto já usado em loadTokens()/PLAT_ROW_CFG.
 function apAccountAvatarsHtml(cfg, contas) {
-  const visiveis = contas.slice(0, 3);
+  const visiveis = contas.slice(0, 4);
   const resto = contas.length - visiveis.length;
   const avatares = visiveis.map(c => {
-    const fallback = `<div class="plat-icon ${cfg.cls}" style="width:22px;height:22px;font-size:10px;border:2px solid var(--surface2)">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
     return c.avatarUrl
-      ? `<img src="${escapeHtml(c.avatarUrl)}" title="${escapeHtml(c.handle)}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid var(--surface2);margin-left:-6px" onerror="this.outerHTML='${fallback}'">`
-      : `<div class="plat-icon ${cfg.cls}" title="${escapeHtml(c.handle)}" style="width:22px;height:22px;font-size:10px;border:2px solid var(--surface2);margin-left:-6px">${escapeHtml(cfg.icon)}</div>`;
+      ? `<img src="${escapeHtml(c.avatarUrl)}" title="${escapeHtml(c.handle)}" onerror="this.outerHTML='${fallback}'">`
+      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}" title="${escapeHtml(c.handle)}">${escapeHtml(cfg.icon)}</div>`;
   }).join('');
-  const maisContas = resto > 0
-    ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--surface3,var(--border2));border:2px solid var(--surface2);margin-left:-6px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)">+${resto}</div>`
-    : '';
-  return `<div style="display:flex;align-items:center;margin-left:6px">${avatares}${maisContas}</div>`;
+  const maisContas = resto > 0 ? `<div class="ap-avatar-more">+${resto}</div>` : '';
+  return `<div class="ap-avatars">${avatares}${maisContas}</div>`;
 }
 
 function renderApPlatformList() {
@@ -2753,16 +2773,21 @@ function renderApPlatformList() {
     const contasDaRede = apContas.filter(c => c.platform === plat && c.handle);
     const temConta = contasDaRede.length > 0;
     const checked = selectedPlats.has(plat) && temConta;
-    const contagem = temConta
-      ? `${contasDaRede.length} conta${contasDaRede.length === 1 ? '' : 's'}`
-      : 'nenhuma conta conectada';
+    const nomes = contasDaRede.map(c => c.handle).join(', ');
+    const meta = temConta
+      ? `${contasDaRede.length} conta${contasDaRede.length === 1 ? '' : 's'} · ${escapeHtml(nomes)}`
+      : `<span class="ap-empty-note">nenhuma conta conectada</span>`;
     const avatares = temConta ? apAccountAvatarsHtml(cfg, contasDaRede) : '';
-    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;${temConta ? 'cursor:pointer' : 'opacity:0.5'}">
+    const cls = ['ap-card', checked ? 'checked' : '', temConta ? '' : 'disabled'].filter(Boolean).join(' ');
+    return `<label class="${cls}">
       <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
-      <div class="plat-icon ${cfg.cls}" style="width:26px;height:26px;font-size:12px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
-      <span style="flex:1;font-weight:500">${escapeHtml(cfg.label)}</span>
+      <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
+      <div class="ap-card-body">
+        <div class="ap-card-name">${escapeHtml(cfg.label)}</div>
+        <div class="ap-card-meta">${meta}</div>
+      </div>
       ${avatares}
-      <span style="font-size:11px;color:var(--muted);white-space:nowrap">${escapeHtml(contagem)}</span>
+      <div class="ap-toggle"></div>
     </label>`;
   }).join('');
 
@@ -2772,7 +2797,7 @@ function renderApPlatformList() {
 function apTogglePlatform(plat, checked) {
   if (checked) selectedPlats.add(plat);
   else selectedPlats.delete(plat);
-  document.getElementById('ap-ok-btn').disabled = ![...selectedPlats].some(p => apContas.some(c => c.platform === p && c.handle));
+  renderApPlatformList();
 }
 
 function confirmAccountPicker() {
