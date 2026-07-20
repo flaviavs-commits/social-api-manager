@@ -7,10 +7,11 @@ const MAX_TEXT_LENGTH = 5000
 const MAX_YOUTUBE_TITLE_LENGTH = 100
 const MAX_CAPTION_LENGTH = 500
 const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private']
+const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok }) {
+function validarCriacaoPost({ text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -43,6 +44,16 @@ function validarCriacaoPost({ text, youtubeTitle, youtubeVisibility, platforms, 
 
   if (platforms.includes('instagram') && !items.length)
     return 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.'
+
+  // O Instagram processa a mídia de forma assíncrona antes de publicar
+  // (container → aguarda FINISHED → publish) — agendar muito em cima da
+  // hora não dá folga pro cron detectar e disparar a tempo. Só vale para
+  // agendamento futuro; "publicar agora" não passa por aqui.
+  if (platforms.includes('instagram') && !publishNow && scheduledAtUTC) {
+    const minutosAteAgendamento = (new Date(scheduledAtUTC + 'Z').getTime() - Date.now()) / 60000
+    if (minutosAteAgendamento < INSTAGRAM_MIN_ANTECEDENCIA_MIN)
+      return `Para publicar no Instagram, escolha um horário com pelo menos ${INSTAGRAM_MIN_ANTECEDENCIA_MIN} minutos de antecedência.`
+  }
 
   return null
 }
@@ -87,6 +98,7 @@ function decidirStatusPublicacao(results) {
 
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
+  INSTAGRAM_MIN_ANTECEDENCIA_MIN,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao
 }

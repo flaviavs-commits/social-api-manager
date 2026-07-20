@@ -3160,6 +3160,14 @@ async function schedulePost(publishNow = false) {
   if (platforms.length === 0 || !selectedAccountId) return showToast('Escolha a rede social e a conta em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
+  // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
+  // muito em cima da hora não dá folga pro cron confirmar a tempo. Mesma regra
+  // validada no backend (src/domain/posts/post.js, INSTAGRAM_MIN_ANTECEDENCIA_MIN).
+  if (!publishNow && platforms.includes('instagram')) {
+    const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000;
+    if (minutosAteAgendamento < 20) return showToast('Para publicar no Instagram, escolha um horário com pelo menos 20 minutos de antecedência.', 'err');
+  }
+
   let media;
   try {
     if (mediaFiles.length) showToast(mediaFiles.length > 1 ? 'Enviando arquivos...' : 'Enviando arquivo...', 'ok');

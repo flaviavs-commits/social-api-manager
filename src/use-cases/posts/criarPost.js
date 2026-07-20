@@ -112,17 +112,18 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const temVideo = items.some(i => i.type === 'video')
   const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
 
-  const erro = validarCriacaoPost({
-    text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok
-  })
-  if (erro) throw new ValidationError(erro)
-
-  const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
-
   // "Publicar agora" cria o post já como 'processing' (em vez de 'scheduled')
   // para que o cron do agendamento nunca o veja e dispare uma segunda
   // publicação concorrente — quem publica é só esta requisição, na sequência.
   const publishNow = body.publishNow === 'true' || body.publishNow === true
+
+  const erro = validarCriacaoPost({
+    text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    scheduledAtUTC, publishNow
+  })
+  if (erro) throw new ValidationError(erro)
+
+  const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
