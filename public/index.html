@@ -25,11 +25,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
-  --bg: #0f0e1a; --surface: #191826; --surface2: #201f30; --surface3: #29283c;
-  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
-  --text: #eef0f8; --muted: #7c7a99; --muted2: #a0a0bc;
-  --accent: #7c6cff; --accent2: #b36cd9; --accent-glow: rgba(124,108,255,0.18);
-  --green: #34d399; --red: #f87171; --yellow: #fbbf24;
+  --bg: #0d0f14; --surface: #161922; --surface2: #1e222d; --surface3: #262b38;
+  --border: #2a2f3d; --border2: #3a4054;
+  --text: #eef1f7; --muted: #9aa1b5; --muted2: #b7bccc;
+  --accent: #8677ff; --accent2: #b36cd9; --accent-glow: rgba(134,119,255,0.18);
+  --green: #3ecf8e; --red: #f0596b; --yellow: #f5b942; --neutral: #7c8fff;
   --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f8;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
   --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
@@ -76,9 +76,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .sidebar-plat-name { flex: 1; font-size: 13px; }
 .sidebar-plat-add { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border2); background: transparent; color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 13px; transition: all var(--transition); }
 .sidebar-plat-add:hover { color: var(--accent); border-color: var(--accent); }
-.sidebar-plat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.sidebar-plat-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.sidebar-plat-dot.disconnected { background: var(--muted); opacity: 0.4; }
+.sidebar-plat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px var(--surface); }
+.sidebar-plat-dot.connected { background: var(--green); }
+.sidebar-plat-dot.warning { background: var(--yellow); animation: statusPulse 2.2s ease-in-out infinite; }
+.sidebar-plat-dot.error { background: var(--red); animation: statusPulse 1.6s ease-in-out infinite; }
+.sidebar-plat-dot.disconnected { background: var(--muted2); opacity: 0.5; }
 
 /* ── Topbar mobile ───────────────────────────────────────────────────────── */
 .topbar { display: none; position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); z-index: 190; align-items: center; padding: 0 1rem; gap: 12px; }
@@ -175,11 +177,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 2rem; }
 .plat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; position: relative; overflow: hidden; transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition); }
 .plat-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow); }
-.plat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-.plat-card.fb::before { background: var(--fb); }
-.plat-card.ig::before { background: linear-gradient(90deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
-.plat-card.yt::before { background: var(--yt); }
-.plat-card.tt::before { background: linear-gradient(90deg,#69C9D0,#EE1D52); }
+/* A faixa no topo do card comunica o status real da conexão (não a cor de
+   marca da rede — essa fica só no ícone) para o olho ler "tudo bem / atenção
+   / erro" antes mesmo de ler os números. */
+.plat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border2); }
+.plat-card[data-status="ok"]::before { background: var(--green); }
+.plat-card[data-status="warning"]::before { background: var(--yellow); }
+.plat-card[data-status="error"]::before { background: var(--red); }
 .plat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .plat-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
 .plat-icon { width: 30px; height: 30px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 14px; }
@@ -188,10 +192,17 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
 .plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
 .plat-icon.tt { background: rgba(232,232,240,0.1); color: var(--tt); }
-.status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px; border-radius: 99px; font-weight: 500; }
-.status-pill.connected { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
-.status-pill.partial { background: rgba(251,191,36,0.12); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
-.status-pill.disconnected { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px 3px 8px; border-radius: 99px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+.status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+.status-pill.connected { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
+.status-pill.partial { background: rgba(245,185,66,0.12); color: var(--yellow); border: 1px solid rgba(245,185,66,0.3); }
+.status-pill.partial::before { animation: statusPulse 2.2s ease-in-out infinite; }
+.status-pill.error { background: rgba(240,89,107,0.12); color: var(--red); border: 1px solid rgba(240,89,107,0.3); }
+.status-pill.error::before { animation: statusPulse 1.6s ease-in-out infinite; }
+/* "Não conectado" é um convite, não um erro — fica neutro, nunca vermelho. */
+.status-pill.disconnected { background: rgba(124,143,255,0.1); color: var(--neutral); border: 1px solid rgba(124,143,255,0.28); }
+@keyframes statusPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .status-pill.partial::before, .status-pill.error::before { animation: none; } }
 .plat-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 1.25rem; }
 .plat-stat { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; text-align: center; }
 .plat-stat-val { font-size: 18px; font-weight: 600; font-family: var(--mono); }
@@ -201,10 +212,15 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .progress-bar { height: 3px; background: var(--border); border-radius: 99px; margin-bottom: 8px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
 .plat-actions { display: flex; gap: 8px; }
+/* Hierarquia: primary (ação mais usada do card) tem peso total; secondary
+   (contorno) para ações ocasionais; ghost (sem contorno) para as raras —
+   nunca mais de 1 primary por card. */
 .plat-btn { flex: 1; padding: 8px 0; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: transparent; color: var(--muted2); font-size: 12px; cursor: pointer; transition: all var(--transition); text-align: center; font-family: var(--sans); font-weight: 500; }
 .plat-btn:hover { color: var(--text); background: var(--surface2); border-color: var(--border2); }
-.plat-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; }
-.plat-btn.primary:hover { background: #4a6ee0; border-color: #4a6ee0; }
+.plat-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+.plat-btn.primary:hover { background: #6a5ae6; border-color: #6a5ae6; }
+.plat-btn.ghost { border-color: transparent; color: var(--muted); }
+.plat-btn.ghost:hover { color: var(--text); background: var(--surface2); border-color: transparent; }
 .plat-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .plat-btn:active { transform: scale(0.97); }
 .account-dropdown { position: relative; flex: 1; }
@@ -2566,8 +2582,12 @@ async function loadDashboard() {
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
       const health = p.total > 0 ? Math.round((p.active / p.total) * 100) : 0;
-      const statusLabel = p.error > 0 ? 'partial' : 'connected';
-      const statusText  = p.error > 0 ? 'parcial' : 'conectado';
+      // Status do card: erro real (conta com falha) pesa mais que vencimento
+      // próximo, que pesa mais que "tudo certo" — sem contas é neutro, nunca
+      // erro (é um convite a conectar, não um problema).
+      const cardStatus = p.total === 0 ? 'neutral' : p.error > 0 ? 'error' : p.expiringTokens > 0 ? 'warning' : 'ok';
+      const statusLabel = { neutral:'disconnected', error:'error', warning:'partial', ok:'connected' }[cardStatus];
+      const statusText  = { neutral:'não conectado', error:'com problema', warning:'atenção', ok:'conectado' }[cardStatus];
 
       // Coleta todos os links de perfil válidos para essa plataforma, e a
       // primeira foto de perfil real encontrada (se alguma conta tiver).
@@ -2586,39 +2606,45 @@ async function loadDashboard() {
       const platIcon = avatarUrl
         ? `<img class="plat-icon-avatar" src="${escapeHtml(avatarUrl)}" onerror="this.outerHTML='${fallbackIcon}'">`
         : `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`;
+      // "Abrir conta" é a ação mais usada do card (visitar o perfil já
+      // conectado) — leva o peso visual primário. "+ Conta" é rara (raramente
+      // se conecta uma 2ª conta da mesma rede) — fica em ghost.
       let openBtn;
       if (links.length === 0) {
         openBtn = `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
       } else if (links.length === 1) {
-        openBtn = `<button class="plat-btn" onclick="window.open('${links[0].url}', '_blank')">Abrir conta</button>`;
+        openBtn = `<button class="plat-btn primary" onclick="window.open('${links[0].url}', '_blank')">Abrir conta</button>`;
       } else {
         const opts = links.map(l => `<a href="${l.url}" target="_blank" class="account-dropdown-item">${escapeHtml(l.name)}</a>`).join('');
         openBtn = `<div class="account-dropdown">
-          <button type="button" class="plat-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open')">Abrir conta ▾</button>
+          <button type="button" class="plat-btn primary" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open')">Abrir conta ▾</button>
           <div class="account-dropdown-menu">${opts}</div>
         </div>`;
       }
 
+      const statColor = { neutral:'var(--muted)', error:'var(--red)', warning:'var(--yellow)', ok:'var(--green)' }[cardStatus];
+      const problemCount = p.error || p.expiringTokens;
+
       grid.innerHTML += `
-        <div class="plat-card ${cfg.cls}">
+        <div class="plat-card ${cfg.cls}" data-status="${cardStatus}">
           <div class="plat-header">
             <div class="plat-name">${platIcon}${cfg.label}</div>
             <span class="status-pill ${statusLabel}">${statusText}</span>
           </div>
           <div class="plat-stats">
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--${cfg.cls})">${p.total}</div><div class="plat-stat-label">Contas</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:#68D391">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
-            <div class="plat-stat${p.error===0 ? ' warning' : ''}"><div class="plat-stat-val" style="color:${p.error>0?'#FC8181':'#F6AD55'}">${p.error || p.expiringTokens}</div><div class="plat-stat-label">${p.error>0?'Com problema':'⚠️ Vencendo'}</div></div>
+            <div class="plat-stat"><div class="plat-stat-val">${p.total}</div><div class="plat-stat-label">Contas</div></div>
+            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
+            <div class="plat-stat${problemCount > 0 ? ' warning' : ''}"><div class="plat-stat-val" style="color:${problemCount > 0 ? statColor : 'var(--muted)'}">${problemCount}</div><div class="plat-stat-label">${p.error>0?'Com problema':p.expiringTokens>0?'Vencendo':'Sem pendências'}</div></div>
           </div>
           <div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Funcionando corretamente</span><span>${health}%</span></div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${health}%;background:var(--${cfg.cls})"></div></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${health}%;background:${statColor}"></div></div>
             <div style="font-size:11px;color:var(--muted)">${cfg.api}</div>
           </div>
           <div class="plat-actions">
             ${openBtn}
             <button class="plat-btn" onclick="showPage('tokens')">Ver conexão</button>
-            <button class="plat-btn primary" onclick="openModal('nova-conta', '${p.platform}')">+ Conta</button>
+            <button class="plat-btn ghost" onclick="openModal('nova-conta', '${p.platform}')">+ Conta</button>
           </div>
         </div>`;
     });
@@ -2629,6 +2655,8 @@ async function loadDashboard() {
     sidebarList.innerHTML = Object.entries(platCfg).map(([platform, cfg]) => {
       const stat = statsByPlat[platform];
       const isConnected = !!stat && stat.active > 0;
+      const dotStatus = !stat || stat.total === 0 ? 'disconnected' : stat.error > 0 ? 'error' : stat.expiringTokens > 0 ? 'warning' : 'connected';
+      const dotTitle = { disconnected:'Não conectado', error:'Com problema', warning:'Atenção — token vencendo', connected:'Conectado' }[dotStatus];
 
       let avatarUrl = null;
       for (const c of contas) {
@@ -2643,7 +2671,7 @@ async function loadDashboard() {
       return `<div class="sidebar-plat-item" onclick="showPage('tokens')">
         ${icon}
         <span class="sidebar-plat-name">${cfg.label}</span>
-        <span class="sidebar-plat-dot ${isConnected ? 'connected' : 'disconnected'}" title="${isConnected ? 'Conectado' : 'Não conectado'}"></span>
+        <span class="sidebar-plat-dot ${dotStatus}" title="${dotTitle}"></span>
         ${isConnected ? '' : `<button type="button" class="sidebar-plat-add" title="Conectar ${escapeHtml(cfg.label)}" onclick="event.stopPropagation(); openModal('nova-conta','${platform}')">+</button>`}
       </div>`;
     }).join('');
