@@ -71,6 +71,17 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('platforms inválido')
   }
 
+  // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
+  // só contém as plataformas cujo texto foi explicitamente diferenciado do
+  // texto principal (text). Ver domain/posts/post.js e migrations/029.
+  let textByPlatform = null
+  try {
+    const parsed = JSON.parse(body.textByPlatform || '{}')
+    if (parsed && typeof parsed === 'object' && Object.keys(parsed).length) textByPlatform = parsed
+  } catch {
+    throw new ValidationError('textByPlatform inválido')
+  }
+
   const scheduledAtBR = normalizarScheduledAtBR(scheduledAt)
   if (!scheduledAtBR || Number.isNaN(new Date(scheduledAtBR).getTime())) throw new ValidationError('scheduledAt inválido')
   const scheduledAtUTC = scheduledAtParaUTC(scheduledAtBR)
@@ -109,7 +120,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -128,7 +139,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
   const post = await postsRepo.criarPost({
-    text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat,
+    text: text?.trim() || null, textByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'

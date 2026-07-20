@@ -90,6 +90,11 @@ const PUBLISHERS = {
 // criarPost.js): { postAccountId, accountId, platform, handle }.
 async function publicarNaConta(account, post, isSuperAdmin) {
   const platform = account.platform
+  // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
+  // cai no texto principal (post.text) quando a rede não tem entrada própria
+  // em text_by_platform. Ver domain/posts/post.js e migrations/029.
+  const textoResolvido = post.textByPlatform?.[platform] ?? post.text
+  post = { ...post, text: textoResolvido }
   const publisher = PUBLISHERS[platform]
   if (!publisher) {
     return { platform, accountId: account.accountId, success: false, error: `Plataforma "${platform}" não suportada` }

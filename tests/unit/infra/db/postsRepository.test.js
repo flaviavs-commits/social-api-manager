@@ -26,15 +26,31 @@ describe('criarPost', () => {
     const mediaItems = [{ path: 'a.jpg', type: 'image', caption: '' }]
     await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1, mediaItems })
     const params = pool.query.mock.calls[0][1]
-    expect(typeof params[6]).toBe('string')
-    expect(JSON.parse(params[6])).toEqual(mediaItems)
+    expect(typeof params[7]).toBe('string')
+    expect(JSON.parse(params[7])).toEqual(mediaItems)
   })
 
   test('mediaItems null permanece null', async () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1 })
     const params = pool.query.mock.calls[0][1]
-    expect(params[6]).toBeNull()
+    expect(params[7]).toBeNull()
+  })
+
+  test('serializa textByPlatform como JSON', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [POST] })
+    const textByPlatform = { instagram: 'texto ig', facebook: 'texto fb' }
+    await repo.criarPost({ text: 'x', textByPlatform, platforms: [], scheduledAt: new Date(), userId: 1 })
+    const params = pool.query.mock.calls[0][1]
+    expect(typeof params[1]).toBe('string')
+    expect(JSON.parse(params[1])).toEqual(textByPlatform)
+  })
+
+  test('textByPlatform ausente permanece null', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [POST] })
+    await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1 })
+    const params = pool.query.mock.calls[0][1]
+    expect(params[1]).toBeNull()
   })
 })
 

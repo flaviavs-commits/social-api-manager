@@ -1,4 +1,4 @@
-const { validarCriacaoPost, INSTAGRAM_MIN_ANTECEDENCIA_MIN } = require('../../../../src/domain/posts/post')
+const { validarCriacaoPost, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH } = require('../../../../src/domain/posts/post')
 
 function baseArgs(overrides = {}) {
   return {
@@ -46,5 +46,27 @@ describe('validarCriacaoPost — antecedência mínima do Instagram', () => {
     const noLimite = new Date(Date.now() + 21 * 60000).toISOString().replace('Z', '')
     const erro = validarCriacaoPost(baseArgs({ scheduledAtUTC: noLimite }))
     expect(erro).toBeNull()
+  })
+})
+
+describe('validarCriacaoPost — textByPlatform', () => {
+  test('aceita textByPlatform ausente', () => {
+    const erro = validarCriacaoPost(baseArgs())
+    expect(erro).toBeNull()
+  })
+
+  test('aceita textos por rede dentro do limite', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      textByPlatform: { instagram: 'texto ig', facebook: 'texto fb' }
+    }))
+    expect(erro).toBeNull()
+  })
+
+  test('rejeita quando o texto de uma rede específica excede o limite', () => {
+    const textoGigante = 'a'.repeat(MAX_TEXT_LENGTH + 1)
+    const erro = validarCriacaoPost(baseArgs({
+      textByPlatform: { instagram: 'ok', facebook: textoGigante }
+    }))
+    expect(erro).toMatch(new RegExp(`${MAX_TEXT_LENGTH} caracteres`))
   })
 })

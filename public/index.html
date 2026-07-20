@@ -1435,8 +1435,14 @@ input, select, textarea, label, .bottom-nav-item {
             <option value="private">Privado</option>
           </select>
         </div>
-        <div class="form-group"><label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
-          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..."></textarea>
+        <div class="form-group">
+          <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
+          <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
+          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..." oninput="onPostTextInput()"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+            <span id="text-tabs-unify" style="display:none;font-size:11px;color:var(--accent);cursor:pointer" onclick="unifyPlatformTexts()">usar o mesmo texto para todas</span>
+            <span id="text-tabs-counter" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+          </div>
         </div>
         <div class="form-group">
           <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
@@ -2695,6 +2701,105 @@ function applyPlatformSelection(plats) {
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   updateAccountPickerLabel();
+  syncTextByPlatformSelection();
+}
+
+// ── Texto separado por rede (Agendador) ─────────────────────────────────────
+// Por padrão, o texto do textarea é compartilhado por todas as redes marcadas
+// (comportamento de sempre). Quando o usuário abre a barra de abas e edita o
+// texto de uma rede específica, textByPlatform passa a guardar 1 entrada por
+// rede marcada — a partir daí, trocar de aba troca o conteúdo do textarea, e
+// digitar grava só na rede ativa. "usar o mesmo texto para todas" descarta
+// textByPlatform e volta ao modo compartilhado. Ver src/domain/posts/post.js
+// e migrations/029_post_text_by_platform.sql.
+let textByPlatform = {};
+let activeTextTab = null; // platform da aba ativa, ou null = modo texto único
+let textTabsBaseText = ''; // texto compartilhado no momento em que o modo por-rede começou — referência para marcar quais redes já divergiram dele
+
+// Mantém textByPlatform coerente quando a seleção de redes muda: remove
+// entradas de redes desmarcadas, e sai do modo por-rede se sobrar menos de 2
+// redes marcadas (a barra de abas não faz sentido com 0 ou 1 rede).
+function syncTextByPlatformSelection() {
+  for (const p of Object.keys(textByPlatform)) {
+    if (!selectedPlats.has(p)) delete textByPlatform[p];
+  }
+  if (selectedPlats.size < 2 || (activeTextTab && !selectedPlats.has(activeTextTab))) {
+    textByPlatform = {};
+    activeTextTab = null;
+  }
+  renderTextTabsBar();
+}
+
+function switchTextTab(platform) {
+  if (activeTextTab === platform) return;
+  const textarea = document.getElementById('post-text');
+  if (!Object.keys(textByPlatform).length) {
+    // Primeira vez entrando no modo por-rede: copia o texto atual (compartilhado)
+    // para todas as redes marcadas — "copia pro resto ao digitar".
+    const textoAtual = textarea.value;
+    textTabsBaseText = textoAtual;
+    for (const p of selectedPlats) textByPlatform[p] = textoAtual;
+  }
+  activeTextTab = platform;
+  textarea.value = textByPlatform[platform] ?? '';
+  renderTextTabsBar();
+}
+
+function onPostTextInput() {
+  if (activeTextTab) textByPlatform[activeTextTab] = document.getElementById('post-text').value;
+  updateTextTabsCounter();
+  if (typeof updatePostScore === 'function') updatePostScore();
+}
+
+function unifyPlatformTexts() {
+  const textoBase = activeTextTab ? (textByPlatform[activeTextTab] || '') : document.getElementById('post-text').value;
+  textByPlatform = {};
+  activeTextTab = null;
+  document.getElementById('post-text').value = textoBase;
+  renderTextTabsBar();
+}
+
+function updateTextTabsCounter() {
+  const counterEl = document.getElementById('text-tabs-counter');
+  if (!counterEl) return;
+  if (!activeTextTab) { counterEl.textContent = ''; return; }
+  const isFoto = mediaFiles.length > 0 && mediaFiles.every(m => m.file.type.startsWith('image/'));
+  const limite = (isFoto ? AI_LIMITS_PHOTO : AI_LIMITS)[activeTextTab];
+  const tamanho = document.getElementById('post-text').value.length;
+  counterEl.textContent = limite ? `${tamanho} / ${limite}` : '';
+  counterEl.style.color = limite && tamanho > limite ? 'var(--red)' : 'var(--muted)';
+}
+
+function renderTextTabsBar() {
+  const bar = document.getElementById('text-tabs-bar');
+  const unifyLink = document.getElementById('text-tabs-unify');
+  if (!bar) return;
+
+  if (selectedPlats.size < 2) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    unifyLink.style.display = 'none';
+    updateTextTabsCounter();
+    return;
+  }
+
+  bar.style.display = 'flex';
+  const emModoPorRede = Object.keys(textByPlatform).length > 0;
+  unifyLink.style.display = emModoPorRede ? '' : 'none';
+
+  bar.innerHTML = [...selectedPlats].map(p => {
+    const cfg = PLAT_ROW_CFG[p];
+    if (!cfg) return '';
+    const ativo = activeTextTab === p;
+    const divergente = emModoPorRede && (textByPlatform[p] || '') !== textTabsBaseText;
+    const style = `display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;border:1px solid ${ativo ? 'var(--accent)' : 'var(--border2)'};background:${ativo ? 'var(--accent-glow)' : 'transparent'};color:${ativo ? 'var(--accent)' : 'var(--muted)'}`;
+    return `<span style="${style}" onclick="switchTextTab('${p}')">
+      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>
+      ${escapeHtml(cfg.label)}${divergente ? ' •' : ''}
+    </span>`;
+  }).join('');
+
+  updateTextTabsCounter();
 }
 
 // Resumo do botão "Onde publicar" — nº de contas é a soma, para cada rede
@@ -3353,7 +3458,13 @@ async function schedulePost(publishNow = false) {
     return;
   }
 
-  const text = document.getElementById('post-text').value.trim();
+  // Se ativo, o modo por-rede guarda cada texto em textByPlatform, e o
+  // textarea só mostra o da aba selecionada no momento — "text" (principal,
+  // usado como fallback e nas telas que ainda leem só o texto único) é o da
+  // primeira rede marcada. Ver src/domain/posts/post.js e migrations/029.
+  const emModoPorRede = Object.keys(textByPlatform).length > 0;
+  const primeiraPlat = [...selectedPlats][0];
+  const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : document.getElementById('post-text').value).trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const repeat = document.getElementById('post-repeat').value;
@@ -3395,7 +3506,8 @@ async function schedulePost(publishNow = false) {
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
     media: JSON.stringify(media),
-    captions: JSON.stringify(mediaFiles.map(m => m.caption))
+    captions: JSON.stringify(mediaFiles.map(m => m.caption)),
+    textByPlatform: emModoPorRede ? JSON.stringify(textByPlatform) : '{}'
   };
 
   if (publishNow) showToast('Publicando agora...', 'ok');
@@ -3434,6 +3546,8 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-youtube-title-group').style.display = 'none';
   document.getElementById('post-youtube-visibility-group').style.display = 'none';
   mediaFiles = [];
+  textByPlatform = {};
+  activeTextTab = null;
   updateMediaPreview();
   initSchedulerDefaultPlatforms();
   loadQueue();
@@ -8934,7 +9048,12 @@ async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false, cardId 
     await new Promise(r => setTimeout(r, 300))
     const textArea = document.getElementById('post-text')
     if (textArea) {
+      // Texto vindo do Agente IA é sempre compartilhado — sai do modo por-rede
+      // se estava ativo, para não gravar só numa aba e confundir o usuário.
+      textByPlatform = {}
+      activeTextTab = null
       textArea.value = sugestao.texto + (sugestao.hashtags?.length ? '\n\n' + sugestao.hashtags.map(h => `#${h}`).join(' ') : '')
+      if (typeof renderTextTabsBar === 'function') renderTextTabsBar()
       textArea.dispatchEvent(new Event('input'))
     }
     if (sugestao.titulo) {
@@ -9144,10 +9263,13 @@ async function applyDraft(id) {
 
     // Preenche o formulário do agendador
     showPage('agendador');
+    textByPlatform = {};
+    activeTextTab = null;
     document.getElementById('post-text').value = d.text || '';
     if (d.youtube_title) document.getElementById('post-youtube-title').value = d.youtube_title;
     if (d.youtube_visibility) document.getElementById('post-youtube-visibility').value = d.youtube_visibility;
 
+    renderTextTabsBar();
     updatePostScore();
     showToast(d.is_template ? 'Template carregado no agendador!' : 'Rascunho carregado no agendador!', 'ok');
   } catch (e) {
@@ -9166,7 +9288,10 @@ async function deleteDraft(id) {
 }
 
 async function saveDraft(isTemplate) {
-  const text = document.getElementById('post-text').value.trim();
+  // Rascunhos guardam só o texto principal (1ª rede marcada em modo por-rede)
+  // — textByPlatform não é persistido em drafts (fora do escopo atual).
+  const emModoPorRedeDraft = Object.keys(textByPlatform).length > 0;
+  const text = (emModoPorRedeDraft ? (textByPlatform[[...selectedPlats][0]] || '') : document.getElementById('post-text').value).trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const platforms = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];

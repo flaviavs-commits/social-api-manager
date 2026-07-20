@@ -239,6 +239,10 @@ app.use((err, req, res, next) => {
 // tabelas existem sem exigir processo manual de migration.
 async function runMigrations() {
   await Promise.all([
+    // Texto diferente por rede social no mesmo post (Agendador manual) —
+    // opcional, coluna text legada continua sendo gravada sempre como
+    // fallback. Ver migrations/029.
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB`).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,

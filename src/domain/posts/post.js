@@ -11,9 +11,16 @@ const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
+
+  if (textByPlatform) {
+    for (const texto of Object.values(textByPlatform)) {
+      if (typeof texto === 'string' && texto.length > MAX_TEXT_LENGTH)
+        return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
+    }
+  }
 
   if (youtubeTitle !== undefined && youtubeTitle !== null && youtubeTitle.length > MAX_YOUTUBE_TITLE_LENGTH)
     return `O título do vídeo pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
