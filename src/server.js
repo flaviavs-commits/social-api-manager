@@ -243,6 +243,8 @@ async function runMigrations() {
     // opcional, coluna text legada continua sendo gravada sempre como
     // fallback. Ver migrations/029.
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB`).catch(() => {}),
+    // Categoria do vídeo no YouTube — opcional, ver migrations/030.
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS youtube_category_id TEXT`).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,

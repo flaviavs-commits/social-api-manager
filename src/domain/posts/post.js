@@ -9,9 +9,31 @@ const MAX_CAPTION_LENGTH = 500
 const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
+// Categorias oficiais da YouTube Data API v3 (videoCategories.list, região
+// global/US — os IDs são os mesmos em qualquer região, só o label muda por
+// idioma). Lista fixa em vez de consultar a API a cada post: os IDs não
+// mudam com frequência, e evita uma chamada extra só para popular um select.
+const YOUTUBE_CATEGORIES = [
+  { id: '1',  label: 'Filmes e animação' },
+  { id: '2',  label: 'Carros e veículos' },
+  { id: '10', label: 'Música' },
+  { id: '15', label: 'Animais' },
+  { id: '17', label: 'Esportes' },
+  { id: '19', label: 'Viagens e eventos' },
+  { id: '20', label: 'Games' },
+  { id: '22', label: 'Pessoas e blogs' },
+  { id: '23', label: 'Comédia' },
+  { id: '24', label: 'Entretenimento' },
+  { id: '25', label: 'Notícias e política' },
+  { id: '26', label: 'Como fazer e estilo' },
+  { id: '27', label: 'Educação' },
+  { id: '28', label: 'Ciência e tecnologia' },
+]
+const YOUTUBE_CATEGORY_IDS = YOUTUBE_CATEGORIES.map(c => c.id)
+
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -27,6 +49,9 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibil
 
   if (!YOUTUBE_VISIBILITIES.includes(youtubeVisibility))
     return 'youtubeVisibility inválido. Use public, unlisted ou private.'
+
+  if (youtubeCategoryId !== undefined && youtubeCategoryId !== null && youtubeCategoryId !== '' && !YOUTUBE_CATEGORY_IDS.includes(youtubeCategoryId))
+    return 'youtubeCategoryId inválido.'
 
   if (!Array.isArray(platforms) || !platforms.length || !platforms.every(p => PLATFORMS.includes(p)))
     return `platforms deve ser uma lista com valores de: ${PLATFORMS.join(', ')}`
@@ -105,6 +130,7 @@ function decidirStatusPublicacao(results) {
 
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
+  YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS,
   INSTAGRAM_MIN_ANTECEDENCIA_MIN,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao

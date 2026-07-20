@@ -62,7 +62,7 @@ async function probarVideos(files) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public' } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId } = body
 
   let platforms
   try {
@@ -120,7 +120,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, youtubeVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -141,7 +141,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, textByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
-    youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort,
+    youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null, youtubeIsShort,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 

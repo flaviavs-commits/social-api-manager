@@ -72,7 +72,7 @@ async function publicarYoutube(token, post) {
   }
 
   const metadata = {
-    snippet: { title, description },
+    snippet: { title, description, ...(post.youtubeCategoryId ? { categoryId: post.youtubeCategoryId } : {}) },
     status: { privacyStatus: post.youtubeVisibility || 'public' }
   }
 

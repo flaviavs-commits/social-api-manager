@@ -1,11 +1,11 @@
 const pool = require('../../db/pool')
 
-async function criarPost({ text, textByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeIsShort = null, accountId = null, userId, status = 'scheduled' }) {
+async function criarPost({ text, textByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeIsShort = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, text_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_is_short, account_id, user_id, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    INSERT INTO posts (text, text_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_is_short, account_id, user_id, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     RETURNING *, text_by_platform AS "textByPlatform"
-  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeIsShort, accountId, userId, status])
+  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeIsShort, accountId, userId, status])
   return rows[0]
 }
 
@@ -72,7 +72,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.id, p.text, p.text_by_platform AS "textByPlatform", p.platforms,
       p.scheduled_at AS "scheduledAt", p.repeat, p.status, p.criado_em, p.user_id AS "userId",
       p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
-      p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_is_short AS "youtubeIsShort",
+      p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_category_id AS "youtubeCategoryId", p.youtube_is_short AS "youtubeIsShort",
       p.account_id AS "accountId",
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole",
@@ -119,13 +119,13 @@ async function reservarPostsPendentes() {
       RETURNING
         id, text, text_by_platform, platforms, scheduled_at, repeat, status, user_id,
         media_path, media_type, media_items,
-        youtube_title, youtube_visibility, youtube_is_short, account_id
+        youtube_title, youtube_visibility, youtube_category_id, youtube_is_short, account_id
     )
     SELECT
       r.id, r.text, r.text_by_platform AS "textByPlatform", r.platforms,
       r.scheduled_at AS "scheduledAt", r.repeat, r.status, r.user_id AS "userId",
       r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems",
-      r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_is_short AS "youtubeIsShort",
+      r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_category_id AS "youtubeCategoryId", r.youtube_is_short AS "youtubeIsShort",
       r.account_id AS "accountId",
       u.role AS "userRole",
       COALESCE(
@@ -139,7 +139,7 @@ async function reservarPostsPendentes() {
     LEFT JOIN contas c ON c.id = pa.account_id
     GROUP BY r.id, r.text, r.text_by_platform, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
              r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
-             r.youtube_is_short, r.account_id, u.role
+             r.youtube_category_id, r.youtube_is_short, r.account_id, u.role
   `)
   return rows
 }

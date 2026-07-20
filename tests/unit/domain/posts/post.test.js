@@ -1,4 +1,4 @@
-const { validarCriacaoPost, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH } = require('../../../../src/domain/posts/post')
+const { validarCriacaoPost, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH, YOUTUBE_CATEGORY_IDS } = require('../../../../src/domain/posts/post')
 
 function baseArgs(overrides = {}) {
   return {
@@ -68,5 +68,22 @@ describe('validarCriacaoPost — textByPlatform', () => {
       textByPlatform: { instagram: 'ok', facebook: textoGigante }
     }))
     expect(erro).toMatch(new RegExp(`${MAX_TEXT_LENGTH} caracteres`))
+  })
+})
+
+describe('validarCriacaoPost — youtubeCategoryId', () => {
+  test('aceita youtubeCategoryId ausente', () => {
+    const erro = validarCriacaoPost(baseArgs())
+    expect(erro).toBeNull()
+  })
+
+  test('aceita youtubeCategoryId válido', () => {
+    const erro = validarCriacaoPost(baseArgs({ youtubeCategoryId: YOUTUBE_CATEGORY_IDS[0] }))
+    expect(erro).toBeNull()
+  })
+
+  test('rejeita youtubeCategoryId desconhecido', () => {
+    const erro = validarCriacaoPost(baseArgs({ youtubeCategoryId: '999' }))
+    expect(erro).toMatch(/youtubeCategoryId inválido/)
   })
 })

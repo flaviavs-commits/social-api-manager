@@ -1435,6 +1435,12 @@ input, select, textarea, label, .bottom-nav-item {
             <option value="private">Privado</option>
           </select>
         </div>
+        <div class="form-group" id="post-youtube-category-group" style="display:none">
+          <label>Categoria <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional, YouTube)</span></label>
+          <select id="post-youtube-category">
+            <option value="">Padrão do YouTube</option>
+          </select>
+        </div>
         <div class="form-group">
           <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
@@ -2694,12 +2700,39 @@ const VIDEO_ONLY_PLATS = ['youtube'];
 const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 let apContas = [];
 
+// Categorias oficiais da YouTube Data API v3 — espelha
+// src/domain/posts/post.js (YOUTUBE_CATEGORIES); frontend não importa
+// módulos Node, então a lista é replicada aqui.
+const YOUTUBE_CATEGORIES = [
+  { id: '1',  label: 'Filmes e animação' },
+  { id: '2',  label: 'Carros e veículos' },
+  { id: '10', label: 'Música' },
+  { id: '15', label: 'Animais' },
+  { id: '17', label: 'Esportes' },
+  { id: '19', label: 'Viagens e eventos' },
+  { id: '20', label: 'Games' },
+  { id: '22', label: 'Pessoas e blogs' },
+  { id: '23', label: 'Comédia' },
+  { id: '24', label: 'Entretenimento' },
+  { id: '25', label: 'Notícias e política' },
+  { id: '26', label: 'Como fazer e estilo' },
+  { id: '27', label: 'Educação' },
+  { id: '28', label: 'Ciência e tecnologia' },
+];
+(function populateYoutubeCategorySelect() {
+  const select = document.getElementById('post-youtube-category');
+  if (!select) return;
+  select.innerHTML = '<option value="">Padrão do YouTube</option>' +
+    YOUTUBE_CATEGORIES.map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('');
+})();
+
 function applyPlatformSelection(plats) {
   selectedPlats.clear();
   for (const p of plats) selectedPlats.add(p);
   updateMediaAccept();
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
+  document.getElementById('post-youtube-category-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   updateAccountPickerLabel();
   syncTextByPlatformSelection();
 }
@@ -3467,6 +3500,7 @@ async function schedulePost(publishNow = false) {
   const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : document.getElementById('post-text').value).trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
+  const youtubeCategoryId = document.getElementById('post-youtube-category').value;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -3501,7 +3535,7 @@ async function schedulePost(publishNow = false) {
   }
 
   const body = {
-    text, youtubeTitle, youtubeVisibility,
+    text, youtubeTitle, youtubeVisibility, youtubeCategoryId,
     platforms: JSON.stringify(platforms),
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
@@ -3543,8 +3577,10 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-text').value = '';
   document.getElementById('post-youtube-title').value = '';
   document.getElementById('post-youtube-visibility').value = 'public';
+  document.getElementById('post-youtube-category').value = '';
   document.getElementById('post-youtube-title-group').style.display = 'none';
   document.getElementById('post-youtube-visibility-group').style.display = 'none';
+  document.getElementById('post-youtube-category-group').style.display = 'none';
   mediaFiles = [];
   textByPlatform = {};
   activeTextTab = null;
