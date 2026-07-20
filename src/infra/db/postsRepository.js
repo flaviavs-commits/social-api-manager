@@ -9,6 +9,32 @@ async function criarPost({ text, platforms, scheduledAt, repeat = 'none', mediaP
   return rows[0]
 }
 
+// Associa as contas resolvidas (uma por conta conectada de cada rede
+// marcada) a um post recém-criado — ver domain/posts, criarPost.js e
+// migrations/027_post_accounts.sql. Um post pode ter N contas, inclusive
+// várias da mesma rede (ex.: 2 perfis de Instagram publicando juntos).
+async function definirContasDoPost(postId, accountIds) {
+  if (!accountIds.length) return
+  const values = accountIds.map((_, i) => `($1, $${i + 2})`).join(', ')
+  await pool.query(
+    `INSERT INTO post_accounts (post_id, account_id) VALUES ${values} ON CONFLICT (post_id, account_id) DO NOTHING`,
+    [postId, ...accountIds]
+  )
+}
+
+// Contas associadas a um post, com a plataforma da conta — usado para
+// reidratar post.accounts em reservarPostsPendentes/buscarPostPorId, já que
+// publishPost() agora itera por (conta, rede) em vez de só por rede.
+async function listarContasDoPost(postId) {
+  const { rows } = await pool.query(`
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle
+    FROM post_accounts pa
+    JOIN contas c ON c.id = pa.account_id
+    WHERE pa.post_id = $1
+  `, [postId])
+  return rows
+}
+
 async function listarPosts({ status, userId, isAdmin } = {}) {
   const conds = []
   const params = []
@@ -49,10 +75,18 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_is_short AS "youtubeIsShort",
       p.account_id AS "accountId",
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
-      u.role AS "userRole"
+      u.role AS "userRole",
+      COALESCE(
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle))
+          FILTER (WHERE pa.id IS NOT NULL),
+        '[]'
+      ) AS accounts
     FROM posts p
     LEFT JOIN users u ON u.id = p.user_id
+    LEFT JOIN post_accounts pa ON pa.post_id = p.id
+    LEFT JOIN contas c ON c.id = pa.account_id
     WHERE p.id = $1
+    GROUP BY p.id, u.role
   `, [id])
   const post = rows[0] || null
   if (!post) return null
@@ -93,9 +127,19 @@ async function reservarPostsPendentes() {
       r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems",
       r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_is_short AS "youtubeIsShort",
       r.account_id AS "accountId",
-      u.role AS "userRole"
+      u.role AS "userRole",
+      COALESCE(
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle))
+          FILTER (WHERE pa.id IS NOT NULL),
+        '[]'
+      ) AS accounts
     FROM reservados r
     LEFT JOIN users u ON u.id = r.user_id
+    LEFT JOIN post_accounts pa ON pa.post_id = r.id
+    LEFT JOIN contas c ON c.id = pa.account_id
+    GROUP BY r.id, r.text, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
+             r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
+             r.youtube_is_short, r.account_id, u.role
   `)
   return rows
 }
@@ -111,14 +155,27 @@ async function reservarPostsPendentes() {
 // guardam só a PRIMEIRA rede publicada (usadas por comentários/inbox, que só
 // precisam de algum ID do post) — não sobrescreve se já houver uma, para não
 // perder qual foi a primeira quando publicando em paralelo.
-async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt }) {
-  await pool.query(
-    `INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (post_id, platform)
-       DO UPDATE SET external_post_id = EXCLUDED.external_post_id, published_at = EXCLUDED.published_at`,
-    [id, externalPlatform, externalPostId, publishedAt]
-  )
+async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt, accountId = null }) {
+  // accountId sempre vem preenchido no fluxo atual (publisher.js resolve a
+  // conta antes de chamar isto) — o índice único parcial em post_publications
+  // só cobre account_id IS NOT NULL, então esse é o caminho de conflito real.
+  // O ramo sem accountId existe só por segurança (nunca deveria ser
+  // exercitado), e não tenta ON CONFLICT (não há índice único para colidir).
+  if (accountId) {
+    await pool.query(
+      `INSERT INTO post_publications (post_id, platform, external_post_id, published_at, account_id)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (post_id, platform, account_id) WHERE account_id IS NOT NULL
+         DO UPDATE SET external_post_id = EXCLUDED.external_post_id, published_at = EXCLUDED.published_at`,
+      [id, externalPlatform, externalPostId, publishedAt, accountId]
+    )
+  } else {
+    await pool.query(
+      `INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
+       VALUES ($1, $2, $3, $4)`,
+      [id, externalPlatform, externalPostId, publishedAt]
+    )
+  }
   await pool.query(
     `UPDATE posts
      SET external_post_id = $1, external_platform = $2, published_at = COALESCE(published_at, $3)
@@ -132,7 +189,7 @@ async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, p
 async function listarPublicacoesDosPosts(postIds) {
   if (!postIds.length) return []
   const { rows } = await pool.query(
-    `SELECT post_id AS "postId", platform, external_post_id AS "externalPostId", published_at AS "publishedAt"
+    `SELECT post_id AS "postId", platform, account_id AS "accountId", external_post_id AS "externalPostId", published_at AS "publishedAt"
      FROM post_publications
      WHERE post_id = ANY($1) AND external_post_id IS NOT NULL`,
     [postIds]
@@ -168,23 +225,40 @@ async function definirAccountIdSeVazio(id, accountId) {
 // Guarda os containers do Instagram ainda em processamento (status_code
 // IN_PROGRESS) — a publicação real (media_publish) só acontece num próximo
 // tick do cron, quando finalizarInstagramPendentes() confirmar FINISHED.
-async function salvarInstagramPending(id, pendingState) {
-  await pool.query(`UPDATE posts SET instagram_pending = $1 WHERE id = $2`, [JSON.stringify(pendingState), id])
+// A pendência é por (post, conta) — post_accounts.id (não posts.id) — para
+// suportar múltiplas contas de Instagram publicando o mesmo post em paralelo,
+// cada uma com sua própria pendência independente.
+async function salvarInstagramPending(postAccountId, pendingState) {
+  await pool.query(`UPDATE post_accounts SET instagram_pending = $1 WHERE id = $2`, [JSON.stringify(pendingState), postAccountId])
 }
 
-async function limparInstagramPending(id) {
-  await pool.query(`UPDATE posts SET instagram_pending = NULL WHERE id = $1`, [id])
+async function limparInstagramPending(postAccountId) {
+  await pool.query(`UPDATE post_accounts SET instagram_pending = NULL WHERE id = $1`, [postAccountId])
 }
 
-// Posts com containers do Instagram aguardando confirmação de processamento —
-// candidatos a serem finalizados (media_publish) no próximo tick do cron.
+// Linhas de post_accounts com containers do Instagram aguardando confirmação
+// de processamento — candidatas a serem finalizadas (media_publish) no
+// próximo tick do cron. Uma linha por (post, conta) pendente.
 async function listarPostsComInstagramPendente() {
   const { rows } = await pool.query(`
-    SELECT id, text, platforms, status, user_id AS "userId", account_id AS "accountId", instagram_pending AS "instagramPending"
-    FROM posts
-    WHERE instagram_pending IS NOT NULL
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", pa.instagram_pending AS "instagramPending",
+           p.id, p.text, p.platforms, p.status, p.user_id AS "userId"
+    FROM post_accounts pa
+    JOIN posts p ON p.id = pa.post_id
+    WHERE pa.instagram_pending IS NOT NULL
   `)
   return rows
+}
+
+// Verifica se ainda existe alguma pendência de Instagram (de qualquer conta)
+// para este post — usado para só fechar o status final do post quando TODAS
+// as suas contas (de todas as redes) já saíram do estado pendente.
+async function existePendenciaInstagramNoPost(postId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM post_accounts WHERE post_id = $1 AND instagram_pending IS NOT NULL LIMIT 1`,
+    [postId]
+  )
+  return rows.length > 0
 }
 
 // Salva um snapshot diário das métricas de um post por rede (1 ponto por dia
@@ -259,8 +333,9 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes,
+  definirContasDoPost, listarContasDoPost,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
-  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente,
+  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,
   registrarSnapshotMetricas, buscarHistoricoMetricas,
   listarPostsCalendario, reagendarPost
 }

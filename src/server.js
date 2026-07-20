@@ -297,10 +297,36 @@ async function runMigrations() {
     pool.query(`
       CREATE INDEX IF NOT EXISTS idx_posts_instagram_pending ON posts (id) WHERE instagram_pending IS NOT NULL;
     `).catch(() => {}),
-    // Uma linha por (post, rede): um post pode ser publicado em várias redes,
-    // e cada uma precisa preservar seu próprio external_post_id para o
-    // Analytics mostrar métricas de todas (o schema antigo só guardava um por
-    // post, sobrescrito ao publicar em paralelo). Ver migrations/015.
+    // Relação N:M entre post e conta: um post publica em TODAS as contas
+    // conectadas de cada rede marcada (ex.: 2 perfis de Instagram no mesmo
+    // post). instagram_pending é por (post, conta) — cada uma tem sua própria
+    // pendência de processamento assíncrono, independente das demais. Ver
+    // migrations/027.
+    (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS post_accounts (
+          id SERIAL PRIMARY KEY,
+          post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+          account_id INTEGER NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+          instagram_pending JSONB,
+          criado_em TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE (post_id, account_id)
+        )
+      `).catch(() => {})
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)`).catch(() => {})
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL`).catch(() => {})
+      // Backfill: posts antigos (schema com account_id singular) viram 1 linha aqui.
+      await pool.query(`
+        INSERT INTO post_accounts (post_id, account_id)
+        SELECT id, account_id FROM posts WHERE account_id IS NOT NULL
+        ON CONFLICT (post_id, account_id) DO NOTHING
+      `).catch(() => {})
+    })().catch(() => {}),
+    // Uma linha por (post, rede, conta): um post pode ser publicado em várias
+    // redes e em várias contas da mesma rede, e cada uma precisa preservar seu
+    // próprio external_post_id para o Analytics mostrar métricas de todas (o
+    // schema antigo só guardava um por post+rede, sobrescrito ao publicar em
+    // paralelo, e depois um por post+rede+conta). Ver migrations/015 e /028.
     pool.query(`
       CREATE TABLE IF NOT EXISTS post_publications (
         id SERIAL PRIMARY KEY,
@@ -308,17 +334,21 @@ async function runMigrations() {
         platform TEXT NOT NULL,
         external_post_id TEXT,
         published_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE (post_id, platform)
+        account_id INTEGER REFERENCES contas(id) ON DELETE SET NULL
       )
     `).then(() => Promise.all([
       pool.query(`CREATE INDEX IF NOT EXISTS idx_post_publications_post_id ON post_publications(post_id)`).catch(() => {}),
+      pool.query(`ALTER TABLE post_publications ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES contas(id) ON DELETE SET NULL`).catch(() => {}),
+      pool.query(`ALTER TABLE post_publications DROP CONSTRAINT IF EXISTS post_publications_post_id_platform_key`).catch(() => {}),
+      pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS post_publications_post_platform_account
+        ON post_publications (post_id, platform, account_id) WHERE account_id IS NOT NULL`).catch(() => {}),
       // Backfill dos IDs já salvos no schema antigo (uma vez; ON CONFLICT evita duplicar).
       pool.query(`
         INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
         SELECT id, external_platform, external_post_id, published_at
         FROM posts
         WHERE external_post_id IS NOT NULL AND external_platform IS NOT NULL
-        ON CONFLICT (post_id, platform) DO NOTHING
+        ON CONFLICT DO NOTHING
       `).catch(() => {}),
     ])).catch(() => {}),
     // Snapshot de métricas passa a ser por (post, rede): um post em várias

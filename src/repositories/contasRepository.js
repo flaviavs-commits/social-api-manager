@@ -115,6 +115,25 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
   }))
 }
 
+// Todas as contas ativas do usuário nas plataformas informadas — usado por
+// criarPost.js para resolver automaticamente "todas as contas de cada rede
+// marcada" (o post publica em N contas, uma linha em post_accounts por
+// conta), sem exigir que o usuário escolha conta a conta.
+async function listarContasAtivasPorPlataformas(platforms, userId, isAdmin) {
+  if (!platforms.length) return []
+  const conds = ['c.platform = ANY($1)', 'c.ativo = true']
+  const params = [platforms]
+  if (!isAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+
+  const { rows } = await pool.query(`
+    SELECT c.id, c.platform, c.handle
+    FROM contas c
+    WHERE ${conds.join(' AND ')}
+    ORDER BY c.platform, c.criado_em ASC
+  `, params)
+  return rows
+}
+
 // ── Criar conta ───────────────────────────────────────────────────────────────
 async function criarConta({ platform, handle, tipo, userId }) {
   const { rows } = await pool.query(`
@@ -281,7 +300,7 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 }
 
 module.exports = {
-  getDashboardStats, listarContas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
+  getDashboardStats, listarContas, listarContasAtivasPorPlataformas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
   registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok,

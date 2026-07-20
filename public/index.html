@@ -1393,7 +1393,7 @@ input, select, textarea, label, .bottom-nav-item {
         <div class="form-group">
           <label>Onde publicar</label>
           <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center" onclick="openAccountPickerModal()">
-            <span id="account-picker-label">Escolher rede e conta...</span>
+            <span id="account-picker-label">Carregando redes...</span>
             <span style="font-size:10px;color:var(--muted)">▾</span>
           </button>
         </div>
@@ -1431,6 +1431,7 @@ input, select, textarea, label, .bottom-nav-item {
             <input type="file" id="post-media" accept="image/*,video/*" multiple onchange="onMediaFilesSelected()" style="display:none"/>
           </div>
           <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--sans);margin-top:5px;min-height:16px"></div>
+          <div id="post-media-guidelines" style="font-size:11px;color:var(--yellow);font-family:var(--sans);margin-top:3px;display:flex;flex-direction:column;gap:2px"></div>
           <div id="media-list" class="media-list"></div>
         </div>
         <!-- Score de qualidade do post -->
@@ -2097,20 +2098,15 @@ input, select, textarea, label, .bottom-nav-item {
   </div>
 </div>
 
-<!-- Modal escolher rede + conta -->
+<!-- Modal escolher redes -->
 <div class="modal-overlay" id="modal-account-picker">
   <div class="modal" style="width:480px">
     <div class="modal-title">Onde publicar</div>
-    <div class="modal-sub">Escolha a rede social e depois a conta que vai usar.</div>
+    <div class="modal-sub">Todas as redes já vêm marcadas — desmarque as que não quiser. O post publica em todas as contas conectadas de cada rede marcada.</div>
 
     <div class="form-group">
-      <label>Rede social</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="ap-platform-list"></div>
-    </div>
-
-    <div class="form-group">
-      <label>Conta</label>
-      <div id="ap-account-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <label>Redes sociais</label>
+      <div style="display:flex;flex-direction:column;gap:6px" id="ap-platform-list"></div>
     </div>
 
     <div class="modal-actions">
@@ -2279,7 +2275,7 @@ function showPage(name) {
 
   if (name === 'dashboard')  loadDashboard();
   if (name === 'tokens')     loadTokens();
-  if (name === 'agendador')  startQueueAutoRefresh();
+  if (name === 'agendador')  { startQueueAutoRefresh(); initSchedulerDefaultPlatforms(); }
   else                       stopQueueAutoRefresh();
   if (name === 'logs')       startLogStream();
   if (name === 'ai-log')     loadAiActivityLog();
@@ -2655,26 +2651,59 @@ async function renewAll() {
 }
 
 // ── Agendador ────────────────────────────────────────────────────────────────
+// selectedPlats: redes marcadas para o post. O post publica em TODAS as
+// contas conectadas de cada rede marcada (não há mais escolha de 1 conta —
+// ver src/use-cases/posts/criarPost.js e migrations/027_post_accounts.sql).
 const selectedPlats = new Set();
-let selectedAccountId = null;
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube'];
 
 const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 let apContas = [];
-let apSelectedPlatform = null;
 
-function applyPlatformSelection(plat) {
+function applyPlatformSelection(plats) {
   selectedPlats.clear();
-  if (plat) selectedPlats.add(plat);
+  for (const p of plats) selectedPlats.add(p);
   updateMediaAccept();
   document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
+  updateAccountPickerLabel();
+}
+
+// Resumo do botão "Onde publicar" — nº de contas é a soma, para cada rede
+// marcada, de quantas contas dessa rede estão conectadas.
+function updateAccountPickerLabel() {
+  const el = document.getElementById('account-picker-label');
+  if (!el) return;
+  const plats = [...selectedPlats];
+  if (!plats.length) { el.textContent = 'Escolha ao menos uma rede...'; return; }
+
+  const totalContas = plats.reduce((n, p) => n + apContas.filter(c => c.platform === p && c.handle).length, 0);
+  const todasComConta = Object.keys(AP_PLAT_LABELS).filter(p => apContas.some(c => c.platform === p && c.handle));
+  const label = (todasComConta.length && plats.length === todasComConta.length && todasComConta.every(p => plats.includes(p)))
+    ? 'Todas as redes'
+    : plats.map(p => AP_PLAT_LABELS[p] || p).join(', ');
+  el.textContent = `${label} (${totalContas} conta${totalContas === 1 ? '' : 's'})`;
+}
+
+// Carrega as contas conectadas e marca por padrão todas as redes que têm ao
+// menos 1 conta ativa — chamado ao entrar no Agendador e depois de criar um
+// post com sucesso (o formulário sempre "nasce" com tudo marcado).
+async function initSchedulerDefaultPlatforms() {
+  try {
+    const { data } = await apiFetch('/api/accounts');
+    apContas = data;
+  } catch (e) {
+    apContas = [];
+  }
+  const platsComConta = Object.keys(AP_PLAT_LABELS).filter(p => apContas.some(c => c.platform === p && c.handle));
+  applyPlatformSelection(platsComConta);
+  updateBestTimesWidget();
+  updatePostScore();
 }
 
 async function openAccountPickerModal() {
-  apSelectedPlatform = [...selectedPlats][0] || null;
   try {
     const { data } = await apiFetch('/api/accounts');
     apContas = data;
@@ -2683,66 +2712,39 @@ async function openAccountPickerModal() {
     apContas = [];
   }
   renderApPlatformList();
-  renderApAccountList();
   document.getElementById('modal-account-picker').classList.add('open');
 }
 
 function renderApPlatformList() {
   const list = document.getElementById('ap-platform-list');
-  list.innerHTML = Object.entries(AP_PLAT_LABELS).map(([plat, label]) => {
-    const active = plat === apSelectedPlatform ? 'primary' : '';
-    return `<button type="button" class="plat-btn ${active}" style="flex:0;padding:5px 12px" onclick="apSelectPlatform('${plat}')">${label}</button>`;
-  }).join('');
-}
-
-function apSelectPlatform(plat) {
-  apSelectedPlatform = plat;
-  selectedAccountId = null;
-  renderApPlatformList();
-  renderApAccountList();
-}
-
-function renderApAccountList() {
-  const list = document.getElementById('ap-account-list');
   const okBtn = document.getElementById('ap-ok-btn');
 
-  if (!apSelectedPlatform) {
-    list.innerHTML = '<div style="font-size:12px;color:var(--muted)">Escolha uma rede social primeiro.</div>';
-    okBtn.disabled = true;
-    return;
-  }
-
-  const contasDaRede = apContas.filter(c => c.platform === apSelectedPlatform && c.handle);
-  if (!contasDaRede.length) {
-    list.innerHTML = `<div style="font-size:12px;color:var(--muted)">Nenhuma conta de ${escapeHtml(AP_PLAT_LABELS[apSelectedPlatform])} conectada.</div>`;
-    okBtn.disabled = true;
-    return;
-  }
-
-  list.innerHTML = contasDaRede.map(c => {
-    const active = c.id === selectedAccountId;
-    const apFallback = `<div class="plat-icon ${PLAT_ROW_CFG[c.platform]?.cls || ''}" style="width:24px;height:24px;font-size:12px">${escapeHtml(PLAT_ROW_CFG[c.platform]?.icon || '')}</div>`.replace(/"/g, '&quot;')
-    const avatar = c.avatarUrl
-      ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover" onerror="this.outerHTML='${apFallback}'">`
-      : `<div class="plat-icon ${PLAT_ROW_CFG[c.platform]?.cls || ''}" style="width:24px;height:24px;font-size:12px">${escapeHtml(PLAT_ROW_CFG[c.platform]?.icon || '')}</div>`;
-    return `<button type="button" class="plat-btn ${active ? 'primary' : ''}" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:8px 10px" onclick="apSelectAccount(${c.id})">
-      ${avatar}<span>${escapeHtml(c.handle)}</span>
-    </button>`;
+  list.innerHTML = Object.entries(AP_PLAT_LABELS).map(([plat, label]) => {
+    const contasDaRede = apContas.filter(c => c.platform === plat && c.handle);
+    const temConta = contasDaRede.length > 0;
+    const checked = selectedPlats.has(plat) && temConta;
+    const contagem = temConta
+      ? `${contasDaRede.length} conta${contasDaRede.length === 1 ? '' : 's'}`
+      : 'nenhuma conta conectada';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;${temConta ? 'cursor:pointer' : 'opacity:0.5'}">
+      <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
+      <span style="flex:1">${escapeHtml(label)}</span>
+      <span style="font-size:11px;color:var(--muted)">${escapeHtml(contagem)}</span>
+    </label>`;
   }).join('');
 
-  okBtn.disabled = !selectedAccountId;
+  okBtn.disabled = ![...selectedPlats].some(p => apContas.some(c => c.platform === p && c.handle));
 }
 
-function apSelectAccount(id) {
-  selectedAccountId = id;
-  renderApAccountList();
+function apTogglePlatform(plat, checked) {
+  if (checked) selectedPlats.add(plat);
+  else selectedPlats.delete(plat);
+  document.getElementById('ap-ok-btn').disabled = ![...selectedPlats].some(p => apContas.some(c => c.platform === p && c.handle));
 }
 
 function confirmAccountPicker() {
-  if (!apSelectedPlatform || !selectedAccountId) return;
-  applyPlatformSelection(apSelectedPlatform);
-  const conta = apContas.find(c => c.id === selectedAccountId);
-  document.getElementById('account-picker-label').textContent = `${AP_PLAT_LABELS[apSelectedPlatform]} — ${conta?.handle || ''}`;
+  if (![...selectedPlats].length) return;
+  applyPlatformSelection([...selectedPlats]);
   closeModal();
   updateBestTimesWidget();
   updatePostScore();
@@ -2788,6 +2790,64 @@ function removeMediaFile(index) {
 
 let dragMediaIndex = null;
 
+// Faixas de proporção (largura/altura) ideais por rede e tipo de mídia —
+// avisos não-bloqueantes (o usuário ainda consegue publicar/agendar fora
+// dessas faixas). Bloqueio real de proporção existe só para o TikTok em
+// vídeo, já validado no backend (src/domain/posts/videoRules.js,
+// isAspectRatioValidForTiktok) — não duplicado aqui.
+// Manter em sync com a mesma faixa usada no backend para o TikTok.
+const MEDIA_IDEAL_RATIOS = {
+  instagram: { image: [0.8, 1.91], video: [0.5625, 1] },   // 4:5 a 1.91:1 (feed) / 9:16 (reels)
+  facebook:  { image: [0.8, 1.91], video: [0.5625, 1.91] },
+  youtube:   { image: null, video: [0.5625, 1.778] },       // 9:16 (shorts) a 16:9
+  tiktok:    { image: [0.5625, 1.778], video: [0.5625, 1.778] },
+};
+
+// Avisa (sem bloquear) quando a mídia anexada está fora da proporção ideal
+// de alguma rede marcada — lê width/height no navegador, mesmo padrão de
+// checkYoutubeShortHint.
+function checkMediaGuidelinesHint(mediaFiles, plats) {
+  const box = document.getElementById('post-media-guidelines');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!mediaFiles.length || !plats.length) return;
+
+  mediaFiles.forEach((m, idx) => {
+    const isVideo = m.file.type.startsWith('video/');
+    const el = document.createElement(isVideo ? 'video' : 'img');
+    const url = URL.createObjectURL(m.file);
+    if (isVideo) { el.preload = 'metadata'; el.muted = true; }
+    el.src = url;
+
+    const onReady = () => {
+      const w = isVideo ? el.videoWidth : el.naturalWidth;
+      const h = isVideo ? el.videoHeight : el.naturalHeight;
+      URL.revokeObjectURL(url);
+      if (!w || !h) return;
+      const ratio = w / h;
+
+      const avisos = [];
+      for (const plat of plats) {
+        const cfg = MEDIA_IDEAL_RATIOS[plat];
+        const faixa = cfg?.[isVideo ? 'video' : 'image'];
+        if (!faixa) continue;
+        const [min, max] = faixa;
+        if (ratio < min - 0.03 || ratio > max + 0.03) {
+          avisos.push(AP_PLAT_LABELS[plat] || plat);
+        }
+      }
+      if (avisos.length) {
+        const linha = document.createElement('div');
+        const prefixo = mediaFiles.length > 1 ? `Item ${idx + 1}: ` : '';
+        linha.textContent = `ℹ️ ${prefixo}proporção fora do ideal para ${avisos.join(', ')} — ainda pode publicar, mas a imagem/vídeo pode ficar cortado.`;
+        box.appendChild(linha);
+      }
+    };
+    if (isVideo) el.onloadedmetadata = onReady;
+    else el.onload = onReady;
+  });
+}
+
 function updateMediaPreview() {
   const hint = document.getElementById('post-media-hint');
   const list = document.getElementById('media-list');
@@ -2805,8 +2865,11 @@ function updateMediaPreview() {
   if (!mediaFiles.length) {
     hint.textContent = restriction;
     list.innerHTML = '';
+    document.getElementById('post-media-guidelines').innerHTML = '';
     return;
   }
+
+  checkMediaGuidelinesHint(mediaFiles, plats);
 
   const hasTikTok = selectedPlats.has('tiktok');
   const allImages = mediaFiles.every(m => m.file.type.startsWith('image/'));
@@ -3157,7 +3220,7 @@ async function schedulePost(publishNow = false) {
   }
 
   if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
-  if (platforms.length === 0 || !selectedAccountId) return showToast('Escolha a rede social e a conta em "Onde publicar"', 'err');
+  if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
 
   // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
@@ -3180,7 +3243,6 @@ async function schedulePost(publishNow = false) {
   const body = {
     text, youtubeTitle, youtubeVisibility,
     platforms: JSON.stringify(platforms),
-    accountId: selectedAccountId,
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
     media: JSON.stringify(media),
@@ -3205,10 +3267,13 @@ async function schedulePost(publishNow = false) {
       // (via cron) — não é erro, só ainda não terminou de processar a mídia.
       showToast('Post em processamento no Instagram — confirmação em até 1 minuto.', 'ok');
     } else if (post.status === 'partial') {
-      showToast('Post publicado parcialmente — alguma plataforma falhou. Veja o Histórico de Atividades.', 'warn');
+      const falha = post.results?.find(r => r.success === false);
+      const detalhe = falha ? ` (${AP_PLAT_LABELS[falha.platform] || falha.platform}${falha.account ? ' @' + falha.account : ''}: ${falha.error})` : '';
+      showToast(`Post publicado parcialmente — alguma conta falhou${detalhe}. Veja o Histórico de Atividades.`, 'warn');
     } else {
-      const erro = post.results?.find(r => r.success === false)?.error;
-      showToast('Falha ao publicar: ' + (erro || 'veja o Histórico de Atividades.'), 'err');
+      const falha = post.results?.find(r => r.success === false);
+      const detalhe = falha ? `${AP_PLAT_LABELS[falha.platform] || falha.platform}${falha.account ? ' @' + falha.account : ''}: ${falha.error}` : null;
+      showToast('Falha ao publicar: ' + (detalhe || 'veja o Histórico de Atividades.'), 'err');
     }
   } else {
     showToast('Post agendado com sucesso!', 'ok');
@@ -3217,14 +3282,11 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-text').value = '';
   document.getElementById('post-youtube-title').value = '';
   document.getElementById('post-youtube-visibility').value = 'public';
-  selectedPlats.clear();
-  selectedAccountId = null;
-  apSelectedPlatform = null;
-  document.getElementById('account-picker-label').textContent = 'Escolher rede e conta...';
   document.getElementById('post-youtube-title-group').style.display = 'none';
   document.getElementById('post-youtube-visibility-group').style.display = 'none';
   mediaFiles = [];
   updateMediaPreview();
+  initSchedulerDefaultPlatforms();
   loadQueue();
 }
 
@@ -5767,16 +5829,10 @@ function applyBestTime(time) {
   updateBestTimesWidget(); // atualiza destaque do chip selecionado
 }
 
-// Patch na função que atualiza plataformas selecionadas
-const _origUpdateAccountPickerLabel = window.updateAccountPickerLabel;
-// Vamos usar um MutationObserver no label para detectar mudanças de plataforma
-// pois a função está no escopo local do arquivo
-const _apLabelObs = new MutationObserver(updateBestTimesWidget);
+// applyPlatformSelection()/confirmAccountPicker()/initSchedulerDefaultPlatforms()
+// já chamam updateBestTimesWidget()/updatePostScore() diretamente ao mudar a
+// seleção de redes — sem necessidade de observar mudanças de texto do label.
 document.addEventListener('DOMContentLoaded', () => {
-  const lbl = document.getElementById('account-picker-label');
-  if (lbl) _apLabelObs.observe(lbl, { childList: true, subtree: true, characterData: true });
-
-  // Atualiza também quando o campo de data muda
   const dateInput = document.getElementById('post-date');
   if (dateInput) dateInput.addEventListener('change', updatePostScore);
 });

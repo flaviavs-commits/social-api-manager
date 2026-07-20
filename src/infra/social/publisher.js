@@ -11,13 +11,12 @@ const { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagra
 const { publicarYoutube } = require('./youtubePublisher')
 const { publicarTiktok } = require('./tiktokPublisher')
 
-// ── Busca a conta+token conectados para a plataforma ─────────────────────────
+// ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
-// qualquer conta conectada no sistema (de qualquer usuário), então para eles
-// a busca ignora o dono e pega a mais recente entre todas.
-// Se contaId for informado, busca exatamente essa conta (escolhida pelo
-// usuário ao agendar o post); senão usa a mais recente conectada na
-// plataforma (não há mais agrupamento por estrela/nicho).
+// qualquer conta conectada no sistema (de qualquer usuário). contaId é sempre
+// obrigatório no fluxo atual — a resolução de "quais contas usar" já
+// aconteceu antes, em criarPost.js (ver migrations/027_post_accounts.sql);
+// não há mais fallback para "a mais recente conectada".
 async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId = null) {
   const conds = ['t.platform = $1']
   const params = [platform]
@@ -85,20 +84,22 @@ const PUBLISHERS = {
   tiktok: publicarTiktok
 }
 
-// Publica em uma única plataforma e retorna o resultado (registrando o log
-// correspondente) — extraído para permitir publicar em todas as plataformas
-// do post em paralelo, em vez de uma por vez.
-async function publicarNaPlataforma(platform, post, isSuperAdmin) {
+// Publica em uma única conta e retorna o resultado (registrando o log
+// correspondente) — extraído para permitir publicar em todas as contas do
+// post em paralelo, em vez de uma por vez. `account` já vem resolvido (ver
+// criarPost.js): { postAccountId, accountId, platform, handle }.
+async function publicarNaConta(account, post, isSuperAdmin) {
+  const platform = account.platform
   const publisher = PUBLISHERS[platform]
   if (!publisher) {
-    return { platform, success: false, error: `Plataforma "${platform}" não suportada` }
+    return { platform, accountId: account.accountId, success: false, error: `Plataforma "${platform}" não suportada` }
   }
 
-  let token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
+  let token = await buscarContaToken(platform, post.userId, isSuperAdmin, account.accountId)
   if (!token) {
-    const msg = `Nenhuma conta de ${platform} conectada`
+    const msg = `Conta de ${platform} não encontrada ou desconectada`
     await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
-    return { platform, success: false, error: msg }
+    return { platform, accountId: account.accountId, success: false, error: msg }
   }
 
   // ── Renovação automática do token antes de publicar, se necessário ──
@@ -108,7 +109,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
   if (token.status !== 'valid') {
     const renewal = await tokensRepo.renovarToken(token.token_id, null, true)
     if (renewal.success) {
-      token = await buscarContaToken(platform, post.userId, isSuperAdmin, post.accountId)
+      token = await buscarContaToken(platform, post.userId, isSuperAdmin, account.accountId)
     } else {
       await registrarLog({
         type: 'err',
@@ -117,7 +118,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
         conta_id: token.contaId,
         user_id: post.userId
       })
-      return { platform, success: false, account: token.handle || token.accountName, error: renewal.message }
+      return { platform, accountId: account.accountId, success: false, account: token.handle || token.accountName, error: renewal.message }
     }
   }
 
@@ -127,9 +128,11 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
     // Instagram: o container foi criado, mas ainda precisa terminar de
     // processar antes de poder ser publicado de fato — isso é confirmado
     // depois, via finalizarInstagramPendentes() (chamada pelo cron), não
-    // bloqueando esta requisição/invocação à espera do Instagram.
+    // bloqueando esta requisição/invocação à espera do Instagram. A
+    // pendência é por (post, conta) — post_accounts.id — para suportar
+    // múltiplas contas de Instagram publicando o mesmo post em paralelo.
     if (data?.pending) {
-      await postsRepo.salvarInstagramPending(post.id, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId })
+      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId })
       const tipoPost = data.stage === 'carousel_children' ? 'Carrossel' : 'Post'
       await registrarLog({
         type: 'info',
@@ -138,7 +141,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
         conta_id: token.contaId,
         user_id: post.userId
       })
-      return { platform, success: 'pending', account: token.handle || token.accountName, data }
+      return { platform, accountId: account.accountId, success: 'pending', account: token.handle || token.accountName, data }
     }
 
     const externalId = extrairExternalId(platform, data)
@@ -146,7 +149,8 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
       await postsRepo.salvarPublicacaoExterna(post.id, {
         externalPostId: externalId,
         externalPlatform: platform,
-        publishedAt: new Date().toISOString()
+        publishedAt: new Date().toISOString(),
+        accountId: account.accountId
       })
     }
 
@@ -174,7 +178,7 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
       })
     }
 
-    return { platform, success: true, account: token.handle || token.accountName, data }
+    return { platform, accountId: account.accountId, success: true, account: token.handle || token.accountName, data }
   } catch (err) {
     await registrarLog({
       type: 'err',
@@ -183,27 +187,38 @@ async function publicarNaPlataforma(platform, post, isSuperAdmin) {
       conta_id: token.contaId,
       user_id: post.userId
     })
-    return { platform, success: false, account: token.handle || token.accountName, error: err.message }
+    return { platform, accountId: account.accountId, success: false, account: token.handle || token.accountName, error: err.message }
   }
 }
 
-// ── Publica um post (já salvo no banco) em todas as suas plataformas ─────────────
-// As plataformas são independentes entre si (contas/tokens/APIs distintas), então
-// publicar em paralelo reduz o tempo total da soma dos tempos para o máximo entre elas.
+// ── Publica um post (já salvo no banco) em todas as suas contas ──────────────
+// post.accounts vem de postsRepo.listarContasDoPost/reservarPostsPendentes —
+// uma entrada por conta selecionada (pode haver várias da mesma rede, ex.: 2
+// perfis de Instagram). Contas são independentes entre si, então publicar em
+// paralelo reduz o tempo total da soma dos tempos para o máximo entre elas.
 async function publishPost(post) {
   const isSuperAdmin = post.userRole === 'super_admin'
-  return Promise.all(post.platforms.map(platform => publicarNaPlataforma(platform, post, isSuperAdmin)))
+  const accounts = post.accounts || []
+  return Promise.all(accounts.map(account => publicarNaConta(account, post, isSuperAdmin)))
 }
 
-// Verifica, uma vez por post, se o(s) container(s) pendentes do Instagram já
-// terminaram de processar — e se sim, publica de fato e atualiza o status do
-// post. Chamada pelo cron (mesmo tick de processarPendentes), substituindo o
-// polling bloqueante que existia antes dentro da própria publicação.
+// Verifica, por (post, conta), se o(s) container(s) pendentes do Instagram já
+// terminaram de processar — e se sim, publica de fato. Chamada pelo cron
+// (mesmo tick de processarPendentes), substituindo o polling bloqueante que
+// existia antes dentro da própria publicação.
+//
+// O status final do post só é decidido quando NENHUMA conta do post (de
+// nenhuma rede) ainda estiver pendente — antes disso, uma falha real de
+// outra rede publicada no mesmo ciclo seria perdida se fechássemos o status
+// olhando só o Instagram. Os resultados das demais contas já publicadas são
+// reconstruídos a partir de post_publications (sucesso) — contas que não
+// aparecem lá e não estão mais pendentes são tratadas como falha.
 async function finalizarInstagramPendentes() {
   const pendentes = await postsRepo.listarPostsComInstagramPendente()
 
-  await Promise.all(pendentes.map(async post => {
-    const pending = post.instagramPending
+  await Promise.all(pendentes.map(async linha => {
+    const pending = linha.instagramPending
+    const postId = linha.id
     try {
       const containerIds = pending.stage === 'carousel_children' ? pending.childIds : [pending.containerId]
       const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, pending.accessToken)))
@@ -215,27 +230,51 @@ async function finalizarInstagramPendentes() {
 
       // Container pai do carrossel ainda não estava pronto — atualiza o pending e tenta no próximo tick
       if (data?.requeue) {
-        await postsRepo.salvarInstagramPending(post.id, { ...pending, stage: 'carousel_container', containerId: data.containerId })
+        await postsRepo.salvarInstagramPending(linha.postAccountId, { ...pending, stage: 'carousel_container', containerId: data.containerId })
         return
       }
 
       const externalId = extrairExternalId('instagram', data)
       if (externalId) {
-        await postsRepo.salvarPublicacaoExterna(post.id, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString() })
+        await postsRepo.salvarPublicacaoExterna(postId, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString(), accountId: linha.accountId })
       }
-      await postsRepo.limparInstagramPending(post.id)
-      await postsRepo.atualizarStatusPost(post.id, 'published')
+      await postsRepo.limparInstagramPending(linha.postAccountId)
 
       const tipoMidia = pending.stage === 'carousel_children' || pending.stage === 'carousel_container' ? 'Carrossel' : 'Post'
-      await registrarLog({ type: 'ok', message: `${tipoMidia} publicado no Instagram na conta "${pending.accountName}" com sucesso! ✓`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
-      broadcastEvent('post_published', { id: post.id, status: 'published', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: true, data }] }, post.userId)
+      await registrarLog({ type: 'ok', message: `${tipoMidia} publicado no Instagram na conta "${pending.accountName}" com sucesso! ✓`, platform: 'instagram', conta_id: pending.contaId, user_id: linha.userId })
+      await fecharStatusSeSemPendencias(postId, linha)
     } catch (err) {
-      await postsRepo.limparInstagramPending(post.id)
-      await postsRepo.atualizarStatusPost(post.id, 'error')
-      await registrarLog({ type: 'err', message: `Não foi possível publicar no Instagram na conta "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: post.userId })
-      broadcastEvent('post_published', { id: post.id, status: 'error', platforms: post.platforms, text: post.text, results: [{ platform: 'instagram', success: false, error: err.message }] }, post.userId)
+      await postsRepo.limparInstagramPending(linha.postAccountId)
+      await registrarLog({ type: 'err', message: `Não foi possível publicar no Instagram na conta "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: linha.userId })
+      await fecharStatusSeSemPendencias(postId, linha)
     }
   }))
+}
+
+// Recompõe e grava o status final do post (published/partial/error) a partir
+// de TODAS as suas contas, não só do Instagram — só roda quando não sobra
+// nenhuma pendência para este post_id (pode haver mais de uma conta de
+// Instagram pendente no mesmo post).
+async function fecharStatusSeSemPendencias(postId, linha) {
+  const aindaPendente = await postsRepo.existePendenciaInstagramNoPost(postId)
+  if (aindaPendente) return
+
+  const contas = await postsRepo.listarContasDoPost(postId)
+  const publicadas = await postsRepo.listarPublicacoesDosPosts([postId])
+  const publicadasSet = new Set(publicadas.map(p => `${p.platform}:${p.accountId}`))
+
+  const results = contas.map(c => ({
+    platform: c.platform,
+    accountId: c.accountId,
+    success: publicadasSet.has(`${c.platform}:${c.accountId}`)
+  }))
+
+  const status = results.every(r => r.success) ? 'published'
+    : results.some(r => r.success) ? 'partial'
+    : 'error'
+
+  await postsRepo.atualizarStatusPost(postId, status)
+  broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
 
 module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes }

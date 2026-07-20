@@ -71,15 +71,6 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('platforms inválido')
   }
 
-  let accountId = null
-  if (body.accountId) {
-    accountId = /^\d+$/.test(String(body.accountId)) ? Number(body.accountId) : null
-    if (!accountId) throw new ValidationError('accountId inválido')
-    const conta = await contasRepo.buscarContaPorId(accountId, userId, isAdmin)
-    if (!conta) throw new ValidationError('Conta não encontrada')
-    if (!platforms.includes(conta.platform)) throw new ValidationError('A conta escolhida não pertence à plataforma selecionada')
-  }
-
   const scheduledAtBR = normalizarScheduledAtBR(scheduledAt)
   if (!scheduledAtBR || Number.isNaN(new Date(scheduledAtBR).getTime())) throw new ValidationError('scheduledAt inválido')
   const scheduledAtUTC = scheduledAtParaUTC(scheduledAtBR)
@@ -123,17 +114,32 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   })
   if (erro) throw new ValidationError(erro)
 
+  // O post publica em TODAS as contas conectadas de cada rede marcada — não
+  // existe mais escolha de 1 conta pelo usuário (ver migrations/027_post_accounts.sql).
+  // Se uma rede marcada não tiver nenhuma conta conectada, falha aqui, antes
+  // de criar o post — em vez de deixar o publisher descobrir isso depois.
+  const contas = await contasRepo.listarContasAtivasPorPlataformas(platforms, userId, isAdmin)
+  const platformsSemConta = platforms.filter(p => !contas.some(c => c.platform === p))
+  if (platformsSemConta.length) {
+    const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }
+    const nomes = platformsSemConta.map(p => labels[p] || p).join(', ')
+    throw new ValidationError(`Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.`)
+  }
+
   const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeIsShort,
-    accountId, userId, status: publishNow ? 'processing' : 'scheduled'
+    accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
+
+  await postsRepo.definirContasDoPost(post.id, contas.map(c => c.id))
+  const postAccounts = await postsRepo.listarContasDoPost(post.id)
 
   if (!publishNow) return { post, status: 201 }
 
-  const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accountId, userId, userRole })
+  const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accounts: postAccounts, userId, userRole })
   const status = decidirStatusPublicacao(results)
   // success: 'pending' (Instagram aguardando processamento) não é status
   // final — o post fica em 'processing' até o cron confirmar via finalizarInstagramPendentes().
