@@ -1497,6 +1497,10 @@ input, select, textarea, label, .bottom-nav-item {
           </button>
           <div id="account-preview-row" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
         </div>
+        <div class="form-group" id="config-tabs-group" style="display:none">
+          <label>Configurar por rede</label>
+          <div id="config-tabs-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
         <div class="form-group" id="post-ig-format-group" style="display:none">
           <label>Formato (Instagram)</label>
           <div id="ig-format-pills" style="display:flex;gap:6px"></div>
@@ -2822,13 +2826,67 @@ const YOUTUBE_CATEGORIES = [
     YOUTUBE_CATEGORIES.map(c => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join('');
 })();
 
+// ── Configurar por rede: abas que restringem o formulário a 1 rede por vez ──
+// Cada rede marcada tem campos próprios (formato do Instagram, título/
+// categoria/formato do YouTube) que antes ficavam todos empilhados e visíveis
+// ao mesmo tempo. Com a aba ativa, só os campos daquela rede aparecem —
+// entra no Instagram, configura, troca pro YouTube, configura, etc. — mas o
+// post continua saindo de uma vez só para todas as redes marcadas
+// (schedulePost já usa selectedPlats inteiro, independente da aba ativa).
+// Sincronizada com activeTextTab (texto) e activePreviewTab (preview).
+let activeConfigTab = null;
+
+function renderConfigTabsBar() {
+  const group = document.getElementById('config-tabs-group');
+  const bar = document.getElementById('config-tabs-bar');
+  if (!group || !bar) return;
+
+  const plats = [...selectedPlats];
+  if (plats.length < 2) {
+    group.style.display = 'none';
+    activeConfigTab = null;
+    return;
+  }
+
+  if (!activeConfigTab || !plats.includes(activeConfigTab)) activeConfigTab = plats[0];
+  group.style.display = '';
+
+  bar.innerHTML = plats.map(p => {
+    const cfg = PLAT_ROW_CFG[p];
+    if (!cfg) return '';
+    const ativo = activeConfigTab === p;
+    const style = `display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;border:1px solid ${ativo ? 'var(--accent)' : 'var(--border2)'};background:${ativo ? 'var(--accent-glow)' : 'transparent'};color:${ativo ? 'var(--accent)' : 'var(--muted)'}`;
+    return `<span style="${style}" onclick="setConfigTab('${p}')">
+      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>
+      ${escapeHtml(cfg.label)}
+    </span>`;
+  }).join('');
+}
+
+function setConfigTab(plat) {
+  activeConfigTab = plat;
+  renderConfigTabsBar();
+  applyConfigTabVisibility();
+  if (typeof switchTextTab === 'function' && selectedPlats.size >= 2) switchTextTab(plat);
+  if (typeof setPreviewTab === 'function') setPreviewTab(plat);
+}
+
+// Restringe os grupos de campos específicos de rede à aba ativa — sem aba
+// ativa (só 1 rede marcada), todos os grupos daquela rede aparecem normal.
+function applyConfigTabVisibility() {
+  const soUmaRede = selectedPlats.size < 2;
+  const mostrarYoutube = selectedPlats.has('youtube') && (soUmaRede || activeConfigTab === 'youtube');
+  document.getElementById('post-youtube-title-group').style.display = mostrarYoutube ? '' : 'none';
+  document.getElementById('post-youtube-visibility-group').style.display = mostrarYoutube ? '' : 'none';
+  document.getElementById('post-youtube-category-group').style.display = mostrarYoutube ? '' : 'none';
+}
+
 function applyPlatformSelection(plats) {
   selectedPlats.clear();
   for (const p of plats) selectedPlats.add(p);
   updateMediaAccept();
-  document.getElementById('post-youtube-title-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
-  document.getElementById('post-youtube-visibility-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
-  document.getElementById('post-youtube-category-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
+  renderConfigTabsBar();
+  applyConfigTabVisibility();
   updateAccountPickerLabel();
   syncTextByPlatformSelection();
   renderAccountPreviewRow();
@@ -2884,9 +2942,11 @@ function renderIgFormatPills() {
   const container = document.getElementById('ig-format-pills');
   if (!group || !container) return;
 
-  const mostrar = selectedPlats.has('instagram') && mediaFiles.length > 0;
-  group.style.display = mostrar ? '' : 'none';
-  if (!mostrar) { igFormat = null; return; }
+  const aplica = selectedPlats.has('instagram') && mediaFiles.length > 0;
+  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'instagram';
+  group.style.display = (aplica && abaPermite) ? '' : 'none';
+  if (!aplica) { igFormat = null; return; }
+  if (!abaPermite) return;
 
   const isVideo = mediaFiles.some(m => m.file.type.startsWith('video/'));
   const isCarrossel = mediaFiles.length > 1;
@@ -2926,9 +2986,11 @@ function renderYoutubeFormatPills() {
   if (!group || !container) return;
 
   const temVideo = mediaFiles.some(m => m.file.type.startsWith('video/'));
-  const mostrar = selectedPlats.has('youtube') && temVideo;
-  group.style.display = mostrar ? '' : 'none';
-  if (!mostrar) { youtubeFormat = null; if (warningEl) warningEl.style.display = 'none'; return; }
+  const aplica = selectedPlats.has('youtube') && temVideo;
+  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'youtube';
+  group.style.display = (aplica && abaPermite) ? '' : 'none';
+  if (!aplica) { youtubeFormat = null; if (warningEl) warningEl.style.display = 'none'; return; }
+  if (!abaPermite) return;
 
   container.innerHTML = ['video', 'short'].map(value => {
     const label = value === 'video' ? 'Video' : 'Short';
@@ -3024,6 +3086,9 @@ function renderPreviewTabs() {
 function setPreviewTab(plat) {
   activePreviewTab = plat;
   renderPreviewTabs();
+  // Clicar numa aba do preview também troca a rede ativa de configuração —
+  // as abas de config/texto/preview representam a mesma "rede em foco".
+  if (activeConfigTab !== plat && typeof setConfigTab === 'function') setConfigTab(plat);
 }
 
 function setPreviewDevice(device) {
@@ -3192,18 +3257,24 @@ function syncTextByPlatformSelection() {
 }
 
 function switchTextTab(platform) {
-  if (activeTextTab === platform) return;
-  const textarea = document.getElementById('post-text');
-  if (!Object.keys(textByPlatform).length) {
-    // Primeira vez entrando no modo por-rede: copia o texto atual (compartilhado)
-    // para todas as redes marcadas — "copia pro resto ao digitar".
-    const textoAtual = textarea.value;
-    textTabsBaseText = textoAtual;
-    for (const p of selectedPlats) textByPlatform[p] = textoAtual;
+  if (activeTextTab !== platform) {
+    const textarea = document.getElementById('post-text');
+    if (!Object.keys(textByPlatform).length) {
+      // Primeira vez entrando no modo por-rede: copia o texto atual (compartilhado)
+      // para todas as redes marcadas — "copia pro resto ao digitar".
+      const textoAtual = textarea.value;
+      textTabsBaseText = textoAtual;
+      for (const p of selectedPlats) textByPlatform[p] = textoAtual;
+    }
+    activeTextTab = platform;
+    textarea.value = textByPlatform[platform] ?? '';
+    renderTextTabsBar();
   }
-  activeTextTab = platform;
-  textarea.value = textByPlatform[platform] ?? '';
-  renderTextTabsBar();
+  // Mantém a barra de configuração por rede e o preview sincronizados com a
+  // aba de texto, mesmo quando o clique parte da barra de texto (não da de
+  // configuração) — as três abas representam a mesma "rede ativa".
+  if (activeConfigTab !== platform && typeof setConfigTab === 'function') setConfigTab(platform);
+  else if (typeof setPreviewTab === 'function') setPreviewTab(platform);
 }
 
 function onPostTextInput() {
