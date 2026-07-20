@@ -31,9 +31,15 @@ const YOUTUBE_CATEGORIES = [
 ]
 const YOUTUBE_CATEGORY_IDS = YOUTUBE_CATEGORIES.map(c => c.id)
 
+// Formatos de publicação escolhíveis pelo usuário — opcionais, sem escolha
+// cai no comportamento automático já existente (vídeo no Instagram vira Reel
+// por padrão; YouTube decide Short via proporção/duração do vídeo).
+const INSTAGRAM_FORMATS = ['post', 'reel', 'story']
+const YOUTUBE_FORMATS = ['video', 'short']
+
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -52,6 +58,12 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibil
 
   if (youtubeCategoryId !== undefined && youtubeCategoryId !== null && youtubeCategoryId !== '' && !YOUTUBE_CATEGORY_IDS.includes(youtubeCategoryId))
     return 'youtubeCategoryId inválido.'
+
+  if (youtubeFormat !== undefined && youtubeFormat !== null && youtubeFormat !== '' && !YOUTUBE_FORMATS.includes(youtubeFormat))
+    return 'youtubeFormat inválido. Use video ou short.'
+
+  if (igFormat !== undefined && igFormat !== null && igFormat !== '' && !INSTAGRAM_FORMATS.includes(igFormat))
+    return 'igFormat inválido. Use post, reel ou story.'
 
   if (!Array.isArray(platforms) || !platforms.length || !platforms.every(p => PLATFORMS.includes(p)))
     return `platforms deve ser uma lista com valores de: ${PLATFORMS.join(', ')}`
@@ -76,6 +88,10 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibil
 
   if (platforms.includes('instagram') && !items.length)
     return 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.'
+
+  // Stories não suporta carrossel na Graph API do Instagram — só 1 item por vez.
+  if (platforms.includes('instagram') && igFormat === 'story' && items.length > 1)
+    return 'Stories do Instagram não suportam carrossel. Escolha Post ou Reel, ou remova os itens extras.'
 
   // O Instagram processa a mídia de forma assíncrona antes de publicar
   // (container → aguarda FINISHED → publish) — agendar muito em cima da
@@ -130,7 +146,7 @@ function decidirStatusPublicacao(results) {
 
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
-  YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS,
+  YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
   INSTAGRAM_MIN_ANTECEDENCIA_MIN,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao

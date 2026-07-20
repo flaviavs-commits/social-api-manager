@@ -87,3 +87,59 @@ describe('validarCriacaoPost — youtubeCategoryId', () => {
     expect(erro).toMatch(/youtubeCategoryId inválido/)
   })
 })
+
+describe('validarCriacaoPost — youtubeFormat', () => {
+  test('aceita youtubeFormat ausente', () => {
+    const erro = validarCriacaoPost(baseArgs())
+    expect(erro).toBeNull()
+  })
+
+  test('aceita video e short', () => {
+    expect(validarCriacaoPost(baseArgs({ youtubeFormat: 'video' }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({ youtubeFormat: 'short' }))).toBeNull()
+  })
+
+  test('rejeita youtubeFormat desconhecido', () => {
+    const erro = validarCriacaoPost(baseArgs({ youtubeFormat: 'longform' }))
+    expect(erro).toMatch(/youtubeFormat inválido/)
+  })
+})
+
+describe('validarCriacaoPost — igFormat', () => {
+  test('aceita igFormat ausente', () => {
+    const erro = validarCriacaoPost(baseArgs())
+    expect(erro).toBeNull()
+  })
+
+  test('aceita post, reel e story', () => {
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'post' }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'reel' }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'story' }))).toBeNull()
+  })
+
+  test('rejeita igFormat desconhecido', () => {
+    const erro = validarCriacaoPost(baseArgs({ igFormat: 'highlight' }))
+    expect(erro).toMatch(/igFormat inválido/)
+  })
+
+  test('rejeita story com carrossel (mais de 1 item)', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      igFormat: 'story',
+      items: [{ path: 'a.jpg', type: 'image', caption: '' }, { path: 'b.jpg', type: 'image', caption: '' }]
+    }))
+    expect(erro).toMatch(/Stories.*carrossel/)
+  })
+
+  test('aceita story com 1 item só', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      igFormat: 'story',
+      items: [{ path: 'a.jpg', type: 'image', caption: '' }]
+    }))
+    expect(erro).toBeNull()
+  })
+
+  test('aceita post/reel com carrossel', () => {
+    const items = [{ path: 'a.jpg', type: 'image', caption: '' }, { path: 'b.jpg', type: 'image', caption: '' }]
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toBeNull()
+  })
+})

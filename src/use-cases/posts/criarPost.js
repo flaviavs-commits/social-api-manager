@@ -62,7 +62,7 @@ async function probarVideos(files) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat } = body
 
   let platforms
   try {
@@ -120,7 +120,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -137,18 +137,31 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError(`Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.`)
   }
 
-  const youtubeIsShort = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
+  const shortElegivel = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
+  // Escolha explícita do usuário sobrescreve o cálculo automático; sem
+  // escolha, comportamento de sempre (decidido pela proporção/duração).
+  const youtubeIsShort = youtubeFormat ? youtubeFormat === 'short' : shortElegivel
+
+  // Aviso não-bloqueante: usuário forçou "Short" num vídeo que não tem
+  // proporção/duração típica — o YouTube pode não exibi-lo como tal, mas o
+  // post ainda é criado normalmente (decisão de produto: avisar, não bloquear).
+  const warnings = []
+  if (youtubeFormat === 'short' && shortElegivel === false) {
+    warnings.push('O vídeo não tem proporção/duração típica de Short — o YouTube pode não exibi-lo como tal.')
+  }
+
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, textByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
-    youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null, youtubeIsShort,
+    youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
+    youtubeFormat: youtubeFormat || null, youtubeIsShort, igFormat: igFormat || null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 
   await postsRepo.definirContasDoPost(post.id, contas.map(c => c.id))
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
 
-  if (!publishNow) return { post, status: 201 }
+  if (!publishNow) return { post: { ...post, warnings }, status: 201 }
 
   const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accounts: postAccounts, userId, userRole })
   const status = decidirStatusPublicacao(results)
@@ -156,7 +169,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // final — o post fica em 'processing' até o cron confirmar via finalizarInstagramPendentes().
   if (status !== 'processing') await postsRepo.atualizarStatusPost(post.id, status)
 
-  return { post: { ...post, status, results }, status: 201 }
+  return { post: { ...post, status, results, warnings }, status: 201 }
 }
 
 module.exports = { criarPost }

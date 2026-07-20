@@ -258,6 +258,23 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ap-card input[type="checkbox"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .ap-empty-note { font-size: 11px; color: var(--muted); }
 
+/* ── Seletores de formato por rede (Agendador) ──────────────────────────── */
+.format-pill { padding: 7px 14px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface2); color: var(--muted2); font-size: 12px; cursor: pointer; transition: all var(--transition); font-family: var(--sans); }
+.format-pill:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.format-pill.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); font-weight: 500; }
+.format-pill:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Preview de conta conectada (Agendador) ─────────────────────────────── */
+.account-preview-chip { display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 5px; border-radius: 99px; background: var(--surface2); border: 1px solid var(--border2); font-size: 11px; color: var(--muted2); }
+.account-preview-chip img, .account-preview-chip .ap-avatar-fallback { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.account-preview-chip .ap-avatar-fallback { display: flex; align-items: center; justify-content: center; font-size: 9px; }
+
+/* ── Painel de validação consolidado (Agendador) ────────────────────────── */
+.validation-panel { border: 1px solid rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); border-radius: var(--radius); overflow: hidden; }
+.validation-panel-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; font-weight: 500; color: var(--red); }
+.validation-panel-list { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 5px; }
+.validation-panel-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted2); }
+
 /* ── Logs ────────────────────────────────────────────────────────────────── */
 .log-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; font-family: var(--sans); font-size: 13px; line-height: 1.8; height: 420px; overflow-y: auto; }
 .log-line { display: flex; gap: 12px; padding: 1px 0; }
@@ -1422,10 +1439,15 @@ input, select, textarea, label, .bottom-nav-item {
             <span id="account-picker-label" style="flex:1">Carregando redes...</span>
             <span style="font-size:10px;color:var(--muted)">▾</span>
           </button>
+          <div id="account-preview-row" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+        </div>
+        <div class="form-group" id="post-ig-format-group" style="display:none">
+          <label>Formato (Instagram)</label>
+          <div id="ig-format-pills" style="display:flex;gap:6px"></div>
         </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
-          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube"/>
+          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" oninput="if (typeof renderValidationPanel === 'function') renderValidationPanel()"/>
         </div>
         <div class="form-group" id="post-youtube-visibility-group" style="display:none">
           <label>Visibilidade (YouTube)</label>
@@ -1440,6 +1462,11 @@ input, select, textarea, label, .bottom-nav-item {
           <select id="post-youtube-category">
             <option value="">Padrão do YouTube</option>
           </select>
+        </div>
+        <div class="form-group" id="post-youtube-format-group" style="display:none">
+          <label>Formato (YouTube)</label>
+          <div id="youtube-format-pills" style="display:flex;gap:6px"></div>
+          <div id="youtube-format-warning" style="font-size:11px;color:var(--yellow);margin-top:5px;display:none"></div>
         </div>
         <div class="form-group">
           <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
@@ -1517,6 +1544,7 @@ input, select, textarea, label, .bottom-nav-item {
         <div class="form-group"><label>Repetição</label>
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
+        <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <button class="btn btn-accent" style="flex:1" onclick="schedulePost()">Agendar post</button>
           <button class="btn" style="flex:1" onclick="schedulePost(true)">Publicar agora</button>
@@ -2735,6 +2763,139 @@ function applyPlatformSelection(plats) {
   document.getElementById('post-youtube-category-group').style.display = selectedPlats.has('youtube') ? '' : 'none';
   updateAccountPickerLabel();
   syncTextByPlatformSelection();
+  renderAccountPreviewRow();
+  renderIgFormatPills();
+  renderYoutubeFormatPills();
+  renderValidationPanel();
+}
+
+// ── Preview de conta conectada por rede (Agendador) ─────────────────────────
+// Mostra avatar+handle da(s) conta(s) que vão receber o post, por rede
+// marcada — mesmo padrão de fallback ícone↔foto já usado em
+// apAccountAvatarsHtml (modal "Onde publicar"), mas 1 chip por rede em vez de
+// avatares empilhados.
+function renderAccountPreviewRow() {
+  const row = document.getElementById('account-preview-row');
+  if (!row) return;
+  const plats = [...selectedPlats];
+  if (!plats.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+
+  const chips = plats.map(p => {
+    const cfg = PLAT_ROW_CFG[p];
+    if (!cfg) return '';
+    const contasDaRede = apContas.filter(c => c.platform === p && c.handle);
+    if (!contasDaRede.length) return '';
+    const principal = contasDaRede[0];
+    const resto = contasDaRede.length - 1;
+    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+    const avatar = principal.avatarUrl
+      ? `<img src="${escapeHtml(principal.avatarUrl)}" onerror="this.outerHTML='${fallback}'">`
+      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`;
+    const sufixo = resto > 0 ? ` +${resto}` : '';
+    return `<div class="account-preview-chip">${avatar}<span>${escapeHtml(principal.handle)}${sufixo}</span></div>`;
+  }).filter(Boolean).join('');
+
+  row.innerHTML = chips;
+  row.style.display = chips ? 'flex' : 'none';
+}
+
+// ── Formato por rede: Instagram (Post/Reel/Story) ───────────────────────────
+// Sem escolha, vídeo continua virando Reel por padrão (comportamento atual
+// preservado) — ver src/infra/social/instagramPublisher.js. Story fica
+// desabilitado com carrossel (a Graph API do Instagram não suporta).
+let igFormat = null;
+const IG_FORMAT_OPTIONS = [
+  { value: 'post',  label: 'Post' },
+  { value: 'reel',  label: 'Reel' },
+  { value: 'story', label: 'Story' },
+];
+
+function renderIgFormatPills() {
+  const group = document.getElementById('post-ig-format-group');
+  const container = document.getElementById('ig-format-pills');
+  if (!group || !container) return;
+
+  const mostrar = selectedPlats.has('instagram') && mediaFiles.length > 0;
+  group.style.display = mostrar ? '' : 'none';
+  if (!mostrar) { igFormat = null; return; }
+
+  const isVideo = mediaFiles.some(m => m.file.type.startsWith('video/'));
+  const isCarrossel = mediaFiles.length > 1;
+  const incompativel = opt => (opt === 'reel' && !isVideo) || (opt === 'story' && isCarrossel);
+
+  // Se a mídia mudou e a escolha atual ficou incompatível (ex: tinha "Reel"
+  // selecionado e trocou o vídeo por uma imagem), volta pro automático em vez
+  // de deixar uma escolha inválida marcada.
+  if (igFormat && incompativel(igFormat)) igFormat = null;
+
+  container.innerHTML = IG_FORMAT_OPTIONS.map(opt => {
+    const desabilitado = incompativel(opt.value);
+    const ativo = igFormat === opt.value;
+    const title = desabilitado
+      ? (opt.value === 'reel' ? 'Reel exige vídeo' : 'Stories não suporta carrossel')
+      : '';
+    return `<button type="button" class="format-pill${ativo ? ' active' : ''}" ${desabilitado ? 'disabled' : ''} title="${title}" onclick="setIgFormat('${opt.value}')">${escapeHtml(opt.label)}</button>`;
+  }).join('');
+}
+
+function setIgFormat(value) {
+  igFormat = igFormat === value ? null : value;
+  renderIgFormatPills();
+  renderValidationPanel();
+}
+
+// ── Formato por rede: YouTube (Video/Short) ─────────────────────────────────
+// Sem escolha, o YouTube decide sozinho via proporção/duração do vídeo (como
+// já era) — ver src/domain/posts/videoRules.js (isShortEligible).
+let youtubeFormat = null;
+
+function renderYoutubeFormatPills() {
+  const group = document.getElementById('post-youtube-format-group');
+  const container = document.getElementById('youtube-format-pills');
+  const warningEl = document.getElementById('youtube-format-warning');
+  if (!group || !container) return;
+
+  const temVideo = mediaFiles.some(m => m.file.type.startsWith('video/'));
+  const mostrar = selectedPlats.has('youtube') && temVideo;
+  group.style.display = mostrar ? '' : 'none';
+  if (!mostrar) { youtubeFormat = null; if (warningEl) warningEl.style.display = 'none'; return; }
+
+  container.innerHTML = ['video', 'short'].map(value => {
+    const label = value === 'video' ? 'Video' : 'Short';
+    const ativo = youtubeFormat === value;
+    return `<button type="button" class="format-pill${ativo ? ' active' : ''}" onclick="setYoutubeFormat('${value}')">${escapeHtml(label)}</button>`;
+  }).join('');
+
+  updateYoutubeFormatWarning();
+}
+
+// Aviso não-bloqueante quando o usuário força "Short" num vídeo sem
+// proporção/duração típica — mesma checagem client-side já usada por
+// checkYoutubeShortHint, só reaproveitada aqui para o aviso do seletor.
+function updateYoutubeFormatWarning() {
+  const warningEl = document.getElementById('youtube-format-warning');
+  if (!warningEl) return;
+  if (youtubeFormat !== 'short') { warningEl.style.display = 'none'; return; }
+
+  const videoFile = mediaFiles.find(m => m.file.type.startsWith('video/'))?.file;
+  if (!videoFile) { warningEl.style.display = 'none'; return; }
+
+  const el = document.createElement('video');
+  el.preload = 'metadata';
+  el.onloadedmetadata = () => {
+    const vertical = el.videoHeight >= el.videoWidth;
+    const curto = el.duration <= 180;
+    warningEl.style.display = (vertical && curto) ? 'none' : '';
+    warningEl.textContent = 'ℹ️ Esse vídeo não tem proporção/duração típica de Short — o YouTube pode não exibi-lo como tal, mas ainda pode agendar.';
+    URL.revokeObjectURL(el.src);
+  };
+  el.src = URL.createObjectURL(videoFile);
+}
+
+function setYoutubeFormat(value) {
+  youtubeFormat = youtubeFormat === value ? null : value;
+  renderYoutubeFormatPills();
+  renderValidationPanel();
 }
 
 // ── Texto separado por rede (Agendador) ─────────────────────────────────────
@@ -2782,6 +2943,7 @@ function onPostTextInput() {
   if (activeTextTab) textByPlatform[activeTextTab] = document.getElementById('post-text').value;
   updateTextTabsCounter();
   if (typeof updatePostScore === 'function') updatePostScore();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
 }
 
 function unifyPlatformTexts() {
@@ -3149,6 +3311,12 @@ function updateMediaPreview() {
     : mediaFiles.length === 1 ? '1 arquivo selecionado'
     : `${mediaFiles.length} arquivos selecionados`;
 
+  // Pills de formato dependem de quanta/qual mídia foi anexada — recalcula
+  // sempre, inclusive quando a mídia é removida (oculta as pills).
+  if (typeof renderIgFormatPills === 'function') renderIgFormatPills();
+  if (typeof renderYoutubeFormatPills === 'function') renderYoutubeFormatPills();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
+
   if (!mediaFiles.length) {
     hint.textContent = restriction;
     list.innerHTML = '';
@@ -3332,6 +3500,7 @@ function dpApply() {
   updatePostDateDisplay();
   closeDatePicker();
   if (typeof updatePostScore === 'function') updatePostScore();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
 }
 
 function dpToday() {
@@ -3482,6 +3651,58 @@ function plataformasForaDoAr(platforms) {
   return platforms.filter(p => platformHealthStatus[p] === 'down');
 }
 
+// ── Painel de validação consolidado ─────────────────────────────────────────
+// Espelha as mesmas checagens sequenciais de schedulePost() (que continua
+// parando no primeiro erro ao clicar) — aqui só acumula tudo que falta, sem
+// bloquear nada, pra mostrar de uma vez antes do usuário tentar agendar.
+function buildValidationIssues() {
+  const issues = [];
+  const plats = [...selectedPlats];
+  const emModoPorRede = Object.keys(textByPlatform).length > 0;
+  const primeiraPlat = plats[0];
+  const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : (document.getElementById('post-text')?.value || '')).trim();
+  const youtubeTitle = (document.getElementById('post-youtube-title')?.value || '').trim();
+  const scheduledAt = document.getElementById('post-date')?.value;
+
+  if (!text && !mediaFiles.length) issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo' });
+  if (plats.length === 0) issues.push({ platform: null, message: 'Escolha ao menos uma rede social em "Onde publicar"' });
+
+  const indisponiveis = plataformasForaDoAr(plats);
+  if (indisponiveis.length) issues.push({ platform: null, message: `${indisponiveis.map(p => PLATFORM_LABELS[p] || p).join(', ')} está fora do ar no momento` });
+
+  if (plats.includes('youtube') && !youtubeTitle) issues.push({ platform: 'youtube', message: 'Informe o título do vídeo para o YouTube' });
+
+  if (plats.includes('instagram') && scheduledAt) {
+    const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000;
+    if (minutosAteAgendamento < 20) issues.push({ platform: 'instagram', message: 'Escolha um horário com pelo menos 20 minutos de antecedência' });
+  }
+
+  if (plats.includes('instagram') && igFormat === 'story' && mediaFiles.length > 1) {
+    issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Post ou Reel, ou remova os itens extras' });
+  }
+
+  return issues;
+}
+
+function renderValidationPanel() {
+  const panel = document.getElementById('post-validation-panel');
+  if (!panel) return;
+  const issues = buildValidationIssues();
+  if (!issues.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+  panel.style.display = '';
+  panel.innerHTML = `<div class="validation-panel">
+    <div class="validation-panel-header">⚠️ ${issues.length} ${issues.length === 1 ? 'pendência' : 'pendências'} antes de agendar</div>
+    <div class="validation-panel-list">
+      ${issues.map(i => {
+        const cfg = i.platform ? PLAT_ROW_CFG[i.platform] : null;
+        const icon = cfg ? `<span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>` : '•';
+        return `<div class="validation-panel-item">${icon} ${escapeHtml(i.message)}</div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
 async function schedulePost(publishNow = false) {
   const platformsSelecionadas = [...selectedPlats];
   const indisponiveis = plataformasForaDoAr(platformsSelecionadas);
@@ -3536,6 +3757,7 @@ async function schedulePost(publishNow = false) {
 
   const body = {
     text, youtubeTitle, youtubeVisibility, youtubeCategoryId,
+    youtubeFormat: youtubeFormat || '', igFormat: igFormat || '',
     platforms: JSON.stringify(platforms),
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
@@ -3553,6 +3775,8 @@ async function schedulePost(publishNow = false) {
     showToast((publishNow ? 'Erro ao publicar: ' : 'Erro ao agendar: ') + e.message, 'err');
     return;
   }
+
+  if (post.warnings?.length) post.warnings.forEach(w => showToast('ℹ️ ' + w, 'warn'));
 
   if (publishNow) {
     if (post.status === 'published') {
@@ -3584,6 +3808,8 @@ async function schedulePost(publishNow = false) {
   mediaFiles = [];
   textByPlatform = {};
   activeTextTab = null;
+  igFormat = null;
+  youtubeFormat = null;
   updateMediaPreview();
   initSchedulerDefaultPlatforms();
   loadQueue();

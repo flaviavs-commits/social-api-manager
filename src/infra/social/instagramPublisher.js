@@ -59,10 +59,18 @@ async function publicarInstagram(token, post) {
 
   // ── Imagem/vídeo único ──
   const isVideo = post.mediaType === 'video'
+  // Sem escolha explícita, vídeo continua virando Reel (comportamento
+  // padrão de sempre) — só quem escolhe "Post" força vídeo de feed comum, e
+  // só quem escolhe "Story" usa o formato efêmero (24h, sem legenda).
+  const format = post.igFormat || (isVideo ? 'reel' : 'post')
   const params = new URLSearchParams({ access_token: token.accessToken })
-  if (post.text) params.append('caption', post.text)
-  if (isVideo) {
-    params.append('media_type', 'REELS')
+  // Stories não aceita o parâmetro caption na Graph API do Instagram.
+  if (format !== 'story' && post.text) params.append('caption', post.text)
+  if (format === 'story') {
+    params.append('media_type', 'STORIES')
+    params.append(isVideo ? 'video_url' : 'image_url', mediaUrl(post.mediaPath))
+  } else if (isVideo) {
+    params.append('media_type', format === 'post' ? 'VIDEO' : 'REELS')
     params.append('video_url', mediaUrl(post.mediaPath))
   } else {
     params.append('image_url', mediaUrl(post.mediaPath))
