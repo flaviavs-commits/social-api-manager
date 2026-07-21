@@ -1,8 +1,7 @@
 const { Router } = require('express')
-const { serverError, isAdminRole } = require('../utils/http')
+const { serverError } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
-const requireAdmin = require('../middleware/requireAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
 
 const router = Router()
@@ -827,20 +826,16 @@ router.post('/chat-messages', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
-// GET /api/ai/chat-messages — histórico de conversas do Agente IA.
-// Usuário comum só vê o próprio histórico; admin/super_admin pode ver de
-// qualquer usuário via ?userId=<id> (mesma convenção de /activity-log).
-// Paginado por limit/offset (padrão 200 mais recentes).
+// GET /api/ai/chat-messages — histórico de conversas do Agente IA. Cada
+// usuário só vê o próprio histórico, mesmo admin/super_admin — conversas com
+// a IA são sempre privadas ao próprio usuário. Paginado por limit/offset
+// (padrão 200 mais recentes).
 router.get('/chat-messages', async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 200, 1), 1000)
     const offset = Math.max(parseInt(req.query.offset) || 0, 0)
 
-    let userId = req.user.id
-    if (req.query.userId) {
-      if (!isAdminRole(req.user.role)) return res.status(403).json({ erro: 'Você não tem permissão para ver o histórico de outro usuário.' })
-      userId = parseInt(req.query.userId)
-    }
+    const userId = req.user.id
 
     const cond = ['m.user_id = $1']
     const params = [userId]
@@ -861,24 +856,6 @@ router.get('/chat-messages', async (req, res) => {
     const { rows: [{ total }] } = await pool.query(`SELECT COUNT(*)::int AS total FROM ai_chat_messages m WHERE ${cond.join(' AND ')}`, params.slice(0, params.length - 2))
 
     res.json({ mensagens: rows, total })
-  } catch (err) { serverError(res, err) }
-})
-
-// GET /api/ai/chat-messages/users — lista, para admin/super_admin, os
-// usuários que têm histórico de chat, com contagem de mensagens e data da
-// última — usado para montar a lista de conversas no painel admin sem
-// precisar carregar tudo de uma vez.
-router.get('/chat-messages/users', requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT m.user_id AS "userId", u.email AS "userEmail", u.full_name AS "userName",
-             COUNT(*)::int AS "totalMensagens", MAX(m.criado_em) AS "ultimaMensagemEm"
-      FROM ai_chat_messages m
-      LEFT JOIN users u ON u.id = m.user_id
-      GROUP BY m.user_id, u.email, u.full_name
-      ORDER BY "ultimaMensagemEm" DESC
-    `)
-    res.json({ data: rows })
   } catch (err) { serverError(res, err) }
 })
 

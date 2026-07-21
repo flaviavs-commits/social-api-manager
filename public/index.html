@@ -1409,11 +1409,6 @@ input, select, textarea, label, .bottom-nav-item {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14"/></svg>
     <span>Histórico do Agente IA</span>
   </div>
-  <div class="nav-item" id="nav-ai-chats" onclick="showPage('ai-chats')" style="display:none">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-    <span>Conversas do Agente IA</span>
-  </div>
-
   <div class="nav-spacer"></div>
 
   <div class="user-info" style="flex-direction:row;align-items:center;gap:10px;cursor:pointer" onclick="openProfileModal()" title="Meu perfil">
@@ -1691,26 +1686,6 @@ input, select, textarea, label, .bottom-nav-item {
 
     <div id="ai-log-list" style="display:flex;flex-direction:column;gap:6px">
       <div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>
-    </div>
-  </div>
-
-  <!-- CONVERSAS DO AGENTE IA (admin e super_admin) -->
-  <div id="page-ai-chats" class="section-page">
-    <div class="page-header">
-      <div><div class="page-title">Conversas do Agente IA</div><div class="page-sub">Histórico de conversas dos usuários com o Agente IA (visível para administradores)</div></div>
-      <button class="btn" onclick="loadAiChatUsers()">↻ Atualizar</button>
-    </div>
-
-    <div style="display:flex;gap:16px;align-items:flex-start">
-      <div id="ai-chats-users" style="width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:6px">
-        <div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div id="ai-chats-header" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
-        <div id="ai-chats-msgs" style="display:flex;flex-direction:column;gap:8px">
-          <div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">Selecione um usuário à esquerda para ver o histórico de conversa.</div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -2430,7 +2405,6 @@ function showPage(name) {
   // mesmo padrão de "Administração") — fica fora do map de índices fixos
   // para não deslocar a numeração dos demais itens quando visível/invisível.
   if (name === 'ai-log') document.getElementById('nav-ai-log')?.classList.add('active');
-  else if (name === 'ai-chats') document.getElementById('nav-ai-chats')?.classList.add('active');
   else document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
 
   // Bottom nav mobile: ativa item correto
@@ -2449,7 +2423,6 @@ function showPage(name) {
   else                       stopQueueAutoRefresh();
   if (name === 'logs')       startLogStream();
   if (name === 'ai-log')     loadAiActivityLog();
-  if (name === 'ai-chats')   loadAiChatUsers();
   if (name === 'calendario') calInit();
   else if (calRefreshTimer)  { clearInterval(calRefreshTimer); calRefreshTimer = null; }
   if (name === 'analytics')  startAnalyticsAutoRefresh();
@@ -4352,68 +4325,6 @@ async function loadAiActivityLog() {
   }
 }
 
-// ── Conversas do Agente IA (admin e super_admin) ─────────────────────────────
-let aiChatsSelectedUserId = null
-
-async function loadAiChatUsers() {
-  const box = document.getElementById('ai-chats-users')
-  if (!box) return
-  box.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>'
-  try {
-    const { data } = await apiFetch('/api/ai/chat-messages/users')
-    if (!data.length) {
-      box.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:1.5rem">Nenhuma conversa registrada ainda.</div>'
-      return
-    }
-    box.innerHTML = data.map(u => {
-      const quando = new Date(u.ultimaMensagemEm).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-      const ativo = u.userId === aiChatsSelectedUserId
-      return `<div class="ai-chats-user-item" onclick="loadAiChatMessages(${u.userId}, this)"
-        style="cursor:pointer;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;background:${ativo ? 'var(--surface3, var(--surface2))' : 'var(--surface2)'};font-size:12px">
-        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(u.userName || u.userEmail || `usuário #${u.userId}`)}</div>
-        <div style="color:var(--muted);font-size:11px;margin-top:2px">${u.totalMensagens} msg(s) · ${quando}</div>
-      </div>`
-    }).join('')
-  } catch (e) {
-    box.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:1.5rem">${escapeHtml(e.message)}</div>`
-  }
-}
-
-async function loadAiChatMessages(userId, el) {
-  aiChatsSelectedUserId = userId
-  document.querySelectorAll('.ai-chats-user-item').forEach(n => n.style.background = 'var(--surface2)')
-  if (el) el.style.background = 'var(--surface3, var(--surface2))'
-
-  const header = document.getElementById('ai-chats-header')
-  const box = document.getElementById('ai-chats-msgs')
-  if (!box) return
-  box.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">carregando...</div>'
-
-  try {
-    const { mensagens, total } = await apiFetch(`/api/ai/chat-messages?userId=${userId}&limit=500`)
-    if (header) header.textContent = `${total} mensagem(ns)`
-
-    if (!mensagens.length) {
-      box.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:2rem">Nenhuma mensagem encontrada.</div>'
-      return
-    }
-
-    // API retorna mais recentes primeiro — inverte para ordem cronológica na leitura
-    box.innerHTML = mensagens.slice().reverse().map(m => {
-      const quando = new Date(m.criadoEm).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-      const isUser = m.role === 'user'
-      return `<div style="display:flex;flex-direction:column;align-items:${isUser ? 'flex-end' : 'flex-start'}">
-        <div style="max-width:75%;padding:8px 12px;border-radius:10px;font-size:12px;white-space:pre-wrap;word-break:break-word;
-          background:${isUser ? 'var(--accent)' : 'var(--surface2)'};color:${isUser ? '#fff' : 'var(--text)'};border:1px solid var(--border2)">
-          ${escapeHtml(m.conteudo)}
-        </div>
-        <div style="color:var(--muted);font-size:10px;margin-top:2px;font-family:var(--mono)">${escapeHtml(m.contexto)} · ${quando}</div>
-      </div>`
-    }).join('')
-  } catch (e) {
-    box.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:1.5rem">${escapeHtml(e.message)}</div>`
-  }
-}
 
 function startLogStream() {
   if (logPollTimer) return;
@@ -5609,7 +5520,6 @@ apiFetch('/api/me').then(me => {
     if (me.role === 'super_admin') {
       document.getElementById('nav-admin-label').innerHTML = 'Administração <span style="font-size:10px;color:var(--yellow);margin-left:4px">★ principal</span>';
     }
-    document.getElementById('nav-ai-chats').style.display = 'flex';
   }
   if (me.role === 'super_admin') {
     document.getElementById('nav-ai-log').style.display = 'flex';
