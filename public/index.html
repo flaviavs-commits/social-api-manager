@@ -1459,19 +1459,19 @@ input, select, textarea, label, .bottom-nav-item {
     <div class="plat-grid">
       <div class="plat-card fb">
         <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon fb">f</div>Facebook</div>
+          <div class="plat-name"><div class="plat-icon fb"><svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M22 12.06C22 6.51 17.52 2 12 2S2 6.51 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.86c0-2.52 1.49-3.92 3.77-3.92 1.09 0 2.24.2 2.24.2v2.48h-1.26c-1.24 0-1.63.78-1.63 1.58v1.9h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94Z"/></svg></div>Facebook</div>
         </div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6">Conecte sua página do Facebook em "Conexões das Contas" e programe posts com texto, imagem ou vídeo. A conexão fica válida por até 60 dias e pode ser renovada com um clique.</div>
       </div>
       <div class="plat-card ig">
         <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon ig">ig</div>Instagram</div>
+          <div class="plat-name"><div class="plat-icon ig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="60%" height="60%"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg></div>Instagram</div>
         </div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6">Funciona com contas comerciais (Business). Você pode publicar fotos, vídeos e carrosséis. A conexão fica válida por até 60 dias.</div>
       </div>
       <div class="plat-card yt">
         <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon yt">▶</div>YouTube</div>
+          <div class="plat-name"><div class="plat-icon yt"><svg viewBox="0 0 24 24" fill="currentColor" width="62%" height="62%"><path d="M23 7.2s-.23-1.62-.94-2.34c-.9-.94-1.9-.95-2.36-1C16.34 3.6 12 3.6 12 3.6h-.01s-4.34 0-7.7.26c-.46.05-1.46.06-2.36 1C1.23 5.58 1 7.2 1 7.2S.77 9.1.77 11v1.79c0 1.9.23 3.8.23 3.8s.23 1.62.94 2.34c.9.94 2.08.91 2.6 1.01 1.9.18 8.05.24 8.46.24 0 0 4.34 0 7.71-.26.46-.06 1.46-.06 2.36-1 .71-.72.94-2.34.94-2.34s.23-1.9.23-3.8V11c0-1.9-.23-3.8-.23-3.8ZM9.75 14.98V8.62l6.28 3.19-6.28 3.17Z"/></svg></div>YouTube</div>
         </div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6">Envie vídeos e agende a publicação direto na plataforma. A renovação da conexão é automática — você não precisa fazer nada.</div>
       </div>
@@ -1858,12 +1858,18 @@ input, select, textarea, label, .bottom-nav-item {
               <button class="inbox-plat-btn all active" data-plat="all" onclick="inboxSetPlat('all',this)" title="Todas as redes">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               </button>
-              <button class="inbox-plat-btn instagram" data-plat="instagram" onclick="inboxSetPlat('instagram',this)" title="Instagram">ig</button>
-              <button class="inbox-plat-btn facebook"  data-plat="facebook"  onclick="inboxSetPlat('facebook',this)"  title="Facebook">f</button>
+              <button class="inbox-plat-btn instagram" data-plat="instagram" onclick="inboxSetPlat('instagram',this)" title="Instagram">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+              </button>
+              <button class="inbox-plat-btn facebook"  data-plat="facebook"  onclick="inboxSetPlat('facebook',this)"  title="Facebook">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12.06C22 6.51 17.52 2 12 2S2 6.51 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.86c0-2.52 1.49-3.92 3.77-3.92 1.09 0 2.24.2 2.24.2v2.48h-1.26c-1.24 0-1.63.78-1.63 1.58v1.9h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94Z"/></svg>
+              </button>
               <button class="inbox-plat-btn youtube"   data-plat="youtube"   onclick="inboxSetPlat('youtube',this)"   title="YouTube">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M23 7s-.3-2-1.2-2.8c-1.1-1.2-2.4-1.2-3-1.3C16.2 2.8 12 2.8 12 2.8s-4.2 0-6.8.2c-.6.1-1.9.1-3 1.3C1.3 5 1 7 1 7S.8 9.2.8 11.3v2c0 2.1.2 4.3.2 4.3s.3 2 1.2 2.8c1.1 1.2 2.6 1.1 3.3 1.2C7.2 21.8 12 21.8 12 21.8s4.2 0 6.8-.3c.6-.1 1.9-.1 3-1.3.9-.8 1.2-2.8 1.2-2.8s.2-2.2.2-4.3v-2C23.2 9.2 23 7 23 7zM9.7 15.5V8.4l8.1 3.6-8.1 3.5z"/></svg>
               </button>
-              <button class="inbox-plat-btn tiktok" data-plat="tiktok" onclick="inboxSetPlat('tiktok',this)" title="TikTok" style="font-size:10px;letter-spacing:-1px">tt</button>
+              <button class="inbox-plat-btn tiktok" data-plat="tiktok" onclick="inboxSetPlat('tiktok',this)" title="TikTok">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 2h-3.2v13.9c0 1.55-1.25 2.82-2.8 2.82a2.81 2.81 0 0 1-2.8-2.82c0-1.55 1.25-2.81 2.8-2.81.31 0 .6.05.88.14v-3.26a6.1 6.1 0 0 0-.88-.06A6 6 0 0 0 4.6 15.9a6 6 0 0 0 6 5.99 6 6 0 0 0 6-5.99V8.34a8.18 8.18 0 0 0 4.8 1.54V6.66a4.85 4.85 0 0 1-4.8-4.66Z"/></svg>
+              </button>
             </div>
           </div>
           <div class="inbox-search">
@@ -2377,6 +2383,16 @@ const reviewReadyPromise = new Promise(resolve => { _reviewReady = resolve; });
   inboxStartUnreadPolling();
 })();
 
+// Ícones oficiais (simplificados) de cada rede social, em SVG com
+// currentColor — herdam a cor definida por .plat-icon.{fb,ig,yt,tt} e
+// afins, então funcionam em qualquer contexto (card, sidebar, botão).
+const PLAT_SVG = {
+  facebook: '<svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M22 12.06C22 6.51 17.52 2 12 2S2 6.51 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.86c0-2.52 1.49-3.92 3.77-3.92 1.09 0 2.24.2 2.24.2v2.48h-1.26c-1.24 0-1.63.78-1.63 1.58v1.9h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94Z"/></svg>',
+  instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="60%" height="60%"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" fill="currentColor" width="62%" height="62%"><path d="M23 7.2s-.23-1.62-.94-2.34c-.9-.94-1.9-.95-2.36-1C16.34 3.6 12 3.6 12 3.6h-.01s-4.34 0-7.7.26c-.46.05-1.46.06-2.36 1C1.23 5.58 1 7.2 1 7.2S.77 9.1.77 11v1.79c0 1.9.23 3.8.23 3.8s.23 1.62.94 2.34c.9.94 2.08.91 2.6 1.01 1.9.18 8.05.24 8.46.24 0 0 4.34 0 7.71-.26.46-.06 1.46-.06 2.36-1 .71-.72.94-2.34.94-2.34s.23-1.9.23-3.8V11c0-1.9-.23-3.8-.23-3.8ZM9.75 14.98V8.62l6.28 3.19-6.28 3.17Z"/></svg>',
+  tiktok: '<svg viewBox="0 0 24 24" fill="currentColor" width="55%" height="55%"><path d="M16.6 2h-3.2v13.9c0 1.55-1.25 2.82-2.8 2.82a2.81 2.81 0 0 1-2.8-2.82c0-1.55 1.25-2.81 2.8-2.81.31 0 .6.05.88.14v-3.26a6.1 6.1 0 0 0-.88-.06A6 6 0 0 0 4.6 15.9a6 6 0 0 0 6 5.99 6 6 0 0 0 6-5.99V8.34a8.18 8.18 0 0 0 4.8 1.54V6.66a4.85 4.85 0 0 1-4.8-4.66Z"/></svg>'
+};
+
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
 // vindos do usuário (nomes de conta, texto de posts, mensagens de log etc.)
 function escapeHtml(str) {
@@ -2574,10 +2590,10 @@ async function loadDashboard() {
     const grid = document.getElementById('plat-grid');
     grid.innerHTML = '';
     const platCfg = {
-      facebook: { cls:'fb', icon:'f', label:'Facebook', api:'Conexão válida por até 60 dias' },
-      instagram: { cls:'ig', icon:'ig', label:'Instagram', api:'Conexão válida por até 60 dias' },
-      youtube:  { cls:'yt', icon:'▶', label:'YouTube',  api:'Renovação automática' },
-      tiktok:   { cls:'tt', icon:'tt', label:'TikTok',  api:'Publica imediatamente ao enviar' }
+      facebook: { cls:'fb', icon:PLAT_SVG.facebook, label:'Facebook', api:'Conexão válida por até 60 dias' },
+      instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram', api:'Conexão válida por até 60 dias' },
+      youtube:  { cls:'yt', icon:PLAT_SVG.youtube, label:'YouTube',  api:'Renovação automática' },
+      tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok',  api:'Publica imediatamente ao enviar' }
     };
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
@@ -2682,10 +2698,10 @@ async function loadDashboard() {
 
 // ── Tokens ───────────────────────────────────────────────────────────────────
 const PLAT_ROW_CFG = {
-  facebook:  { cls:'fb', icon:'f',  label:'Facebook' },
-  instagram: { cls:'ig', icon:'ig', label:'Instagram' },
-  youtube:   { cls:'yt', icon:'▶',  label:'YouTube' },
-  tiktok:    { cls:'tt', icon:'tt', label:'TikTok' }
+  facebook:  { cls:'fb', icon:PLAT_SVG.facebook,  label:'Facebook' },
+  instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram' },
+  youtube:   { cls:'yt', icon:PLAT_SVG.youtube,   label:'YouTube' },
+  tiktok:    { cls:'tt', icon:PLAT_SVG.tiktok,    label:'TikTok' }
 };
 
 async function loadTokens() {
@@ -2699,7 +2715,7 @@ async function loadTokens() {
 
       if (!contasDaPlataforma.length) {
         return `<div class="plat-row">
-          <div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>
+          <div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${cfg.icon}</div>
           <div class="plat-row-name">${escapeHtml(cfg.label)}</div>
           <button class="plat-row-add" onclick="openModal('nova-conta','${platform}')" title="Conectar ${escapeHtml(cfg.label)}">+</button>
         </div>`;
@@ -2710,10 +2726,10 @@ async function loadTokens() {
         const statusLabel = { valid:'funcionando', expiring:'vencendo', expired:'desconectada' }[t.status] || t.status;
         const btnClass = t.status === 'expired' ? 'btn btn-accent' : 'btn';
         const btnLabel = t.status === 'expired' ? 'Reconectar' : 'Renovar';
-        const rowFallback = `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;')
+        const rowFallback = `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${cfg.icon}</div>`.replace(/"/g, '&quot;')
         const avatar = t.avatarUrl
           ? `<img class="plat-row-avatar" src="${escapeHtml(t.avatarUrl)}" onerror="this.outerHTML='${rowFallback}'">`
-          : `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${escapeHtml(cfg.icon)}</div>`;
+          : `<div class="plat-row-icon" style="background:rgba(255,255,255,0.06);color:var(--muted)">${cfg.icon}</div>`;
         return `<div class="plat-row">
           ${avatar}
           <div>
@@ -2885,7 +2901,7 @@ function renderConfigTabsBar() {
     const ativo = activeConfigTab === p;
     const style = `display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;border:1px solid ${ativo ? 'var(--accent)' : 'var(--border2)'};background:${ativo ? 'var(--accent-glow)' : 'transparent'};color:${ativo ? 'var(--accent)' : 'var(--muted)'}`;
     return `<span style="${style}" onclick="setConfigTab('${p}')">
-      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>
+      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>
       ${escapeHtml(cfg.label)}
     </span>`;
   }).join('');
@@ -2942,10 +2958,10 @@ function renderAccountPreviewRow() {
     if (!contasDaRede.length) return '';
     const principal = contasDaRede[0];
     const resto = contasDaRede.length - 1;
-    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
     const avatar = principal.avatarUrl
       ? `<img src="${escapeHtml(principal.avatarUrl)}" onerror="this.outerHTML='${fallback}'">`
-      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`;
+      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${cfg.icon}</div>`;
     const sufixo = resto > 0 ? ` +${resto}` : '';
     return `<div class="account-preview-chip">${avatar}<span>${escapeHtml(principal.handle)}${sufixo}</span></div>`;
   }).filter(Boolean).join('');
@@ -3069,11 +3085,11 @@ let activePreviewTab = null;
 let previewDevice = 'mobile';
 
 function previewAvatarHtml(cfg, conta) {
-  const fallback = `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+  const fallback = `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
   if (conta?.avatarUrl) {
     return `<img src="${escapeHtml(conta.avatarUrl)}" onerror="this.outerHTML='${fallback}'">`;
   }
-  return `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`;
+  return `<div class="preview-avatar-fallback plat-icon ${cfg.cls}">${cfg.icon}</div>`;
 }
 
 // Texto resolvido para uma rede específica — mesma regra de textByPlatform
@@ -3105,7 +3121,7 @@ function renderPreviewTabs() {
     const cfg = PLAT_ROW_CFG[p];
     if (!cfg) return '';
     const ativo = activePreviewTab === p;
-    return `<button type="button" class="preview-tab-btn plat-icon ${cfg.cls}${ativo ? ' active' : ''}" style="width:28px;height:28px;font-size:11px" onclick="setPreviewTab('${p}')" title="${escapeHtml(cfg.label)}">${escapeHtml(cfg.icon)}</button>`;
+    return `<button type="button" class="preview-tab-btn plat-icon ${cfg.cls}${ativo ? ' active' : ''}" style="width:28px;height:28px;font-size:11px" onclick="setPreviewTab('${p}')" title="${escapeHtml(cfg.label)}">${cfg.icon}</button>`;
   }).join('');
 
   renderPreviewContent();
@@ -3356,7 +3372,7 @@ function renderTextTabsBar() {
     const divergente = emModoPorRede && (textByPlatform[p] || '') !== textTabsBaseText;
     const style = `display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;border:1px solid ${ativo ? 'var(--accent)' : 'var(--border2)'};background:${ativo ? 'var(--accent-glow)' : 'transparent'};color:${ativo ? 'var(--accent)' : 'var(--muted)'}`;
     return `<span style="${style}" onclick="switchTextTab('${p}')">
-      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>
+      <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>
       ${escapeHtml(cfg.label)}${divergente ? ' •' : ''}
     </span>`;
   }).join('');
@@ -3387,7 +3403,7 @@ function updateAccountPickerLabel() {
   if (iconsEl) {
     iconsEl.innerHTML = plats.map(p => {
       const cfg = PLAT_ROW_CFG[p];
-      return cfg ? `<div class="plat-icon ${cfg.cls}" style="width:20px;height:20px;font-size:10px;margin-right:4px">${escapeHtml(cfg.icon)}</div>` : '';
+      return cfg ? `<div class="plat-icon ${cfg.cls}" style="width:20px;height:20px;font-size:10px;margin-right:4px">${cfg.icon}</div>` : '';
     }).join('');
   }
 }
@@ -3426,10 +3442,10 @@ function apAccountAvatarsHtml(cfg, contas) {
   const visiveis = contas.slice(0, 4);
   const resto = contas.length - visiveis.length;
   const avatares = visiveis.map(c => {
-    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${escapeHtml(cfg.icon)}</div>`.replace(/"/g, '&quot;');
+    const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
     return c.avatarUrl
       ? `<img src="${escapeHtml(c.avatarUrl)}" title="${escapeHtml(c.handle)}" onerror="this.outerHTML='${fallback}'">`
-      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}" title="${escapeHtml(c.handle)}">${escapeHtml(cfg.icon)}</div>`;
+      : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}" title="${escapeHtml(c.handle)}">${cfg.icon}</div>`;
   }).join('');
   const maisContas = resto > 0 ? `<div class="ap-avatar-more">+${resto}</div>` : '';
   return `<div class="ap-avatars">${avatares}${maisContas}</div>`;
@@ -3521,7 +3537,7 @@ function renderApPlatformList() {
     return `<div class="${cls}">
       <label class="ap-card-toggle-row">
         <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
-        <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${escapeHtml(cfg.icon)}</div>
+        <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${cfg.icon}</div>
         <div class="ap-card-body">
           <div class="ap-card-name">${escapeHtml(cfg.label)}</div>
           <div class="ap-card-meta">${meta}</div>
@@ -4064,7 +4080,7 @@ function renderValidationPanel() {
     <div class="validation-panel-list">
       ${issues.map(i => {
         const cfg = i.platform ? PLAT_ROW_CFG[i.platform] : null;
-        const icon = cfg ? `<span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${escapeHtml(cfg.icon)}</span>` : '•';
+        const icon = cfg ? `<span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>` : '•';
         return `<div class="validation-panel-item">${icon} ${escapeHtml(i.message)}</div>`;
       }).join('')}
     </div>
@@ -6303,13 +6319,13 @@ function inboxRenderList() {
     const platColor = INBOX_PLAT_COLOR[plat] || 'var(--muted)';
 
     // Avatar: inicial da plataforma
-    const platInitials = { instagram:'ig', facebook:'f', youtube:'▶', tiktok:'tt' };
+    const platInitials = { instagram:'ig', facebook:'f', youtube:'yt', tiktok:'tt' };
     const initials = platInitials[plat] || '?';
 
     item.innerHTML = `
       <div class="inbox-conv-avatar" style="background:${platColor}">
         <span>${initials.toUpperCase()}</span>
-        <span class="inbox-conv-plat-badge ${plat}">${platInitials[plat] || '?'}</span>
+        <span class="inbox-conv-plat-badge ${plat}">${PLAT_SVG[plat] || ''}</span>
       </div>
       <div class="inbox-conv-body">
         <div class="inbox-conv-name">${escapeHtml(label).substring(0,60)}</div>
@@ -7725,8 +7741,7 @@ function aiRenderCards() {
 
   container.innerHTML = aiGeneratedPosts.map((p, i) => {
     const platsHtml = (p.plataformas || []).map(pl => {
-      const labels = { instagram:'ig', facebook:'f', youtube:'▶', tiktok:'tt' }
-      return `<span class="ai-card-plat ${pl}" title="${pl}">${labels[pl]||pl}</span>`
+      return `<span class="ai-card-plat ${pl}" title="${pl}">${PLAT_SVG[pl] || pl}</span>`
     }).join('')
 
     const hashtagsHtml = (p.hashtags || []).map(h =>
