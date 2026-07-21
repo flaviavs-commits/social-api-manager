@@ -59,14 +59,6 @@ tr:last-child td { border-bottom: none; }
       <tbody id="users-body"><tr><td colspan="6" class="empty">carregando...</td></tr></tbody>
     </table>
   </div>
-
-  <div class="section-title">Todas as contas de redes sociais</div>
-  <div class="card">
-    <table>
-      <thead><tr><th></th><th>Dono</th><th>Rede</th><th>Conta</th><th>Situação</th></tr></thead>
-      <tbody id="accounts-body"><tr><td colspan="5" class="empty">carregando...</td></tr></tbody>
-    </table>
-  </div>
 </div>
 
 <script>
@@ -164,38 +156,7 @@ async function toggleAtivo(id, currentlyAtivo) {
   }
 }
 
-const platLabels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' };
-const statusLabels = { valid: 'Funcionando', expiring: 'Vencendo', expired: 'Desconectada' };
-
-async function loadAccounts() {
-  const body = document.getElementById('accounts-body');
-  try {
-    const { data: contas } = await apiFetch('/api/admin/accounts');
-    if (!contas.length) { body.innerHTML = '<tr><td colspan="5" class="empty">nenhuma conta conectada</td></tr>'; return; }
-
-    const rows = contas.map(c => {
-      const token = (c.tokens || []).find(t => t.platform === c.platform);
-      const status = token ? (statusLabels[token.status] || token.status) : 'sem conexão';
-      const avatar = c.avatarUrl
-        ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;display:block">`
-        : `<div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)">${escapeHtml((platLabels[c.platform] || c.platform)[0])}</div>`;
-      return `<tr>
-        <td>${avatar}</td>
-        <td>${escapeHtml(c.ownerEmail || '—')}</td>
-        <td>${escapeHtml(platLabels[c.platform] || c.platform)}</td>
-        <td>${escapeHtml(c.handle)}</td>
-        <td>${escapeHtml(status)}</td>
-      </tr>`;
-    });
-
-    body.innerHTML = rows.join('');
-  } catch (e) {
-    body.innerHTML = `<tr><td colspan="5" class="empty">${escapeHtml(e.message)}</td></tr>`;
-  }
-}
-
 loadUsers();
-loadAccounts();
 </script>
 
 </body>

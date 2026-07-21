@@ -1,6 +1,5 @@
 const { Router } = require('express')
 const usersRepo = require('../repositories/usersRepository')
-const contasRepo = require('../repositories/contasRepository')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { parseId, serverError, isAdminRole } = require('../utils/http')
 const { invalidarCacheUsuario } = require('../middleware/requireAuth')
@@ -73,16 +72,6 @@ router.post('/users/:id/ativo', async (req, res) => {
     res.json({ user })
   } catch (e) {
     serverError(res, e, 'Não foi possível atualizar o usuário')
-  }
-})
-
-// GET /api/admin/accounts — todas as contas de redes sociais, de todos os usuários
-router.get('/accounts', async (req, res) => {
-  try {
-    const contas = await contasRepo.listarContas({ isAdmin: true })
-    res.json({ total: contas.length, data: contas })
-  } catch (e) {
-    serverError(res, e)
   }
 })
 

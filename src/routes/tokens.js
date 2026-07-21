@@ -1,7 +1,11 @@
 const { Router } = require('express')
 const repo = require('../repositories/tokensRepository')
 const contasRepo = require('../repositories/contasRepository')
-const { PLATFORMS, parseId, serverError, isAdminRole } = require('../utils/http')
+const { PLATFORMS, parseId, serverError } = require('../utils/http')
+
+// Contas e conexões de redes sociais são sempre restritas ao dono, mesmo para
+// admin/super_admin — cada pessoa só vê e gerencia as próprias redes sociais
+// no uso normal do painel. Ver [[project_isolamento_contas_admin]].
 
 const router = Router()
 
@@ -16,7 +20,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ erro: `platform inválida. Use um de: ${PLATFORMS.join(', ')}` })
     }
 
-    const tokens = await repo.listarTokens({ status, platform, userId: req.user.id, isAdmin: isAdminRole(req.user.role) })
+    const tokens = await repo.listarTokens({ status, platform, userId: req.user.id, isAdmin: false })
     res.json({ tokens })
   } catch (e) {
     serverError(res, e)
@@ -34,7 +38,7 @@ router.post('/', async (req, res) => {
     const accId = parseId(accountId)
     if (accId === null) return res.status(400).json({ erro: 'accountId inválido' })
 
-    const conta = await contasRepo.buscarContaPorId(accId, req.user.id, isAdminRole(req.user.role))
+    const conta = await contasRepo.buscarContaPorId(accId, req.user.id, false)
     if (!conta) return res.status(404).json({ erro: 'Conta não encontrada' })
 
     const token = await repo.salvarToken({ accountId: accId, platform, accessToken, refreshToken, expiresAt, accountName })
@@ -46,7 +50,7 @@ router.post('/', async (req, res) => {
 
 router.post('/renew-all', async (req, res) => {
   try {
-    const result = await repo.renovarTodos(req.user.id, isAdminRole(req.user.role))
+    const result = await repo.renovarTodos(req.user.id, false)
     res.json(result)
   } catch (e) {
     serverError(res, e)
@@ -58,7 +62,7 @@ router.post('/renew/:id', async (req, res) => {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
 
-    const result = await repo.renovarToken(id, req.user.id, isAdminRole(req.user.role))
+    const result = await repo.renovarToken(id, req.user.id, false)
     res.json(result)
   } catch (e) {
     serverError(res, e)
@@ -70,7 +74,7 @@ router.delete('/:id', async (req, res) => {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
 
-    const ok = await repo.deletarToken(id, req.user.id, isAdminRole(req.user.role))
+    const ok = await repo.deletarToken(id, req.user.id, false)
     if (!ok) return res.status(404).json({ erro: 'Token não encontrado' })
     res.status(204).send()
   } catch (e) {
