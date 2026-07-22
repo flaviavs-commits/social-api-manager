@@ -1528,6 +1528,14 @@ input, select, textarea, label, .bottom-nav-item {
             <option value="private">Privado</option>
           </select>
         </div>
+        <div class="form-group" id="post-youtube-made-for-kids-group" style="display:none">
+          <label>Feito para crianças? <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório, exigido pelo YouTube)</span></label>
+          <select id="post-youtube-made-for-kids" onchange="if (typeof renderValidationPanel === 'function') renderValidationPanel();">
+            <option value="">Selecione...</option>
+            <option value="false">Não, este vídeo não é feito para crianças</option>
+            <option value="true">Sim, este vídeo é feito para crianças</option>
+          </select>
+        </div>
         <div class="form-group" id="post-youtube-category-group" style="display:none">
           <label>Categoria <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional, YouTube)</span></label>
           <select id="post-youtube-category">
@@ -2888,6 +2896,12 @@ function setConfigTab(plat) {
   activeConfigTab = plat;
   renderConfigTabsBar();
   applyConfigTabVisibility();
+  // Sem isto, o pill de formato (Instagram post/reel/story, YouTube
+  // video/short) fica preso na visibilidade calculada da última vez que a
+  // seleção de redes mudou — trocar de aba (sem mexer na seleção) não
+  // escondia o formato da rede que deixou de estar em foco.
+  if (typeof renderIgFormatPills === 'function') renderIgFormatPills();
+  if (typeof renderYoutubeFormatPills === 'function') renderYoutubeFormatPills();
   if (typeof switchTextTab === 'function' && selectedPlats.size >= 2) switchTextTab(plat);
   if (typeof setPreviewTab === 'function') setPreviewTab(plat);
 }
@@ -2914,6 +2928,7 @@ function applyConfigTabVisibility() {
   const mostrarYoutube = selectedPlats.has('youtube') && (soUmaRede || activeConfigTab === 'youtube');
   document.getElementById('post-youtube-title-group').style.display = mostrarYoutube ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = mostrarYoutube ? '' : 'none';
+  document.getElementById('post-youtube-made-for-kids-group').style.display = mostrarYoutube ? '' : 'none';
   document.getElementById('post-youtube-category-group').style.display = mostrarYoutube ? '' : 'none';
   // Restaura o título salvo da rede ativa (se o usuário já tinha digitado
   // algo nela antes de trocar de aba) — sem isso, trocar de YouTube para
@@ -4071,6 +4086,10 @@ function buildValidationIssues() {
 
   if (plats.includes('youtube') && !youtubeTitle) issues.push({ platform: 'youtube', message: 'Informe o título do vídeo para o YouTube' });
 
+  if (plats.includes('youtube') && !document.getElementById('post-youtube-made-for-kids')?.value) {
+    issues.push({ platform: 'youtube', message: 'Informe se o vídeo é feito para crianças (obrigatório pelo YouTube)' });
+  }
+
   if (plats.includes('instagram') && scheduledAt) {
     const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000;
     if (minutosAteAgendamento < 20) issues.push({ platform: 'instagram', message: 'Escolha um horário com pelo menos 20 minutos de antecedência' });
@@ -4121,6 +4140,7 @@ async function schedulePost(publishNow = false) {
   saveTitleFromActiveConfigTab();
   const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title').value.trim());
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
+  const youtubeMadeForKidsRaw = document.getElementById('post-youtube-made-for-kids').value;
   const youtubeCategoryId = document.getElementById('post-youtube-category').value;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
@@ -4137,6 +4157,7 @@ async function schedulePost(publishNow = false) {
   if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
+  if (platforms.includes('youtube') && !youtubeMadeForKidsRaw) return showToast('Informe se o vídeo é feito para crianças (obrigatório pelo YouTube)', 'err');
 
   // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
   // muito em cima da hora não dá folga pro cron confirmar a tempo. Mesma regra
@@ -4156,7 +4177,7 @@ async function schedulePost(publishNow = false) {
   }
 
   const body = {
-    text, youtubeTitle, youtubeVisibility, youtubeCategoryId,
+    text, youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKidsRaw, youtubeCategoryId,
     youtubeFormat: youtubeFormat || '', igFormat: igFormat || '',
     platforms: JSON.stringify(platforms),
     scheduledAt, repeat,
@@ -4202,9 +4223,11 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-text').value = '';
   document.getElementById('post-youtube-title').value = '';
   document.getElementById('post-youtube-visibility').value = 'public';
+  document.getElementById('post-youtube-made-for-kids').value = '';
   document.getElementById('post-youtube-category').value = '';
   document.getElementById('post-youtube-title-group').style.display = 'none';
   document.getElementById('post-youtube-visibility-group').style.display = 'none';
+  document.getElementById('post-youtube-made-for-kids-group').style.display = 'none';
   document.getElementById('post-youtube-category-group').style.display = 'none';
   mediaFiles = [];
   textByPlatform = {};

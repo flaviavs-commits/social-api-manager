@@ -39,7 +39,7 @@ const YOUTUBE_FORMATS = ['video', 'short']
 
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -86,6 +86,12 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
 
   if (platforms.includes('youtube') && !youtubeTitle?.trim() && !titleByPlatform?.youtube?.trim())
     return 'Informe o título do vídeo para publicar no YouTube.'
+
+  // A API do YouTube (status.selfDeclaredMadeForKids) exige essa declaração em
+  // todo upload, por exigência legal da FTC/COPPA — não existe valor default
+  // seguro para decidir por conta própria, o usuário precisa escolher.
+  if (platforms.includes('youtube') && typeof youtubeMadeForKids !== 'boolean')
+    return 'Informe se o vídeo é feito para crianças (obrigatório pelo YouTube).'
 
   if (platforms.includes('tiktok') && !items.length)
     return 'Falta mídia para publicar no TikTok. Anexe um vídeo ou imagem.'

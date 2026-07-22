@@ -64,6 +64,13 @@ async function probarVideos(files) {
 async function criarPost({ body, userId, userRole, isAdmin }) {
   const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat } = body
 
+  // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
+  // quando o campo não veio, para a validação distinguir "não escolheu" de
+  // "escolheu não". Ver domain/posts/post.js (obrigatório quando inclui youtube).
+  let youtubeMadeForKids
+  if (body.youtubeMadeForKids === 'true' || body.youtubeMadeForKids === true) youtubeMadeForKids = true
+  else if (body.youtubeMadeForKids === 'false' || body.youtubeMadeForKids === false) youtubeMadeForKids = false
+
   let platforms
   try {
     platforms = JSON.parse(body.platforms || '[]')
@@ -130,7 +137,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -164,7 +171,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     text: text?.trim() || null, textByPlatform, titleByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
-    youtubeFormat: youtubeFormat || null, youtubeIsShort, igFormat: igFormat || null,
+    youtubeFormat: youtubeFormat || null, youtubeIsShort, youtubeMadeForKids: youtubeMadeForKids ?? null, igFormat: igFormat || null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 

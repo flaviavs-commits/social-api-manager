@@ -71,9 +71,12 @@ async function publicarYoutube(token, post) {
     description = description ? `${description}\n\n#Shorts` : '#Shorts'
   }
 
+  // selfDeclaredMadeForKids é obrigatório pela API (exigência legal da
+  // FTC/COPPA) — validarCriacaoPost já garante que o usuário escolheu
+  // explicitamente antes de chegar aqui, não existe default seguro.
   const metadata = {
     snippet: { title, description, ...(post.youtubeCategoryId ? { categoryId: post.youtubeCategoryId } : {}) },
-    status: { privacyStatus: post.youtubeVisibility || 'public' }
+    status: { privacyStatus: post.youtubeVisibility || 'public', selfDeclaredMadeForKids: post.youtubeMadeForKids === true }
   }
 
   // 1. Inicia a sessão resumable — devolve a upload_url onde o vídeo deve ser enviado

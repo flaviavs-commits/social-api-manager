@@ -1,11 +1,11 @@
 const pool = require('../../db/pool')
 
-async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, igFormat = null, accountId = null, userId, status = 'scheduled' }) {
+async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, ig_format, account_id, user_id, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, account_id, user_id, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
     RETURNING *, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform"
-  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, igFormat, accountId, userId, status])
+  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, accountId, userId, status])
   return rows[0]
 }
 
@@ -73,6 +73,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.scheduled_at AS "scheduledAt", p.repeat, p.status, p.criado_em, p.user_id AS "userId",
       p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
       p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_category_id AS "youtubeCategoryId", p.youtube_format AS "youtubeFormat", p.youtube_is_short AS "youtubeIsShort",
+      p.youtube_made_for_kids AS "youtubeMadeForKids",
       p.ig_format AS "igFormat",
       p.account_id AS "accountId",
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
@@ -120,7 +121,7 @@ async function reservarPostsPendentes() {
       RETURNING
         id, text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, status, user_id,
         media_path, media_type, media_items,
-        youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short,
+        youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids,
         ig_format, account_id
     )
     SELECT
@@ -128,6 +129,7 @@ async function reservarPostsPendentes() {
       r.scheduled_at AS "scheduledAt", r.repeat, r.status, r.user_id AS "userId",
       r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems",
       r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_category_id AS "youtubeCategoryId", r.youtube_format AS "youtubeFormat", r.youtube_is_short AS "youtubeIsShort",
+      r.youtube_made_for_kids AS "youtubeMadeForKids",
       r.ig_format AS "igFormat",
       r.account_id AS "accountId",
       u.role AS "userRole",
@@ -142,7 +144,7 @@ async function reservarPostsPendentes() {
     LEFT JOIN contas c ON c.id = pa.account_id
     GROUP BY r.id, r.text, r.text_by_platform, r.title_by_platform, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
              r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
-             r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.ig_format, r.account_id, u.role
+             r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format, r.account_id, u.role
   `)
   return rows
 }
