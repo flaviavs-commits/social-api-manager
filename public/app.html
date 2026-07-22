@@ -8854,7 +8854,7 @@ async function aiChatProcess(ctx, userMsg) {
       aiChatTyping(ctx, true)
       await new Promise(r => setTimeout(r, 600))
       aiChatTyping(ctx, false)
-      aiChatAddMsg(ctx, 'agent', `Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 tiago@vitissouls.com). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?`)
+      aiChatAddMsg(ctx, 'agent', `Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 brenoaugusto@vitissouls.com). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?`)
       aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', '🌐 Todas'])
     } else {
       // Tem assinatura — só faz sentido pedir a chave se o modelo atual
@@ -9121,7 +9121,7 @@ async function aiChatProcess(ctx, userMsg) {
       if (aiSelectedModel === 'local' || GEMINI_MODEL_IDS_FRONT.includes(aiSelectedModel)) {
         if (data.fallback === 'limite_diario') {
           const msgLimite = aiSelectedModel === 'local'
-            ? `🎁 Você usou todas as suas gerações turbinadas de hoje! Já montei seu(s) post(s) no modo padrão — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 tiago@vitissouls.com`
+            ? `🎁 Você usou todas as suas gerações turbinadas de hoje! Já montei seu(s) post(s) no modo padrão — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 brenoaugusto@vitissouls.com`
             : `🎁 Você usou todas as gerações gratuitas de hoje com este modelo! Já montei seu(s) post(s) no modo padrão (Assistente Rápido) — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações? Use sua própria chave do Google AI Studio (opcional) ou tente de novo amanhã.`
           aiChatAddMsg(ctx, 'agent', msgLimite)
         } else if (data.fallback === 'llm_indisponivel') {
