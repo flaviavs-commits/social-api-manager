@@ -1,5 +1,5 @@
 const { Router } = require('express')
-const { serverError } = require('../utils/http')
+const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
@@ -1321,6 +1321,7 @@ router.post('/schedule', async (req, res) => {
     if (!Array.isArray(posts) || !posts.length) return res.status(400).json({ erro: 'Nenhum post para agendar' })
 
     const repo = require('../infra/db/postsRepository')
+    const contasRepo = require('../repositories/contasRepository')
     const { publishPost } = require('../infra/social/publisher')
     const criados = []
 
@@ -1329,6 +1330,22 @@ router.post('/schedule', async (req, res) => {
       const temMidia = !!p.mediaPath
       const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
       const publishNow = querPublicarAgora && (temMidia || !exigeMidia)
+
+      // Resolve as contas conectadas de cada rede marcada e as vincula ao post
+      // (post_accounts) — sem isso, publishPost() não teria nenhuma conta para
+      // publicar (post.accounts viria vazio) e Promise.all([]).every(...)
+      // retornaria true por vacuidade, marcando o post como "published" sem
+      // nenhuma chamada real à API da rede. Mesmo padrão do Agendador manual
+      // (ver use-cases/posts/criarPost.js).
+      const isAdmin = isAdminRole(req.user.role)
+      const contas = await contasRepo.listarContasAtivasPorPlataformas(p.plataformas || [], req.user.id, isAdmin)
+      const platformsSemConta = (p.plataformas || []).filter(plat => !contas.some(c => c.platform === plat))
+      if (platformsSemConta.length) {
+        const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }
+        const nomes = platformsSemConta.map(plat => labels[plat] || plat).join(', ')
+        registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'erro', detalhes: `sem conta conectada: ${nomes}` })
+        return res.status(400).json({ erro: `Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.` })
+      }
 
       const post = await repo.criarPost({
         text:              p.texto,
@@ -1346,13 +1363,16 @@ router.post('/schedule', async (req, res) => {
         status:            publishNow ? 'processing' : 'scheduled',
       })
 
+      await repo.definirContasDoPost(post.id, contas.map(c => c.id))
+      const postAccounts = await repo.listarContasDoPost(post.id)
+
       if (!publishNow) {
         registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'sucesso', detalhes: `agendado · plataformas: ${(p.plataformas||[]).join(',')} · horário: ${post.scheduledAt || p.horario}` })
         criados.push(post)
         continue
       }
 
-      const results = await publishPost({ ...post, mediaPath: p.mediaPath || null, mediaType: p.mediaType || null, mediaItems: null, accountId: p.accountId || null, userId: req.user.id, userRole: req.user.role })
+      const results = await publishPost({ ...post, mediaPath: p.mediaPath || null, mediaType: p.mediaType || null, mediaItems: null, accounts: postAccounts, userId: req.user.id, userRole: req.user.role })
       // Instagram devolve "pending" (container ainda processando) — o cron
       // finaliza depois; não é sucesso nem erro ainda nesse momento.
       const status = results.some(r => r.success === 'pending') ? 'processing'

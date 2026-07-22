@@ -9278,11 +9278,17 @@ async function aiChatPublicarAgora(ctx, idx, cardId) {
     const resultado = data.posts?.[0]
     const falhou = resultado?.status === 'error'
     const parcial = resultado?.status === 'partial'
+    // Instagram cria o container e confirma a publicação de fato em até ~1min
+    // (via cron) — 'processing' não é sucesso ainda, é só "sucesso" o
+    // Agendador tradicional já trata assim (ver schedulePost() em index.html).
+    const pendente = resultado?.status === 'processing'
     if (falhou) {
       const erro = resultado.results?.find(r => !r.success)?.error || 'motivo desconhecido'
       aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui publicar agora (${erro}). O post não foi perdido — veja em Logs/Agendador. Quer tentar de novo ou agendar para mais tarde?`)
     } else if (parcial) {
       aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — alguma rede falhou. Confira os detalhes em Logs.\n\nPosso criar mais alguma coisa? 😊`)
+    } else if (pendente) {
+      aiChatAddMsg(ctx, 'agent', `⏳ Post em processamento no Instagram — confirmação em até 1 minuto. Confira em Logs ou no perfil da rede daqui a pouco.\n\nPosso criar mais alguma coisa? 😊`)
     } else {
       aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.\n\nPosso criar mais alguma coisa para você? 😊`)
     }
@@ -9722,11 +9728,16 @@ async function aiScheduleMediaPost(ctx, sugestao, publicarAgora = false, cardId 
     if (publicarAgora) {
       const falhou = resultado?.status === 'error'
       const parcial = resultado?.status === 'partial'
+      // Instagram cria o container e confirma a publicação de fato em até
+      // ~1min (via cron) — 'processing' não é sucesso ainda.
+      const pendente = resultado?.status === 'processing'
       if (falhou) {
         const erro = resultado.results?.find(r => !r.success)?.error || 'motivo desconhecido'
         aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui publicar agora (${erro}). Veja em Logs/Agendador.`)
       } else if (parcial) {
         aiChatAddMsg(ctx, 'agent', `⚠️ Publicado parcialmente — confira os detalhes em Logs.`)
+      } else if (pendente) {
+        aiChatAddMsg(ctx, 'agent', `⏳ Post em processamento no Instagram — confirmação em até 1 minuto. Confira em Logs ou no perfil da rede daqui a pouco.`)
       } else {
         aiChatAddMsg(ctx, 'agent', `🎉 Publicado agora com sucesso! Confira em Logs ou no perfil da rede.`)
       }
