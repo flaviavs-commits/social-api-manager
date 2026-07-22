@@ -792,7 +792,7 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
 }
 
 // Histórico das mensagens trocadas no chat do Agente IA — até aqui vivia só
-// em memória do navegador (aiChat.fab/page.msgs, public/index.html) e se
+// em memória do navegador (aiChat.fab/page.msgs, public/app.html) e se
 // perdia a cada reload. Persistido para que admin/super_admin consigam
 // acompanhar as conversas dos usuários (ex.: suporte, diagnóstico).
 pool.query(`

@@ -429,7 +429,7 @@ router.get('/google/callback', async (req, res) => {
     }
 
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
-    res.redirect(baseUrl + '/index.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
+    res.redirect(baseUrl + '/app.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
   } catch (err) {
     addLog('err', `Falha no login com Google: ${err.message}`)
     res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))

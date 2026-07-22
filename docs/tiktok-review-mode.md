@@ -37,8 +37,9 @@ mas **deve ser desligado assim que o TikTok aprovar**:
 
 1. Na Vercel, mude `TIKTOK_REVIEW_MODE` para `false` (ou **delete** a variável).
 2. Faça **Redeploy**.
-3. Confirme: a raiz `/` deve voltar a mostrar a página pública (sobre.html) e
-   o login passa a ser exigido de novo.
+3. Confirme: a raiz `/` deve voltar a mostrar a página pública (public/index.html,
+   antigo sobre.html) e o login passa a ser exigido de novo (dashboard agora
+   vive em public/app.html).
 
 ## Conta demo
 

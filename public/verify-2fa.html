@@ -89,7 +89,7 @@ document.getElementById('form-2fa').addEventListener('submit', async (e) => {
     }
     sessionStorage.removeItem('pending2faToken');
     localStorage.setItem('authToken', data.token);
-    window.location.href = '/';
+    window.location.href = '/app.html';
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.');
   } finally {

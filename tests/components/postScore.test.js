@@ -1,6 +1,6 @@
 // Testes de componente — lógica de score de qualidade do post
 // Extrai e testa a lógica pura de calcPostScore sem DOM
-// (espelha o que está em public/index.html mas testável isoladamente)
+// (espelha o que está em public/app.html mas testável isoladamente)
 
 const SCORE_RULES = {
   instagram: [

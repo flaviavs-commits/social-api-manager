@@ -107,7 +107,7 @@ document.getElementById('google-login-link').href = API + '/auth/login/google';
     const { token } = await res.json();
     if (token) {
       localStorage.setItem('authToken', token);
-      window.location.href = '/index.html';
+      window.location.href = '/app.html';
     }
   } catch {}
 })();
@@ -278,7 +278,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
       return;
     }
     localStorage.setItem('authToken', data.token);
-    window.location.href = '/';
+    window.location.href = '/app.html';
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
   }
@@ -306,7 +306,7 @@ async function verificarCodigo2FALogin() {
     }
     sessionStorage.removeItem('pending2faToken');
     localStorage.setItem('authToken', data.token);
-    window.location.href = '/';
+    window.location.href = '/app.html';
   } catch {
     showMsg('Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.', 'err');
   } finally {

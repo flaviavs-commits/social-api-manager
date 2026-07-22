@@ -2,8 +2,7 @@
   "framework": null,
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/", "destination": "/sobre.html" },
-    { "source": "/sobre", "destination": "/sobre.html" },
+    { "source": "/sobre", "destination": "/index.html" },
     { "source": "/support", "destination": "/support.html" },
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
     { "source": "/terms-of-service", "destination": "/terms-of-service.html" },

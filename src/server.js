@@ -147,7 +147,7 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
 app.get('/', (req, res) => {
   // Sem cookie de sessão para checar aqui (Bearer token não viaja em
   // navegação simples) — quem decide se já está logado e redireciona para
-  // /index.html é o próprio front, lendo o token salvo no localStorage.
+  // /app.html é o próprio front, lendo o token salvo no localStorage.
 
   // Modo de revisão (TikTok): quando TIKTOK_REVIEW_MODE=true e há um usuário
   // demo configurado, o app abre direto no painel sem tela de login — o
@@ -156,10 +156,10 @@ app.get('/', (req, res) => {
   // reais de outros usuários), e a flag deve ser desligada após a aprovação.
   if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
     const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
-    return res.redirect((process.env.FRONTEND_URL || '') + '/index.html?token=' + encodeURIComponent(token))
+    return res.redirect((process.env.FRONTEND_URL || '') + '/app.html?token=' + encodeURIComponent(token))
   }
 
-  res.sendFile(path.join(__dirname, '../public/sobre.html'))
+  res.sendFile(path.join(__dirname, '../public/index.html'))
 })
 
 // Páginas legais públicas (exigência da revisão do TikTok: ToS e Privacy
@@ -172,6 +172,9 @@ app.get('/terms-of-service', (req, res) => {
 })
 app.get('/support', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/support.html'))
+})
+app.get('/sobre', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'))
 })
 
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
@@ -225,7 +228,7 @@ app.get('/api/platform-health', async (req, res) => {
 })
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'))
+  res.sendFile(path.join(__dirname, '../public/app.html'))
 })
 
 // Error handler global — nunca expõe stack traces ao cliente
