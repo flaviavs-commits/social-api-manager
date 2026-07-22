@@ -24,6 +24,16 @@ function invalidarCacheUsuario(userId) {
 }
 
 async function requireAuth(req, res, next) {
+  // Bypass temporário para permitir que o Google revise a aplicação sem
+  // login — ativado só com REVIEW_MODE_NO_AUTH=true no ambiente. Enquanto
+  // ligado, TODA a API fica pública (dados de todos os usuários incluídos).
+  // Desligar (remover a env var) restaura a autenticação normal sem precisar
+  // reverter código. NUNCA deixar ligado além do período estrito da revisão.
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
+    req.user = { id: Number(process.env.REVIEW_MODE_USER_ID) || null, email: 'review@local', role: 'user', fullName: 'Revisor', avatarUrl: null, totpEnabled: false }
+    return next()
+  }
+
   const header = req.headers.authorization || ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
 

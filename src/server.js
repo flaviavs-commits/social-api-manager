@@ -190,11 +190,16 @@ app.get('/api/config', (req, res) => {
 // TikTok entrar sem precisar de login. Só funciona quando TIKTOK_REVIEW_MODE=true.
 // Não expõe senha nem dados reais — o user_id apontado deve ser uma conta demo isolada.
 app.get('/api/review-token', (req, res) => {
-  if (process.env.TIKTOK_REVIEW_MODE !== 'true' || !process.env.TIKTOK_REVIEW_USER_ID) {
-    return res.status(404).json({ erro: 'não disponível' })
+  if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
+    return res.json({ token: gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID)) })
   }
-  const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
-  res.json({ token })
+  // Modo de revisão geral (Google) — REVIEW_MODE_NO_AUTH=true já libera a API
+  // inteira sem token em requireAuth; aqui só evita o front-end redirecionar
+  // pra /login.html antes de qualquer chamada de API rodar.
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
+    return res.json({ token: gerarTokenSessao(Number(process.env.REVIEW_MODE_USER_ID) || 0) })
+  }
+  return res.status(404).json({ erro: 'não disponível' })
 })
 
 app.use(requireAuth)

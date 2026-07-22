@@ -15,6 +15,20 @@
 (function guardaAutenticacaoInicial() {
   const params = new URLSearchParams(location.search);
   if (params.get('token') || localStorage.getItem('authToken')) return;
+
+  // Modo de revisão (Google) — REVIEW_MODE_NO_AUTH=true no servidor libera a
+  // API inteira sem login; aqui só evita redirecionar pra /login.html antes
+  // do auto-login (tentarAutoLoginReview, mais abaixo) buscar um token via
+  // /api/review-token. Checagem síncrona (XHR, não fetch) de propósito: este
+  // script roda antes de qualquer outro no <head>, e precisa decidir agora,
+  // sem esperar um "then" — é temporário, só para o período de revisão.
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/review-token', false);
+    xhr.send(null);
+    if (xhr.status === 200) return;
+  } catch {}
+
   window.location.replace('/login.html');
 })();
 </script>
