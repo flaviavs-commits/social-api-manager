@@ -94,7 +94,11 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   // cai no texto principal (post.text) quando a rede não tem entrada própria
   // em text_by_platform. Ver domain/posts/post.js e migrations/029.
   const textoResolvido = post.textByPlatform?.[platform] ?? post.text
-  post = { ...post, text: textoResolvido }
+  // Título diferente por rede — opcional, cai no título principal do YouTube
+  // (post.youtubeTitle) quando a rede não tem entrada própria em
+  // title_by_platform. Ver domain/posts/post.js e migrations/032.
+  const tituloResolvido = post.titleByPlatform?.[platform] ?? post.youtubeTitle
+  post = { ...post, text: textoResolvido, youtubeTitle: tituloResolvido }
   const publisher = PUBLISHERS[platform]
   if (!publisher) {
     return { platform, accountId: account.accountId, success: false, error: `Plataforma "${platform}" não suportada` }

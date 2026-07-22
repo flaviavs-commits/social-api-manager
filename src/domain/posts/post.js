@@ -39,7 +39,7 @@ const YOUTUBE_FORMATS = ['video', 'short']
 
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -52,6 +52,13 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibil
 
   if (youtubeTitle !== undefined && youtubeTitle !== null && youtubeTitle.length > MAX_YOUTUBE_TITLE_LENGTH)
     return `O título do vídeo pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
+
+  if (titleByPlatform) {
+    for (const titulo of Object.values(titleByPlatform)) {
+      if (typeof titulo === 'string' && titulo.length > MAX_YOUTUBE_TITLE_LENGTH)
+        return `O título pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
+    }
+  }
 
   if (!YOUTUBE_VISIBILITIES.includes(youtubeVisibility))
     return 'youtubeVisibility inválido. Use public, unlisted ou private.'
@@ -77,7 +84,7 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, youtubeVisibil
   if (platforms.includes('youtube') && !temVideo)
     return 'Falta vídeo para publicar no YouTube. Anexe um vídeo ou desmarque o YouTube.'
 
-  if (platforms.includes('youtube') && !youtubeTitle?.trim())
+  if (platforms.includes('youtube') && !youtubeTitle?.trim() && !titleByPlatform?.youtube?.trim())
     return 'Informe o título do vídeo para publicar no YouTube.'
 
   if (platforms.includes('tiktok') && !items.length)

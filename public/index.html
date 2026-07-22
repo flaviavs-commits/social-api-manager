@@ -1518,7 +1518,7 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
-          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" oninput="if (typeof renderValidationPanel === 'function') renderValidationPanel(); if (typeof renderPreviewContent === 'function') renderPreviewContent();"/>
+          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" oninput="onPostYoutubeTitleInput();"/>
         </div>
         <div class="form-group" id="post-youtube-visibility-group" style="display:none">
           <label>Visibilidade (YouTube)</label>
@@ -2881,11 +2881,30 @@ function renderConfigTabsBar() {
 }
 
 function setConfigTab(plat) {
+  // Salva o título digitado na aba que está sendo deixada antes de trocar —
+  // mesmo mecanismo do texto por rede, mas só precisa guardar (não precisa
+  // "copiar para todas" ao entrar, já que hoje só o YouTube tem título).
+  saveTitleFromActiveConfigTab();
   activeConfigTab = plat;
   renderConfigTabsBar();
   applyConfigTabVisibility();
   if (typeof switchTextTab === 'function' && selectedPlats.size >= 2) switchTextTab(plat);
   if (typeof setPreviewTab === 'function') setPreviewTab(plat);
+}
+
+// Grava o valor atual do campo de título da rede que estava ativa em
+// titleByPlatform, para não perdê-lo ao trocar de aba de configuração.
+function saveTitleFromActiveConfigTab() {
+  if (activeConfigTab === 'youtube') onPostYoutubeTitleInput();
+}
+
+// Mantém titleByPlatform.youtube sincronizado a cada tecla — evita perder o
+// título se o usuário publicar sem trocar de aba de configuração de novo.
+function onPostYoutubeTitleInput() {
+  const val = document.getElementById('post-youtube-title')?.value.trim() || '';
+  if (val) titleByPlatform.youtube = val; else delete titleByPlatform.youtube;
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
 }
 
 // Restringe os grupos de campos específicos de rede à aba ativa — sem aba
@@ -2896,6 +2915,21 @@ function applyConfigTabVisibility() {
   document.getElementById('post-youtube-title-group').style.display = mostrarYoutube ? '' : 'none';
   document.getElementById('post-youtube-visibility-group').style.display = mostrarYoutube ? '' : 'none';
   document.getElementById('post-youtube-category-group').style.display = mostrarYoutube ? '' : 'none';
+  // Restaura o título salvo da rede ativa (se o usuário já tinha digitado
+  // algo nela antes de trocar de aba) — sem isso, trocar de YouTube para
+  // outra rede e voltar mostraria o campo vazio mesmo com título já digitado.
+  if (mostrarYoutube) {
+    const titleInput = document.getElementById('post-youtube-title');
+    if (titleInput) titleInput.value = titleByPlatform.youtube ?? titleInput.value;
+  }
+}
+
+// Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
+// padrão de syncTextByPlatformSelection.
+function syncTitleByPlatformSelection() {
+  for (const p of Object.keys(titleByPlatform)) {
+    if (!selectedPlats.has(p)) delete titleByPlatform[p];
+  }
 }
 
 function applyPlatformSelection(plats) {
@@ -2906,6 +2940,7 @@ function applyPlatformSelection(plats) {
   applyConfigTabVisibility();
   updateAccountPickerLabel();
   syncTextByPlatformSelection();
+  syncTitleByPlatformSelection();
   renderAccountPreviewRow();
   renderIgFormatPills();
   renderYoutubeFormatPills();
@@ -3197,7 +3232,7 @@ function renderYoutubePreviewHtml() {
   const cfg = PLAT_ROW_CFG.youtube;
   const conta = previewFirstConta('youtube');
   const handle = conta?.handle || 'seu_canal';
-  const titulo = document.getElementById('post-youtube-title')?.value || 'Título do vídeo';
+  const titulo = titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value || 'Título do vídeo';
   const videoFile = mediaFiles.find(m => m.file.type.startsWith('video/'))?.file;
 
   if (youtubeFormat === 'short') {
@@ -3258,6 +3293,13 @@ function renderTiktokPreviewHtml() {
 let textByPlatform = {};
 let activeTextTab = null; // platform da aba ativa, ou null = modo texto único
 let textTabsBaseText = ''; // texto compartilhado no momento em que o modo por-rede começou — referência para marcar quais redes já divergiram dele
+
+// Título por rede — hoje só o YouTube tem campo de título (post-youtube-title).
+// Guardado por rede pelo mesmo motivo do texto: ao trocar de aba de configuração
+// em um post com 2+ redes, o título digitado para o YouTube não pode ser
+// perdido/misturado com o de outra rede. Ver src/domain/posts/post.js e
+// migrations/032_post_title_by_platform.sql.
+let titleByPlatform = {};
 
 // Mantém textByPlatform coerente quando a seleção de redes muda: remove
 // entradas de redes desmarcadas, e sai do modo por-rede se sobrar menos de 2
@@ -3442,7 +3484,7 @@ function apPlatformNoticeLines(plat) {
   }
 
   if (plat === 'youtube') {
-    const titulo = document.getElementById('post-youtube-title')?.value.trim();
+    const titulo = titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value.trim();
     if (!titulo) linhas.push('📝 título do vídeo é obrigatório no YouTube');
   }
 
@@ -4018,7 +4060,7 @@ function buildValidationIssues() {
   const emModoPorRede = Object.keys(textByPlatform).length > 0;
   const primeiraPlat = plats[0];
   const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : (document.getElementById('post-text')?.value || '')).trim();
-  const youtubeTitle = (document.getElementById('post-youtube-title')?.value || '').trim();
+  const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value || '').trim();
   const scheduledAt = document.getElementById('post-date')?.value;
 
   if (!text && !mediaFiles.length) issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo' });
@@ -4076,7 +4118,8 @@ async function schedulePost(publishNow = false) {
   const emModoPorRede = Object.keys(textByPlatform).length > 0;
   const primeiraPlat = [...selectedPlats][0];
   const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : document.getElementById('post-text').value).trim();
-  const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
+  saveTitleFromActiveConfigTab();
+  const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title').value.trim());
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const youtubeCategoryId = document.getElementById('post-youtube-category').value;
   const repeat = document.getElementById('post-repeat').value;
@@ -4120,7 +4163,8 @@ async function schedulePost(publishNow = false) {
     publishNow: publishNow ? 'true' : 'false',
     media: JSON.stringify(media),
     captions: JSON.stringify(mediaFiles.map(m => m.caption)),
-    textByPlatform: emModoPorRede ? JSON.stringify(textByPlatform) : '{}'
+    textByPlatform: emModoPorRede ? JSON.stringify(textByPlatform) : '{}',
+    titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}'
   };
 
   if (publishNow) showToast('Publicando agora...', 'ok');
@@ -4164,6 +4208,7 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-youtube-category-group').style.display = 'none';
   mediaFiles = [];
   textByPlatform = {};
+  titleByPlatform = {};
   activeTextTab = null;
   igFormat = null;
   youtubeFormat = null;
@@ -6530,7 +6575,7 @@ const SCORE_RULES = {
 
 function calcPostScore() {
   const text = (document.getElementById('post-text')?.value || '').trim();
-  const youtubeTitle = (document.getElementById('post-youtube-title')?.value || '').trim();
+  const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value || '').trim();
   const date = document.getElementById('post-date')?.value || '';
   const hasMedia = (typeof mediaFiles !== 'undefined' && mediaFiles.length > 0);
   const plats = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];
@@ -9819,6 +9864,7 @@ async function applyDraft(id) {
     // Preenche o formulário do agendador
     showPage('agendador');
     textByPlatform = {};
+    titleByPlatform = {};
     activeTextTab = null;
     document.getElementById('post-text').value = d.text || '';
     if (d.youtube_title) document.getElementById('post-youtube-title').value = d.youtube_title;

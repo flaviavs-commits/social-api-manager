@@ -82,6 +82,16 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('textByPlatform inválido')
   }
 
+  // Título diferente por rede (hoje só o YouTube usa título) — mesmo padrão
+  // de textByPlatform. Ver domain/posts/post.js e migrations/032.
+  let titleByPlatform = null
+  try {
+    const parsed = JSON.parse(body.titleByPlatform || '{}')
+    if (parsed && typeof parsed === 'object' && Object.keys(parsed).length) titleByPlatform = parsed
+  } catch {
+    throw new ValidationError('titleByPlatform inválido')
+  }
+
   const scheduledAtBR = normalizarScheduledAtBR(scheduledAt)
   if (!scheduledAtBR || Number.isNaN(new Date(scheduledAtBR).getTime())) throw new ValidationError('scheduledAt inválido')
   const scheduledAtUTC = scheduledAtParaUTC(scheduledAtBR)
@@ -120,7 +130,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -151,7 +161,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   }
 
   const post = await postsRepo.criarPost({
-    text: text?.trim() || null, textByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
+    text: text?.trim() || null, textByPlatform, titleByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
     youtubeFormat: youtubeFormat || null, youtubeIsShort, igFormat: igFormat || null,
