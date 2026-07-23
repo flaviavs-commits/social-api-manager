@@ -1513,6 +1513,7 @@ input, select, textarea, label, .bottom-nav-item {
     <div class="sched-grid">
       <div class="sched-form">
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
+        <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
         <div class="form-group">
           <label>Onde publicar</label>
           <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openAccountPickerModal()">
@@ -1659,7 +1660,6 @@ input, select, textarea, label, .bottom-nav-item {
         <div class="form-group"><label>Repetição</label>
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
-        <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <button class="btn btn-accent" style="flex:1" onclick="schedulePost()">Agendar post</button>
           <button class="btn" style="flex:1" onclick="schedulePost(true)">Publicar agora</button>
