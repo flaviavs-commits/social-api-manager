@@ -13,6 +13,7 @@ router.get('/calendar', controller.getCalendar)
 router.get('/', controller.getPosts)
 router.get('/analytics', controller.getAnalytics)
 router.get('/tiktok-videos', controller.getTiktokVideos)
+router.get('/tiktok-creator-info', controller.getTiktokCreatorInfo)
 router.get('/:id/metrics-history', controller.getMetricsHistory)
 
 router.post('/', controller.postCreate)

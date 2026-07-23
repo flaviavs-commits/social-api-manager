@@ -257,6 +257,13 @@ async function runMigrations() {
     // video/short) — opcional, ver migrations/031.
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS ig_format TEXT`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS youtube_format TEXT`).catch(() => {}),
+    // Opções de publicação do TikTok exigidas pelas Content Sharing Guidelines
+    // (privacidade sem default + interações permitidas escolhidas pelo
+    // usuário, não decididas sozinhas pelo backend) — ver migrations/034.
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_privacy_level TEXT`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_comment BOOLEAN`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_duet BOOLEAN`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_stitch BOOLEAN`).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,

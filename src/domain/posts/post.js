@@ -7,6 +7,7 @@ const MAX_TEXT_LENGTH = 5000
 const MAX_YOUTUBE_TITLE_LENGTH = 100
 const MAX_CAPTION_LENGTH = 500
 const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private']
+const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
 // Categorias oficiais da YouTube Data API v3 (videoCategories.list, região
@@ -39,7 +40,7 @@ const YOUTUBE_FORMATS = ['video', 'short']
 
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -98,6 +99,12 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
 
   if (platforms.includes('tiktok') && mediaType === 'video' && aspectRatioValidoTiktok === false)
     return 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.'
+
+  // Exigência das Content Sharing Guidelines do TikTok: a privacidade não
+  // pode ter um valor default escolhido pelo backend, o usuário precisa
+  // selecionar explicitamente na tela antes de publicar.
+  if (platforms.includes('tiktok') && !TIKTOK_PRIVACY_LEVELS.includes(tiktokPrivacyLevel))
+    return 'Escolha quem pode ver o vídeo no TikTok antes de publicar.'
 
   if (platforms.includes('instagram') && !items.length)
     return 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.'
@@ -160,7 +167,7 @@ function decidirStatusPublicacao(results) {
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
   YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
-  INSTAGRAM_MIN_ANTECEDENCIA_MIN,
+  INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao
 }

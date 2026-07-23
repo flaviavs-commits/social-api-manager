@@ -62,7 +62,7 @@ async function probarVideos(files) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -70,6 +70,14 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   let youtubeMadeForKids
   if (body.youtubeMadeForKids === 'true' || body.youtubeMadeForKids === true) youtubeMadeForKids = true
   else if (body.youtubeMadeForKids === 'false' || body.youtubeMadeForKids === false) youtubeMadeForKids = false
+
+  // Interações do TikTok (comentário/duet/stitch) — desmarcadas por padrão
+  // nas checkboxes do frontend (permitido = não desabilitado), então
+  // "não veio no body" também significa "permitido" (false), não obrigatório
+  // escolher como o privacyLevel. Ver domain/posts/post.js.
+  const tiktokDisableComment = body.tiktokDisableComment === 'true' || body.tiktokDisableComment === true
+  const tiktokDisableDuet = body.tiktokDisableDuet === 'true' || body.tiktokDisableDuet === true
+  const tiktokDisableStitch = body.tiktokDisableStitch === 'true' || body.tiktokDisableStitch === true
 
   let platforms
   try {
@@ -137,7 +145,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -172,6 +180,10 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
     youtubeFormat: youtubeFormat || null, youtubeIsShort, youtubeMadeForKids: youtubeMadeForKids ?? null, igFormat: igFormat || null,
+    tiktokPrivacyLevel: platforms.includes('tiktok') ? tiktokPrivacyLevel : null,
+    tiktokDisableComment: platforms.includes('tiktok') ? tiktokDisableComment : null,
+    tiktokDisableDuet: platforms.includes('tiktok') ? tiktokDisableDuet : null,
+    tiktokDisableStitch: platforms.includes('tiktok') ? tiktokDisableStitch : null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 

@@ -5,15 +5,20 @@ const { fetchComRateLimit } = require('./rateLimitedFetch')
 // A Content Posting API exige consultar as opções de privacidade permitidas
 // para a conta antes de publicar (ex: contas de menores de idade não podem
 // postar público) — publicar direto com PUBLIC_TO_EVERYONE sem checar falha
-// com privacy_level_option_mismatch mesmo em apps aprovados.
+// com privacy_level_option_mismatch mesmo em apps aprovados. As Content
+// Sharing Guidelines (https://developers.tiktok.com/doc/content-sharing-guidelines/)
+// também exigem mostrar essas opções ao usuário antes de publicar (dropdown
+// de privacidade sem valor default, checkboxes de comentário/duet/stitch) —
+// por isso esta consulta é exposta para a tela de criação de post chamar
+// antecipadamente, não só no momento de publicar.
 //
 // Importante: essa lista reflete o que a CONTA do usuário permite, não o que
 // o APP está autorizado a usar de fato. Um app que ainda não passou pelo
-// audit de conteúdo do TikTok (https://developers.tiktok.com/doc/content-sharing-guidelines/)
-// recebe PUBLIC_TO_EVERYONE aqui mesmo assim, e só descobre a restrição real
-// ao tentar publicar (erro unaudited_client_can_only_post_to_private_accounts,
-// tratado em initComFallbackPrivado abaixo).
-async function buscarPrivacyLevelPermitido(accessToken) {
+// audit de conteúdo do TikTok recebe PUBLIC_TO_EVERYONE aqui mesmo assim, e só
+// descobre a restrição real ao tentar publicar (erro
+// unaudited_client_can_only_post_to_private_accounts, tratado em
+// initComFallbackPrivado abaixo).
+async function buscarCreatorInfo(accessToken) {
   const res = await fetchComRateLimit('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
@@ -22,7 +27,21 @@ async function buscarPrivacyLevelPermitido(accessToken) {
   if (!res.ok || data?.error?.code !== 'ok')
     throw new Error(data?.error?.message || `TikTok respondeu ${res.status} ao consultar permissões da conta`)
 
-  const options = data.data?.privacy_level_options || []
+  const d = data.data || {}
+  return {
+    creatorNickname: d.creator_nickname || null,
+    creatorUsername: d.creator_username || null,
+    creatorAvatarUrl: d.creator_avatar_url || null,
+    privacyLevelOptions: d.privacy_level_options || [],
+    commentDisabled: !!d.comment_disabled,
+    duetDisabled: !!d.duet_disabled,
+    stitchDisabled: !!d.stitch_disabled,
+    maxVideoPostDurationSec: d.max_video_post_duration_sec ?? null
+  }
+}
+
+async function buscarPrivacyLevelPermitido(accessToken) {
+  const { privacyLevelOptions: options } = await buscarCreatorInfo(accessToken)
   if (options.includes('PUBLIC_TO_EVERYONE')) return 'PUBLIC_TO_EVERYONE'
   // Conta não pode postar público (ex: restrição de idade) — usa a opção
   // mais aberta disponível em vez de falhar, para o post ainda sair.
@@ -81,7 +100,17 @@ async function publicarTiktok(token, post) {
   if (!items.length) throw new Error('TikTok exige ao menos uma mídia para publicar')
 
   const isVideo = items.length === 1 && items[0].type === 'video'
-  const privacyLevel = await buscarPrivacyLevelPermitido(token.accessToken)
+
+  // A privacidade e as interações (comentário/duet/stitch) são escolhidas
+  // pelo usuário na tela de post (exigência das Content Sharing Guidelines —
+  // ver GET /api/posts/tiktok-creator-info e o dropdown/checkboxes no frontend).
+  // Posts antigos ou criados antes dessa tela existir não têm esses campos
+  // salvos — nesse caso, mantém o comportamento anterior (auto-detecção de
+  // privacidade + interações sempre permitidas) em vez de falhar.
+  const privacyLevel = post.tiktokPrivacyLevel || await buscarPrivacyLevelPermitido(token.accessToken)
+  const disableComment = post.tiktokDisableComment ?? false
+  const disableDuet = post.tiktokDisableDuet ?? false
+  const disableStitch = post.tiktokDisableStitch ?? false
 
   // ── Vídeo ──
   if (isVideo) {
@@ -94,9 +123,9 @@ async function publicarTiktok(token, post) {
       post_info: {
         title: post.text || '',
         privacy_level: privacy,
-        disable_duet: false,
-        disable_comment: false,
-        disable_stitch: false
+        disable_duet: disableDuet,
+        disable_comment: disableComment,
+        disable_stitch: disableStitch
       },
       source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
     })
@@ -133,7 +162,7 @@ async function publicarTiktok(token, post) {
     post_info: {
       title: (post.text || '').slice(0, 90),
       privacy_level: privacy,
-      disable_comment: false,
+      disable_comment: disableComment,
       brand_content_toggle: false,
       brand_organic_toggle: false
     },
@@ -158,4 +187,4 @@ async function publicarTiktok(token, post) {
   return { ...initData.data, status }
 }
 
-module.exports = { publicarTiktok }
+module.exports = { publicarTiktok, buscarCreatorInfo }

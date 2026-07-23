@@ -1561,6 +1561,28 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="youtube-format-pills" style="display:flex;gap:6px"></div>
           <div id="youtube-format-warning" style="font-size:11px;color:var(--yellow);margin-top:5px;display:none"></div>
         </div>
+        <div class="form-group" id="post-tiktok-options-group" style="display:none">
+          <label>Publicando como <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(TikTok)</span></label>
+          <div id="tiktok-creator-info" style="font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px"></div>
+          <select id="post-tiktok-privacy" onchange="onTiktokOptionsChange()">
+            <option value="">Selecione quem pode ver...</option>
+          </select>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);cursor:pointer">
+              <input type="checkbox" id="post-tiktok-allow-comment" checked onchange="onTiktokOptionsChange()"/> Permitir comentários
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);cursor:pointer">
+              <input type="checkbox" id="post-tiktok-allow-duet" checked onchange="onTiktokOptionsChange()"/> Permitir Duet
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);cursor:pointer">
+              <input type="checkbox" id="post-tiktok-allow-stitch" checked onchange="onTiktokOptionsChange()"/> Permitir Stitch
+            </label>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">
+            O TikTok pode levar alguns instantes para processar o vídeo após o envio. Ao publicar, você concorda com a
+            <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Music Usage Confirmation</a> do TikTok.
+          </div>
+        </div>
         <div class="form-group">
           <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
@@ -2951,6 +2973,7 @@ function applyConfigTabVisibility() {
     const titleInput = document.getElementById('post-youtube-title');
     if (titleInput) titleInput.value = titleByPlatform.youtube ?? titleInput.value;
   }
+  if (typeof renderTiktokOptionsGroup === 'function') renderTiktokOptionsGroup();
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -2973,6 +2996,8 @@ function applyPlatformSelection(plats) {
   renderAccountPreviewRow();
   renderIgFormatPills();
   renderYoutubeFormatPills();
+  if (!selectedPlats.has('tiktok')) resetTiktokOptions();
+  renderTiktokOptionsGroup();
   renderValidationPanel();
   renderPreviewTabs();
 }
@@ -3110,6 +3135,97 @@ function setYoutubeFormat(value) {
   renderYoutubeFormatPills();
   renderValidationPanel();
   renderPreviewContent();
+}
+
+// ── Opções de publicação do TikTok (Content Sharing Guidelines) ─────────────
+// O TikTok exige que a tela de publicação mostre, ANTES de postar, quem pode
+// ver o vídeo (sem valor default — o usuário precisa escolher) e as
+// interações permitidas (comentário/duet/stitch), consultadas da conta real
+// via GET /api/posts/tiktok-creator-info (ver src/infra/social/tiktokPublisher.js,
+// buscarCreatorInfo). Sem essa tela, o backend decidia tudo sozinho.
+let tiktokCreatorInfo = null;
+let tiktokCreatorInfoContaId = null;
+const TIKTOK_PRIVACY_LABELS = {
+  PUBLIC_TO_EVERYONE: 'Todos podem ver',
+  MUTUAL_FOLLOW_FRIENDS: 'Amigos (seguidores mútuos)',
+  SELF_ONLY: 'Somente eu'
+};
+
+async function renderTiktokOptionsGroup() {
+  const group = document.getElementById('post-tiktok-options-group');
+  if (!group) return;
+
+  const aplica = selectedPlats.has('tiktok');
+  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'tiktok';
+  group.style.display = (aplica && abaPermite) ? '' : 'none';
+  if (!aplica || !abaPermite) return;
+
+  const conta = apContas.find(c => c.platform === 'tiktok' && c.handle);
+  const infoEl = document.getElementById('tiktok-creator-info');
+  const select = document.getElementById('post-tiktok-privacy');
+
+  if (!conta) {
+    if (infoEl) infoEl.textContent = 'Conecte uma conta do TikTok para ver as opções de publicação.';
+    return;
+  }
+
+  // Evita reconsultar a API a cada re-render (troca de aba, digitação de
+  // texto etc.) — só busca de novo se a conta ativa mudou.
+  if (tiktokCreatorInfoContaId === conta.id && tiktokCreatorInfo) {
+    return;
+  }
+  tiktokCreatorInfoContaId = conta.id;
+
+  if (infoEl) infoEl.textContent = 'Carregando opções da conta...';
+  try {
+    tiktokCreatorInfo = await apiFetch(`/api/posts/tiktok-creator-info?contaId=${conta.id}`);
+  } catch (e) {
+    tiktokCreatorInfo = null;
+    if (infoEl) infoEl.textContent = 'Não foi possível carregar as opções da conta. Tente novamente.';
+    return;
+  }
+
+  if (infoEl) {
+    const nick = tiktokCreatorInfo.creatorNickname || tiktokCreatorInfo.creatorUsername || conta.handle;
+    infoEl.innerHTML = tiktokCreatorInfo.creatorAvatarUrl
+      ? `<img src="${escapeHtml(tiktokCreatorInfo.creatorAvatarUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover"> ${escapeHtml(nick)}`
+      : escapeHtml(nick);
+  }
+
+  const options = tiktokCreatorInfo.privacyLevelOptions?.length ? tiktokCreatorInfo.privacyLevelOptions : ['SELF_ONLY'];
+  if (select) {
+    select.innerHTML = '<option value="">Selecione quem pode ver...</option>' +
+      options.map(opt => `<option value="${opt}">${escapeHtml(TIKTOK_PRIVACY_LABELS[opt] || opt)}</option>`).join('');
+  }
+
+  // Interação desabilitada pela própria conta (ex.: comentários desligados
+  // nas configurações do TikTok) não pode ser reabilitada aqui — trava a
+  // checkbox marcada como desabilitada, refletindo a permissão real.
+  const commentCb = document.getElementById('post-tiktok-allow-comment');
+  const duetCb = document.getElementById('post-tiktok-allow-duet');
+  const stitchCb = document.getElementById('post-tiktok-allow-stitch');
+  if (commentCb) { commentCb.checked = !tiktokCreatorInfo.commentDisabled; commentCb.disabled = tiktokCreatorInfo.commentDisabled; }
+  if (duetCb) { duetCb.checked = !tiktokCreatorInfo.duetDisabled; duetCb.disabled = tiktokCreatorInfo.duetDisabled; }
+  if (stitchCb) { stitchCb.checked = !tiktokCreatorInfo.stitchDisabled; stitchCb.disabled = tiktokCreatorInfo.stitchDisabled; }
+
+  renderValidationPanel();
+}
+
+function onTiktokOptionsChange() {
+  renderValidationPanel();
+}
+
+function resetTiktokOptions() {
+  tiktokCreatorInfo = null;
+  tiktokCreatorInfoContaId = null;
+  const select = document.getElementById('post-tiktok-privacy');
+  if (select) select.innerHTML = '<option value="">Selecione quem pode ver...</option>';
+  const infoEl = document.getElementById('tiktok-creator-info');
+  if (infoEl) infoEl.textContent = '';
+  ['post-tiktok-allow-comment', 'post-tiktok-allow-duet', 'post-tiktok-allow-stitch'].forEach(id => {
+    const cb = document.getElementById(id);
+    if (cb) { cb.checked = true; cb.disabled = false; }
+  });
 }
 
 // ── Preview visual por rede (Agendador) ─────────────────────────────────────
@@ -4113,6 +4229,10 @@ function buildValidationIssues() {
     issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Post ou Reel, ou remova os itens extras' });
   }
 
+  if (plats.includes('tiktok') && !document.getElementById('post-tiktok-privacy')?.value) {
+    issues.push({ platform: 'tiktok', message: 'Escolha quem pode ver o vídeo no TikTok' });
+  }
+
   return issues;
 }
 
@@ -4156,6 +4276,10 @@ async function schedulePost(publishNow = false) {
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const youtubeMadeForKidsRaw = document.getElementById('post-youtube-made-for-kids').value;
   const youtubeCategoryId = document.getElementById('post-youtube-category').value;
+  const tiktokPrivacyLevel = document.getElementById('post-tiktok-privacy').value;
+  const tiktokDisableComment = !document.getElementById('post-tiktok-allow-comment').checked;
+  const tiktokDisableDuet = !document.getElementById('post-tiktok-allow-duet').checked;
+  const tiktokDisableStitch = !document.getElementById('post-tiktok-allow-stitch').checked;
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -4172,6 +4296,7 @@ async function schedulePost(publishNow = false) {
   if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
   if (platforms.includes('youtube') && !youtubeMadeForKidsRaw) return showToast('Informe se o vídeo é feito para crianças (obrigatório pelo YouTube)', 'err');
+  if (platforms.includes('tiktok') && !tiktokPrivacyLevel) return showToast('Escolha quem pode ver o vídeo no TikTok', 'err');
 
   // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
   // muito em cima da hora não dá folga pro cron confirmar a tempo. Mesma regra
@@ -4193,6 +4318,10 @@ async function schedulePost(publishNow = false) {
   const body = {
     text, youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKidsRaw, youtubeCategoryId,
     youtubeFormat: youtubeFormat || '', igFormat: igFormat || '',
+    tiktokPrivacyLevel: tiktokPrivacyLevel || '',
+    tiktokDisableComment: tiktokDisableComment ? 'true' : 'false',
+    tiktokDisableDuet: tiktokDisableDuet ? 'true' : 'false',
+    tiktokDisableStitch: tiktokDisableStitch ? 'true' : 'false',
     platforms: JSON.stringify(platforms),
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
@@ -4243,6 +4372,8 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-youtube-visibility-group').style.display = 'none';
   document.getElementById('post-youtube-made-for-kids-group').style.display = 'none';
   document.getElementById('post-youtube-category-group').style.display = 'none';
+  resetTiktokOptions();
+  document.getElementById('post-tiktok-options-group').style.display = 'none';
   mediaFiles = [];
   textByPlatform = {};
   titleByPlatform = {};
