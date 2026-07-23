@@ -2940,6 +2940,10 @@ function setConfigTab(plat) {
   if (typeof renderYoutubeFormatPills === 'function') renderYoutubeFormatPills();
   if (typeof switchTextTab === 'function' && selectedPlats.size >= 2) switchTextTab(plat);
   if (typeof setPreviewTab === 'function') setPreviewTab(plat);
+  // Painel de validação mostra só as pendências da aba ativa quando há
+  // várias redes marcadas (ver renderValidationPanel) — precisa re-renderizar
+  // ao trocar de aba, senão continua mostrando o filtro da aba anterior.
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
 }
 
 // Grava o valor atual do campo de título da rede que estava ativa em
@@ -4242,11 +4246,23 @@ function renderValidationPanel() {
   const issues = buildValidationIssues();
   if (!issues.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
 
+  // Com várias redes marcadas, cada uma tem sua própria aba de configuração
+  // (ver applyConfigTabVisibility) — mostrar de uma vez a pendência de TODAS
+  // ao configurar só uma delas confundia (ex: aviso do YouTube aparecendo na
+  // aba do TikTok). Filtra para exibir só o que é da aba ativa + pendências
+  // gerais (sem rede específica, tipo "escreva um texto"); com 1 rede só, ou
+  // sem aba ativa, mostra tudo. A validação em si (bloquear schedulePost)
+  // continua considerando todas as redes, isto é só sobre o que é exibido.
+  const issuesExibidas = (selectedPlats.size >= 2 && activeConfigTab)
+    ? issues.filter(i => !i.platform || i.platform === activeConfigTab)
+    : issues;
+  if (!issuesExibidas.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
   panel.style.display = '';
   panel.innerHTML = `<div class="validation-panel">
-    <div class="validation-panel-header">⚠️ ${issues.length} ${issues.length === 1 ? 'pendência' : 'pendências'} antes de agendar</div>
+    <div class="validation-panel-header">⚠️ ${issuesExibidas.length} ${issuesExibidas.length === 1 ? 'pendência' : 'pendências'} antes de agendar</div>
     <div class="validation-panel-list">
-      ${issues.map(i => {
+      ${issuesExibidas.map(i => {
         const cfg = i.platform ? PLAT_ROW_CFG[i.platform] : null;
         const icon = cfg ? `<span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>` : '•';
         return `<div class="validation-panel-item">${icon} ${escapeHtml(i.message)}</div>`;
