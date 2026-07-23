@@ -18,21 +18,34 @@ async function criarPost({ text, textByPlatform = null, titleByPlatform = null, 
 // marcada) a um post recém-criado — ver domain/posts, criarPost.js e
 // migrations/027_post_accounts.sql. Um post pode ter N contas, inclusive
 // várias da mesma rede (ex.: 2 perfis de Instagram publicando juntos).
-async function definirContasDoPost(postId, accountIds) {
-  if (!accountIds.length) return
-  const values = accountIds.map((_, i) => `($1, $${i + 2})`).join(', ')
+//
+// mediaItemsByPlatform (opcional) grava a mídia independente de cada rede
+// (ver migrations/035) — todas as contas da mesma rede recebem a mesma
+// mídia. Sem entrada para a rede (ou parâmetro omitido), a conta fica com
+// media_items NULL e usa a mídia compartilhada do post (fallback em
+// publisher.js/publicarNaConta) — comportamento idêntico ao de antes desta coluna existir.
+async function definirContasDoPost(postId, contas, mediaItemsByPlatform = {}) {
+  if (!contas.length) return
+  const values = contas.map((_, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3})`).join(', ')
+  const params = contas.flatMap(c => [
+    c.accountId ?? c.id,
+    mediaItemsByPlatform[c.platform] ? JSON.stringify(mediaItemsByPlatform[c.platform]) : null
+  ])
   await pool.query(
-    `INSERT INTO post_accounts (post_id, account_id) VALUES ${values} ON CONFLICT (post_id, account_id) DO NOTHING`,
-    [postId, ...accountIds]
+    `INSERT INTO post_accounts (post_id, account_id, media_items) VALUES ${values}
+     ON CONFLICT (post_id, account_id) DO UPDATE SET media_items = EXCLUDED.media_items`,
+    [postId, ...params]
   )
 }
 
-// Contas associadas a um post, com a plataforma da conta — usado para
-// reidratar post.accounts em reservarPostsPendentes/buscarPostPorId, já que
+// Contas associadas a um post, com a plataforma da conta e a mídia
+// independente daquela conta (se houver) — usado para reidratar
+// post.accounts em reservarPostsPendentes/buscarPostPorId, já que
 // publishPost() agora itera por (conta, rede) em vez de só por rede.
 async function listarContasDoPost(postId) {
   const { rows } = await pool.query(`
-    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle,
+           pa.media_items AS "mediaItems"
     FROM post_accounts pa
     JOIN contas c ON c.id = pa.account_id
     WHERE pa.post_id = $1
@@ -86,7 +99,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts
@@ -143,7 +156,7 @@ async function reservarPostsPendentes() {
       r.account_id AS "accountId",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts

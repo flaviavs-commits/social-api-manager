@@ -341,6 +341,10 @@ async function runMigrations() {
       `).catch(() => {})
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)`).catch(() => {})
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL`).catch(() => {})
+      // Mídia independente por rede social — NULL = usa a mídia compartilhada
+      // do post (comportamento legado, sem quebrar posts/cron já em voo).
+      // Ver migrations/035 e src/infra/social/publisher.js (publicarNaConta).
+      await pool.query(`ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB`).catch(() => {})
       // Backfill: posts antigos (schema com account_id singular) viram 1 linha aqui.
       await pool.query(`
         INSERT INTO post_accounts (post_id, account_id)

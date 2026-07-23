@@ -87,7 +87,7 @@ const PUBLISHERS = {
 // Publica em uma única conta e retorna o resultado (registrando o log
 // correspondente) — extraído para permitir publicar em todas as contas do
 // post em paralelo, em vez de uma por vez. `account` já vem resolvido (ver
-// criarPost.js): { postAccountId, accountId, platform, handle }.
+// criarPost.js): { postAccountId, accountId, platform, handle, mediaItems }.
 async function publicarNaConta(account, post, isSuperAdmin) {
   const platform = account.platform
   // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
@@ -99,6 +99,22 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   // title_by_platform. Ver domain/posts/post.js e migrations/032.
   const tituloResolvido = post.titleByPlatform?.[platform] ?? post.youtubeTitle
   post = { ...post, text: textoResolvido, youtubeTitle: tituloResolvido }
+
+  // Mídia independente por rede — opcional, cai na mídia compartilhada do
+  // post (post.mediaPath/mediaType/mediaItems) quando a conta não tem
+  // media_items própria em post_accounts. Ver migrations/035. Isso garante
+  // que posts antigos e o cron em voo durante o deploy continuem publicando
+  // exatamente como antes desta coluna existir.
+  if (account.mediaItems?.length) {
+    const primeiro = account.mediaItems[0]
+    post = {
+      ...post,
+      mediaItems: account.mediaItems.length > 1 ? account.mediaItems : null,
+      mediaPath: primeiro.path,
+      mediaType: primeiro.type
+    }
+  }
+
   const publisher = PUBLISHERS[platform]
   if (!publisher) {
     return { platform, accountId: account.accountId, success: false, error: `Plataforma "${platform}" não suportada` }

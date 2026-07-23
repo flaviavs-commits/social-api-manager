@@ -61,6 +61,20 @@ async function probarVideos(files) {
   }))
 }
 
+// Processa a mídia de UMA rede (conversão de imagem + probe de vídeo +
+// montagem dos itens finais) — mesmo pipeline usado para a mídia
+// compartilhada, extraído para ser reaproveitado por rede quando o usuário
+// anexa mídia independente num card (mediaByPlatform). Ver migrations/035.
+async function processarMidia(media, captions, platforms) {
+  const files = await converterMidiasSeNecessario(media, platforms)
+  const probes = await probarVideos(files)
+  const items = montarItensMedia(files, captions)
+  const mediaType = items[0]?.type || null
+  const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
+  const shortElegivel = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
+  return { items, mediaType, aspectRatioValidoTiktok, shortElegivel }
+}
+
 async function criarPost({ body, userId, userRole, isAdmin }) {
   const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel } = body
 
@@ -113,6 +127,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   // Mídia já foi enviada ao Blob pelo navegador (POST /upload-url + PUT direto) —
   // aqui só recebemos a lista de URLs/metadados resultantes, nunca o binário.
+  // Esta é a mídia COMPARTILHADA — usada por qualquer rede que não tenha
+  // mídia própria em mediaByPlatform. Ver migrations/035.
   let media
   try {
     media = Array.isArray(body.media) ? body.media : JSON.parse(body.media || '[]')
@@ -121,8 +137,6 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   }
   if (!Array.isArray(media) || media.some(m => !m?.url || !m?.mimetype)) throw new ValidationError('Cada item de media precisa ter url e mimetype')
 
-  const files = await converterMidiasSeNecessario(media, platforms)
-
   let captions = []
   try {
     captions = JSON.parse(body.captions || '[]')
@@ -130,14 +144,47 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('captions inválido')
   }
 
-  const probes = await probarVideos(files)
-  const items = montarItensMedia(files, captions)
+  // Mídia independente por rede (tela de cards) — opcional, só contém as
+  // plataformas cujo usuário anexou mídia diferente da compartilhada. Mesmo
+  // padrão de textByPlatform/titleByPlatform. Ver migrations/035.
+  let mediaByPlatform = {}
+  try {
+    const parsed = JSON.parse(body.mediaByPlatform || '{}')
+    if (parsed && typeof parsed === 'object') mediaByPlatform = parsed
+  } catch {
+    throw new ValidationError('mediaByPlatform inválido')
+  }
+  let captionsByPlatform = {}
+  try {
+    const parsed = JSON.parse(body.captionsByPlatform || '{}')
+    if (parsed && typeof parsed === 'object') captionsByPlatform = parsed
+  } catch {
+    throw new ValidationError('captionsByPlatform inválido')
+  }
+  for (const [platform, mediaDaRede] of Object.entries(mediaByPlatform)) {
+    if (!Array.isArray(mediaDaRede) || mediaDaRede.some(m => !m?.url || !m?.mimetype))
+      throw new ValidationError(`Cada item de mediaByPlatform.${platform} precisa ter url e mimetype`)
+  }
 
+  const { items, mediaType, aspectRatioValidoTiktok, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms)
   const mediaPath = items[0]?.path || null
-  const mediaType = items[0]?.type || null
   const mediaItems = items.length > 1 ? items : null
-  const temVideo = items.some(i => i.type === 'video')
-  const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
+
+  // Processa a mídia própria de cada rede que tiver (em paralelo) — o
+  // resultado alimenta tanto a validação por rede (domain/posts/post.js)
+  // quanto o que é gravado em post_accounts.media_items por conta.
+  const platformsComMidiaPropria = Object.keys(mediaByPlatform).filter(p => platforms.includes(p))
+  const resultadosPorPlataforma = await Promise.all(
+    platformsComMidiaPropria.map(p => processarMidia(mediaByPlatform[p], captionsByPlatform[p] || [], [p]))
+  )
+  const itemsByPlatform = {}
+  const aspectRatioValidoTiktokByPlatform = {}
+  const shortElegivelByPlatform = {}
+  platformsComMidiaPropria.forEach((p, i) => {
+    itemsByPlatform[p] = resultadosPorPlataforma[i].items
+    aspectRatioValidoTiktokByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoTiktok
+    shortElegivelByPlatform[p] = resultadosPorPlataforma[i].shortElegivel
+  })
 
   // "Publicar agora" cria o post já como 'processing' (em vez de 'scheduled')
   // para que o cron do agendamento nunca o veja e dispare uma segunda
@@ -145,7 +192,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel,
+    platforms, repeat, items, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -162,7 +210,9 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError(`Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.`)
   }
 
-  const shortElegivel = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
+  // Elegibilidade a Short considera a mídia própria do YouTube quando houver,
+  // senão a compartilhada — mesmo fallback usado na validação.
+  const shortElegivel = shortElegivelByPlatform.youtube ?? shortElegivelCompartilhado
   // Escolha explícita do usuário sobrescreve o cálculo automático; sem
   // escolha, comportamento de sempre (decidido pela proporção/duração).
   const youtubeIsShort = youtubeFormat ? youtubeFormat === 'short' : shortElegivel
@@ -187,7 +237,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 
-  await postsRepo.definirContasDoPost(post.id, contas.map(c => c.id))
+  await postsRepo.definirContasDoPost(post.id, contas, itemsByPlatform)
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
 
   if (!publishNow) return { post: { ...post, warnings }, status: 201 }
