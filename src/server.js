@@ -325,6 +325,21 @@ async function runMigrations() {
       // diferente por rede como template perdia essa diferenciação ao reaplicar.
       pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS text_by_platform JSONB`).catch(() => {}),
       pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS media_by_platform JSONB`).catch(() => {}),
+      // Formato por rede, opções do TikTok, localização e primeiro comentário
+      // — mesmos campos do post real (posts.*), replicados aqui para o
+      // rascunho/template não perder essas configurações ao ser reaplicado.
+      // Ver migrations/039.
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS ig_format TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS youtube_format TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS youtube_category_id TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS youtube_made_for_kids TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS tiktok_privacy_level TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS tiktok_disable_comment BOOLEAN`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS tiktok_disable_duet BOOLEAN`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS tiktok_disable_stitch BOOLEAN`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS location_id TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS location_name TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS first_comment TEXT`).catch(() => {}),
     ])),
     pool.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (

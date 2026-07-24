@@ -10817,6 +10817,12 @@ async function applyDraft(id) {
 
     // Preenche o formulário do agendador
     showPage('agendador');
+
+    // Remarca as redes salvas — sem isso os grupos condicionais (formato do
+    // Instagram/YouTube, opções do TikTok, localização, primeiro comentário)
+    // nem aparecem para receber os valores restaurados abaixo.
+    if (d.platforms?.length) applyPlatformSelection(d.platforms);
+
     // Texto por rede volta certinho (é só string, guardado em text_by_platform).
     // Mídia por rede NÃO volta sozinha: mediaFilesByPlatform guarda File do
     // navegador em todo o app (preview, drag-and-drop, upload), e o que fica
@@ -10831,7 +10837,23 @@ async function applyDraft(id) {
     if (d.youtube_title) document.getElementById('post-youtube-title').value = d.youtube_title;
     if (d.youtube_visibility) document.getElementById('post-youtube-visibility').value = d.youtube_visibility;
 
+    // Formato por rede, opções do TikTok, localização e primeiro comentário —
+    // mesmos campos gravados em saveDraft().
+    igFormat = d.ig_format || null;
+    youtubeFormat = d.youtube_format || null;
+    if (document.getElementById('post-youtube-category')) document.getElementById('post-youtube-category').value = d.youtube_category_id || '';
+    if (document.getElementById('post-youtube-made-for-kids')) document.getElementById('post-youtube-made-for-kids').value = d.youtube_made_for_kids || '';
+    if (document.getElementById('post-tiktok-privacy')) document.getElementById('post-tiktok-privacy').value = d.tiktok_privacy_level || '';
+    if (document.getElementById('post-tiktok-allow-comment')) document.getElementById('post-tiktok-allow-comment').checked = !d.tiktok_disable_comment;
+    if (document.getElementById('post-tiktok-allow-duet')) document.getElementById('post-tiktok-allow-duet').checked = !d.tiktok_disable_duet;
+    if (document.getElementById('post-tiktok-allow-stitch')) document.getElementById('post-tiktok-allow-stitch').checked = !d.tiktok_disable_stitch;
+    if (d.location_id && d.location_name) selecionarLocalizacao(d.location_id, d.location_name);
+    else limparLocalizacaoSelecionada();
+    if (document.getElementById('post-first-comment')) document.getElementById('post-first-comment').value = d.first_comment || '';
+
     renderTextTabsBar();
+    renderIgFormatPills();
+    renderYoutubeFormatPills();
     updatePostScore();
 
     const redesComMidiaPropria = d.media_by_platform ? Object.keys(d.media_by_platform) : [];
@@ -10912,7 +10934,21 @@ async function saveDraft(isTemplate) {
         mediaType,
         mediaItems,
         textByPlatform: emModoPorRedeDraft ? textByPlatform : null,
-        mediaByPlatform: Object.keys(mediaByPlatformDraft).length ? mediaByPlatformDraft : null
+        mediaByPlatform: Object.keys(mediaByPlatformDraft).length ? mediaByPlatformDraft : null,
+        // Formato por rede, opções do TikTok, localização e primeiro
+        // comentário — mesmos campos lidos em schedulePost() — sem isso o
+        // rascunho/template perdia essas configurações ao ser reaplicado.
+        igFormat: igFormat || null,
+        youtubeFormat: youtubeFormat || null,
+        youtubeCategoryId: document.getElementById('post-youtube-category')?.value || null,
+        youtubeMadeForKids: document.getElementById('post-youtube-made-for-kids')?.value || null,
+        tiktokPrivacyLevel: document.getElementById('post-tiktok-privacy')?.value || null,
+        tiktokDisableComment: document.getElementById('post-tiktok-allow-comment') ? !document.getElementById('post-tiktok-allow-comment').checked : null,
+        tiktokDisableDuet: document.getElementById('post-tiktok-allow-duet') ? !document.getElementById('post-tiktok-allow-duet').checked : null,
+        tiktokDisableStitch: document.getElementById('post-tiktok-allow-stitch') ? !document.getElementById('post-tiktok-allow-stitch').checked : null,
+        locationId: selectedLocation?.id || null,
+        locationName: selectedLocation?.name || null,
+        firstComment: document.getElementById('post-first-comment')?.value.trim() || null
       })
     });
     showToast(isTemplate ? 'Template salvo!' : 'Rascunho salvo!', 'ok');

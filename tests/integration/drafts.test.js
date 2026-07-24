@@ -73,6 +73,30 @@ describe('POST /api/drafts', () => {
       .send({ mediaPath: 'https://blob/img.jpg', mediaType: 'image', platforms: [] })
     expect(res.status).toBe(201)
   })
+
+  test('grava formato por rede, opções do TikTok, localização e primeiro comentário', async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: 99 }] })
+    const res = await request(app)
+      .post('/api/drafts')
+      .set('Authorization', 'Bearer fake')
+      .send({
+        text: 'Post completo', platforms: ['instagram', 'tiktok'], isTemplate: true,
+        igFormat: 'reel',
+        tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE', tiktokDisableComment: false, tiktokDisableDuet: true, tiktokDisableStitch: false,
+        locationId: 'loc123', locationName: 'Av. Paulista', firstComment: 'primeiro comentário'
+      })
+    expect(res.status).toBe(201)
+
+    const [query, params] = pool.query.mock.calls.find(([q]) => q.includes('INSERT INTO drafts'))
+    const colunas = query.match(/INSERT INTO drafts \(([\s\S]+?)\)/)[1].split(',').map(c => c.trim())
+    const val = (col) => params[colunas.indexOf(col)]
+
+    expect(val('ig_format')).toBe('reel')
+    expect(val('tiktok_privacy_level')).toBe('PUBLIC_TO_EVERYONE')
+    expect(val('tiktok_disable_duet')).toBe(true)
+    expect(val('location_id')).toBe('loc123')
+    expect(val('first_comment')).toBe('primeiro comentário')
+  })
 })
 
 describe('DELETE /api/drafts/:id', () => {
