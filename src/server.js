@@ -279,7 +279,13 @@ async function runMigrations() {
         is_template BOOLEAN DEFAULT FALSE,
         criado_em TIMESTAMPTZ DEFAULT NOW()
       )
-    `),
+    `).then(() => Promise.all([
+      // Texto e mídia próprios por rede (mesmo conceito de posts.textByPlatform
+      // e post_accounts.media_items) — sem isso, salvar um post com conteúdo
+      // diferente por rede como template perdia essa diferenciação ao reaplicar.
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS text_by_platform JSONB`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS media_by_platform JSONB`).catch(() => {}),
+    ])),
     pool.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         id SERIAL PRIMARY KEY,
