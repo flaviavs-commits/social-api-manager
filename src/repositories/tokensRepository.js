@@ -194,10 +194,29 @@ async function renovarTokenTiktok(token) {
   return newExpiry
 }
 
-// ── Renova (estende) sessões simuladas: Facebook (fake OAuth) ──────────────────
-async function renovarTokenSimulado(token, dias) {
-  const newExpiry = new Date(Date.now() + dias * 86400000)
-  await pool.query(`UPDATE tokens SET expires_at = $1, status = 'valid', atualizado_em = NOW() WHERE id = $2`, [newExpiry.toISOString(), token.id])
+// ── Renova o access_token do Facebook trocando o long-lived token atual por
+// um novo (mesmo endpoint fb_exchange_token usado na conexão inicial, ver
+// src/routes/oauth.js finalizarConexaoFacebook). O Facebook não tem
+// refresh_token dedicado — re-trocar o token ainda válido por um novo é o
+// mecanismo oficial de renovação (Graph API), e falha de verdade (em vez de
+// só estender a data no banco) se o token já tiver sido revogado pelo
+// usuário ou realmente expirado.
+async function renovarTokenFacebook(token) {
+  const res = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token` +
+    `?grant_type=fb_exchange_token` +
+    `&client_id=${process.env.META_APP_ID}` +
+    `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
+    `&fb_exchange_token=${encodeURIComponent(token.access_token)}`)
+  const data = await res.json()
+
+  if (data.error || !data.access_token) {
+    throw new Error(data.error?.message || 'Falha ao renovar token do Facebook')
+  }
+
+  const newExpiry = new Date(Date.now() + (data.expires_in || 60 * 86400) * 1000)
+  await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
+    [encrypt(data.access_token), newExpiry.toISOString(), token.id])
+
   return newExpiry
 }
 
@@ -232,9 +251,9 @@ async function renovarToken(id, userId, isAdmin) {
     }
 
     if (token.platform === 'facebook') {
-      const newExpiry = await renovarTokenSimulado(token, 60)
-      await registrarLog({ type: 'ok', message: 'Token Facebook estendido por mais 60 dias', platform: 'facebook', conta_id: token.conta_id })
-      return { success: true, message: 'Token estendido por mais 60 dias', newExpiry }
+      const newExpiry = await renovarTokenFacebook(token)
+      await registrarLog({ type: 'ok', message: 'Token Facebook renovado automaticamente (fb_exchange_token)', platform: 'facebook', conta_id: token.conta_id })
+      return { success: true, message: 'Token renovado via fb_exchange_token', newExpiry }
     }
 
   } catch (err) {

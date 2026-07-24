@@ -7,6 +7,12 @@ const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
 const { verificarSaudePlataformas } = require('./platformHealth')
 
+// Retry automático de publicação com falha transitória (5xx/rate limit/rede)
+// — ver src/infra/social/publisher.js (isErroTransitorio) e migrations/036.
+// Backoff exponencial curto: 1min, 5min, 15min; depois disso desiste e marca
+// error/partial definitivo, igual ao comportamento de antes de existir retry.
+const RETRY_DELAYS_MIN = [1, 5, 15]
+
 // Publica um post pendente e notifica o frontend.
 // O post já chega com status 'processing' (reservado atomicamente por
 // reservarPostsPendentes), então mesmo que a publicação demore mais que o
@@ -19,12 +25,33 @@ async function processarPost(post) {
     // nem falha ainda — só conta como "tudo certo" quando for true de fato.
     const pendente = results.some(r => r.success === 'pending')
     const sucesso = r => r.success === true
+    const falhas = results.filter(r => r.success === false)
+
+    // Só reagenda automaticamente quando NENHUMA rede publicou com sucesso e
+    // TODAS as falhas são transitórias — se uma rede já publicou (partial) ou
+    // se pelo menos uma falha é permanente (ex: token inválido), tentar de
+    // novo não ajudaria e reagendar duplicaria a publicação nas redes que já
+    // deram certo. Nesse caso vira error/partial definitivo, como antes.
+    const todasFalharam = !pendente && falhas.length === results.length
+    const todasTransitorias = falhas.length > 0 && falhas.every(r => r.transient)
+    const podeTentarDeNovo = todasFalharam && todasTransitorias && post.retryCount < RETRY_DELAYS_MIN.length
 
     if (pendente) {
       // Post fica em 'processing' até finalizarInstagramPendentes() (via cron)
       // confirmar o resultado real — sem isso, marcaríamos como published/error
       // antes do Instagram sequer terminar de processar a mídia.
       status = 'processing'
+      await postsRepo.atualizarStatusPost(post.id, status)
+    } else if (podeTentarDeNovo) {
+      const delayMin = RETRY_DELAYS_MIN[post.retryCount]
+      const nextRetryAt = new Date(Date.now() + delayMin * 60000)
+      await postsRepo.reagendarParaRetry(post.id, nextRetryAt)
+      await registrarLog({
+        type: 'warn',
+        message: `Post #${post.id} falhou por erro transitório — nova tentativa em ${delayMin} min (tentativa ${post.retryCount + 1}/${RETRY_DELAYS_MIN.length})`,
+        platform: null
+      })
+      return // não fecha o post como error/published — ainda vai tentar de novo
     } else {
       status = results.every(sucesso) ? 'published'
         : results.some(sucesso) ? 'partial'

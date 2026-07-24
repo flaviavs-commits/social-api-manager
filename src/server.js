@@ -264,6 +264,14 @@ async function runMigrations() {
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_comment BOOLEAN`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_duet BOOLEAN`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_stitch BOOLEAN`).catch(() => {}),
+    // Retry automático de publicação com falha transitória (5xx/rate limit) —
+    // ver migrations/036. retry_count conta tentativas já feitas (máx. 3,
+    // ver services/scheduler.js); next_retry_at é quando o próximo tick do
+    // cron deve tentar de novo (backoff exponencial). Ambos ficam NULL/0 para
+    // posts que nunca falharam — comportamento idêntico ao de antes desta
+    // coluna existir.
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ`).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,

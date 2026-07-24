@@ -84,6 +84,21 @@ const PUBLISHERS = {
   tiktok: publicarTiktok
 }
 
+// Distingue falha transitória (vale tentar de novo mais tarde: 5xx, rate
+// limit, timeout de rede) de falha permanente (4xx de configuração/conteúdo,
+// token inválido — repetir não muda o resultado). Os publishers de cada rede
+// não expõem o status HTTP estruturado no Error (ver facebookPublisher.js,
+// instagramPublisher.js etc.) — só na mensagem, no formato "X respondeu N"
+// como fallback quando a API não devolve um error.message legível. Por
+// segurança, o padrão é tratar como PERMANENTE quando não há sinal claro de
+// transitoriedade (evita retry infinito em erro real de configuração).
+function isErroTransitorio(err) {
+  const msg = (err?.message || '').toLowerCase()
+  if (/respondeu (429|500|502|503|504)/.test(msg)) return true
+  if (/rate limit|too many requests|timeout|econnreset|etimedout|enotfound|fetch failed/.test(msg)) return true
+  return false
+}
+
 // Publica em uma única conta e retorna o resultado (registrando o log
 // correspondente) — extraído para permitir publicar em todas as contas do
 // post em paralelo, em vez de uma por vez. `account` já vem resolvido (ver
@@ -212,7 +227,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
       conta_id: token.contaId,
       user_id: post.userId
     })
-    return { platform, accountId: account.accountId, success: false, account: token.handle || token.accountName, error: err.message }
+    return { platform, accountId: account.accountId, success: false, account: token.handle || token.accountName, error: err.message, transient: isErroTransitorio(err) }
   }
 }
 

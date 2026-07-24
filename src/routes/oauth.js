@@ -618,13 +618,19 @@ router.get('/tiktok/callback', async (req, res) => {
     let accountName = meta.accountName;
     let tiktokUsername = null;
     let tiktokAvatarUrl = null;
+    let tiktokOpenId = null;
     try {
-      const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=display_name,username,avatar_url', {
+      // open_id identifica o usuário de forma estável entre chamadas — é o
+      // mesmo valor que vem em user_openid no webhook de revogação de
+      // autorização (authorization.removed), permitindo achar a conta certa
+      // sem precisar guardar o access_token pra sempre. Ver /tiktok/webhook.
+      const profileRes = await fetch('https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,username,avatar_url', {
         headers: { Authorization: `Bearer ${token.access_token}` }
       });
       const profileData = await profileRes.json();
       tiktokUsername = profileData?.data?.user?.username;
       tiktokAvatarUrl = profileData?.data?.user?.avatar_url || null;
+      tiktokOpenId = profileData?.data?.user?.open_id || null;
       if (!accountName) accountName = tiktokUsername || profileData?.data?.user?.display_name;
     } catch {}
     accountName = accountName || 'Nova Conta TikTok';
@@ -633,7 +639,8 @@ router.get('/tiktok/callback', async (req, res) => {
       name: accountName,
       platform: 'tiktok',
       userId: meta.userId,
-      avatarUrl: tiktokAvatarUrl
+      avatarUrl: tiktokAvatarUrl,
+      externalUserId: tiktokOpenId
     });
 
     await tokensRepo.salvarToken({
@@ -686,6 +693,21 @@ router.get('/tiktok/webhook/tiktokVJrQeuVTcCX3GoxtvKkHE17EL032WtiC.txt', (req, r
   res.type('text/plain').send('tiktok-developers-site-verification=VJrQeuVTcCX3GoxtvKkHE17EL032WtiC');
 });
 
+// Quando o usuário revoga a autorização do app pelo próprio app do TikTok
+// (fora do nosso fluxo), o token continua no banco como "válido" até a
+// próxima tentativa de uso falhar — marcamos como 'error' assim que o evento
+// chega, para que a conta apareça imediatamente como precisando de reconexão
+// no painel (mesmo status usado quando uma renovação de token falha, ver
+// tokensRepository.js), em vez de só descobrir isso na próxima publicação.
+async function processarRevogacaoTiktok(openId) {
+  if (!openId) return
+  const contas = await contasRepo.buscarContasPorExternalUserId('tiktok', openId)
+  for (const conta of contas) {
+    await pool.query(`UPDATE tokens SET status = 'error', atualizado_em = NOW() WHERE conta_id = $1 AND platform = 'tiktok'`, [conta.id])
+    addLog('warn', `Autorização do TikTok revogada pelo usuário — conta marcada como desconectada`, 'tiktok', conta.id, conta.userId)
+  }
+}
+
 // O TikTok envia eventos assíncronos (ex: revogação de autorização) via POST
 // para este endpoint, separado do redirect_uri do login (que só recebe GET
 // do navegador do usuário). req.rawBody é capturado em server.js, antes do
@@ -697,8 +719,17 @@ router.post('/tiktok/webhook', (req, res) => {
     return res.status(401).json({ erro: 'Assinatura inválida' });
   }
 
-  addLog('info', `Webhook TikTok recebido: ${req.body?.event || 'evento desconhecido'}`, 'tiktok');
+  const event = req.body?.event || 'evento desconhecido';
+  addLog('info', `Webhook TikTok recebido: ${event}`, 'tiktok');
+
+  // Responde 200 imediatamente (o TikTok espera confirmação rápida) e trata o
+  // evento em background — mesmo padrão do Data Deletion Callback da Meta.
   res.status(200).json({ received: true });
+
+  if (event === 'authorization.removed') {
+    const openId = req.body?.user_openid || req.body?.content?.user_openid;
+    processarRevogacaoTiktok(openId).catch(err => addLog('err', `Falha ao processar revogação TikTok: ${err.message}`, 'tiktok'));
+  }
 });
 
 // ─── Data Deletion Callback (exigido pela Meta para apps em modo Live) ──────────

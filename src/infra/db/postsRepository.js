@@ -117,7 +117,9 @@ async function buscarPostPorId(id, userId, isAdmin) {
 }
 
 async function atualizarStatusPost(id, status) {
-  await pool.query(`UPDATE posts SET status = $1 WHERE id = $2`, [status, id])
+  // Limpa next_retry_at ao fechar o post num status final — evita confusão
+  // caso o post seja reagendado manualmente depois (ver reagendarParaRetry).
+  await pool.query(`UPDATE posts SET status = $1, next_retry_at = NULL WHERE id = $2`, [status, id])
 }
 
 // Marca atomicamente os posts agendados como "processing" antes de publicar,
@@ -129,7 +131,11 @@ async function reservarPostsPendentes() {
       UPDATE posts SET status = 'processing'
       WHERE id IN (
         SELECT p.id FROM posts p
-        WHERE p.status = 'scheduled' AND p.scheduled_at <= NOW()
+        -- Pega tanto posts agendados no horário normal quanto posts que
+        -- falharam por erro transitório e estão aguardando o retry (ver
+        -- reagendarParaRetry, migrations/036) — o segundo caso sempre tem
+        -- next_retry_at preenchido, então uma condição não interfere na outra.
+        WHERE p.status = 'scheduled' AND (p.scheduled_at <= NOW() OR p.next_retry_at <= NOW())
         -- Segura o post se TODAS as suas plataformas estiverem fora do ar;
         -- volta a tentar no próximo tick do cron (1 min depois) até
         -- alguma plataforma voltar a responder ('up' ou 'unknown').
@@ -142,7 +148,8 @@ async function reservarPostsPendentes() {
         id, text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, status, user_id,
         media_path, media_type, media_items,
         youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids,
-        ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id
+        ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id,
+        retry_count
     )
     SELECT
       r.id, r.text, r.text_by_platform AS "textByPlatform", r.title_by_platform AS "titleByPlatform", r.platforms,
@@ -154,6 +161,7 @@ async function reservarPostsPendentes() {
       r.tiktok_privacy_level AS "tiktokPrivacyLevel", r.tiktok_disable_comment AS "tiktokDisableComment",
       r.tiktok_disable_duet AS "tiktokDisableDuet", r.tiktok_disable_stitch AS "tiktokDisableStitch",
       r.account_id AS "accountId",
+      r.retry_count AS "retryCount",
       u.role AS "userRole",
       COALESCE(
         JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
@@ -167,9 +175,22 @@ async function reservarPostsPendentes() {
     GROUP BY r.id, r.text, r.text_by_platform, r.title_by_platform, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
              r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
              r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format,
-             r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, u.role
+             r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count, u.role
   `)
   return rows
+}
+
+// Reagenda um post que falhou por erro transitório (ver isErroTransitorio em
+// publisher.js) para uma nova tentativa automática — incrementa retry_count e
+// mantém o status 'scheduled' (reservarPostsPendentes volta a pegá-lo quando
+// next_retry_at chegar). Diferente de um post normal, o campo scheduled_at
+// original não muda — serve só de referência histórica de quando deveria ter
+// sido publicado.
+async function reagendarParaRetry(id, nextRetryAt) {
+  await pool.query(
+    `UPDATE posts SET status = 'scheduled', retry_count = retry_count + 1, next_retry_at = $1 WHERE id = $2`,
+    [nextRetryAt.toISOString(), id]
+  )
 }
 
 // Guarda o ID do post/mídia retornado pela rede social ao publicar, para
@@ -360,7 +381,7 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
-  reservarPostsPendentes,
+  reservarPostsPendentes, reagendarParaRetry,
   definirContasDoPost, listarContasDoPost,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,
