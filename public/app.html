@@ -4365,6 +4365,15 @@ function buildValidationIssues() {
   const indisponiveis = plataformasForaDoAr(plats);
   if (indisponiveis.length) issues.push({ platform: null, message: `${indisponiveis.map(p => PLATFORM_LABELS[p] || p).join(', ')} está fora do ar no momento` });
 
+  // A mídia resolvida da rede é a própria do card (se anexada) ou a
+  // compartilhada — mesma regra de resolverMidiaDaRede no backend
+  // (src/domain/posts/post.js). YouTube só publica vídeo de verdade; sem
+  // isso o post é aceito aqui e só falha na hora de agendar/publicar.
+  const midiaYoutube = mediaFilesByPlatform.youtube?.length ? mediaFilesByPlatform.youtube : mediaFiles;
+  if (plats.includes('youtube') && !midiaYoutube.some(m => m.file.type.startsWith('video/'))) {
+    issues.push({ platform: 'youtube', message: 'Falta vídeo para publicar no YouTube — anexe um vídeo ou desmarque o YouTube' });
+  }
+
   if (plats.includes('youtube') && !youtubeTitle) issues.push({ platform: 'youtube', message: 'Informe o título do vídeo para o YouTube' });
 
   if (plats.includes('youtube') && !document.getElementById('post-youtube-made-for-kids')?.value) {
@@ -4459,6 +4468,10 @@ async function schedulePost(publishNow = false) {
   const temAlgumaMidiaEnvio = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
   if (!text && !temAlgumaMidiaEnvio) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
+  const midiaYoutubeEnvio = mediaFilesByPlatform.youtube?.length ? mediaFilesByPlatform.youtube : mediaFiles;
+  if (platforms.includes('youtube') && !midiaYoutubeEnvio.some(m => m.file.type.startsWith('video/'))) {
+    return showToast('Falta vídeo para publicar no YouTube — anexe um vídeo ou desmarque o YouTube', 'err');
+  }
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
   if (platforms.includes('youtube') && !youtubeMadeForKidsRaw) return showToast('Informe se o vídeo é feito para crianças (obrigatório pelo YouTube)', 'err');
   if (platforms.includes('tiktok') && !tiktokPrivacyLevel) return showToast('Escolha quem pode ver o vídeo no TikTok', 'err');
