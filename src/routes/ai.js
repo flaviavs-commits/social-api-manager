@@ -1341,7 +1341,7 @@ router.post('/schedule', async (req, res) => {
       const contas = await contasRepo.listarContasAtivasPorPlataformas(p.plataformas || [], req.user.id, isAdmin)
       const platformsSemConta = (p.plataformas || []).filter(plat => !contas.some(c => c.platform === plat))
       if (platformsSemConta.length) {
-        const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest', x: 'X' }
+        const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' }
         const nomes = platformsSemConta.map(plat => labels[plat] || plat).join(', ')
         registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'erro', detalhes: `sem conta conectada: ${nomes}` })
         return res.status(400).json({ erro: `Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.` })

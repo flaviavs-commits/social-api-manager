@@ -261,31 +261,6 @@ async function renovarTokenPinterest(token) {
   return newExpiry
 }
 
-// ── Renova o access_token do X via refresh_token (offline.access, OAuth 2.0) ─
-async function renovarTokenX(token) {
-  if (!token.refresh_token) throw new Error('Token X sem refresh_token salvo')
-
-  const basicAuth = Buffer.from(`${process.env.X_CLIENT_ID}:${process.env.X_CLIENT_SECRET}`).toString('base64')
-  const res = await fetch('https://api.twitter.com/2/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` },
-    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: token.refresh_token, client_id: process.env.X_CLIENT_ID })
-  })
-  const data = await res.json()
-
-  if (!data.access_token) {
-    throw new Error(data.error_description || data.error || 'Falha ao renovar token do X')
-  }
-
-  const newExpiry = new Date(Date.now() + (data.expires_in || 7200) * 1000)
-  // X rotaciona o refresh_token a cada uso, igual ao TikTok — sem gravar o
-  // novo, a próxima renovação falharia com o refresh_token antigo já inválido.
-  await pool.query(`UPDATE tokens SET access_token = $1, refresh_token = $2, expires_at = $3, status = 'valid', atualizado_em = NOW() WHERE id = $4`,
-    [encrypt(data.access_token), encrypt(data.refresh_token || token.refresh_token), newExpiry.toISOString(), token.id])
-
-  return newExpiry
-}
-
 // ── Renovar um token específico ────────────────────────────────────────────────
 async function renovarToken(id, userId, isAdmin) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
@@ -331,12 +306,6 @@ async function renovarToken(id, userId, isAdmin) {
     if (token.platform === 'pinterest' && token.refresh_token) {
       const newExpiry = await renovarTokenPinterest(token)
       await registrarLog({ type: 'ok', message: 'Token Pinterest renovado automaticamente', platform: 'pinterest', conta_id: token.conta_id })
-      return { success: true, message: 'Token renovado via refresh_token', newExpiry }
-    }
-
-    if (token.platform === 'x' && token.refresh_token) {
-      const newExpiry = await renovarTokenX(token)
-      await registrarLog({ type: 'ok', message: 'Token X renovado automaticamente', platform: 'x', conta_id: token.conta_id })
       return { success: true, message: 'Token renovado via refresh_token', newExpiry }
     }
 

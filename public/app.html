@@ -209,7 +209,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-icon.th { background: rgba(230,230,230,0.1); color: #e6e6e6; }
 .plat-icon.li { background: rgba(10,102,194,0.15); color: #0a66c2; }
 .plat-icon.pt { background: rgba(230,0,35,0.15); color: #e60023; }
-.plat-icon.xx { background: rgba(230,230,230,0.1); color: #e6e6e6; }
 .status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px 3px 8px; border-radius: 99px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
 .status-pill.connected { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
@@ -2145,7 +2144,7 @@ input, select, textarea, label, .bottom-nav-item {
       <div class="step"><div class="step-num">03</div><div class="step-label">Confirmar</div></div>
     </div>
     <div class="form-group"><label>Plataforma</label>
-      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="threads">Threads</option><option value="linkedin">LinkedIn</option><option value="pinterest">Pinterest</option><option value="x">X (Twitter)</option></select>
+      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="threads">Threads</option><option value="linkedin">LinkedIn</option><option value="pinterest">Pinterest</option></select>
     </div>
     <div class="form-group">
       <label>Nome ou link da conta</label>
@@ -2416,8 +2415,7 @@ const PLAT_SVG = {
   tiktok: '<svg viewBox="0 0 24 24" fill="currentColor" width="55%" height="55%"><path d="M16.6 2h-3.2v13.9c0 1.55-1.25 2.82-2.8 2.82a2.81 2.81 0 0 1-2.8-2.82c0-1.55 1.25-2.81 2.8-2.81.31 0 .6.05.88.14v-3.26a6.1 6.1 0 0 0-.88-.06A6 6 0 0 0 4.6 15.9a6 6 0 0 0 6 5.99 6 6 0 0 0 6-5.99V8.34a8.18 8.18 0 0 0 4.8 1.54V6.66a4.85 4.85 0 0 1-4.8-4.66Z"/></svg>',
   threads: '<svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M12.2 22c-2.9 0-5.2-.9-6.8-2.7C3.9 17.6 3 15.1 3 12s.9-5.6 2.4-7.3C7 2.9 9.3 2 12.2 2c2.2 0 4 .5 5.5 1.6 1.4 1 2.4 2.5 2.9 4.3l-2.3.6c-.4-1.3-1.1-2.4-2.1-3.1-1-.7-2.3-1.1-3.9-1.1-2.1 0-3.7.7-4.9 2-1.2 1.4-1.8 3.3-1.8 5.7s.6 4.3 1.8 5.7c1.2 1.3 2.8 2 4.9 2 1.8 0 3.2-.5 4.2-1.4.9-.8 1.4-1.9 1.6-3.2-.5.2-1.1.3-1.8.3-1.4 0-2.5-.4-3.4-1.1-.9-.8-1.3-1.8-1.3-3 0-1.3.5-2.3 1.4-3.1.9-.8 2.1-1.2 3.6-1.2.7 0 1.4.1 2 .3-.1-.8-.4-1.4-.9-1.9-.6-.5-1.4-.8-2.4-.8-1.2 0-2.2.4-3 1.2l-1.8-1.4c1.2-1.3 2.8-2 4.8-2 1.7 0 3.1.5 4.1 1.5 1 1 1.5 2.3 1.6 4v.5c.9.4 1.6 1 2.1 1.7.6.9.9 1.9.9 3.1 0 2.1-.8 3.8-2.3 5-1.5 1.2-3.5 1.9-6 1.9Zm.6-8.8c-.9 0-1.6.2-2.1.6-.5.4-.7.9-.7 1.5 0 .6.2 1 .6 1.4.4.3 1 .5 1.7.5 1.1 0 2-.3 2.6-.9.5-.5.8-1.2.9-2.2-.9-.5-1.9-.9-3-.9Z"/></svg>',
   linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M4.98 3.5C4.98 4.88 3.93 6 2.5 6S0 4.88 0 3.5 1.05 1 2.5 1s2.48 1.12 2.48 2.5ZM.5 8.25h4V23h-4V8.25ZM8.5 8.25h3.83v2.02h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1V23h-4v-6.62c0-1.58-.03-3.6-2.2-3.6-2.2 0-2.54 1.72-2.54 3.5V23h-4V8.25Z"/></svg>',
-  pinterest: '<svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.64 7.86 6.36 9.32-.09-.79-.17-2.02.03-2.89.19-.79 1.22-5.06 1.22-5.06s-.31-.62-.31-1.53c0-1.44.83-2.51 1.87-2.51.88 0 1.31.66 1.31 1.46 0 .89-.57 2.22-.86 3.45-.24 1.03.52 1.87 1.54 1.87 1.85 0 3.09-2.38 3.09-5.2 0-2.14-1.44-3.75-4.06-3.75-2.96 0-4.81 2.21-4.81 4.67 0 .85.25 1.45.64 1.91.18.21.2.3.14.55-.05.18-.16.63-.2.81-.07.26-.27.35-.5.25-1.39-.57-2.04-2.09-2.04-3.8 0-2.83 2.38-6.22 7.11-6.22 3.8 0 6.3 2.75 6.3 5.7 0 3.9-2.14 6.82-5.3 6.82-1.06 0-2.06-.58-2.4-1.23l-.68 2.63c-.21.83-.62 1.86-.98 2.55.87.26 1.79.4 2.75.4 5.52 0 10-4.48 10-10S17.52 2 12 2Z"/></svg>',
-  x: '<svg viewBox="0 0 24 24" fill="currentColor" width="52%" height="52%"><path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.22-6.83-5.97 6.83H1.65l7.73-8.84L1.25 2.25h6.83l4.72 6.24 5.44-6.24Zm-1.16 17.52h1.83L7.02 4.13H5.06l12.02 15.64Z"/></svg>'
+  pinterest: '<svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.64 7.86 6.36 9.32-.09-.79-.17-2.02.03-2.89.19-.79 1.22-5.06 1.22-5.06s-.31-.62-.31-1.53c0-1.44.83-2.51 1.87-2.51.88 0 1.31.66 1.31 1.46 0 .89-.57 2.22-.86 3.45-.24 1.03.52 1.87 1.54 1.87 1.85 0 3.09-2.38 3.09-5.2 0-2.14-1.44-3.75-4.06-3.75-2.96 0-4.81 2.21-4.81 4.67 0 .85.25 1.45.64 1.91.18.21.2.3.14.55-.05.18-.16.63-.2.81-.07.26-.27.35-.5.25-1.39-.57-2.04-2.09-2.04-3.8 0-2.83 2.38-6.22 7.11-6.22 3.8 0 6.3 2.75 6.3 5.7 0 3.9-2.14 6.82-5.3 6.82-1.06 0-2.06-.58-2.4-1.23l-.68 2.63c-.21.83-.62 1.86-.98 2.55.87.26 1.79.4 2.75.4 5.52 0 10-4.48 10-10S17.52 2 12 2Z"/></svg>'
 };
 
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
@@ -2729,8 +2727,7 @@ const PLAT_ROW_CFG = {
   tiktok:    { cls:'tt', icon:PLAT_SVG.tiktok,    label:'TikTok' },
   threads:   { cls:'th', icon:PLAT_SVG.threads,   label:'Threads' },
   linkedin:  { cls:'li', icon:PLAT_SVG.linkedin,  label:'LinkedIn' },
-  pinterest: { cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' },
-  x:         { cls:'xx', icon:PLAT_SVG.x,         label:'X' }
+  pinterest: { cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' }
 };
 
 async function loadTokens() {
@@ -2870,7 +2867,7 @@ const selectedPlats = new Set();
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube'];
 
-const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', threads:'Threads', linkedin:'LinkedIn', pinterest:'Pinterest', x:'X' };
+const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', threads:'Threads', linkedin:'LinkedIn', pinterest:'Pinterest' };
 let apContas = [];
 
 // Categorias oficiais da YouTube Data API v3 — espelha
@@ -4334,7 +4331,7 @@ function startPlatformHealthPolling() {
   platformHealthTimer = setInterval(refreshPlatformHealth, 60000);
 }
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest', x: 'X' };
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' };
 
 // Retorna a lista de plataformas selecionadas que estão marcadas como fora do ar
 function plataformasForaDoAr(platforms) {
@@ -5533,12 +5530,6 @@ const PLAT_FIELD_CFG = {
     pattern: /pinterest\.com\/([^/?#\s]+)/i,
     label: 'Pinterest',
     example: 'ex: @marca.pinterest'
-  },
-  x: {
-    placeholder: '@usuario ou https://x.com/seuperfil',
-    pattern: /x\.com\/([^/?#\s]+)/i,
-    label: 'X',
-    example: 'ex: @marca'
   }
 };
 
@@ -5733,7 +5724,7 @@ async function startOAuth() {
 
   if (platform === 'facebook') return connectFacebookViaSdk(name);
 
-  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok', threads:'threads', linkedin:'linkedin', pinterest:'pinterest', x:'x' };
+  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok', threads:'threads', linkedin:'linkedin', pinterest:'pinterest' };
   const provider = oauthMap[platform];
 
   // Nome único evita reaproveitar/colidir com uma janela "_blank" anterior.

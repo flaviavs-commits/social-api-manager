@@ -13,7 +13,6 @@ const { publicarTiktok } = require('./tiktokPublisher')
 const { publicarThreads } = require('./threadsPublisher')
 const { publicarLinkedin } = require('./linkedinPublisher')
 const { publicarPinterest } = require('./pinterestPublisher')
-const { publicarX } = require('./xPublisher')
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
@@ -81,7 +80,6 @@ function extrairExternalId(platform, data) {
   if (platform === 'threads') return data?.id || null
   if (platform === 'linkedin') return data?.id || null
   if (platform === 'pinterest') return data?.id || null
-  if (platform === 'x') return data?.id || null
   return null
 }
 
@@ -92,8 +90,7 @@ const PUBLISHERS = {
   tiktok: publicarTiktok,
   threads: publicarThreads,
   linkedin: publicarLinkedin,
-  pinterest: publicarPinterest,
-  x: publicarX
+  pinterest: publicarPinterest
 }
 
 // Distingue falha transitória (vale tentar de novo mais tarde: 5xx, rate

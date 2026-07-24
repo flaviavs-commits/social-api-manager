@@ -205,7 +205,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const contas = await contasRepo.listarContasAtivasPorPlataformas(platforms, userId, isAdmin)
   const platformsSemConta = platforms.filter(p => !contas.some(c => c.platform === p))
   if (platformsSemConta.length) {
-    const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest', x: 'X' }
+    const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' }
     const nomes = platformsSemConta.map(p => labels[p] || p).join(', ')
     throw new ValidationError(`Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.`)
   }

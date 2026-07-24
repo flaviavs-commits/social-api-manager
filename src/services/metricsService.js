@@ -12,7 +12,7 @@ const TOKEN_EXPIRY_MARGIN_MS = 2 * 60 * 1000
 // TikTok (sem ID público de vídeo) não é suportado. LinkedIn de perfil pessoal
 // também não — analytics de post individual não é exposto na API aberta para
 // apps comuns (só Company Pages, fora de escopo — ver guia de referência Cap. 5.4).
-const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube', 'threads', 'pinterest', 'x']
+const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube', 'threads', 'pinterest']
 
 // Sem timeout, um fetch a uma API externa lenta ou travada bloqueia
 // indefinidamente a tela de Analytics inteira (Promise.allSettled só resolve
@@ -142,26 +142,12 @@ async function metricsPinterest(token, externalPostId) {
   return { likes: totais.SAVE ?? null, comments: null, views: totais.IMPRESSION ?? null, clicks: totais.PIN_CLICK ?? null }
 }
 
-// X: leitura de métricas é paga (non_public_metrics exige o mesmo billing do
-// pay-per-use, ver guia de referência Cap. 8) — usado com moderação, só
-// quando o usuário abre o Analytics de um post específico.
-async function metricsX(token, externalPostId) {
-  const url = `https://api.twitter.com/2/tweets/${encodeURIComponent(externalPostId)}?tweet.fields=public_metrics`
-  const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data?.detail || `X respondeu ${res.status}`)
-
-  const m = data.data?.public_metrics || {}
-  return { likes: m.like_count ?? null, comments: m.reply_count ?? null, views: m.impression_count ?? null }
-}
-
 const METRIC_FETCHERS = {
   facebook: metricsFacebook,
   instagram: metricsInstagram,
   youtube: metricsYoutube,
   threads: metricsThreads,
-  pinterest: metricsPinterest,
-  x: metricsX
+  pinterest: metricsPinterest
 }
 
 // Busca likes/comentários reais de um post já publicado. Retorna null
