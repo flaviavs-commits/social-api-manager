@@ -2616,7 +2616,10 @@ async function loadDashboard() {
       facebook: { cls:'fb', icon:PLAT_SVG.facebook, label:'Facebook', api:'Conexão válida por até 60 dias' },
       instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram', api:'Conexão válida por até 60 dias' },
       youtube:  { cls:'yt', icon:PLAT_SVG.youtube, label:'YouTube',  api:'Renovação automática' },
-      tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok',  api:'Publica imediatamente ao enviar' }
+      tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok',  api:'Publica imediatamente ao enviar' },
+      threads:  { cls:'th', icon:PLAT_SVG.threads, label:'Threads', api:'Conexão válida por até 60 dias' },
+      linkedin: { cls:'li', icon:PLAT_SVG.linkedin, label:'LinkedIn', api:'Exige reconexão manual periódica' },
+      pinterest:{ cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest', api:'Renovação automática' }
     };
     platforms.forEach(p => {
       const cfg = platCfg[p.platform];
