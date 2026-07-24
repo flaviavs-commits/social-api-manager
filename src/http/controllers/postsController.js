@@ -9,6 +9,7 @@ const { listarPosts, listarPostsCalendario } = require('../../use-cases/posts/li
 const { buscarAnalytics, buscarMetricsHistory } = require('../../use-cases/posts/buscarAnalytics')
 const { listarTiktokVideos } = require('../../use-cases/posts/listarTiktokVideos')
 const { buscarTiktokCreatorInfo } = require('../../use-cases/posts/buscarTiktokCreatorInfo')
+const { buscarLocaisFacebook } = require('../../use-cases/posts/buscarLocaisFacebook')
 const { criarPost } = require('../../use-cases/posts/criarPost')
 const { reagendarPost } = require('../../use-cases/posts/reagendarPost')
 const { deletarPost } = require('../../use-cases/posts/deletarPost')
@@ -112,6 +113,17 @@ async function getTiktokCreatorInfo(req, res) {
   }
 }
 
+async function getFacebookPlaces(req, res) {
+  try {
+    const termo = req.query.q || ''
+    const result = await buscarLocaisFacebook({ termo, ...ctx(req) })
+    res.json(result)
+  } catch (e) {
+    if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })
+    serverError(res, e, 'Não foi possível buscar locais')
+  }
+}
+
 async function getMetricsHistory(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -196,6 +208,6 @@ async function deletePost(req, res) {
 
 module.exports = {
   postUploadUrl, getInboxUnread, postCommentSeen, getInbox, getCalendar, getPosts,
-  getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getMetricsHistory, postCreate, getComments,
+  getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
   postCommentReply, patchPost, deletePost
 }

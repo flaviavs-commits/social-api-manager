@@ -1,16 +1,17 @@
 const pool = require('../../db/pool')
 
-async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, accountId = null, userId, status = 'scheduled' }) {
+async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id, user_id, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, location_id, location_name, first_comment, account_id, user_id, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
     RETURNING *, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_category_id AS "youtubeCategoryId",
       youtube_format AS "youtubeFormat", youtube_is_short AS "youtubeIsShort", youtube_made_for_kids AS "youtubeMadeForKids",
       ig_format AS "igFormat",
       tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment",
-      tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch"
-  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, accountId, userId, status])
+      tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
+      location_id AS "locationId", location_name AS "locationName", first_comment AS "firstComment"
+  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, accountId, userId, status])
   return rows[0]
 }
 
@@ -149,7 +150,7 @@ async function reservarPostsPendentes() {
         media_path, media_type, media_items,
         youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids,
         ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id,
-        retry_count
+        retry_count, location_id, location_name, first_comment
     )
     SELECT
       r.id, r.text, r.text_by_platform AS "textByPlatform", r.title_by_platform AS "titleByPlatform", r.platforms,
@@ -162,6 +163,7 @@ async function reservarPostsPendentes() {
       r.tiktok_disable_duet AS "tiktokDisableDuet", r.tiktok_disable_stitch AS "tiktokDisableStitch",
       r.account_id AS "accountId",
       r.retry_count AS "retryCount",
+      r.location_id AS "locationId", r.location_name AS "locationName", r.first_comment AS "firstComment",
       u.role AS "userRole",
       COALESCE(
         JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
@@ -175,7 +177,8 @@ async function reservarPostsPendentes() {
     GROUP BY r.id, r.text, r.text_by_platform, r.title_by_platform, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
              r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
              r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format,
-             r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count, u.role
+             r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count,
+             r.location_id, r.location_name, r.first_comment, u.role
   `)
   return rows
 }
@@ -204,32 +207,80 @@ async function reagendarParaRetry(id, nextRetryAt) {
 // guardam só a PRIMEIRA rede publicada (usadas por comentários/inbox, que só
 // precisam de algum ID do post) — não sobrescreve se já houver uma, para não
 // perder qual foi a primeira quando publicando em paralelo.
+// Redes com endpoint de comentário na API oficial — TikTok e Pinterest não
+// têm (Content Posting API e Pinterest API v5 não expõem comentários),
+// então nunca entram na fila do primeiro comentário automático.
+const PLATAFORMAS_COM_COMENTARIO = ['facebook', 'instagram', 'youtube', 'threads', 'linkedin']
+
 async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt, accountId = null }) {
   // accountId sempre vem preenchido no fluxo atual (publisher.js resolve a
   // conta antes de chamar isto) — o índice único parcial em post_publications
   // só cobre account_id IS NOT NULL, então esse é o caminho de conflito real.
   // O ramo sem accountId existe só por segurança (nunca deveria ser
   // exercitado), e não tenta ON CONFLICT (não há índice único para colidir).
+  let publicationId
   if (accountId) {
-    await pool.query(
+    const { rows } = await pool.query(
       `INSERT INTO post_publications (post_id, platform, external_post_id, published_at, account_id)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (post_id, platform, account_id) WHERE account_id IS NOT NULL
-         DO UPDATE SET external_post_id = EXCLUDED.external_post_id, published_at = EXCLUDED.published_at`,
+         DO UPDATE SET external_post_id = EXCLUDED.external_post_id, published_at = EXCLUDED.published_at
+       RETURNING id`,
       [id, externalPlatform, externalPostId, publishedAt, accountId]
     )
+    publicationId = rows[0]?.id
   } else {
-    await pool.query(
+    const { rows } = await pool.query(
       `INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
-       VALUES ($1, $2, $3, $4)`,
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [id, externalPlatform, externalPostId, publishedAt]
     )
+    publicationId = rows[0]?.id
   }
   await pool.query(
     `UPDATE posts
      SET external_post_id = $1, external_platform = $2, published_at = COALESCE(published_at, $3)
      WHERE id = $4 AND external_post_id IS NULL`,
     [externalPostId, externalPlatform, publishedAt, id]
+  )
+
+  // Programa o primeiro comentário automático para esta publicação
+  // específica, se o post tiver um texto definido e a rede suportar
+  // comentário via API — o cron (services/scheduler.js) executa de fato.
+  if (publicationId && PLATAFORMAS_COM_COMENTARIO.includes(externalPlatform)) {
+    const { rows: [post] } = await pool.query(`SELECT first_comment FROM posts WHERE id = $1`, [id])
+    if (post?.first_comment) {
+      await pool.query(
+        `INSERT INTO post_first_comments (post_publication_id) VALUES ($1) ON CONFLICT (post_publication_id) DO NOTHING`,
+        [publicationId]
+      )
+    }
+  }
+}
+
+// Publicações com primeiro comentário pendente de postar — chamado a cada
+// tick do cron (services/scheduler.js). Traz tudo que o publisher precisa:
+// plataforma, ID externo do post/mídia, texto do comentário e a conta certa
+// (para resolver o token na hora de publicar).
+async function listarPrimeirosComentariosPendentes() {
+  const { rows } = await pool.query(`
+    SELECT
+      fc.id AS "firstCommentId", pp.platform, pp.external_post_id AS "externalPostId",
+      pp.account_id AS "accountId", p.first_comment AS "firstComment", p.user_id AS "userId", u.role AS "userRole"
+    FROM post_first_comments fc
+    JOIN post_publications pp ON pp.id = fc.post_publication_id
+    JOIN posts p ON p.id = pp.post_id
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE fc.status = 'pending'
+  `)
+  return rows
+}
+
+async function atualizarStatusPrimeiroComentario(id, status, errorMessage = null) {
+  await pool.query(
+    `UPDATE post_first_comments SET status = $1, error_message = $2, atualizado_em = NOW() WHERE id = $3`,
+    [status, errorMessage, id]
   )
 }
 
@@ -384,6 +435,7 @@ module.exports = {
   reservarPostsPendentes, reagendarParaRetry,
   definirContasDoPost, listarContasDoPost,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
+  listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,
   registrarSnapshotMetricas, buscarHistoricoMetricas,
   listarPostsCalendario, reagendarPost

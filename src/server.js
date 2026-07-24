@@ -17,6 +17,7 @@ const requireAuth    = require('./middleware/requireAuth')
 const requireAdmin   = require('./middleware/requireAdmin')
 const cronRoutes     = require('./routes/cron')
 const draftsRoutes   = require('./routes/drafts')
+const savedTextsRoutes = require('./routes/savedTexts')
 const pushRoutes     = require('./routes/push')
 const aiRoutes       = require('./routes/ai')
 const scheduler      = require('./services/scheduler')
@@ -219,6 +220,7 @@ app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
 app.use('/api/drafts',   draftsRoutes)
+app.use('/api/saved-texts', savedTextsRoutes)
 app.use('/api/push',     pushRoutes)
 app.use('/api/ai',       aiRoutes)
 
@@ -272,6 +274,22 @@ async function runMigrations() {
     // coluna existir.
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ`).catch(() => {}),
+    // Biblioteca de textos salvos (botão "textos salvos" no editor) — ver
+    // migrations/037.
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_texts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT,
+        body TEXT NOT NULL,
+        criado_em TIMESTAMPTZ DEFAULT NOW()
+      )
+    `).catch(() => {}),
+    // Localização (Facebook/Instagram) e primeiro comentário automático
+    // (Facebook/Instagram/YouTube/Threads/LinkedIn) — ver migrations/037.
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_id TEXT`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT`).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,
@@ -393,6 +411,20 @@ async function runMigrations() {
         FROM posts
         WHERE external_post_id IS NOT NULL AND external_platform IS NOT NULL
         ON CONFLICT DO NOTHING
+      `).catch(() => {}),
+      // Controle do primeiro comentário automático — depende de
+      // post_publications já existir (FK), por isso encadeado aqui em vez de
+      // no Promise.all paralelo do topo. Ver migrations/037.
+      pool.query(`
+        CREATE TABLE IF NOT EXISTS post_first_comments (
+          id SERIAL PRIMARY KEY,
+          post_publication_id INTEGER NOT NULL REFERENCES post_publications(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending',
+          error_message TEXT,
+          criado_em TIMESTAMPTZ DEFAULT NOW(),
+          atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE (post_publication_id)
+        )
       `).catch(() => {}),
     ])).catch(() => {}),
     // Snapshot de métricas passa a ser por (post, rede): um post em várias

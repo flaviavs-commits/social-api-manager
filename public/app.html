@@ -1588,10 +1588,42 @@ input, select, textarea, label, .bottom-nav-item {
           <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
           <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..." oninput="onPostTextInput()"></textarea>
+
+          <!-- Barra de ações do editor (emoji, hashtag, link, textos salvos) -->
+          <div style="display:flex;align-items:center;gap:4px;margin-top:6px;position:relative">
+            <button type="button" class="btn" style="padding:5px 8px;font-size:14px" title="Inserir emoji" onclick="toggleEmojiPicker(event)">😀</button>
+            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir hashtag" onclick="inserirHashtagRapida()">#</button>
+            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir link" onclick="inserirLinkNoTexto()">🔗</button>
+            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Textos salvos" onclick="toggleSavedTextsMenu(event)">📁</button>
+            <div id="emoji-picker-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;max-width:260px;flex-wrap:wrap;padding:8px"></div>
+            <div id="saved-texts-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;min-width:220px;max-height:260px;overflow-y:auto"></div>
+          </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
             <span id="text-tabs-unify" style="display:none;font-size:11px;color:var(--accent);cursor:pointer" onclick="unifyPlatformTexts()">usar o mesmo texto para todas</span>
             <span id="text-tabs-counter" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
           </div>
+          <button type="button" class="btn" style="margin-top:6px;font-size:11px;padding:5px 10px" onclick="salvarTextoAtualComoSalvo()">💾 Salvar este texto para reutilizar</button>
+        </div>
+
+        <!-- Localização (Facebook/Instagram) -->
+        <div class="form-group" id="post-location-group" style="display:none">
+          <label>Localização <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional, Facebook/Instagram)</span></label>
+          <div style="position:relative">
+            <input type="text" id="post-location-search" placeholder="Buscar local (ex: Av. Paulista, São Paulo)" oninput="onLocationSearchInput()" autocomplete="off"/>
+            <div id="location-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;margin-top:4px;max-height:220px;overflow-y:auto"></div>
+          </div>
+          <div id="post-location-selected" style="display:none;margin-top:6px;font-size:12px;color:var(--accent);align-items:center;gap:6px">
+            <span id="post-location-selected-name"></span>
+            <span style="cursor:pointer;color:var(--muted)" onclick="limparLocalizacaoSelecionada()" title="Remover">✕</span>
+          </div>
+        </div>
+
+        <!-- Primeiro comentário automático -->
+        <div class="form-group" id="post-first-comment-group" style="display:none">
+          <label>Primeiro comentário <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional — publicado automaticamente logo após o post ir ao ar)</span></label>
+          <textarea id="post-first-comment" style="min-height:50px;resize:vertical" placeholder="Ex: link na bio, hashtags extras..."></textarea>
+          <div id="post-first-comment-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
         </div>
         <div class="form-group">
           <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
@@ -3016,6 +3048,8 @@ function applyPlatformSelection(plats) {
   renderTiktokOptionsGroup();
   syncMediaByPlatformSelection();
   renderMediaByPlatformGroup();
+  if (typeof updateLocationGroupVisibility === 'function') updateLocationGroupVisibility();
+  if (typeof updateFirstCommentGroupVisibility === 'function') updateFirstCommentGroupVisibility();
   renderValidationPanel();
   renderPreviewTabs();
 }
@@ -3506,6 +3540,199 @@ function unifyPlatformTexts() {
   renderTextTabsBar();
 }
 
+// ── Barra de ações do editor: emoji, hashtag, link, textos salvos ──────────
+// Insere no cursor do textarea ativo (post-text — mesmo campo usado em modo
+// único ou por-rede, ver activeTextTab) e dispara onPostTextInput() pra
+// manter textByPlatform/contador/preview sincronizados, igual a digitar.
+function inserirNoTextoDoPost(trecho) {
+  const textarea = document.getElementById('post-text');
+  if (!textarea) return;
+  const inicio = textarea.selectionStart ?? textarea.value.length;
+  const fim = textarea.selectionEnd ?? textarea.value.length;
+  textarea.value = textarea.value.slice(0, inicio) + trecho + textarea.value.slice(fim);
+  const novaPosicao = inicio + trecho.length;
+  textarea.setSelectionRange(novaPosicao, novaPosicao);
+  textarea.focus();
+  onPostTextInput();
+}
+
+const EMOJI_LISTA = ['😀','😂','😍','🥳','😎','🤔','😢','😡','👍','👎','🙏','💪','🔥','✨','🎉','❤️','💯','👀','🚀','⭐','✅','⚠️','📌','📸','🎬','🎵','🛍️','📅','💡','🙌'];
+
+function toggleEmojiPicker(e) {
+  e.stopPropagation();
+  document.getElementById('saved-texts-menu').classList.remove('open');
+  document.getElementById('saved-texts-menu').style.display = 'none';
+  const menu = document.getElementById('emoji-picker-menu');
+  const abrindo = menu.style.display === 'none';
+  menu.style.display = abrindo ? 'flex' : 'none';
+  if (abrindo && !menu.dataset.rendered) {
+    menu.innerHTML = EMOJI_LISTA.map(em => `<span style="cursor:pointer;font-size:20px;padding:4px" onclick="inserirNoTextoDoPost('${em}')">${em}</span>`).join('');
+    menu.dataset.rendered = '1';
+  }
+}
+
+function inserirHashtagRapida() {
+  const termo = prompt('Digite a hashtag (sem #):');
+  if (!termo?.trim()) return;
+  inserirNoTextoDoPost('#' + termo.trim().replace(/\s+/g, '') + ' ');
+}
+
+function inserirLinkNoTexto() {
+  const url = prompt('Cole o link:');
+  if (!url?.trim()) return;
+  inserirNoTextoDoPost(url.trim() + ' ');
+}
+
+// ── Textos salvos (biblioteca reutilizável, GET/POST/DELETE /api/saved-texts) ──
+async function toggleSavedTextsMenu(e) {
+  e.stopPropagation();
+  document.getElementById('emoji-picker-menu').style.display = 'none';
+  const menu = document.getElementById('saved-texts-menu');
+  const abrindo = menu.style.display === 'none';
+  menu.style.display = abrindo ? 'block' : 'none';
+  if (!abrindo) return;
+
+  menu.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">carregando...</div>';
+  try {
+    const { savedTexts } = await apiFetch('/api/saved-texts');
+    if (!savedTexts.length) {
+      menu.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">Nenhum texto salvo ainda.</div>';
+      return;
+    }
+    menu.innerHTML = savedTexts.map(t => {
+      const preview = escapeHtml((t.title || t.body).slice(0, 40));
+      return `<div class="media-picker-option" style="justify-content:space-between" title="${escapeHtml(t.body)}">
+        <span onclick="usarTextoSalvo(${t.id})" style="flex:1;cursor:pointer">${preview}${(t.title || t.body).length > 40 ? '…' : ''}</span>
+        <span onclick="event.stopPropagation(); excluirTextoSalvo(${t.id})" style="cursor:pointer;color:var(--muted);padding-left:8px" title="Excluir">✕</span>
+      </div>`;
+    }).join('');
+    // Guarda os textos completos para usarTextoSalvo (evita nova chamada à API por clique).
+    window._savedTextsCache = savedTexts;
+  } catch (e) {
+    menu.innerHTML = `<div style="padding:10px;font-size:12px;color:var(--red)">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function usarTextoSalvo(id) {
+  const item = (window._savedTextsCache || []).find(t => t.id === id);
+  if (!item) return;
+  inserirNoTextoDoPost(item.body);
+  document.getElementById('saved-texts-menu').style.display = 'none';
+}
+
+async function excluirTextoSalvo(id) {
+  try {
+    await apiFetch(`/api/saved-texts/${id}`, { method: 'DELETE' });
+    // Força o menu a recarregar a lista (fecha e reabre programaticamente).
+    document.getElementById('saved-texts-menu').style.display = 'none';
+    await toggleSavedTextsMenu({ stopPropagation(){} });
+  } catch (e) {
+    showToast('Erro ao excluir: ' + e.message, 'err');
+  }
+}
+
+async function salvarTextoAtualComoSalvo() {
+  const texto = document.getElementById('post-text').value.trim();
+  if (!texto) return showToast('Escreva um texto antes de salvar', 'err');
+  try {
+    await apiFetch('/api/saved-texts', { method: 'POST', body: JSON.stringify({ body: texto }) });
+    showToast('Texto salvo! Use o botão 📁 para reutilizar depois.', 'ok');
+  } catch (e) {
+    showToast('Erro ao salvar texto: ' + e.message, 'err');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#emoji-picker-menu') && e.target.id !== 'emoji-picker-menu' && !e.target.closest('[onclick="toggleEmojiPicker(event)"]')) {
+    const menu = document.getElementById('emoji-picker-menu');
+    if (menu) menu.style.display = 'none';
+  }
+  if (!e.target.closest('#saved-texts-menu') && !e.target.closest('[onclick="toggleSavedTextsMenu(event)"]')) {
+    const menu = document.getElementById('saved-texts-menu');
+    if (menu) menu.style.display = 'none';
+  }
+});
+
+// ── Localização (Facebook/Instagram — busca via Facebook Places) ──────────
+let locationSearchTimer = null;
+let selectedLocation = null; // { id, name }
+
+function updateLocationGroupVisibility() {
+  const group = document.getElementById('post-location-group');
+  if (!group) return;
+  const mostra = selectedPlats.has('facebook') || selectedPlats.has('instagram');
+  group.style.display = mostra ? '' : 'none';
+  if (!mostra) limparLocalizacaoSelecionada();
+}
+
+function onLocationSearchInput() {
+  clearTimeout(locationSearchTimer);
+  const termo = document.getElementById('post-location-search').value.trim();
+  const results = document.getElementById('location-search-results');
+  if (termo.length < 3) { results.style.display = 'none'; results.innerHTML = ''; return; }
+
+  locationSearchTimer = setTimeout(async () => {
+    try {
+      const { locations } = await apiFetch(`/api/posts/facebook-places?q=${encodeURIComponent(termo)}`);
+      if (!locations.length) {
+        results.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--muted)">Nenhum local encontrado.</div>';
+      } else {
+        results.innerHTML = locations.map(loc => {
+          const detalhe = [loc.city, loc.country].filter(Boolean).join(', ');
+          return `<div class="media-picker-option" onclick='selecionarLocalizacao(${JSON.stringify(loc.id)}, ${JSON.stringify(loc.name)})'>
+            <div><div style="font-size:12px">${escapeHtml(loc.name)}</div>${detalhe ? `<div style="font-size:10px;color:var(--muted)">${escapeHtml(detalhe)}</div>` : ''}</div>
+          </div>`;
+        }).join('');
+      }
+      results.style.display = 'block';
+    } catch (e) {
+      results.innerHTML = `<div style="padding:8px 10px;font-size:12px;color:var(--red)">${escapeHtml(e.message)}</div>`;
+      results.style.display = 'block';
+    }
+  }, 400);
+}
+
+function selecionarLocalizacao(id, name) {
+  selectedLocation = { id, name };
+  document.getElementById('post-location-search').value = '';
+  document.getElementById('location-search-results').style.display = 'none';
+  const selected = document.getElementById('post-location-selected');
+  selected.style.display = 'flex';
+  document.getElementById('post-location-selected-name').textContent = name;
+}
+
+function limparLocalizacaoSelecionada() {
+  selectedLocation = null;
+  const selected = document.getElementById('post-location-selected');
+  if (selected) selected.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#post-location-group')) {
+    const results = document.getElementById('location-search-results');
+    if (results) results.style.display = 'none';
+  }
+});
+
+// ── Primeiro comentário automático (Facebook/Instagram/YouTube/Threads/LinkedIn) ──
+const PLATS_COM_COMENTARIO = ['facebook', 'instagram', 'youtube', 'threads', 'linkedin'];
+
+function updateFirstCommentGroupVisibility() {
+  const group = document.getElementById('post-first-comment-group');
+  const hint = document.getElementById('post-first-comment-hint');
+  if (!group) return;
+  const plats = [...selectedPlats];
+  const suportadas = plats.filter(p => PLATS_COM_COMENTARIO.includes(p));
+  const naoSuportadas = plats.filter(p => !PLATS_COM_COMENTARIO.includes(p));
+
+  group.style.display = plats.length ? '' : 'none';
+  if (hint) {
+    hint.textContent = naoSuportadas.length && suportadas.length
+      ? `Não disponível para ${naoSuportadas.map(p => PLATFORM_LABELS[p] || p).join(', ')} — publicado só nas demais redes marcadas.`
+      : '';
+  }
+}
+
 function updateTextTabsCounter() {
   const counterEl = document.getElementById('text-tabs-counter');
   if (!counterEl) return;
@@ -3955,13 +4182,21 @@ function reorderMedia(targetIndex) {
 }
 
 // ── Mídia independente por rede ──────────────────────────────────────────────
-// Só aparece com 2+ redes marcadas. Por padrão cada rede "usa a mesma mídia"
-// (a compartilhada, mediaFiles) — o usuário só precisa mexer aqui se quiser
-// anexar algo diferente para uma rede específica. Estrutura por rede:
-// { file: File, caption: string }[]. Ver src/use-cases/posts/criarPost.js
-// (mediaByPlatform) e migrations/035_post_accounts_media.sql.
+// Só aparece com 2+ redes marcadas. Cada rede já nasce pedindo seu PRÓPRIO
+// arquivo (mediaUsaCompartilhada[p] === false por padrão) — mídia
+// compartilhada (mediaFiles) vira só um atalho opcional: se o usuário marca
+// "usar a mesma mídia" numa rede, ela reaproveita o arquivo compartilhado.
+// Estrutura por rede: { file: File, caption: string }[]. Ver
+// src/use-cases/posts/criarPost.js (mediaByPlatform) e
+// migrations/035_post_accounts_media.sql.
 let mediaFilesByPlatform = {};
 let dragMediaByPlatformIndex = null;
+
+// Quais redes marcaram explicitamente "usar a mesma mídia" (compartilhada).
+// Ausência aqui = mídia própria (comportamento padrão desde que a rede foi
+// marcada) — diferente do modelo anterior, em que a ausência significava
+// "compartilhada".
+const mediaUsaCompartilhada = new Set();
 
 function renderMediaByPlatformGroup() {
   const group = document.getElementById('post-media-by-platform-group');
@@ -3971,12 +4206,12 @@ function renderMediaByPlatformGroup() {
 
   if (plats.length < 2) {
     // Card só faz sentido visualmente com 2+ redes marcadas, mas o conteúdo
-    // já anexado por rede (mediaFilesByPlatform) É MANTIDO em memória mesmo
-    // assim — desmarcar/remarcar redes ou passar por um estado intermediário
-    // de 1 rede só não pode apagar o arquivo que o usuário já escolheu para
-    // uma rede específica. A limpeza de fato só acontece por rede
-    // (syncMediaByPlatformSelection, quando aquela rede é desmarcada) ou ao
-    // finalizar o envio do post (schedulePost).
+    // já anexado por rede (mediaFilesByPlatform/mediaUsaCompartilhada) É
+    // MANTIDO em memória mesmo assim — desmarcar/remarcar redes ou passar
+    // por um estado intermediário de 1 rede só não pode apagar o arquivo
+    // que o usuário já escolheu para uma rede específica. A limpeza de fato
+    // só acontece por rede (syncMediaByPlatformSelection, quando aquela
+    // rede é desmarcada) ou ao finalizar o envio do post (schedulePost).
     group.style.display = 'none';
     return;
   }
@@ -3985,8 +4220,8 @@ function renderMediaByPlatformGroup() {
   cardsBox.innerHTML = plats.map(p => {
     const cfg = PLAT_ROW_CFG[p];
     if (!cfg) return '';
-    const usaPropia = !!mediaFilesByPlatform[p];
-    const itens = mediaFilesByPlatform[p] || [];
+    const usaCompartilhada = mediaUsaCompartilhada.has(p);
+    const itens = usaCompartilhada ? mediaFiles : (mediaFilesByPlatform[p] || []);
     return `
       <div class="media-by-platform-card" style="border:1px solid var(--border2);border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -3995,31 +4230,55 @@ function renderMediaByPlatformGroup() {
             ${escapeHtml(cfg.label)}
           </div>
           <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:400;color:var(--muted);cursor:pointer">
-            <input type="checkbox" ${usaPropia ? '' : 'checked'} onchange="toggleUsarMesmaMidia('${p}', !this.checked)"/> usar a mesma mídia
+            <input type="checkbox" ${usaCompartilhada ? 'checked' : ''} onchange="toggleUsarMesmaMidia('${p}', this.checked)"/> usar a mesma mídia
           </label>
         </div>
-        ${usaPropia ? mediaByPlatformItemsHtml(p, itens) : ''}
-        ${usaPropia ? `
+        ${usaCompartilhada ? '' : mediaByPlatformItemsHtml(p, itens)}
+        ${usaCompartilhada ? '' : `
           <div class="media-picker" style="margin-top:8px">
             <button type="button" class="btn" style="font-size:11px" onclick="document.getElementById('post-media-${p}').click()">
               <span class="btn-label">+ Selecionar mídia para ${escapeHtml(cfg.label)}</span>
             </button>
             <input type="file" id="post-media-${p}" accept="${VIDEO_ONLY_PLATS.includes(p) ? 'video/*' : 'image/*,video/*'}" multiple
               onchange="onMediaByPlatformFilesSelected('${p}')" style="display:none"/>
-          </div>` : ''}
+          </div>`}
       </div>`;
   }).join('');
 }
 
-function toggleUsarMesmaMidia(platform, usarPropia) {
-  if (usarPropia) {
-    if (!mediaFilesByPlatform[platform]) mediaFilesByPlatform[platform] = [];
-  } else {
+function toggleUsarMesmaMidia(platform, usarCompartilhada) {
+  if (usarCompartilhada) {
+    mediaUsaCompartilhada.add(platform);
     delete mediaFilesByPlatform[platform];
+  } else {
+    mediaUsaCompartilhada.delete(platform);
   }
   renderMediaByPlatformGroup();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
   if (typeof renderPreviewContent === 'function') renderPreviewContent();
+}
+
+// Depois de anexar um arquivo numa rede, verifica quais outras redes
+// marcadas ainda não têm mídia nenhuma (nem própria, nem compartilhada) e
+// aceitam esse tipo de arquivo — oferece copiar o mesmo anexo pra elas em
+// vez de o usuário ter que reanexar do zero em cada card.
+function sugerirReaproveitarMidia(platformOrigem, arquivosNovos) {
+  const plats = [...selectedPlats].filter(p => p !== platformOrigem);
+  const candidatas = plats.filter(p => {
+    if (mediaUsaCompartilhada.has(p)) return false;
+    if (mediaFilesByPlatform[p]?.length) return false;
+    const onlyVideo = VIDEO_ONLY_PLATS.includes(p);
+    return !onlyVideo || arquivosNovos.every(f => f.type.startsWith('video/'));
+  });
+  if (!candidatas.length) return;
+
+  const nomes = candidatas.map(p => PLAT_ROW_CFG[p]?.label || p).join(', ');
+  const plural = arquivosNovos.length > 1 ? 'esses arquivos' : 'esse arquivo';
+  if (!confirm(`Usar ${plural} também em ${nomes}?`)) return;
+
+  for (const p of candidatas) {
+    mediaFilesByPlatform[p] = arquivosNovos.map(file => ({ file, caption: '' }));
+  }
 }
 
 function onMediaByPlatformFilesSelected(platform) {
@@ -4030,6 +4289,7 @@ function onMediaByPlatformFilesSelected(platform) {
   if (!mediaFilesByPlatform[platform]) mediaFilesByPlatform[platform] = [];
   for (const file of novos) mediaFilesByPlatform[platform].push({ file, caption: '' });
   input.value = '';
+  if (novos.length) sugerirReaproveitarMidia(platform, novos);
   renderMediaByPlatformGroup();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
   if (typeof renderPreviewContent === 'function') renderPreviewContent();
@@ -4083,11 +4343,15 @@ function mediaByPlatformItemsHtml(platform, itens) {
   </div>`;
 }
 
-// Remove mídia própria de redes que deixaram de estar marcadas — mesmo
-// padrão de syncTextByPlatformSelection/syncTitleByPlatformSelection.
+// Remove mídia própria (e a marcação de "usar a mesma") de redes que
+// deixaram de estar marcadas — mesmo padrão de
+// syncTextByPlatformSelection/syncTitleByPlatformSelection.
 function syncMediaByPlatformSelection() {
   for (const p of Object.keys(mediaFilesByPlatform)) {
     if (!selectedPlats.has(p)) delete mediaFilesByPlatform[p];
+  }
+  for (const p of [...mediaUsaCompartilhada]) {
+    if (!selectedPlats.has(p)) mediaUsaCompartilhada.delete(p);
   }
 }
 
@@ -4365,6 +4629,19 @@ function buildValidationIssues() {
   const indisponiveis = plataformasForaDoAr(plats);
   if (indisponiveis.length) issues.push({ platform: null, message: `${indisponiveis.map(p => PLATFORM_LABELS[p] || p).join(', ')} está fora do ar no momento` });
 
+  // Com 2+ redes marcadas, cada uma já nasce pedindo mídia própria (ver
+  // renderMediaByPlatformGroup) — se o usuário não marcou "usar a mesma
+  // mídia" nem anexou nada ainda, a rede fica sem mídia definida. Avisa
+  // aqui em vez de deixar só para a validação específica do YouTube.
+  if (plats.length >= 2) {
+    for (const p of plats) {
+      if (mediaUsaCompartilhada.has(p)) continue;
+      if (mediaFilesByPlatform[p]?.length) continue;
+      const label = PLAT_ROW_CFG[p]?.label || p;
+      issues.push({ platform: p, message: `Anexe uma mídia para ${label} ou marque "usar a mesma mídia"` });
+    }
+  }
+
   // A mídia resolvida da rede é a própria do card (se anexada) ou a
   // compartilhada — mesma regra de resolverMidiaDaRede no backend
   // (src/domain/posts/post.js). YouTube só publica vídeo de verdade; sem
@@ -4468,6 +4745,15 @@ async function schedulePost(publishNow = false) {
   const temAlgumaMidiaEnvio = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
   if (!text && !temAlgumaMidiaEnvio) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
+
+  if (platforms.length >= 2) {
+    for (const p of platforms) {
+      if (mediaUsaCompartilhada.has(p) || mediaFilesByPlatform[p]?.length) continue;
+      const label = PLAT_ROW_CFG[p]?.label || p;
+      return showToast(`Anexe uma mídia para ${label} ou marque "usar a mesma mídia"`, 'err');
+    }
+  }
+
   const midiaYoutubeEnvio = mediaFilesByPlatform.youtube?.length ? mediaFilesByPlatform.youtube : mediaFiles;
   if (platforms.includes('youtube') && !midiaYoutubeEnvio.some(m => m.file.type.startsWith('video/'))) {
     return showToast('Falta vídeo para publicar no YouTube — anexe um vídeo ou desmarque o YouTube', 'err');
@@ -4521,7 +4807,10 @@ async function schedulePost(publishNow = false) {
     mediaByPlatform: JSON.stringify(mediaByPlatform),
     captionsByPlatform: JSON.stringify(captionsByPlatform),
     textByPlatform: emModoPorRede ? JSON.stringify(textByPlatform) : '{}',
-    titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}'
+    titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}',
+    locationId: selectedLocation?.id || '',
+    locationName: selectedLocation?.name || '',
+    firstComment: document.getElementById('post-first-comment')?.value.trim() || ''
   };
 
   if (publishNow) showToast('Publicando agora...', 'ok');
@@ -4569,11 +4858,14 @@ async function schedulePost(publishNow = false) {
   document.getElementById('post-tiktok-options-group').style.display = 'none';
   mediaFiles = [];
   mediaFilesByPlatform = {};
+  mediaUsaCompartilhada.clear();
   textByPlatform = {};
   titleByPlatform = {};
   activeTextTab = null;
   igFormat = null;
   youtubeFormat = null;
+  limparLocalizacaoSelecionada();
+  document.getElementById('post-first-comment').value = '';
   updateMediaPreview();
   renderMediaByPlatformGroup();
   initSchedulerDefaultPlatforms();

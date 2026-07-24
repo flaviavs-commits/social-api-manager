@@ -1,11 +1,16 @@
 const cron = require('node-cron')
-const { publishPost, finalizarInstagramPendentes } = require('../infra/social/publisher')
+const { publishPost, finalizarInstagramPendentes, buscarContaToken } = require('../infra/social/publisher')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const postsRepo = require('../infra/db/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
 const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
 const { verificarSaudePlataformas } = require('./platformHealth')
+const { comentarFacebook } = require('../infra/social/facebookPublisher')
+const { comentarInstagram } = require('../infra/social/instagramPublisher')
+const { comentarYoutube } = require('../infra/social/youtubePublisher')
+const { comentarThreads } = require('../infra/social/threadsPublisher')
+const { comentarLinkedin } = require('../infra/social/linkedinPublisher')
 
 // Retry automático de publicação com falha transitória (5xx/rate limit/rede)
 // — ver src/infra/social/publisher.js (isErroTransitorio) e migrations/036.
@@ -138,6 +143,52 @@ async function renovarTokensProativamente() {
   }
 }
 
+// Publishers de comentário por rede — só as que têm endpoint de comentário
+// na API oficial (ver postsRepository.js, PLATAFORMAS_COM_COMENTARIO).
+const COMENTAR_POR_PLATAFORMA = {
+  facebook: comentarFacebook,
+  instagram: comentarInstagram,
+  youtube: comentarYoutube,
+  threads: comentarThreads,
+  linkedin: comentarLinkedin
+}
+
+// Publica o primeiro comentário automático nas publicações que já saíram e
+// ainda estão com status 'pending' em post_first_comments — mesmo cron,
+// tick de 1 min. Cada linha é independente (uma por post_publication), então
+// uma falha isolada não afeta as demais.
+async function processarPrimeirosComentarios() {
+  let pendentes
+  try {
+    pendentes = await postsRepo.listarPrimeirosComentariosPendentes()
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao listar primeiros comentários pendentes: ${err.message}`, platform: null })
+    return
+  }
+
+  await Promise.all(pendentes.map(async item => {
+    const comentar = COMENTAR_POR_PLATAFORMA[item.platform]
+    if (!comentar) {
+      // Não deveria acontecer (a linha só é criada para plataformas
+      // suportadas), mas falha explicitamente em vez de tentar para sempre.
+      await postsRepo.atualizarStatusPrimeiroComentario(item.firstCommentId, 'failed', `Plataforma ${item.platform} não suporta comentário automático`)
+      return
+    }
+    try {
+      const isSuperAdmin = item.userRole === 'super_admin'
+      const token = await buscarContaToken(item.platform, item.userId, isSuperAdmin, item.accountId)
+      if (!token) throw new Error('Conta desconectada — não foi possível publicar o comentário')
+
+      await comentar(token, item.externalPostId, item.firstComment)
+      await postsRepo.atualizarStatusPrimeiroComentario(item.firstCommentId, 'done')
+      await registrarLog({ type: 'ok', message: `Primeiro comentário publicado automaticamente [${item.platform}]`, platform: item.platform, user_id: item.userId })
+    } catch (err) {
+      await postsRepo.atualizarStatusPrimeiroComentario(item.firstCommentId, 'failed', err.message)
+      await registrarLog({ type: 'err', message: `Falha ao publicar primeiro comentário [${item.platform}]: ${err.message}`, platform: item.platform, user_id: item.userId })
+    }
+  }))
+}
+
 async function processarPendentes() {
   try {
     const pendentes = await postsRepo.reservarPostsPendentes()
@@ -156,6 +207,11 @@ async function processarPendentes() {
   } catch (err) {
     await registrarLog({ type: 'err', message: `Erro ao finalizar publicações pendentes do Instagram: ${err.message}`, platform: 'instagram' })
   }
+
+  // Primeiro comentário automático — mesmo cron, roda por último (depende
+  // de post_publications já ter sido gravada, o que só acontece depois da
+  // publicação real acima).
+  await processarPrimeirosComentarios()
 }
 
 // Roda a cada minuto, publicando posts cujo horário chegou

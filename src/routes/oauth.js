@@ -399,7 +399,11 @@ router.get('/google', requireAuth, (req, res) => {
     // Necessário para o gráfico de tempo de visualização no Analytics
     // (YouTube Analytics API) — contas conectadas antes deste scope existir
     // precisam ser reconectadas.
-    'https://www.googleapis.com/auth/yt-analytics.readonly'
+    'https://www.googleapis.com/auth/yt-analytics.readonly',
+    // Necessário para o primeiro comentário automático (commentThreads.insert)
+    // — escopo sensível, contas conectadas antes deste scope existir
+    // precisam ser reconectadas. Ver infra/social/youtubePublisher.js (comentarYoutube).
+    'https://www.googleapis.com/auth/youtube.force-ssl'
   ].join(' ');
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
@@ -942,7 +946,11 @@ router.get('/linkedin', requireAuth, (req, res) => {
   const { accountName } = req.query;
   const platform = 'linkedin';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const scopes = ['openid', 'profile', 'w_member_social'].join(' ');
+  // w_member_social_feed é necessário para o primeiro comentário automático
+  // (POST /rest/socialActions/{urn}/comments) — contas conectadas antes
+  // deste scope existir precisam ser reconectadas. Ver linkedinPublisher.js
+  // (comentarLinkedin).
+  const scopes = ['openid', 'profile', 'w_member_social', 'w_member_social_feed'].join(' ');
 
   const url = `https://www.linkedin.com/oauth/v2/authorization` +
     `?response_type=code` +

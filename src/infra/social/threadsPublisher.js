@@ -22,9 +22,10 @@ async function aguardarContainerThreads(containerId, accessToken, { tentativas =
   // (a doc do Threads recomenda tentar após ~30s mesmo sem confirmação final).
 }
 
-async function criarContainerThreads(igUserId, accessToken, { text, item }) {
+async function criarContainerThreads(igUserId, accessToken, { text, item, replyToId }) {
   const params = new URLSearchParams({ access_token: accessToken })
   if (text) params.append('text', text)
+  if (replyToId) params.append('reply_to_id', replyToId)
 
   if (item) {
     params.append('media_type', item.type === 'video' ? 'VIDEO' : 'IMAGE')
@@ -68,4 +69,23 @@ async function publicarThreads(token, post) {
   return publishData
 }
 
-module.exports = { publicarThreads }
+// Primeiro comentário automático — reply no próprio post recém-publicado,
+// via o mesmo endpoint de criação (container→publish) com reply_to_id.
+async function comentarThreads(token, externalPostId, texto) {
+  const meRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id&access_token=${encodeURIComponent(token.accessToken)}`)
+  const meData = await meRes.json()
+  if (!meRes.ok || !meData.id) throw new Error(meData?.error?.message || 'Não foi possível obter o ID da conta Threads')
+
+  const containerId = await criarContainerThreads(meData.id, token.accessToken, { text: texto, item: null, replyToId: externalPostId })
+  await aguardarContainerThreads(containerId, token.accessToken)
+
+  const publishRes = await fetch(`https://graph.threads.net/v1.0/${meData.id}/threads_publish`, {
+    method: 'POST',
+    body: new URLSearchParams({ creation_id: containerId, access_token: token.accessToken })
+  })
+  const publishData = await publishRes.json()
+  if (!publishRes.ok) throw new Error(publishData?.error?.message || `Threads respondeu ${publishRes.status} ao comentar`)
+  return publishData
+}
+
+module.exports = { publicarThreads, comentarThreads }

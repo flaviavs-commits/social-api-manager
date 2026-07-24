@@ -76,7 +76,7 @@ async function processarMidia(media, captions, platforms) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -225,6 +225,11 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     warnings.push('O vídeo não tem proporção/duração típica de Short — o YouTube pode não exibi-lo como tal.')
   }
 
+  // Localização (Facebook/Instagram, only) e primeiro comentário automático
+  // (Facebook/Instagram/YouTube/Threads/LinkedIn — não TikTok/Pinterest, sem
+  // endpoint de comentário na API oficial) — ver publisher.js/scheduler.js.
+  const temFacebookOuInstagram = platforms.includes('facebook') || platforms.includes('instagram')
+
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, textByPlatform, titleByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
@@ -234,6 +239,9 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     tiktokDisableComment: platforms.includes('tiktok') ? tiktokDisableComment : null,
     tiktokDisableDuet: platforms.includes('tiktok') ? tiktokDisableDuet : null,
     tiktokDisableStitch: platforms.includes('tiktok') ? tiktokDisableStitch : null,
+    locationId: temFacebookOuInstagram ? (locationId || null) : null,
+    locationName: temFacebookOuInstagram ? (locationName || null) : null,
+    firstComment: firstComment?.trim() || null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 

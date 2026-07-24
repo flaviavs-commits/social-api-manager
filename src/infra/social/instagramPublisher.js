@@ -53,7 +53,8 @@ async function publicarInstagram(token, post) {
       stage: 'carousel_children',
       igUserId,
       childIds,
-      caption: post.text || null
+      caption: post.text || null,
+      locationId: post.locationId || null
     }
   }
 
@@ -66,6 +67,10 @@ async function publicarInstagram(token, post) {
   const params = new URLSearchParams({ access_token: token.accessToken })
   // Stories não aceita o parâmetro caption na Graph API do Instagram.
   if (format !== 'story' && post.text) params.append('caption', post.text)
+  // location_id aceito na criação do container de mídia única — carrossel
+  // recebe no container pai (ver finalizarPublicacaoInstagram), Stories não
+  // suporta location tag.
+  if (format !== 'story' && post.locationId) params.append('location_id', post.locationId)
   if (format === 'story') {
     params.append('media_type', 'STORIES')
     params.append(isVideo ? 'video_url' : 'image_url', mediaUrl(post.mediaPath))
@@ -98,6 +103,7 @@ async function finalizarPublicacaoInstagram(pending) {
   if (pending.stage === 'carousel_children') {
     const carouselParams = new URLSearchParams({ access_token: accessToken, media_type: 'CAROUSEL', children: pending.childIds.join(',') })
     if (pending.caption) carouselParams.append('caption', pending.caption)
+    if (pending.locationId) carouselParams.append('location_id', pending.locationId)
     const createRes = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(igUserId)}/media`, { method: 'POST', body: carouselParams })
     const createData = await createRes.json()
     if (!createRes.ok) throw new Error(createData?.error?.message || `Instagram respondeu ${createRes.status} ao criar carrossel`)
@@ -131,4 +137,16 @@ async function finalizarPublicacaoInstagram(pending) {
   return publishData
 }
 
-module.exports = { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagram }
+// Primeiro comentário automático — comenta na mídia já publicada. Requer o
+// escopo instagram_business_manage_comments (já pedido no OAuth).
+async function comentarInstagram(token, externalMediaId, texto) {
+  const res = await fetch(`https://graph.instagram.com/v19.0/${encodeURIComponent(externalMediaId)}/comments`, {
+    method: 'POST',
+    body: new URLSearchParams({ message: texto, access_token: token.accessToken })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `Instagram respondeu ${res.status} ao comentar`)
+  return data
+}
+
+module.exports = { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagram, comentarInstagram }

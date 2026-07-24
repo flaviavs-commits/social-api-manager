@@ -8,6 +8,7 @@ async function publicarFacebook(token, post) {
 
   if (!post.mediaPath && !post.mediaItems?.length) {
     const body = new URLSearchParams({ message: post.text || '', access_token: token.accessToken })
+    if (post.locationId) body.append('place', post.locationId)
     const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/feed`, { method: 'POST', body })
     const data = await res.json()
     if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
@@ -37,6 +38,7 @@ async function publicarFacebook(token, post) {
 
     const body = new URLSearchParams({ access_token: token.accessToken })
     if (post.text) body.append('message', post.text)
+    if (post.locationId) body.append('place', post.locationId)
     attachedMedia.forEach((m, i) => body.append(`attached_media[${i}]`, JSON.stringify(m)))
 
     const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/feed`, { method: 'POST', body })
@@ -52,6 +54,7 @@ async function publicarFacebook(token, post) {
   const form = new FormData()
   form.append('access_token', token.accessToken)
   if (post.text) form.append(isVideo ? 'description' : 'caption', post.text)
+  if (post.locationId) form.append('place', post.locationId)
   form.append('source', new Blob([buffer]), filename)
 
   const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}/${endpoint}`, { method: 'POST', body: form })
@@ -60,4 +63,16 @@ async function publicarFacebook(token, post) {
   return data
 }
 
-module.exports = { publicarFacebook }
+// Primeiro comentário automático — comenta no post já publicado. Requer a
+// permissão pages_manage_engagement (além das básicas de publicação).
+async function comentarFacebook(token, externalPostId, texto) {
+  const res = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}/comments`, {
+    method: 'POST',
+    body: new URLSearchParams({ message: texto, access_token: token.accessToken })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status} ao comentar`)
+  return data
+}
+
+module.exports = { publicarFacebook, comentarFacebook }

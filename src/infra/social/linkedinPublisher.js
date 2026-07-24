@@ -103,4 +103,21 @@ async function publicarLinkedin(token, post) {
   return { id: postId }
 }
 
-module.exports = { publicarLinkedin }
+// Primeiro comentário automático — comenta no post recém-publicado
+// (externalPostId é o URN completo, ex: urn:li:share:...). Requer o escopo
+// w_member_social_feed, além do w_member_social já usado para publicar.
+async function comentarLinkedin(token, externalPostId, texto) {
+  const authorUrn = `urn:li:person:${token.externalUserId}`
+  const res = await fetch(`https://api.linkedin.com/rest/socialActions/${encodeURIComponent(externalPostId)}/comments`, {
+    method: 'POST',
+    headers: headersLinkedin(token.accessToken, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ actor: authorUrn, object: externalPostId, message: { text: texto } })
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.message || `LinkedIn respondeu ${res.status} ao comentar`)
+  }
+  return { id: res.headers.get('x-restli-id') }
+}
+
+module.exports = { publicarLinkedin, comentarLinkedin }

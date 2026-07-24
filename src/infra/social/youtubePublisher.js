@@ -114,4 +114,22 @@ async function publicarYoutube(token, post) {
   return data
 }
 
-module.exports = { publicarYoutube }
+// Primeiro comentário automático — cria uma thread de comentário no vídeo
+// já publicado (Data API v3). Requer o escopo youtube.force-ssl; a conexão
+// atual usa youtube.upload/youtube.readonly/yt-analytics.readonly — sem o
+// escopo de comentário, a API responde 403 e o comentário falha (marcado
+// como 'failed' em post_first_comments, sem travar o resto do post).
+async function comentarYoutube(token, videoId, texto) {
+  const res = await fetch('https://www.googleapis.com/youtube/v3/commentThreads?part=snippet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.accessToken}` },
+    body: JSON.stringify({
+      snippet: { videoId, topLevelComment: { snippet: { textOriginal: texto } } }
+    })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status} ao comentar`)
+  return data
+}
+
+module.exports = { publicarYoutube, comentarYoutube }

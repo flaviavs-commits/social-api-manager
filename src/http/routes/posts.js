@@ -14,6 +14,7 @@ router.get('/', controller.getPosts)
 router.get('/analytics', controller.getAnalytics)
 router.get('/tiktok-videos', controller.getTiktokVideos)
 router.get('/tiktok-creator-info', controller.getTiktokCreatorInfo)
+router.get('/facebook-places', controller.getFacebookPlaces)
 router.get('/:id/metrics-history', controller.getMetricsHistory)
 
 router.post('/', controller.postCreate)
