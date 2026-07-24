@@ -9,8 +9,10 @@ const tokensRepo = require('../repositories/tokensRepository')
 const TOKEN_EXPIRY_MARGIN_MS = 2 * 60 * 1000
 
 // Plataformas com API de métricas acessível com os escopos já usados na conexão.
-// TikTok (sem ID público de vídeo) não é suportado.
-const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube']
+// TikTok (sem ID público de vídeo) não é suportado. LinkedIn de perfil pessoal
+// também não — analytics de post individual não é exposto na API aberta para
+// apps comuns (só Company Pages, fora de escopo — ver guia de referência Cap. 5.4).
+const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube', 'threads', 'pinterest', 'x']
 
 // Sem timeout, um fetch a uma API externa lenta ou travada bloqueia
 // indefinidamente a tela de Analytics inteira (Promise.allSettled só resolve
@@ -108,10 +110,58 @@ async function metricsYoutube(token, externalPostId) {
   }
 }
 
+// Threads Insights — views, likes, replies, reposts, quotes por post. Exige o
+// escopo threads_manage_insights (pedido no OAuth, ver src/routes/oauth.js).
+async function metricsThreads(token, externalPostId) {
+  const url = `https://graph.threads.net/v1.0/${encodeURIComponent(externalPostId)}/insights` +
+    `?metric=views,likes,replies,reposts,quotes&access_token=${encodeURIComponent(token.accessToken)}`
+  const res = await fetchComTimeout(url)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `Threads respondeu ${res.status}`)
+
+  const valores = Object.fromEntries((data.data || []).map(m => [m.name, m.values?.[0]?.value ?? m.total_value?.value ?? null]))
+  return { likes: valores.likes ?? null, comments: valores.replies ?? null, views: valores.views ?? null }
+}
+
+// Pinterest Pin Analytics — impressões, saves, cliques dos últimos 30 dias
+// (a API v5 exige um intervalo de datas explícito, não devolve "total").
+async function metricsPinterest(token, externalPostId) {
+  const endDate = new Date().toISOString().slice(0, 10)
+  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const url = `https://api.pinterest.com/v5/pins/${encodeURIComponent(externalPostId)}/analytics` +
+    `?start_date=${startDate}&end_date=${endDate}&metric_types=IMPRESSION,SAVE,PIN_CLICK`
+  const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.message || `Pinterest respondeu ${res.status}`)
+
+  const totais = data.all?.summary_metrics || {}
+  // Pinterest não tem conceito de "curtida"/"comentário" no mesmo sentido das
+  // outras redes — mapeia saves→likes (métrica de engajamento mais próxima)
+  // e cliques como "views" (aproximação, documentada aqui para não confundir
+  // com visualizações de vídeo de outras redes).
+  return { likes: totais.SAVE ?? null, comments: null, views: totais.IMPRESSION ?? null, clicks: totais.PIN_CLICK ?? null }
+}
+
+// X: leitura de métricas é paga (non_public_metrics exige o mesmo billing do
+// pay-per-use, ver guia de referência Cap. 8) — usado com moderação, só
+// quando o usuário abre o Analytics de um post específico.
+async function metricsX(token, externalPostId) {
+  const url = `https://api.twitter.com/2/tweets/${encodeURIComponent(externalPostId)}?tweet.fields=public_metrics`
+  const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.detail || `X respondeu ${res.status}`)
+
+  const m = data.data?.public_metrics || {}
+  return { likes: m.like_count ?? null, comments: m.reply_count ?? null, views: m.impression_count ?? null }
+}
+
 const METRIC_FETCHERS = {
   facebook: metricsFacebook,
   instagram: metricsInstagram,
-  youtube: metricsYoutube
+  youtube: metricsYoutube,
+  threads: metricsThreads,
+  pinterest: metricsPinterest,
+  x: metricsX
 }
 
 // Busca likes/comentários reais de um post já publicado. Retorna null

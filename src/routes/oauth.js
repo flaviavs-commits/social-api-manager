@@ -732,6 +732,414 @@ router.post('/tiktok/webhook', (req, res) => {
   }
 });
 
+// ─── Pinterest ────────────────────────────────────────────────────────────────
+// API v5, Authorization Code padrão (sem PKCE obrigatório). Trial Access já
+// libera OAuth real com limites baixos (~1.000 req/dia) — não exige App
+// Review para começar a testar, só para elevar o limite depois (Standard
+// Access, via vídeo demo). Ver Capítulo 7 do guia de referência.
+
+router.get('/pinterest', requireAuth, (req, res) => {
+  const configError = checkEnv(['PINTEREST_APP_ID', 'PINTEREST_APP_SECRET', 'PINTEREST_REDIRECT_URI'], 'pinterest');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'pinterest';
+  const state = signState({ accountName, platform, userId: req.user.id });
+  const scopes = ['boards:read', 'pins:read', 'pins:write', 'user_accounts:read'].join(',');
+
+  const url = `https://www.pinterest.com/oauth/` +
+    `?client_id=${process.env.PINTEREST_APP_ID}` +
+    `&redirect_uri=${encodeURIComponent(process.env.PINTEREST_REDIRECT_URI)}` +
+    `&scope=${scopes}` +
+    `&state=${state}` +
+    `&response_type=code`;
+
+  addLog('info', `OAuth Pinterest iniciado para "${accountName}"`, platform, null, req.user.id);
+  res.json({ authUrl: url });
+});
+
+router.get('/pinterest/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth Pinterest cancelado pelo usuário: ${error}`, null, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback Pinterest: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
+
+  const platform = 'pinterest';
+  try {
+    // Pinterest exige Basic Auth (client_id:client_secret em base64) no header
+    // Authorization, em vez de enviar as credenciais no corpo — diferente do
+    // padrão usado pelas outras redes deste projeto.
+    const basicAuth = Buffer.from(`${process.env.PINTEREST_APP_ID}:${process.env.PINTEREST_APP_SECRET}`).toString('base64');
+    const { data: tokenData } = await fetchJsonWithRetry('https://api.pinterest.com/v5/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.PINTEREST_REDIRECT_URI
+      })
+    });
+
+    if (!tokenData.access_token) {
+      addLog('err', `Erro ao obter token Pinterest: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      return res.send(popupError('token_failed'));
+    }
+
+    let accountName = meta.accountName;
+    let avatarUrl = null;
+    let externalUserId = null;
+    try {
+      const profileRes = await fetch('https://api.pinterest.com/v5/user_account', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profileData = await profileRes.json();
+      externalUserId = profileData.id ? String(profileData.id) : null;
+      avatarUrl = profileData.profile_image || null;
+      if (!accountName) accountName = profileData.username || 'Nova Conta Pinterest';
+    } catch {}
+    accountName = accountName || 'Nova Conta Pinterest';
+
+    const conta = await contasRepo.criarContaRapida({ name: accountName, platform, userId: meta.userId, avatarUrl, externalUserId });
+
+    // expires_in vem em segundos (padrão ~30 dias); refresh_token dura ~1 ano.
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: new Date(Date.now() + (tokenData.expires_in || 30 * 86400) * 1000).toISOString(),
+      accountName
+    });
+
+    addLog('ok', `Conta Pinterest conectada: "${accountName}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha no callback Pinterest: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
+});
+
+// ─── X (Twitter) ──────────────────────────────────────────────────────────────
+// OAuth 2.0 com PKCE obrigatório (Authorization Code + PKCE). Modelo pay-per-use
+// desde fev/2026: cada publicação é cobrada (~US$ 0,015/post, US$ 0,20 com
+// link) na conta do developer.x.com configurada — não há free tier. Ver
+// Capítulo 8 do guia de referência.
+
+router.get('/x', requireAuth, async (req, res) => {
+  const configError = checkEnv(['X_CLIENT_ID', 'X_CLIENT_SECRET', 'X_REDIRECT_URI'], 'x');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'x';
+
+  try {
+    const state = signState({ accountName, platform, userId: req.user.id });
+
+    // PKCE — X usa o padrão S256/base64url convencional (diferente do TikTok,
+    // que exige hex — ver iniciarOAuthTiktok).
+    const codeVerifier = crypto.randomBytes(64).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    await salvarPkceVerifier(state, codeVerifier);
+
+    const scopes = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'].join(' ');
+    const url = `https://twitter.com/i/oauth2/authorize` +
+      `?response_type=code` +
+      `&client_id=${process.env.X_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(process.env.X_REDIRECT_URI)}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&state=${state}` +
+      `&code_challenge=${codeChallenge}` +
+      `&code_challenge_method=S256`;
+
+    addLog('info', `OAuth X iniciado para "${accountName}"`, platform, null, req.user.id);
+    res.json({ authUrl: url });
+  } catch (err) {
+    addLog('err', `Falha ao iniciar OAuth X: ${err.message}`, platform, null, req.user?.id);
+    res.status(500).json({ error: 'Não foi possível iniciar a conexão com o X. Tente novamente.' });
+  }
+});
+
+router.get('/x/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth X cancelado pelo usuário: ${error}`, null, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback X: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
+
+  const platform = 'x';
+  const codeVerifier = await consumirPkceVerifier(state);
+
+  try {
+    // X exige Basic Auth com client_id:client_secret (apps confidenciais),
+    // igual ao Pinterest.
+    const basicAuth = Buffer.from(`${process.env.X_CLIENT_ID}:${process.env.X_CLIENT_SECRET}`).toString('base64');
+    const { data: tokenData } = await fetchJsonWithRetry('https://api.twitter.com/2/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.X_REDIRECT_URI,
+        code_verifier: codeVerifier || ''
+      })
+    });
+
+    if (!tokenData.access_token) {
+      addLog('err', `Erro ao obter token X: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      return res.send(popupError('token_failed'));
+    }
+
+    let accountName = meta.accountName;
+    let avatarUrl = null;
+    let externalUserId = null;
+    try {
+      const profileRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,username', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profileData = await profileRes.json();
+      externalUserId = profileData.data?.id || null;
+      avatarUrl = profileData.data?.profile_image_url || null;
+      if (!accountName) accountName = profileData.data?.username || 'Nova Conta X';
+    } catch {}
+    accountName = accountName || 'Nova Conta X';
+
+    const conta = await contasRepo.criarContaRapida({ name: accountName, platform, userId: meta.userId, avatarUrl, externalUserId });
+
+    // expires_in vem em segundos (2h); refresh_token (offline.access) permite renovar sem novo login.
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: new Date(Date.now() + (tokenData.expires_in || 7200) * 1000).toISOString(),
+      accountName
+    });
+
+    addLog('ok', `Conta X conectada: "${accountName}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha no callback X: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
+});
+
+// ─── Threads ──────────────────────────────────────────────────────────────────
+// API própria (graph.threads.net), mas usa o MESMO app da Meta que já é usado
+// para Facebook/Instagram (META_APP_ID/META_APP_SECRET) — só precisa
+// adicionar o produto "Threads API" no painel developers.facebook.com. Sem
+// PKCE (Authorization Code padrão). Ver Capítulo 4 do guia de referência.
+
+router.get('/threads', requireAuth, (req, res) => {
+  const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'THREADS_REDIRECT_URI'], 'threads');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'threads';
+  const state = signState({ accountName, platform, userId: req.user.id });
+  const scopes = ['threads_basic', 'threads_content_publish', 'threads_manage_insights'].join(',');
+
+  const url = `https://threads.net/oauth/authorize` +
+    `?client_id=${process.env.META_APP_ID}` +
+    `&redirect_uri=${encodeURIComponent(process.env.THREADS_REDIRECT_URI)}` +
+    `&scope=${scopes}` +
+    `&state=${state}` +
+    `&response_type=code`;
+
+  addLog('info', `OAuth Threads iniciado para "${accountName}"`, platform, null, req.user.id);
+  res.json({ authUrl: url });
+});
+
+router.get('/threads/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth Threads cancelado pelo usuário: ${error}`, null, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback Threads: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
+
+  const platform = 'threads';
+  try {
+    // 1. Troca o code por um access_token de curta duração (mesmo formato do
+    // fluxo Instagram Login, mas em graph.threads.net).
+    const { data: tokenData } = await fetchJsonWithRetry('https://graph.threads.net/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.META_APP_ID,
+        client_secret: process.env.META_APP_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.THREADS_REDIRECT_URI,
+        code
+      })
+    });
+
+    if (!tokenData.access_token) {
+      addLog('err', `Erro ao obter token Threads: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      return res.send(popupError('token_failed'));
+    }
+
+    // 2. Troca pelo long-lived token (60 dias) — mesmo padrão do Instagram.
+    const { data: longData } = await fetchJsonWithRetry(`https://graph.threads.net/access_token` +
+      `?grant_type=th_exchange_token` +
+      `&client_secret=${encodeURIComponent(process.env.META_APP_SECRET)}` +
+      `&access_token=${encodeURIComponent(tokenData.access_token)}`);
+
+    const accessToken = longData.access_token || tokenData.access_token;
+    const expiresIn = longData.expires_in || 60 * 86400;
+
+    let accountName = meta.accountName;
+    let avatarUrl = null;
+    let externalUserId = null;
+    try {
+      const profileRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username,threads_profile_picture_url&access_token=${encodeURIComponent(accessToken)}`);
+      const profileData = await profileRes.json();
+      externalUserId = profileData.id ? String(profileData.id) : null;
+      avatarUrl = profileData.threads_profile_picture_url || null;
+      if (!accountName) accountName = profileData.username || 'Nova Conta Threads';
+    } catch {}
+    accountName = accountName || 'Nova Conta Threads';
+
+    const conta = await contasRepo.criarContaRapida({ name: accountName, platform, userId: meta.userId, avatarUrl, externalUserId });
+
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken,
+      expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      accountName
+    });
+
+    addLog('ok', `Conta Threads conectada: "${accountName}" — token expira em ${Math.round(expiresIn / 86400)} dias`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha no callback Threads: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
+});
+
+// ─── LinkedIn (perfil pessoal) ──────────────────────────────────────────────────
+// Share on LinkedIn (w_member_social) é aberto — sem App Review, publica no
+// feed do próprio usuário autenticado. Company Pages exige a Community
+// Management API (aprovação de 1-4 meses) — fora de escopo por ora, ver
+// Capítulo 5 do guia de referência.
+
+router.get('/linkedin', requireAuth, (req, res) => {
+  const configError = checkEnv(['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET', 'LINKEDIN_REDIRECT_URI'], 'linkedin');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'linkedin';
+  const state = signState({ accountName, platform, userId: req.user.id });
+  const scopes = ['openid', 'profile', 'w_member_social'].join(' ');
+
+  const url = `https://www.linkedin.com/oauth/v2/authorization` +
+    `?response_type=code` +
+    `&client_id=${process.env.LINKEDIN_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}` +
+    `&scope=${encodeURIComponent(scopes)}` +
+    `&state=${state}`;
+
+  addLog('info', `OAuth LinkedIn iniciado para "${accountName}"`, platform, null, req.user.id);
+  res.json({ authUrl: url });
+});
+
+router.get('/linkedin/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  if (error) {
+    addLog('err', `OAuth LinkedIn cancelado pelo usuário: ${error}`, null, null, meta.userId);
+    return res.send(popupError('oauth_cancelled'));
+  }
+  if (!meta.userId) {
+    addLog('err', 'Falha no callback LinkedIn: state inválido ou sem usuário associado');
+    return res.send(popupError('oauth_failed'));
+  }
+
+  const platform = 'linkedin';
+  try {
+    const { data: tokenData } = await fetchJsonWithRetry('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET
+      })
+    });
+
+    if (!tokenData.access_token) {
+      addLog('err', `Erro ao obter token LinkedIn: ${JSON.stringify(tokenData)}`, platform, null, meta.userId);
+      return res.send(popupError('token_failed'));
+    }
+
+    let accountName = meta.accountName;
+    let avatarUrl = null;
+    let externalUserId = null;
+    try {
+      // /v2/userinfo (OpenID Connect) — funciona com o escopo "openid profile",
+      // sem precisar do endpoint legado /v2/me.
+      const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profileData = await profileRes.json();
+      externalUserId = profileData.sub ? String(profileData.sub) : null;
+      avatarUrl = profileData.picture || null;
+      if (!accountName) accountName = profileData.name || 'Nova Conta LinkedIn';
+    } catch {}
+    accountName = accountName || 'Nova Conta LinkedIn';
+
+    const conta = await contasRepo.criarContaRapida({ name: accountName, platform, userId: meta.userId, avatarUrl, externalUserId });
+
+    // expires_in vem em segundos (60 dias). LinkedIn só dá refresh_token
+    // programático para parceiros aprovados na MDP — sem isso, o usuário
+    // precisa reconectar manualmente quando expirar (ver tokensRepository.js,
+    // renovarToken trata 'linkedin' como exigindo reconexão).
+    await tokensRepo.salvarToken({
+      accountId: conta.id,
+      platform,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: new Date(Date.now() + (tokenData.expires_in || 60 * 86400) * 1000).toISOString(),
+      accountName
+    });
+
+    addLog('ok', `Conta LinkedIn conectada: "${accountName}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha no callback LinkedIn: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
+});
+
 // ─── Data Deletion Callback (exigido pela Meta para apps em modo Live) ──────────
 // Quando um usuário remove o app pelas configurações do Facebook/Instagram, a
 // Meta chama esta URL com um signed_request contendo o user_id dele — temos
@@ -768,9 +1176,16 @@ router.post('/meta/data-deletion', express.urlencoded({ extended: false }), asyn
 
     // A exclusão roda em background: a Meta exige resposta imediata com o
     // status_url de acompanhamento, sem esperar o apagamento terminar.
-    processarExclusaoDados('facebook', payload.user_id).catch(err => {
-      addLog('err', `Falha ao processar Data Deletion Callback: ${err.message}`, 'facebook');
-    });
+    // O signed_request identifica o usuário pelo Facebook User ID — o mesmo
+    // ID também aparece como external_user_id em contas do Threads (mesma
+    // Meta Platform, API própria mas app compartilhado). Instagram usa um
+    // user_id diferente (do próprio Instagram Graph API, via Instagram
+    // Login), por isso não entra aqui.
+    for (const platform of ['facebook', 'threads']) {
+      processarExclusaoDados(platform, payload.user_id).catch(err => {
+        addLog('err', `Falha ao processar Data Deletion Callback [${platform}]: ${err.message}`, platform);
+      });
+    }
 
     res.json({
       url: `${process.env.BASE_URL}/oauth/meta/data-deletion/status?id=${confirmationCode}`,

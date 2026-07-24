@@ -10,6 +10,10 @@ const { publicarFacebook } = require('./facebookPublisher')
 const { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
 const { publicarYoutube } = require('./youtubePublisher')
 const { publicarTiktok } = require('./tiktokPublisher')
+const { publicarThreads } = require('./threadsPublisher')
+const { publicarLinkedin } = require('./linkedinPublisher')
+const { publicarPinterest } = require('./pinterestPublisher')
+const { publicarX } = require('./xPublisher')
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
@@ -27,7 +31,7 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
     SELECT
       t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
-      t.status, t.expires_at AS "expiresAt", c.handle AS handle
+      t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.external_user_id AS "externalUserId"
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
     WHERE ${conds.join(' AND ')}
@@ -74,6 +78,10 @@ function extrairExternalId(platform, data) {
   // operação de publicação) — não o ID do vídeo em si, que a API não expõe
   // de volta nessa chamada. Serve para rastrear o post via /v2/post/publish/status/fetch/.
   if (platform === 'tiktok') return data?.publish_id || null
+  if (platform === 'threads') return data?.id || null
+  if (platform === 'linkedin') return data?.id || null
+  if (platform === 'pinterest') return data?.id || null
+  if (platform === 'x') return data?.id || null
   return null
 }
 
@@ -81,7 +89,11 @@ const PUBLISHERS = {
   facebook: publicarFacebook,
   instagram: publicarInstagram,
   youtube: publicarYoutube,
-  tiktok: publicarTiktok
+  tiktok: publicarTiktok,
+  threads: publicarThreads,
+  linkedin: publicarLinkedin,
+  pinterest: publicarPinterest,
+  x: publicarX
 }
 
 // Distingue falha transitória (vale tentar de novo mais tarde: 5xx, rate
