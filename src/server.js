@@ -18,6 +18,7 @@ const requireAdmin   = require('./middleware/requireAdmin')
 const cronRoutes     = require('./routes/cron')
 const draftsRoutes   = require('./routes/drafts')
 const savedTextsRoutes = require('./routes/savedTexts')
+const platformPresetsRoutes = require('./routes/platformPresets')
 const pushRoutes     = require('./routes/push')
 const aiRoutes       = require('./routes/ai')
 const scheduler      = require('./services/scheduler')
@@ -221,6 +222,7 @@ app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
 app.use('/api/drafts',   draftsRoutes)
 app.use('/api/saved-texts', savedTextsRoutes)
+app.use('/api/platform-presets', platformPresetsRoutes)
 app.use('/api/push',     pushRoutes)
 app.use('/api/ai',       aiRoutes)
 
@@ -290,6 +292,18 @@ async function runMigrations() {
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_id TEXT`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT`).catch(() => {}),
+    // Presets de configuração de publicação por rede (ex: privacidade padrão
+    // do TikTok) — ver migrations/038.
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS platform_presets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        platform TEXT NOT NULL,
+        name TEXT NOT NULL,
+        config JSONB NOT NULL DEFAULT '{}',
+        criado_em TIMESTAMPTZ DEFAULT NOW()
+      )
+    `).catch(() => {}),
     pool.query(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY,

@@ -101,6 +101,11 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   if (!REPEATS.includes(repeat))
     return `repeat inválido. Use um de: ${REPEATS.join(', ')}`
 
+  // "Publicar agora" não passa scheduledAtUTC — só agendamento futuro é
+  // validado aqui.
+  if (!publishNow && scheduledAtUTC && new Date(scheduledAtUTC + 'Z').getTime() < Date.now())
+    return 'A data de publicação não pode estar no passado.'
+
   // Considera mídia própria de qualquer rede (não só a compartilhada) — com
   // mídia independente por card, é possível não ter mídia global nenhuma e
   // ainda assim ter anexado algo em pelo menos um dos cards.

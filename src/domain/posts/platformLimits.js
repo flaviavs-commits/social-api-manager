@@ -11,6 +11,9 @@ const TEXT_LIMITS = {
   facebook:  { max: 63206 },
   youtube:   { max: 5000 },     // descrição do vídeo — sem limite rígido documentado; usa o teto genérico do formulário
   tiktok:    { max: 2200, maxPhoto: 90 },
+  threads:   { max: 500 },
+  linkedin:  { max: 3000 },
+  pinterest: { max: 500 },      // descrição do Pin
 }
 
 const YOUTUBE_TITLE_MAX = 100

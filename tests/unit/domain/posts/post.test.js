@@ -49,6 +49,20 @@ describe('validarCriacaoPost — antecedência mínima do Instagram', () => {
   })
 })
 
+describe('validarCriacaoPost — data no passado', () => {
+  test('rejeita agendamento com data no passado', () => {
+    const ontem = new Date(Date.now() - 24 * 60 * 60000).toISOString().replace('Z', '')
+    const erro = validarCriacaoPost(baseArgs({ platforms: ['facebook'], scheduledAtUTC: ontem }))
+    expect(erro).toMatch(/passado/)
+  })
+
+  test('não bloqueia "publicar agora" mesmo com scheduledAtUTC no passado', () => {
+    const ontem = new Date(Date.now() - 24 * 60 * 60000).toISOString().replace('Z', '')
+    const erro = validarCriacaoPost(baseArgs({ platforms: ['facebook'], scheduledAtUTC: ontem, publishNow: true }))
+    expect(erro).toBeNull()
+  })
+})
+
 describe('validarCriacaoPost — textByPlatform', () => {
   test('aceita textByPlatform ausente', () => {
     const erro = validarCriacaoPost(baseArgs())

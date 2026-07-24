@@ -1511,7 +1511,8 @@ input, select, textarea, label, .bottom-nav-item {
   <div id="page-agendador" class="section-page">
     <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">Crie uma publicação e escolha quando ela deve ser postada</div></div></div>
     <div class="sched-grid">
-      <div class="sched-form">
+      <div class="sched-form" id="sched-form-dropzone" style="position:relative">
+        <div id="sched-form-dropzone-overlay" style="display:none;position:absolute;inset:0;z-index:30;background:rgba(0,0,0,0.55);border:2px dashed var(--accent);border-radius:10px;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;pointer-events:none">Solte os arquivos aqui</div>
         <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
         <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
         <div class="form-group">
@@ -1530,6 +1531,7 @@ input, select, textarea, label, .bottom-nav-item {
         <div class="form-group" id="post-ig-format-group" style="display:none">
           <label>Formato (Instagram)</label>
           <div id="ig-format-pills" style="display:flex;gap:6px"></div>
+          <div id="preset-row-instagram" style="margin-top:8px"></div>
         </div>
         <div class="form-group" id="post-youtube-title-group" style="display:none">
           <label>Título do vídeo (YouTube) <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(obrigatório)</span></label>
@@ -1556,6 +1558,7 @@ input, select, textarea, label, .bottom-nav-item {
           <select id="post-youtube-category">
             <option value="">Padrão do YouTube</option>
           </select>
+          <div id="preset-row-youtube" style="margin-top:8px"></div>
         </div>
         <div class="form-group" id="post-youtube-format-group" style="display:none">
           <label>Formato (YouTube)</label>
@@ -1583,6 +1586,7 @@ input, select, textarea, label, .bottom-nav-item {
             O envio pode levar alguns instantes para processar. Ao publicar, você concorda com a
             <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Music Usage Confirmation</a> do TikTok.
           </div>
+          <div id="preset-row-tiktok" style="margin-top:8px"></div>
         </div>
         <div class="form-group">
           <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
@@ -2765,6 +2769,17 @@ const PLAT_ROW_CFG = {
   pinterest: { cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' }
 };
 
+// Limites reais de caracteres por rede (espelha src/domain/posts/platformLimits.js
+// no backend — manter os dois em sync). TikTok usa aqui o limite de vídeo
+// (2200) — o mais permissivo — porque a mídia ainda não foi anexada nesta
+// etapa; o limite mais restrito de foto (90) é aplicado de fato pelo backend
+// na hora de publicar.
+const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200, threads: 500, linkedin: 3000, pinterest: 500 }
+// Só para o TikTok com FOTO (não vídeo) o limite real cai para 90 — usado
+// pelo fluxo de geração de imagem (OpenRouter) e pelo contador do editor,
+// que já sabem que a mídia é uma foto nesse ponto.
+const AI_LIMITS_PHOTO = { ...AI_LIMITS, tiktok: 90 }
+
 async function loadTokens() {
   const body = document.getElementById('token-body');
   body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem">carregando...</div>';
@@ -3020,6 +3035,7 @@ function applyConfigTabVisibility() {
   if (mostrarYoutube) {
     const titleInput = document.getElementById('post-youtube-title');
     if (titleInput) titleInput.value = titleByPlatform.youtube ?? titleInput.value;
+    if (typeof renderPresetRow === 'function') renderPresetRow('youtube');
   }
   if (typeof renderTiktokOptionsGroup === 'function') renderTiktokOptionsGroup();
 }
@@ -3123,6 +3139,7 @@ function renderIgFormatPills() {
       : '';
     return `<button type="button" class="format-pill${ativo ? ' active' : ''}" ${desabilitado ? 'disabled' : ''} title="${title}" onclick="setIgFormat('${opt.value}')">${escapeHtml(opt.label)}</button>`;
   }).join('');
+  if (typeof renderPresetRow === 'function') renderPresetRow('instagram');
 }
 
 function setIgFormat(value) {
@@ -3212,6 +3229,8 @@ async function renderTiktokOptionsGroup() {
   group.style.display = (aplica && abaPermite) ? '' : 'none';
   if (!aplica || !abaPermite) return;
 
+  if (typeof renderPresetRow === 'function') renderPresetRow('tiktok');
+
   const conta = apContas.find(c => c.platform === 'tiktok' && c.handle);
   const infoEl = document.getElementById('tiktok-creator-info');
   const select = document.getElementById('post-tiktok-privacy');
@@ -3278,6 +3297,110 @@ function resetTiktokOptions() {
     const cb = document.getElementById(id);
     if (cb) { cb.checked = true; cb.disabled = false; }
   });
+}
+
+// ── Presets de configuração por rede ─────────────────────────────────────────
+// Guarda só as opções de publicação (formato/visibilidade/privacidade), não
+// texto nem mídia — ver src/routes/platformPresets.js e migrations/038.
+// Carregado uma vez e cacheado; recarregado sob demanda ao salvar/excluir.
+let platformPresetsCache = null;
+
+async function carregarPlatformPresets() {
+  if (platformPresetsCache) return platformPresetsCache;
+  try {
+    const { presets } = await apiFetch('/api/platform-presets');
+    platformPresetsCache = presets;
+  } catch (e) {
+    platformPresetsCache = [];
+  }
+  return platformPresetsCache;
+}
+
+// Lê a config. atual dos campos da tela para a rede (o que seria salvo como
+// preset) — espelha os campos lidos em schedulePost() para aquela rede.
+function lerConfigAtualDaRede(platform) {
+  if (platform === 'instagram') return { igFormat };
+  if (platform === 'youtube') return {
+    youtubeVisibility: document.getElementById('post-youtube-visibility')?.value || 'public',
+    youtubeCategoryId: document.getElementById('post-youtube-category')?.value || '',
+    youtubeMadeForKids: document.getElementById('post-youtube-made-for-kids')?.value || '',
+  };
+  if (platform === 'tiktok') return {
+    tiktokPrivacyLevel: document.getElementById('post-tiktok-privacy')?.value || '',
+    tiktokDisableComment: !document.getElementById('post-tiktok-allow-comment')?.checked,
+    tiktokDisableDuet: !document.getElementById('post-tiktok-allow-duet')?.checked,
+    tiktokDisableStitch: !document.getElementById('post-tiktok-allow-stitch')?.checked,
+  };
+  return {};
+}
+
+// Aplica a config. salva de volta nos campos da tela — inverso de
+// lerConfigAtualDaRede.
+function aplicarPresetNaRede(platform, config) {
+  if (platform === 'instagram') {
+    igFormat = config.igFormat || null;
+    renderIgFormatPills();
+  } else if (platform === 'youtube') {
+    if (document.getElementById('post-youtube-visibility')) document.getElementById('post-youtube-visibility').value = config.youtubeVisibility || 'public';
+    if (document.getElementById('post-youtube-category')) document.getElementById('post-youtube-category').value = config.youtubeCategoryId || '';
+    if (document.getElementById('post-youtube-made-for-kids')) document.getElementById('post-youtube-made-for-kids').value = config.youtubeMadeForKids || '';
+  } else if (platform === 'tiktok') {
+    if (document.getElementById('post-tiktok-privacy')) document.getElementById('post-tiktok-privacy').value = config.tiktokPrivacyLevel || '';
+    if (document.getElementById('post-tiktok-allow-comment')) document.getElementById('post-tiktok-allow-comment').checked = !config.tiktokDisableComment;
+    if (document.getElementById('post-tiktok-allow-duet')) document.getElementById('post-tiktok-allow-duet').checked = !config.tiktokDisableDuet;
+    if (document.getElementById('post-tiktok-allow-stitch')) document.getElementById('post-tiktok-allow-stitch').checked = !config.tiktokDisableStitch;
+  }
+  renderValidationPanel();
+  renderPreviewContent();
+}
+
+async function renderPresetRow(platform) {
+  const row = document.getElementById(`preset-row-${platform}`);
+  if (!row) return;
+  const presets = (await carregarPlatformPresets()).filter(p => p.platform === platform);
+
+  row.innerHTML = `
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <select style="font-size:11px;flex:1;min-width:140px" onchange="if(this.value) aplicarPresetNaRede('${platform}', JSON.parse(this.value)); this.selectedIndex=0">
+        <option value="">Aplicar preset salvo...</option>
+        ${presets.map(p => `<option value='${escapeHtml(JSON.stringify(p.config))}'>${escapeHtml(p.name)}</option>`).join('')}
+      </select>
+      <button type="button" class="btn" style="font-size:11px;padding:5px 8px" onclick="salvarPresetDaRede('${platform}')" title="Salvar configuração atual como preset">💾 Salvar preset</button>
+      ${presets.length ? `<button type="button" class="btn" style="font-size:11px;padding:5px 8px" onclick="gerenciarPresetsDaRede('${platform}')" title="Excluir presets salvos">🗑️</button>` : ''}
+    </div>`;
+}
+
+async function salvarPresetDaRede(platform) {
+  const name = prompt('Nome do preset (ex: "Padrão TikTok"):');
+  if (!name?.trim()) return;
+  try {
+    await apiFetch('/api/platform-presets', {
+      method: 'POST',
+      body: JSON.stringify({ platform, name: name.trim(), config: lerConfigAtualDaRede(platform) })
+    });
+    platformPresetsCache = null;
+    await renderPresetRow(platform);
+    showToast('Preset salvo!', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Erro ao salvar preset', 'err');
+  }
+}
+
+async function gerenciarPresetsDaRede(platform) {
+  const presets = (await carregarPlatformPresets()).filter(p => p.platform === platform);
+  if (!presets.length) return;
+  const nomes = presets.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
+  const escolha = prompt(`Excluir qual preset? Digite o número:\n${nomes}`);
+  const idx = Number(escolha) - 1;
+  if (!Number.isInteger(idx) || !presets[idx]) return;
+  try {
+    await apiFetch(`/api/platform-presets/${presets[idx].id}`, { method: 'DELETE' });
+    platformPresetsCache = null;
+    await renderPresetRow(platform);
+    showToast('Preset excluído', 'ok');
+  } catch (e) {
+    showToast(e.message || 'Erro ao excluir preset', 'err');
+  }
 }
 
 // ── Preview visual por rede (Agendador) ─────────────────────────────────────
@@ -3733,12 +3856,24 @@ function updateFirstCommentGroupVisibility() {
   }
 }
 
+// Sem aba ativa (texto único para todas as redes marcadas), mostra o limite
+// da rede mais restritiva entre as selecionadas — mesmo critério usado no
+// corte automático do backend (ver ajustarPostParaPlataformas). Isso cobre
+// tanto o caso de 1 rede só quanto o de texto ainda não dividido por rede.
 function updateTextTabsCounter() {
   const counterEl = document.getElementById('text-tabs-counter');
   if (!counterEl) return;
-  if (!activeTextTab) { counterEl.textContent = ''; return; }
+  const plats = [...selectedPlats];
+  if (!plats.length) { counterEl.textContent = ''; return; }
   const isFoto = mediaFiles.length > 0 && mediaFiles.every(m => m.file.type.startsWith('image/'));
-  const limite = (isFoto ? AI_LIMITS_PHOTO : AI_LIMITS)[activeTextTab];
+  const limites = isFoto ? AI_LIMITS_PHOTO : AI_LIMITS;
+  let limite;
+  if (activeTextTab) {
+    limite = limites[activeTextTab];
+  } else {
+    const valores = plats.map(p => limites[p]).filter(l => l != null);
+    limite = valores.length ? Math.min(...valores) : null;
+  }
   const tamanho = document.getElementById('post-text').value.length;
   counterEl.textContent = limite ? `${tamanho} / ${limite}` : '';
   counterEl.style.color = limite && tamanho > limite ? 'var(--red)' : 'var(--muted)';
@@ -3996,6 +4131,41 @@ function onMediaFilesSelected() {
   input.value = '';
 }
 
+// Arrastar arquivo do sistema operacional direto sobre o formulário do post
+// (mesmo destino da mídia compartilhada — post-media) — dragenter/dragleave
+// contam entradas/saídas de elemento filho (contadorDrag) porque o browser
+// dispara esses eventos toda vez que o cursor cruza um elemento interno,
+// não só ao entrar/sair do container como um todo.
+let contadorDragForm = 0;
+function initSchedFormDropzone() {
+  const zone = document.getElementById('sched-form-dropzone');
+  const overlay = document.getElementById('sched-form-dropzone-overlay');
+  if (!zone || !overlay || zone.dataset.dropzoneReady) return;
+  zone.dataset.dropzoneReady = '1';
+
+  zone.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    contadorDragForm++;
+    overlay.style.display = 'flex';
+  });
+  zone.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+  });
+  zone.addEventListener('dragleave', () => {
+    contadorDragForm = Math.max(0, contadorDragForm - 1);
+    if (contadorDragForm === 0) overlay.style.display = 'none';
+  });
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    contadorDragForm = 0;
+    overlay.style.display = 'none';
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length) addMediaFiles(files);
+  });
+}
+
 function removeMediaFile(index) {
   mediaFiles.splice(index, 1);
   updateMediaPreview();
@@ -4182,20 +4352,19 @@ function reorderMedia(targetIndex) {
 }
 
 // ── Mídia independente por rede ──────────────────────────────────────────────
-// Só aparece com 2+ redes marcadas. Cada rede já nasce pedindo seu PRÓPRIO
-// arquivo (mediaUsaCompartilhada[p] === false por padrão) — mídia
-// compartilhada (mediaFiles) vira só um atalho opcional: se o usuário marca
-// "usar a mesma mídia" numa rede, ela reaproveita o arquivo compartilhado.
+// Só aparece com 2+ redes marcadas. Cada rede nasce usando a mídia
+// compartilhada (mediaFiles) — se o usuário desmarca "usar a mesma mídia"
+// para uma rede, ela passa a exigir seu PRÓPRIO arquivo (mediaFilesByPlatform).
 // Estrutura por rede: { file: File, caption: string }[]. Ver
 // src/use-cases/posts/criarPost.js (mediaByPlatform) e
 // migrations/035_post_accounts_media.sql.
 let mediaFilesByPlatform = {};
 let dragMediaByPlatformIndex = null;
 
-// Quais redes marcaram explicitamente "usar a mesma mídia" (compartilhada).
-// Ausência aqui = mídia própria (comportamento padrão desde que a rede foi
-// marcada) — diferente do modelo anterior, em que a ausência significava
-// "compartilhada".
+// Quais redes usam a mídia compartilhada — toda rede marcada nasce aqui
+// (ver syncMediaByPlatformSelection); sai do set só quando o usuário
+// desmarca "usar a mesma mídia" (toggleUsarMesmaMidia) para anexar algo
+// próprio para aquela rede.
 const mediaUsaCompartilhada = new Set();
 
 function renderMediaByPlatformGroup() {
@@ -4345,13 +4514,19 @@ function mediaByPlatformItemsHtml(platform, itens) {
 
 // Remove mídia própria (e a marcação de "usar a mesma") de redes que
 // deixaram de estar marcadas — mesmo padrão de
-// syncTextByPlatformSelection/syncTitleByPlatformSelection.
+// syncTextByPlatformSelection/syncTitleByPlatformSelection. Toda rede nova
+// nasce marcada como "usa a mesma mídia" (alinhado com o texto do rótulo do
+// card: "cada rede publica a mídia acima, a menos que você anexe uma
+// diferente aqui") — o usuário só desmarca quando quiser anexar algo próprio.
 function syncMediaByPlatformSelection() {
   for (const p of Object.keys(mediaFilesByPlatform)) {
     if (!selectedPlats.has(p)) delete mediaFilesByPlatform[p];
   }
   for (const p of [...mediaUsaCompartilhada]) {
     if (!selectedPlats.has(p)) mediaUsaCompartilhada.delete(p);
+  }
+  for (const p of selectedPlats) {
+    if (!mediaFilesByPlatform[p]?.length) mediaUsaCompartilhada.add(p);
   }
 }
 
@@ -4626,12 +4801,18 @@ function buildValidationIssues() {
   if (!text && !temAlgumaMidia) issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo' });
   if (plats.length === 0) issues.push({ platform: null, message: 'Escolha ao menos uma rede social em "Onde publicar"' });
 
+  // "Publicar agora" fica sem data (post-date vazio) — só valida quando o
+  // usuário escolheu uma data específica (agendamento).
+  if (scheduledAt && new Date(scheduledAt).getTime() < Date.now()) {
+    issues.push({ platform: null, message: 'A data de publicação não pode estar no passado' });
+  }
+
   const indisponiveis = plataformasForaDoAr(plats);
   if (indisponiveis.length) issues.push({ platform: null, message: `${indisponiveis.map(p => PLATFORM_LABELS[p] || p).join(', ')} está fora do ar no momento` });
 
-  // Com 2+ redes marcadas, cada uma já nasce pedindo mídia própria (ver
-  // renderMediaByPlatformGroup) — se o usuário não marcou "usar a mesma
-  // mídia" nem anexou nada ainda, a rede fica sem mídia definida. Avisa
+  // Com 2+ redes marcadas, cada uma nasce usando a mídia compartilhada (ver
+  // syncMediaByPlatformSelection) — só fica sem mídia definida se o usuário
+  // desmarcou "usar a mesma mídia" e ainda não anexou nada próprio. Avisa
   // aqui em vez de deixar só para a validação específica do YouTube.
   if (plats.length >= 2) {
     for (const p of plats) {
@@ -4740,6 +4921,7 @@ async function schedulePost(publishNow = false) {
   } else {
     scheduledAt = document.getElementById('post-date').value;
     if (!scheduledAt) return showToast('Defina a data e hora', 'err');
+    if (new Date(scheduledAt).getTime() < Date.now()) return showToast('A data de publicação não pode estar no passado', 'err');
   }
 
   const temAlgumaMidiaEnvio = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
@@ -8425,16 +8607,6 @@ async function aiGenerate() {
   }
 }
 
-// Limites reais de caracteres por rede (espelha domain/posts/platformLimits.js
-// no backend). TikTok usa aqui o limite de vídeo (2200) — o mais permissivo —
-// porque a mídia ainda não foi anexada nesta etapa; o limite mais restrito de
-// foto (90) é aplicado de fato pelo backend na hora de publicar.
-const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200 }
-// Só para o TikTok com FOTO (não vídeo) o limite real cai para 90 — usado
-// pelo fluxo de geração de imagem (OpenRouter), que já sabe que a mídia é
-// sempre uma foto nesse ponto.
-const AI_LIMITS_PHOTO = { ...AI_LIMITS, tiktok: 90 }
-
 // Corta texto livre de LLM (sem limite embutido no prompt, ex: resposta do
 // OpenRouter) para caber no limite real da plataforma, preservando palavra
 // inteira quando possível — mesma lógica de domain/posts/platformLimits.js
@@ -10168,6 +10340,7 @@ function aiInitDragDrop(ctx) {
 document.addEventListener('DOMContentLoaded', () => {
   aiInitDragDrop('page')
   aiInitDragDrop('fab')
+  initSchedFormDropzone()
 })
 
 // Envia mensagem digitada pelo usuário

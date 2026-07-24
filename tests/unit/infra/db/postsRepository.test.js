@@ -6,6 +6,15 @@ const repo = require('../../../../src/infra/db/postsRepository')
 
 beforeEach(() => jest.clearAllMocks())
 
+// Acha a posição do parâmetro pelo nome da coluna no INSERT em vez de um
+// índice fixo — a lista de colunas de posts cresce com frequência (ver
+// migrations 029-038) e um índice mágico quebra silenciosamente a cada
+// coluna nova inserida antes da que o teste checa.
+function indiceDaColuna(query, coluna) {
+  const colunas = query.match(/INSERT INTO posts \(([^)]+)\)/)[1].split(',').map(c => c.trim())
+  return colunas.indexOf(coluna)
+}
+
 const POST = {
   id: 1, text: 'Oi', platforms: ['instagram'], scheduledAt: new Date().toISOString(),
   repeat: 'none', status: 'scheduled', userId: 2, mediaPath: null, mediaType: null,
@@ -25,32 +34,34 @@ describe('criarPost', () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     const mediaItems = [{ path: 'a.jpg', type: 'image', caption: '' }]
     await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1, mediaItems })
-    const params = pool.query.mock.calls[0][1]
-    expect(typeof params[7]).toBe('string')
-    expect(JSON.parse(params[7])).toEqual(mediaItems)
+    const [query, params] = pool.query.mock.calls[0]
+    const i = indiceDaColuna(query, 'media_items')
+    expect(typeof params[i]).toBe('string')
+    expect(JSON.parse(params[i])).toEqual(mediaItems)
   })
 
   test('mediaItems null permanece null', async () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1 })
-    const params = pool.query.mock.calls[0][1]
-    expect(params[7]).toBeNull()
+    const [query, params] = pool.query.mock.calls[0]
+    expect(params[indiceDaColuna(query, 'media_items')]).toBeNull()
   })
 
   test('serializa textByPlatform como JSON', async () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     const textByPlatform = { instagram: 'texto ig', facebook: 'texto fb' }
     await repo.criarPost({ text: 'x', textByPlatform, platforms: [], scheduledAt: new Date(), userId: 1 })
-    const params = pool.query.mock.calls[0][1]
-    expect(typeof params[1]).toBe('string')
-    expect(JSON.parse(params[1])).toEqual(textByPlatform)
+    const [query, params] = pool.query.mock.calls[0]
+    const i = indiceDaColuna(query, 'text_by_platform')
+    expect(typeof params[i]).toBe('string')
+    expect(JSON.parse(params[i])).toEqual(textByPlatform)
   })
 
   test('textByPlatform ausente permanece null', async () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     await repo.criarPost({ text: 'x', platforms: [], scheduledAt: new Date(), userId: 1 })
-    const params = pool.query.mock.calls[0][1]
-    expect(params[1]).toBeNull()
+    const [query, params] = pool.query.mock.calls[0]
+    expect(params[indiceDaColuna(query, 'text_by_platform')]).toBeNull()
   })
 })
 
