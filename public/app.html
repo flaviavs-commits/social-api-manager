@@ -1615,6 +1615,10 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="post-media-guidelines" style="font-size:11px;color:var(--yellow);font-family:var(--sans);margin-top:3px;display:flex;flex-direction:column;gap:2px"></div>
           <div id="media-list" class="media-list"></div>
         </div>
+        <div class="form-group" id="post-media-by-platform-group" style="display:none">
+          <label>Mídia por rede <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional — cada rede publica a mídia acima, a menos que você anexe uma diferente aqui)</span></label>
+          <div id="media-by-platform-cards" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
         <!-- Score de qualidade do post -->
         <div id="post-quality-score" style="margin-bottom:1rem;display:none">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -3002,6 +3006,8 @@ function applyPlatformSelection(plats) {
   renderYoutubeFormatPills();
   if (!selectedPlats.has('tiktok')) resetTiktokOptions();
   renderTiktokOptionsGroup();
+  syncMediaByPlatformSelection();
+  renderMediaByPlatformGroup();
   renderValidationPanel();
   renderPreviewTabs();
 }
@@ -3949,6 +3955,140 @@ function reorderMedia(targetIndex) {
   updateMediaPreview();
 }
 
+// ── Mídia independente por rede ──────────────────────────────────────────────
+// Só aparece com 2+ redes marcadas. Por padrão cada rede "usa a mesma mídia"
+// (a compartilhada, mediaFiles) — o usuário só precisa mexer aqui se quiser
+// anexar algo diferente para uma rede específica. Estrutura por rede:
+// { file: File, caption: string }[]. Ver src/use-cases/posts/criarPost.js
+// (mediaByPlatform) e migrations/035_post_accounts_media.sql.
+let mediaFilesByPlatform = {};
+let dragMediaByPlatformIndex = null;
+
+function renderMediaByPlatformGroup() {
+  const group = document.getElementById('post-media-by-platform-group');
+  const cardsBox = document.getElementById('media-by-platform-cards');
+  if (!group || !cardsBox) return;
+  const plats = [...selectedPlats];
+
+  if (plats.length < 2) {
+    group.style.display = 'none';
+    // Sem 2+ redes marcadas o conceito de "mídia própria" não existe — some
+    // com o que tiver sido anexado para não vazar mídia de uma rede que foi
+    // desmarcada e remarcada depois.
+    mediaFilesByPlatform = {};
+    return;
+  }
+  group.style.display = '';
+
+  cardsBox.innerHTML = plats.map(p => {
+    const cfg = PLAT_ROW_CFG[p];
+    if (!cfg) return '';
+    const usaPropia = !!mediaFilesByPlatform[p];
+    const itens = mediaFilesByPlatform[p] || [];
+    return `
+      <div class="media-by-platform-card" style="border:1px solid var(--border2);border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500">
+            <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>
+            ${escapeHtml(cfg.label)}
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:400;color:var(--muted);cursor:pointer">
+            <input type="checkbox" ${usaPropia ? '' : 'checked'} onchange="toggleUsarMesmaMidia('${p}', this.checked)"/> usar a mesma mídia
+          </label>
+        </div>
+        ${usaPropia ? mediaByPlatformItemsHtml(p, itens) : ''}
+        ${usaPropia ? `
+          <div class="media-picker" style="margin-top:8px">
+            <button type="button" class="btn" style="font-size:11px" onclick="document.getElementById('post-media-${p}').click()">
+              <span class="btn-label">+ Selecionar mídia para ${escapeHtml(cfg.label)}</span>
+            </button>
+            <input type="file" id="post-media-${p}" accept="${VIDEO_ONLY_PLATS.includes(p) ? 'video/*' : 'image/*,video/*'}" multiple
+              onchange="onMediaByPlatformFilesSelected('${p}')" style="display:none"/>
+          </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleUsarMesmaMidia(platform, usarPropia) {
+  if (usarPropia) {
+    if (!mediaFilesByPlatform[platform]) mediaFilesByPlatform[platform] = [];
+  } else {
+    delete mediaFilesByPlatform[platform];
+  }
+  renderMediaByPlatformGroup();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
+}
+
+function onMediaByPlatformFilesSelected(platform) {
+  const input = document.getElementById(`post-media-${platform}`);
+  if (!input) return;
+  const onlyVideo = VIDEO_ONLY_PLATS.includes(platform);
+  const novos = [...input.files].filter(f => !onlyVideo || f.type.startsWith('video/'));
+  if (!mediaFilesByPlatform[platform]) mediaFilesByPlatform[platform] = [];
+  for (const file of novos) mediaFilesByPlatform[platform].push({ file, caption: '' });
+  input.value = '';
+  renderMediaByPlatformGroup();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
+}
+
+function removeMediaByPlatformFile(platform, index) {
+  mediaFilesByPlatform[platform]?.splice(index, 1);
+  renderMediaByPlatformGroup();
+  if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  if (typeof renderPreviewContent === 'function') renderPreviewContent();
+}
+
+function reorderMediaByPlatform(platform, targetIndex) {
+  if (dragMediaByPlatformIndex === null || dragMediaByPlatformIndex === targetIndex) return;
+  const lista = mediaFilesByPlatform[platform];
+  if (!lista) return;
+  const [moved] = lista.splice(dragMediaByPlatformIndex, 1);
+  lista.splice(targetIndex, 0, moved);
+  dragMediaByPlatformIndex = null;
+  renderMediaByPlatformGroup();
+}
+
+function mediaByPlatformItemsHtml(platform, itens) {
+  if (!itens.length) {
+    return `<div style="font-size:11px;color:var(--muted);margin-top:6px">Nenhum arquivo próprio ainda — anexe abaixo.</div>`;
+  }
+  return `<div class="media-list" style="margin-top:8px">
+    ${itens.map((m, i) => {
+      const url = URL.createObjectURL(m.file);
+      const thumb = m.file.type.startsWith('video/')
+        ? `<video class="media-thumb" src="${url}" muted></video>`
+        : `<img class="media-thumb" src="${url}"/>`;
+      const captionInput = itens.length > 1
+        ? `<input class="media-caption" type="text" placeholder="Texto/nota deste item (uso interno)" value="${escapeHtml(m.caption)}" oninput="mediaFilesByPlatform['${platform}'][${i}].caption = this.value"/>`
+        : '';
+      return `
+        <div class="media-item" draggable="true" data-index="${i}"
+          ondragstart="dragMediaByPlatformIndex=${i}; this.classList.add('dragging')"
+          ondragend="this.classList.remove('dragging')"
+          ondragover="event.preventDefault()"
+          ondrop="reorderMediaByPlatform('${platform}', ${i})">
+          <div class="media-order">${i + 1}</div>
+          ${thumb}
+          <div class="media-fields">
+            <div class="media-name">${escapeHtml(m.file.name)}</div>
+            ${captionInput}
+          </div>
+          <button type="button" class="media-remove" onclick="removeMediaByPlatformFile('${platform}', ${i})" title="Remover">✕</button>
+        </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// Remove mídia própria de redes que deixaram de estar marcadas — mesmo
+// padrão de syncTextByPlatformSelection/syncTitleByPlatformSelection.
+function syncMediaByPlatformSelection() {
+  for (const p of Object.keys(mediaFilesByPlatform)) {
+    if (!selectedPlats.has(p)) delete mediaFilesByPlatform[p];
+  }
+}
+
 // ── Menu de seleção de mídia (arquivo local x Google Drive) ──────────────────
 function toggleMediaMenu(e) {
   e.stopPropagation();
@@ -4212,7 +4352,12 @@ function buildValidationIssues() {
   const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value || '').trim();
   const scheduledAt = document.getElementById('post-date')?.value;
 
-  if (!text && !mediaFiles.length) issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo' });
+  // Mídia própria por rede conta como "tem mídia" mesmo sem a compartilhada
+  // (ver src/domain/posts/post.js, resolverMidiaDaRede) — sem isso, um post
+  // com texto vazio + mídia só no card do TikTok acusava falsamente falta de
+  // mídia/texto.
+  const temAlgumaMidia = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
+  if (!text && !temAlgumaMidia) issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo' });
   if (plats.length === 0) issues.push({ platform: null, message: 'Escolha ao menos uma rede social em "Onde publicar"' });
 
   const indisponiveis = plataformasForaDoAr(plats);
@@ -4229,7 +4374,8 @@ function buildValidationIssues() {
     if (minutosAteAgendamento < 20) issues.push({ platform: 'instagram', message: 'Escolha um horário com pelo menos 20 minutos de antecedência' });
   }
 
-  if (plats.includes('instagram') && igFormat === 'story' && mediaFiles.length > 1) {
+  const midiaInstagram = mediaFilesByPlatform.instagram?.length ? mediaFilesByPlatform.instagram : mediaFiles;
+  if (plats.includes('instagram') && igFormat === 'story' && midiaInstagram.length > 1) {
     issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Post ou Reel, ou remova os itens extras' });
   }
 
@@ -4308,7 +4454,8 @@ async function schedulePost(publishNow = false) {
     if (!scheduledAt) return showToast('Defina a data e hora', 'err');
   }
 
-  if (!text && !mediaFiles.length) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
+  const temAlgumaMidiaEnvio = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
+  if (!text && !temAlgumaMidiaEnvio) return showToast('Escreva um texto ou anexe uma imagem/vídeo', 'err');
   if (platforms.length === 0) return showToast('Escolha ao menos uma rede social em "Onde publicar"', 'err');
   if (platforms.includes('youtube') && !youtubeTitle) return showToast('Informe o título do vídeo para o YouTube', 'err');
   if (platforms.includes('youtube') && !youtubeMadeForKidsRaw) return showToast('Informe se o vídeo é feito para crianças (obrigatório pelo YouTube)', 'err');
@@ -4322,14 +4469,27 @@ async function schedulePost(publishNow = false) {
     if (minutosAteAgendamento < 20) return showToast('Para publicar no Instagram, escolha um horário com pelo menos 20 minutos de antecedência.', 'err');
   }
 
-  let media;
+  // Mídia própria por rede (cards de "usar a mesma mídia" desmarcado) — só
+  // entra no upload quem realmente tem itens anexados, mesmo que o card
+  // esteja com o toggle ligado sem nada selecionado ainda.
+  const platsComMidiaPropria = Object.keys(mediaFilesByPlatform).filter(p => mediaFilesByPlatform[p].length > 0);
+
+  let media, mediaByPlatform;
   try {
-    if (mediaFiles.length) showToast(mediaFiles.length > 1 ? 'Enviando arquivos...' : 'Enviando arquivo...', 'ok');
+    const totalArquivos = mediaFiles.length + platsComMidiaPropria.reduce((n, p) => n + mediaFilesByPlatform[p].length, 0);
+    if (totalArquivos) showToast(totalArquivos > 1 ? 'Enviando arquivos...' : 'Enviando arquivo...', 'ok');
     media = await Promise.all(mediaFiles.map(m => uploadArquivoDireto(m.file)));
+    mediaByPlatform = {};
+    for (const p of platsComMidiaPropria) {
+      mediaByPlatform[p] = await Promise.all(mediaFilesByPlatform[p].map(m => uploadArquivoDireto(m.file)));
+    }
   } catch (e) {
     showToast('Erro ao enviar mídia: ' + e.message, 'err');
     return;
   }
+
+  const captionsByPlatform = {};
+  for (const p of platsComMidiaPropria) captionsByPlatform[p] = mediaFilesByPlatform[p].map(m => m.caption);
 
   const body = {
     text, youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKidsRaw, youtubeCategoryId,
@@ -4343,6 +4503,8 @@ async function schedulePost(publishNow = false) {
     publishNow: publishNow ? 'true' : 'false',
     media: JSON.stringify(media),
     captions: JSON.stringify(mediaFiles.map(m => m.caption)),
+    mediaByPlatform: JSON.stringify(mediaByPlatform),
+    captionsByPlatform: JSON.stringify(captionsByPlatform),
     textByPlatform: emModoPorRede ? JSON.stringify(textByPlatform) : '{}',
     titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}'
   };
@@ -4391,12 +4553,14 @@ async function schedulePost(publishNow = false) {
   resetTiktokOptions();
   document.getElementById('post-tiktok-options-group').style.display = 'none';
   mediaFiles = [];
+  mediaFilesByPlatform = {};
   textByPlatform = {};
   titleByPlatform = {};
   activeTextTab = null;
   igFormat = null;
   youtubeFormat = null;
   updateMediaPreview();
+  renderMediaByPlatformGroup();
   initSchedulerDefaultPlatforms();
   loadQueue();
 }
