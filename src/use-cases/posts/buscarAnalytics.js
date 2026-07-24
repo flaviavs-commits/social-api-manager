@@ -75,16 +75,20 @@ async function buscarAnalytics({ userId, userRole, isAdmin }) {
 
   // Saldo de seguidores e alcance do Instagram + TikTok + YouTube em paralelo
   // — métricas de conta, não de post. Falha silenciosa por plataforma.
-  const [igResult, ttResult, ytResult] = await Promise.allSettled([
+  const [igResult, ttResult, ytResult, igDemoResult, ytDemoResult] = await Promise.allSettled([
     metricsService.buscarSeriesSeguidoresInstagram(userId, isAdmin),
     metricsService.buscarSeriesStatsTiktok(userId, isAdmin),
     metricsService.buscarSeriesInscritosYoutube(userId, isAdmin),
+    metricsService.buscarDemografiaInstagram(userId, isAdmin),
+    metricsService.buscarDemografiaYoutube(userId, isAdmin),
   ])
   const instagramFollowers = igResult.status === 'fulfilled' ? igResult.value : {}
   const tiktokStats = ttResult.status === 'fulfilled' ? ttResult.value : {}
   const youtubeSubscribers = ytResult.status === 'fulfilled' ? ytResult.value : {}
+  const instagramDemographics = igDemoResult.status === 'fulfilled' ? igDemoResult.value : null
+  const youtubeDemographics = ytDemoResult.status === 'fulfilled' ? ytDemoResult.value : null
 
-  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers }
+  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics }
 }
 
 async function buscarMetricsHistory({ id, userId, isAdmin }) {

@@ -178,6 +178,68 @@ async function buscarSeriesSeguidoresInstagram(userId, isAdmin) {
   return Object.fromEntries(historico.map(h => [h.date.toISOString().slice(0, 10), { followerCount: h.followerCount }]))
 }
 
+// Demografia atual dos seguidores do Instagram (não é série histórica — a
+// API só devolve a "foto" de agora, sem retroativo). A métrica
+// follower_demographics exige metric_type=total_value + um único breakdown
+// por chamada, então busca gender/age, country e city em paralelo. Requer o
+// escopo instagram_business_manage_insights (já pedido no OAuth, ver
+// src/routes/oauth.js) — contas conectadas antes desse escopo existir
+// recebem 403/"nonexisting field" aqui, e a demografia fica vazia.
+async function metricsDemografiaBreakdownInstagram(token, breakdown) {
+  const url = `https://graph.instagram.com/v19.0/me/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${encodeURIComponent(token.accessToken)}`
+  const res = await fetchComTimeout(url)
+  const data = await res.json()
+  if (!res.ok) return []
+  const results = data.data?.[0]?.total_value?.breakdowns?.[0]?.results || []
+  return results.map(r => ({ dimensionValues: r.dimension_values, value: r.value }))
+}
+
+async function metricsDemografiaAtualInstagram(token) {
+  const [ageGender, country, city] = await Promise.all([
+    metricsDemografiaBreakdownInstagram(token, 'age,gender'),
+    metricsDemografiaBreakdownInstagram(token, 'country'),
+    metricsDemografiaBreakdownInstagram(token, 'city'),
+  ])
+  return {
+    ageGender: ageGender.map(r => ({ age: r.dimensionValues[0], gender: r.dimensionValues[1], value: r.value })),
+    country: country.map(r => ({ country: r.dimensionValues[0], value: r.value })),
+    city: city.map(r => ({ city: r.dimensionValues[0], value: r.value })),
+  }
+}
+
+// Demografia combinada de todas as contas do Instagram do usuário — soma os
+// valores de cada dimensão entre contas (mesmo padrão de soma usado nas
+// séries de seguidores). Falha silenciosa por conta (token sem o escopo,
+// revogado etc.) — o resultado só reflete as contas que responderam.
+async function buscarDemografiaInstagram(userId, isAdmin) {
+  const tokens = await listarContasToken('instagram', userId, isAdmin)
+  const resultados = await Promise.allSettled(
+    tokens.map(t => metricsDemografiaAtualInstagram({ accessToken: t.accessToken }))
+  )
+  const sucesso = resultados.filter(r => r.status === 'fulfilled').map(r => r.value)
+  if (!sucesso.length) return null
+
+  function somarPorDimensao(campo, chaves) {
+    const acc = new Map()
+    for (const d of sucesso) {
+      for (const item of d[campo]) {
+        const key = chaves.map(k => item[k]).join('|')
+        acc.set(key, (acc.get(key) || 0) + item.value)
+      }
+    }
+    return [...acc.entries()].map(([key, value]) => {
+      const partes = key.split('|')
+      return { ...Object.fromEntries(chaves.map((k, i) => [k, partes[i]])), value }
+    })
+  }
+
+  return {
+    ageGender: somarPorDimensao('ageGender', ['age', 'gender']),
+    country: somarPorDimensao('country', ['country']),
+    city: somarPorDimensao('city', ['city']),
+  }
+}
+
 // Estatísticas atuais de uma conta do TikTok (seguidores, curtidas
 // recebidas no total, número de vídeos). Exige o scope user.info.stats —
 // contas conectadas antes desse scope existir recebem 403 aqui.
@@ -200,6 +262,68 @@ async function metricsInscritosAtuaisYoutube(token) {
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
   const stats = data.items?.[0]?.statistics
   return stats?.subscriberCount != null ? Number(stats.subscriberCount) : null
+}
+
+// Demografia dos últimos 28 dias de audiência do canal (viewerPercentage) —
+// a Analytics API não expõe demografia de INSCRITOS, só de espectadores dos
+// vídeos, então isto é "quem assistiu", não "quem seguiu" (mesma limitação
+// que o próprio YouTube Studio expõe). Usa o scope yt-analytics.readonly já
+// concedido (ver src/routes/oauth.js) — sem escopo novo.
+async function metricsDemografiaYoutube(token) {
+  const endDate = new Date().toISOString().slice(0, 10)
+  const startDate = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10)
+  const headers = { Authorization: `Bearer ${token.accessToken}` }
+
+  async function relatorio(dimensions) {
+    const url = `https://youtubeanalytics.googleapis.com/v2/reports` +
+      `?ids=channel==MINE&startDate=${startDate}&endDate=${endDate}` +
+      `&metrics=viewerPercentage&dimensions=${dimensions}&sort=-viewerPercentage`
+    const res = await fetchComTimeout(url, { headers })
+    const data = await res.json()
+    if (!res.ok) return []
+    return data.rows || []
+  }
+
+  const [ageGenderRows, countryRows] = await Promise.all([
+    relatorio('ageGroup,gender'),
+    relatorio('country'),
+  ])
+
+  return {
+    ageGender: ageGenderRows.map(([age, gender, value]) => ({ age, gender, value })),
+    country: countryRows.map(([country, value]) => ({ country, value })),
+  }
+}
+
+// Demografia combinada de todos os canais do usuário — soma os percentuais
+// (aproximação: pondera igual entre canais; suficiente para exibição, não
+// para análise estatística fina). Falha silenciosa por canal.
+async function buscarDemografiaYoutube(userId, isAdmin) {
+  const tokens = await listarContasToken('youtube', userId, isAdmin)
+  const resultados = await Promise.allSettled(
+    tokens.map(t => metricsDemografiaYoutube({ accessToken: t.accessToken }))
+  )
+  const sucesso = resultados.filter(r => r.status === 'fulfilled').map(r => r.value)
+  if (!sucesso.length) return null
+
+  function somarPorDimensao(campo, chaves) {
+    const acc = new Map()
+    for (const d of sucesso) {
+      for (const item of d[campo]) {
+        const key = chaves.map(k => item[k]).join('|')
+        acc.set(key, (acc.get(key) || 0) + item.value)
+      }
+    }
+    return [...acc.entries()].map(([key, value]) => {
+      const partes = key.split('|')
+      return { ...Object.fromEntries(chaves.map((k, i) => [k, partes[i]])), value }
+    })
+  }
+
+  return {
+    ageGender: somarPorDimensao('ageGender', ['age', 'gender']),
+    country: somarPorDimensao('country', ['country']),
+  }
 }
 
 // Busca o número atual de inscritos de cada canal do YouTube do usuário,
@@ -280,4 +404,7 @@ async function buscarVideosTiktok(userId, isAdmin) {
     .sort((a, b) => b.createTime - a.createTime)
 }
 
-module.exports = { buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, buscarSeriesInscritosYoutube, PLATAFORMAS_COM_METRICAS }
+module.exports = {
+  buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, buscarSeriesInscritosYoutube,
+  buscarDemografiaInstagram, buscarDemografiaYoutube, PLATAFORMAS_COM_METRICAS
+}

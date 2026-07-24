@@ -1210,6 +1210,7 @@ input, select, textarea, label, .bottom-nav-item {
   .analytics-layout { flex-direction: column; }
   .analytics-sidebar { width: 100%; flex: none; position: static; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; }
   .analytics-net-item { flex: 0 0 auto; }
+  .analytics-demo-grid { grid-template-columns: 1fr !important; }
 }
 
 /* ── Agente IA ─────────────────────────────────────────────────────────── */
@@ -1785,6 +1786,9 @@ input, select, textarea, label, .bottom-nav-item {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1.25rem">
           <div id="analytics-chart-wrap" style="position:relative;min-height:160px"><canvas id="analytics-chart" height="100"></canvas></div>
         </div>
+
+        <!-- Demografia (só Instagram/YouTube, aba Crescimento) -->
+        <div id="analytics-demographics-wrap" style="display:none;margin-bottom:1.25rem"></div>
 
         <!-- Lista de posts -->
         <div id="analytics-posts-wrap"></div>
@@ -4887,7 +4891,7 @@ const ANALYTICS_REFRESH_MS = 30000;
 let queueRefreshTimer = null;
 const QUEUE_REFRESH_MS = 30000;
 
-let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {}, youtubeSubscribers: {} };
+let analyticsData = { series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {}, youtubeSubscribers: {}, instagramDemographics: null, youtubeDemographics: null };
 let analyticsActiveNet = 'instagram';
 let analyticsActiveTab = 'community';
 let analyticsPeriodDays = 7;
@@ -4973,6 +4977,7 @@ function analyticsRenderPanel() {
   analyticsRenderTabs();
   analyticsRenderCards(analyticsActiveNet, analyticsActiveTab);
   analyticsRenderChart(analyticsActiveNet, analyticsActiveTab);
+  analyticsRenderDemographics(analyticsActiveNet, analyticsActiveTab);
   analyticsRenderPostsList(analyticsActiveNet, analyticsActiveTab);
 }
 
@@ -5178,6 +5183,99 @@ function analyticsRenderChart(net, tab) {
   });
 }
 
+// ── Demografia (Instagram: seguidores reais via follower_demographics;
+// YouTube: audiência dos vídeos via viewerPercentage — ver metricsService.js
+// para a limitação de cada API). Só aparece na aba Crescimento, e só quando a
+// API devolveu algo (contas sem o escopo necessário simplesmente não mostram
+// a seção, em vez de exibir zerado/inventado). ────────────────────────────────
+const analyticsDemoCharts = { ageGender: null, geo: null };
+
+function analyticsDestroyDemoCharts() {
+  if (analyticsDemoCharts.ageGender) { analyticsDemoCharts.ageGender.destroy(); analyticsDemoCharts.ageGender = null; }
+  if (analyticsDemoCharts.geo) { analyticsDemoCharts.geo.destroy(); analyticsDemoCharts.geo = null; }
+}
+
+const ANALYTICS_DEMO_COLORS = ['#7c6cff','#e94f8a','#34d399','#fbbf24','#5b8def','#f97316','#a78bfa','#22d3ee'];
+
+function analyticsTopN(itens, n) {
+  const ordenado = [...itens].sort((a, b) => b.value - a.value);
+  if (ordenado.length <= n) return ordenado;
+  const top = ordenado.slice(0, n - 1);
+  const outrosValue = ordenado.slice(n - 1).reduce((a, i) => a + i.value, 0);
+  return [...top, { label: 'Outros', value: outrosValue }];
+}
+
+function analyticsRenderDemographics(net, tab) {
+  const wrap = document.getElementById('analytics-demographics-wrap');
+  if (!wrap) return;
+  analyticsDestroyDemoCharts();
+
+  const demo = net === 'instagram' ? analyticsData.instagramDemographics
+    : net === 'youtube' ? analyticsData.youtubeDemographics
+    : null;
+
+  if (tab !== 'growth' || !demo || (!demo.ageGender?.length && !demo.country?.length)) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+
+  wrap.style.display = '';
+  const geoItens = (demo.country || []).map(c => ({ label: c.country, value: c.value }));
+  const geoLabel = net === 'instagram' ? 'Seguidores por país' : 'Audiência por país (últimos 28 dias)';
+  const ageGenderLabel = net === 'instagram' ? 'Seguidores por idade e gênero' : 'Audiência por idade e gênero (últimos 28 dias)';
+
+  wrap.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem" class="analytics-demo-grid">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${escapeHtml(ageGenderLabel)}</div>
+        <div style="position:relative;height:220px">${demo.ageGender?.length ? '<canvas id="analytics-demo-agegender"></canvas>' : '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Sem dados disponíveis.</div>'}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${escapeHtml(geoLabel)}</div>
+        <div style="position:relative;height:220px">${geoItens.length ? '<canvas id="analytics-demo-geo"></canvas>' : '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Sem dados disponíveis.</div>'}</div>
+      </div>
+    </div>`;
+
+  if (demo.ageGender?.length) {
+    const faixas = [...new Set(demo.ageGender.map(d => d.age))].sort();
+    const generos = [...new Set(demo.ageGender.map(d => d.gender))];
+    const genderColors = { M: '#5b8def', F: '#e94f8a', U: '#8b8fa3', male: '#5b8def', female: '#e94f8a' };
+    analyticsDemoCharts.ageGender = new Chart(document.getElementById('analytics-demo-agegender'), {
+      type: 'bar',
+      data: {
+        labels: faixas,
+        datasets: generos.map(g => ({
+          label: g,
+          data: faixas.map(f => demo.ageGender.find(d => d.age === f && d.gender === g)?.value || 0),
+          backgroundColor: genderColors[g] || '#7c6cff',
+          borderRadius: 4
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true, ticks: { precision:0, color:'#8b8fa3' }, grid: { color:'rgba(255,255,255,0.05)' } }, x: { ticks: { color:'#8b8fa3' }, grid: { display:false } } },
+        plugins: { legend: { position:'bottom', labels:{ color:'#8b8fa3', boxWidth:12 } } }
+      }
+    });
+  }
+
+  if (geoItens.length) {
+    const top = analyticsTopN(geoItens, 8);
+    analyticsDemoCharts.geo = new Chart(document.getElementById('analytics-demo-geo'), {
+      type: 'doughnut',
+      data: {
+        labels: top.map(i => i.label),
+        datasets: [{ data: top.map(i => i.value), backgroundColor: ANALYTICS_DEMO_COLORS }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'right', labels:{ color:'#8b8fa3', boxWidth:12, font:{ size:11 } } } }
+      }
+    });
+  }
+}
+
 function analyticsRenderPostsList(net, tab) {
   const wrap = document.getElementById('analytics-posts-wrap');
   if (!wrap) return;
@@ -5281,8 +5379,11 @@ function stopAnalyticsAutoRefresh() {
 
 async function loadAnalytics() {
   try {
-    const { series, metrics, instagramFollowers, tiktokStats, youtubeSubscribers } = await apiFetch('/api/posts/analytics');
-    analyticsData = { series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {}, youtubeSubscribers: youtubeSubscribers || {} };
+    const { series, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics } = await apiFetch('/api/posts/analytics');
+    analyticsData = {
+      series, metrics, instagramFollowers: instagramFollowers || {}, tiktokStats: tiktokStats || {}, youtubeSubscribers: youtubeSubscribers || {},
+      instagramDemographics: instagramDemographics || null, youtubeDemographics: youtubeDemographics || null
+    };
 
     // Detect first available network and select it if none active
     const nets = analyticsDetectNetworks();
