@@ -4454,10 +4454,23 @@ function onMediaByPlatformFilesSelected(platform) {
   const input = document.getElementById(`post-media-${platform}`);
   if (!input) return;
   const onlyVideo = VIDEO_ONLY_PLATS.includes(platform);
-  const novos = [...input.files].filter(f => !onlyVideo || f.type.startsWith('video/'));
+  const arquivosSelecionados = [...input.files];
+  const novos = arquivosSelecionados.filter(f => !onlyVideo || f.type.startsWith('video/'));
+  input.value = '';
+
+  // Todos os arquivos escolhidos foram rejeitados (ex: imagem selecionada
+  // no card do YouTube, que só aceita vídeo) — sem esse aviso, o card ficava
+  // vazio e sem "usar a mesma mídia" marcado, um estado confuso em que a
+  // validação bloqueava o agendamento sem explicar o motivo (ver
+  // removeMediaByPlatformFile, mesmo problema).
+  if (arquivosSelecionados.length && !novos.length) {
+    const label = PLAT_ROW_CFG[platform]?.label || platform;
+    showToast(`${label} só aceita vídeo — o arquivo escolhido não foi anexado.`, 'err');
+    return;
+  }
+
   if (!mediaFilesByPlatform[platform]) mediaFilesByPlatform[platform] = [];
   for (const file of novos) mediaFilesByPlatform[platform].push({ file, caption: '' });
-  input.value = '';
   if (novos.length) sugerirReaproveitarMidia(platform, novos);
   renderMediaByPlatformGroup();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
@@ -4466,6 +4479,11 @@ function onMediaByPlatformFilesSelected(platform) {
 
 function removeMediaByPlatformFile(platform, index) {
   mediaFilesByPlatform[platform]?.splice(index, 1);
+  // Removeu o último arquivo próprio da rede — sem isso, a rede ficava num
+  // limbo (não usa compartilhada, mas também não tem mídia própria), com o
+  // card mostrando o checkbox desmarcado e vazio sem explicar por que a
+  // validação continuava bloqueando o agendamento/publicação.
+  if (!mediaFilesByPlatform[platform]?.length) mediaUsaCompartilhada.add(platform);
   renderMediaByPlatformGroup();
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
   if (typeof renderPreviewContent === 'function') renderPreviewContent();
