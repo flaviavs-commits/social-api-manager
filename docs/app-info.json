@@ -1,15 +1,15 @@
 {
   "app": {
-    "name": "Social Api Manager",
-    "description": "Manage all your TikTok content and social media in one place with Social Api Manager.",
+    "name": "MeuEcooMedia",
+    "description": "Manage all your TikTok content and social media in one place with MeuEcooMedia.",
     "version": "1.0.0",
     "category": "Social Networking",
-    "icon": "https://social-api-manager.vercel.app/favicon.png",
+    "icon": "https://meuecoomidia.com.br/favicon.png",
     "screenshots": [
-      "https://social-api-manager.vercel.app/screenshots/dashboard.png",
-      "https://social-api-manager.vercel.app/screenshots/publish.png",
-      "https://social-api-manager.vercel.app/screenshots/schedule.png",
-      "https://social-api-manager.vercel.app/screenshots/analytics.png"
+      "https://meuecoomidia.com.br/screenshots/dashboard.png",
+      "https://meuecoomidia.com.br/screenshots/publish.png",
+      "https://meuecoomidia.com.br/screenshots/schedule.png",
+      "https://meuecoomidia.com.br/screenshots/analytics.png"
     ]
   },
   "tiktok_submission": {
@@ -66,10 +66,10 @@
     ]
   },
   "urls": {
-    "website": "https://social-api-manager.vercel.app",
-    "privacy_policy": "https://social-api-manager.vercel.app/privacy-policy",
-    "terms_of_service": "https://social-api-manager.vercel.app/terms-of-service",
-    "support": "https://social-api-manager.vercel.app/support",
+    "website": "https://meuecoomidia.com.br",
+    "privacy_policy": "https://meuecoomidia.com.br/privacy-policy",
+    "terms_of_service": "https://meuecoomidia.com.br/terms-of-service",
+    "support": "https://meuecoomidia.com.br/support",
     "redirect_uri": "https://social-api-manager-production.up.railway.app/oauth/tiktok/callback"
   },
   "deployment": {
@@ -88,7 +88,7 @@
   },
   "support": {
     "email": "brenoaugusto@vitissouls.com",
-    "documentation": "https://social-api-manager.vercel.app/support",
+    "documentation": "https://meuecoomidia.com.br/support",
     "issues_contact": "brenoaugusto@vitissouls.com"
   }
 }
