@@ -1188,6 +1188,26 @@ input, select, textarea, label, .bottom-nav-item {
   .inbox-post-preview-media { width: 120px; }
 }
 
+/* ── Analytics: resumo agregado (todas as redes) ────────────────────────────── */
+.an-summary-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 1.25rem; }
+.an-summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; transition: border-color var(--transition), transform var(--transition); }
+.an-summary-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.an-summary-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 17px; color: #fff; margin-bottom: 14px; }
+.an-summary-val { font-size: 26px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 4px; }
+.an-summary-label { font-size: 13px; color: var(--muted); }
+.an-summary-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+.an-summary-section-title { font-size: 14px; font-weight: 600; margin-bottom: 1rem; }
+.an-summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.an-summary-row .an-summary-section { margin-bottom: 0; }
+.an-eng-type-row + .an-eng-type-row { margin-top: 14px; }
+.an-eng-type-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+.an-eng-type-head .an-eng-type-name { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.an-eng-type-head .an-eng-type-val { font-weight: 600; font-family: var(--mono); }
+.an-eng-type-bar { height: 7px; border-radius: 99px; background: var(--surface3); overflow: hidden; }
+.an-eng-type-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+@media (max-width: 1024px) { .an-summary-stats { grid-template-columns: repeat(2, 1fr); } .an-summary-row { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .an-summary-stats { grid-template-columns: 1fr 1fr; gap: 10px; } .an-summary-card { padding: 0.9rem 1rem; } .an-summary-icon { width: 34px; height: 34px; margin-bottom: 10px; } .an-summary-val { font-size: 21px; } }
+
 /* ── Analytics redesign ─────────────────────────────────────────────────────── */
 .analytics-layout {
   display: flex;
@@ -1483,7 +1503,7 @@ input, select, textarea, label, .bottom-nav-item {
   </div>
   <div class="nav-item" onclick="showPage('rascunhos')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-    Rascunhos e Templates
+    Rascunhos e Modelos
   </div>
   <div class="nav-item" onclick="showPage('calendario')">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="14" width="3" height="3" rx="0.5" fill="currentColor" stroke="none"/></svg>
@@ -1893,8 +1913,32 @@ input, select, textarea, label, .bottom-nav-item {
   <!-- ANALYTICS -->
   <div id="page-analytics" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Analytics</div></div>
+      <div><div class="page-title">Analytics</div><div class="page-sub">Métricas de desempenho das suas redes</div></div>
       <button class="btn" id="btn-export-pdf" onclick="exportAnalyticsPDF()">⬇ Exportar PDF</button>
+    </div>
+
+    <!-- Resumo agregado (todas as redes somadas) -->
+    <div class="an-summary-stats">
+      <div class="an-summary-card"><div class="an-summary-icon" style="background:#3b8ff0">👁</div><div class="an-summary-val" id="an-sum-reach">—</div><div class="an-summary-label">Alcance Total</div></div>
+      <div class="an-summary-card"><div class="an-summary-icon" style="background:#e94f8a">♥</div><div class="an-summary-val" id="an-sum-engagement">—</div><div class="an-summary-label">Engajamento</div></div>
+      <div class="an-summary-card"><div class="an-summary-icon" style="background:var(--accent)">👥</div><div class="an-summary-val" id="an-sum-followers">—</div><div class="an-summary-label">Seguidores</div></div>
+      <div class="an-summary-card"><div class="an-summary-icon" style="background:var(--green)">📈</div><div class="an-summary-val" id="an-sum-rate">—</div><div class="an-summary-label">Taxa de Engaj.</div></div>
+    </div>
+
+    <div class="an-summary-section">
+      <div class="an-summary-section-title">Tendência Semanal</div>
+      <div style="position:relative;min-height:220px"><canvas id="an-summary-trend-chart" height="80"></canvas></div>
+    </div>
+
+    <div class="an-summary-row">
+      <div class="an-summary-section">
+        <div class="an-summary-section-title">Posts por Plataforma</div>
+        <div style="position:relative;min-height:200px"><canvas id="an-summary-platform-chart" height="90"></canvas></div>
+      </div>
+      <div class="an-summary-section">
+        <div class="an-summary-section-title">Tipo de Engajamento</div>
+        <div id="an-summary-engagement-types"></div>
+      </div>
     </div>
 
     <div class="analytics-layout">
@@ -2224,7 +2268,7 @@ input, select, textarea, label, .bottom-nav-item {
 
   <div id="page-rascunhos" class="section-page">
     <div class="page-header">
-      <div><div class="page-title">Rascunhos e Templates</div><div class="page-sub">Posts salvos para reutilizar ou continuar depois</div></div>
+      <div><div class="page-title">Rascunhos e Modelos</div><div class="page-sub">Posts salvos para reutilizar ou continuar depois</div></div>
       <button class="btn" onclick="loadDrafts()">↻ Atualizar</button>
     </div>
 
@@ -2233,7 +2277,7 @@ input, select, textarea, label, .bottom-nav-item {
       <div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>
     </div>
 
-    <div style="font-size:13px;font-weight:500;margin-bottom:0.75rem">Templates</div>
+    <div style="font-size:13px;font-weight:500;margin-bottom:0.75rem">Modelos</div>
     <div id="templates-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
       <div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">carregando...</div>
     </div>
@@ -5531,6 +5575,7 @@ function analyticsSetPeriod(days, btn) {
   document.querySelectorAll('.analytics-period-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   analyticsRenderPanel();
+  analyticsRenderSummary();
 }
 
 function analyticsSelectNetwork(net) {
@@ -5783,6 +5828,129 @@ function analyticsRenderChart(net, tab) {
   });
 }
 
+// ── Resumo agregado (todas as redes somadas) ────────────────────────────────
+// Complementa a visão por-rede acima com uma leitura rápida do total: soma
+// views/likes/comments de todas as plataformas no período, sem exigir que o
+// usuário escolha uma rede na sidebar primeiro.
+let analyticsSummaryTrendChart = null;
+let analyticsSummaryPlatformChart = null;
+
+function analyticsRenderSummary() {
+  const metrics = analyticsFilterByPeriod(analyticsData.metrics);
+
+  const totalViews = metrics.reduce((a, m) => a + (m.metrics?.views || 0), 0);
+  const totalLikes = metrics.reduce((a, m) => a + (m.metrics?.likes || 0), 0);
+  const totalComments = metrics.reduce((a, m) => a + (m.metrics?.comments || 0), 0);
+  const totalShares = analyticsTiktokVideos.reduce((a, v) => a + (v.shareCount || 0), 0);
+  const totalEngagement = totalLikes + totalComments + totalShares;
+  const engagementRate = totalViews > 0 ? (totalEngagement / totalViews * 100) : 0;
+
+  // Seguidores: pega o valor mais recente de cada rede que tiver histórico —
+  // Facebook não tem esse dado disponível hoje (ver metricsService.js).
+  const latestOf = (obj) => { const d = Object.keys(obj).sort(); return d.length ? obj[d[d.length - 1]] : null; };
+  const igFollowers = latestOf(analyticsData.instagramFollowers)?.followerCount || 0;
+  const ttFollowers = latestOf(analyticsData.tiktokStats)?.followerCount || 0;
+  const ytSubscribers = latestOf(analyticsData.youtubeSubscribers)?.subscriberCount || 0;
+  const totalFollowers = igFollowers + ttFollowers + ytSubscribers;
+
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('an-sum-reach', fmtNum(totalViews));
+  setText('an-sum-engagement', fmtNum(totalEngagement));
+  setText('an-sum-followers', fmtNum(totalFollowers));
+  setText('an-sum-rate', `${engagementRate.toFixed(1)}%`);
+
+  analyticsRenderSummaryTrend(metrics);
+  analyticsRenderSummaryPlatforms(metrics);
+  analyticsRenderSummaryEngagementTypes(totalLikes, totalComments, totalShares);
+}
+
+// Tendência semanal: soma de engajamento (likes+comments) por dia, últimos 7
+// dias com dado disponível dentro do período filtrado — uma linha só (agregada),
+// para não sobrecarregar o resumo com uma cor por rede.
+function analyticsRenderSummaryTrend(metrics) {
+  const canvas = document.getElementById('an-summary-trend-chart');
+  if (!canvas) return;
+  if (analyticsSummaryTrendChart) { analyticsSummaryTrendChart.destroy(); analyticsSummaryTrendChart = null; }
+
+  const porDia = {};
+  for (const m of metrics) {
+    if (!m.publishedAt) continue;
+    const dia = new Date(m.publishedAt).toISOString().slice(0, 10);
+    porDia[dia] = porDia[dia] || { engagement: 0, reach: 0 };
+    porDia[dia].engagement += (m.metrics?.likes || 0) + (m.metrics?.comments || 0);
+    porDia[dia].reach += (m.metrics?.views || 0);
+  }
+  const dias = Object.keys(porDia).sort().slice(-7);
+  if (!dias.length) {
+    canvas.parentElement.innerHTML = '<div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-size:13px">Sem dados suficientes no período.</div>';
+    return;
+  }
+
+  analyticsSummaryTrendChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: dias.map(formatDiaBR),
+      datasets: [
+        { label: 'Alcance', data: dias.map(d => porDia[d].reach), borderColor: '#7c6cff', backgroundColor: 'rgba(124,108,255,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
+        { label: 'Engajamento', data: dias.map(d => porDia[d].engagement), borderColor: '#e94f8a', backgroundColor: 'rgba(233,79,138,0.08)', fill: true, tension: 0.35, pointRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, color: '#8b8fa3' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#8b8fa3' }, grid: { display: false } } },
+      plugins: { legend: { position: 'bottom', labels: { color: '#8b8fa3', boxWidth: 12 } } }
+    }
+  });
+}
+
+// Posts publicados por plataforma no período — usa a série diária já
+// calculada no backend (analyticsData.series) em vez de recontar aqui.
+function analyticsRenderSummaryPlatforms(metrics) {
+  const canvas = document.getElementById('an-summary-platform-chart');
+  if (!canvas) return;
+  if (analyticsSummaryPlatformChart) { analyticsSummaryPlatformChart.destroy(); analyticsSummaryPlatformChart = null; }
+
+  const porPlataforma = {};
+  for (const m of metrics) porPlataforma[m.platform] = (porPlataforma[m.platform] || 0) + 1;
+  const plats = Object.keys(porPlataforma);
+  if (!plats.length) {
+    canvas.parentElement.innerHTML = '<div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-size:13px">Nenhum post publicado no período.</div>';
+    return;
+  }
+
+  analyticsSummaryPlatformChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: plats.map(p => ANALYTICS_PLAT_LABELS[p] || p),
+      datasets: [{ data: plats.map(p => porPlataforma[p]), backgroundColor: plats.map(p => ANALYTICS_PLAT_COLORS[p] || '#7c6cff'), borderRadius: 6, maxBarThickness: 56 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0, color: '#8b8fa3' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#8b8fa3' }, grid: { display: false } } }
+    }
+  });
+}
+
+function analyticsRenderSummaryEngagementTypes(likes, comments, shares) {
+  const el = document.getElementById('an-summary-engagement-types');
+  if (!el) return;
+  const max = Math.max(likes, comments, shares, 1);
+  const rows = [
+    { icon: '♥', label: 'Curtidas', val: likes },
+    { icon: '💬', label: 'Comentários', val: comments },
+    { icon: '↗', label: 'Compartilhamentos', val: shares }
+  ];
+  el.innerHTML = rows.map(r => `
+    <div class="an-eng-type-row">
+      <div class="an-eng-type-head">
+        <span class="an-eng-type-name">${r.icon} ${r.label}</span>
+        <span class="an-eng-type-val">${fmtNum(r.val)}</span>
+      </div>
+      <div class="an-eng-type-bar"><div class="an-eng-type-bar-fill" style="width:${(r.val / max * 100).toFixed(1)}%"></div></div>
+    </div>`).join('');
+}
+
 // ── Demografia (Instagram: seguidores reais via follower_demographics;
 // YouTube: audiência dos vídeos via viewerPercentage — ver metricsService.js
 // para a limitação de cada API). Só aparece na aba Crescimento, e só quando a
@@ -5991,6 +6159,7 @@ async function loadAnalytics() {
 
     analyticsRenderSidebar();
     analyticsRenderPanel();
+    analyticsRenderSummary();
     updateAnalyticsLastUpdated();
   } catch (e) {
     const panel = document.getElementById('analytics-panel');
@@ -6010,6 +6179,7 @@ async function loadTiktokVideos() {
     if (analyticsActiveNet === 'tiktok') analyticsRenderCards('tiktok', analyticsActiveTab);
     // ensure tiktok shows in sidebar if videos found
     if (analyticsTiktokVideos.length) analyticsRenderSidebar();
+    analyticsRenderSummary();
   } catch (_) { analyticsTiktokVideos = []; }
 }
 
@@ -10906,7 +11076,7 @@ async function loadDrafts() {
 
 function renderDraftList(items, isTemplate) {
   if (!items.length) {
-    return `<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Nenhum ${isTemplate ? 'template' : 'rascunho'} salvo.</div>`;
+    return `<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">Nenhum ${isTemplate ? 'modelo' : 'rascunho'} salvo.</div>`;
   }
   const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', linkedin:'💼' };
   const PLAT_COLOR = { instagram:'var(--ig)', facebook:'var(--fb)', youtube:'var(--yt)', tiktok:'#888' };
@@ -10953,7 +11123,7 @@ function renderDraftList(items, isTemplate) {
           <div style="font-size:10px;color:var(--muted)">${date}</div>
           <div style="display:flex;gap:8px;margin-top:4px">
             <button onclick="applyDraft(${d.id})" class="btn btn-accent" style="flex:1;font-size:12px;padding:6px 0">
-              ${isTemplate ? '📋 Usar template' : '✏️ Editar rascunho'}
+              ${isTemplate ? '📋 Usar modelo' : '✏️ Editar rascunho'}
             </button>
             <button onclick="deleteDraft(${d.id})" class="btn" style="padding:6px 10px;font-size:12px;color:var(--muted)"
               onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">✕</button>
@@ -11016,9 +11186,9 @@ async function applyDraft(id) {
     const redesComMidiaPropria = d.media_by_platform ? Object.keys(d.media_by_platform) : [];
     if (redesComMidiaPropria.length) {
       const nomes = redesComMidiaPropria.map(p => PLATFORM_LABELS[p] || p).join(', ');
-      showToast(`⚠️ Este template tinha mídia própria para ${nomes} — reanexe no card "Mídia por rede".`, 'warn');
+      showToast(`⚠️ Este modelo tinha mídia própria para ${nomes} — reanexe no card "Mídia por rede".`, 'warn');
     }
-    showToast(d.is_template ? 'Template carregado no agendador!' : 'Rascunho carregado no agendador!', 'ok');
+    showToast(d.is_template ? 'Modelo carregado no agendador!' : 'Rascunho carregado no agendador!', 'ok');
   } catch (e) {
     showToast('Erro ao carregar: ' + e.message, 'err');
   }
@@ -11108,7 +11278,7 @@ async function saveDraft(isTemplate) {
         firstComment: document.getElementById('post-first-comment')?.value.trim() || null
       })
     });
-    showToast(isTemplate ? 'Template salvo!' : 'Rascunho salvo!', 'ok');
+    showToast(isTemplate ? 'Modelo salvo!' : 'Rascunho salvo!', 'ok');
   } catch (e) {
     showToast('Erro ao salvar: ' + e.message, 'err');
   }
