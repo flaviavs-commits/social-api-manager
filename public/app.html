@@ -248,6 +248,67 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .account-dropdown-item:hover { background: var(--surface3); color: var(--accent); }
 .account-dropdown-item + .account-dropdown-item { border-top: 1px solid var(--border); }
 
+/* ── Dashboard (novo) ────────────────────────────────────────────────────── */
+.dash-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 1.25rem; }
+.dash-stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; transition: border-color var(--transition), transform var(--transition); }
+.dash-stat-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.dash-stat-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 17px; color: #fff; margin-bottom: 14px; }
+.dash-stat-val { font-size: 26px; font-weight: 700; font-family: var(--mono); letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 4px; }
+.dash-stat-label { font-size: 13px; color: var(--muted); }
+
+.dash-shortcuts-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 1.75rem; }
+.dash-shortcut { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; cursor: pointer; transition: border-color var(--transition), transform var(--transition); }
+.dash-shortcut:hover { border-color: var(--accent); transform: translateY(-1px); }
+.dash-shortcut-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.dash-shortcut-icon { width: 34px; height: 34px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 15px; background: var(--surface3); color: var(--accent); }
+.dash-shortcut-arrow { color: var(--muted); font-size: 14px; }
+.dash-shortcut-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+.dash-shortcut-sub { font-size: 12px; color: var(--muted); }
+
+.dash-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+.dash-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.dash-section-title { font-size: 14px; font-weight: 600; }
+.dash-section-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.dash-section-link:hover { text-decoration: underline; }
+
+.dash-plat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.dash-plat-item { display: flex; align-items: center; gap: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.dash-plat-item .plat-icon, .dash-plat-item .plat-icon-avatar { width: 32px; height: 32px; flex-shrink: 0; }
+.dash-plat-name { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.dash-plat-sub { font-size: 11.5px; color: var(--muted); }
+.dash-plat-item.disconnected .dash-plat-sub { color: var(--muted2); }
+
+.dash-recent-post { display: flex; align-items: center; gap: 12px; padding: 10px 2px; }
+.dash-recent-post + .dash-recent-post { border-top: 1px solid var(--border); }
+.dash-recent-post-icons { display: flex; flex-shrink: 0; }
+.dash-recent-post-icons .plat-icon, .dash-recent-post-icons .plat-icon-avatar { width: 26px; height: 26px; border: 2px solid var(--surface); }
+.dash-recent-post-icons .plat-icon:not(:first-child), .dash-recent-post-icons .plat-icon-avatar:not(:first-child) { margin-left: -8px; }
+.dash-recent-post-body { min-width: 0; flex: 1; }
+.dash-recent-post-text { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-recent-post-date { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.dash-recent-post-status { font-size: 11px; font-family: var(--mono); padding: 3px 10px; border-radius: 99px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
+.dash-recent-post-status.published { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
+.dash-recent-post-status.scheduled { background: rgba(245,185,66,0.12); color: var(--yellow); border: 1px solid rgba(245,185,66,0.3); }
+.dash-recent-post-status.error, .dash-recent-post-status.partial { background: rgba(240,89,107,0.12); color: var(--red); border: 1px solid rgba(240,89,107,0.3); }
+.dash-recent-post-status.cancelled { background: rgba(154,161,181,0.12); color: var(--muted); border: 1px solid var(--border2); }
+
+@media (max-width: 1024px) {
+  .dash-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .dash-shortcuts-row { grid-template-columns: 1fr 1fr; }
+  .dash-plat-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
+  .dash-shortcuts-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .dash-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dash-stat-card { padding: 0.9rem 1rem; }
+  .dash-stat-icon { width: 34px; height: 34px; margin-bottom: 10px; }
+  .dash-stat-val { font-size: 21px; }
+  .dash-plat-row { grid-template-columns: 1fr; }
+  .dash-recent-post-text { white-space: normal; }
+}
+
 /* ── Tables & Rows ───────────────────────────────────────────────────────── */
 .token-table { width: 100%; border-collapse: collapse; }
 .token-table th { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -1448,17 +1509,53 @@ input, select, textarea, label, .bottom-nav-item {
   <!-- DASHBOARD -->
   <div id="page-dashboard" class="section-page active">
     <div class="page-header">
-      <div><div class="page-title">Início</div><div class="page-sub">Veja como estão suas redes sociais conectadas</div></div>
-      <button class="btn btn-accent" onclick="openModal('nova-conta')">+ Conectar conta</button>
+      <div><div class="page-title">Dashboard</div><div class="page-sub">Visão geral das suas redes sociais</div></div>
+      <button class="btn btn-accent" onclick="showPage('agendador')">✎ Criar Post</button>
     </div>
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-icon" style="background:var(--accent)">🔗</div><div class="stat-body"><div class="stat-val" id="stat-total">—</div><div class="stat-label">Contas conectadas</div><div class="stat-sub trend-success" id="stat-total-sub">carregando...</div></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--green)">✓</div><div class="stat-body"><div class="stat-val" id="stat-valid">—</div><div class="stat-label">Funcionando bem</div><div class="stat-sub trend-success" id="stat-valid-sub">—</div></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--yellow)">⏳</div><div class="stat-body"><div class="stat-val" id="stat-expiring">—</div><div class="stat-label">Vencendo em breve</div><div class="stat-sub trend-warning">⚠ reconecte em breve</div></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:var(--red)">⚠</div><div class="stat-body"><div class="stat-val" id="stat-error">—</div><div class="stat-label">Precisam de atenção</div><div class="stat-sub trend-danger">↓ reconectar agora</div></div></div>
+
+    <div class="dash-stats-row">
+      <div class="dash-stat-card"><div class="dash-stat-icon" style="background:var(--accent)">📄</div><div class="dash-stat-val" id="dstat-total">—</div><div class="dash-stat-label">Total de Posts</div></div>
+      <div class="dash-stat-card"><div class="dash-stat-icon" style="background:#e88a2e">🕒</div><div class="dash-stat-val" id="dstat-scheduled">—</div><div class="dash-stat-label">Agendados</div></div>
+      <div class="dash-stat-card"><div class="dash-stat-icon" style="background:var(--green)">✓</div><div class="dash-stat-val" id="dstat-published">—</div><div class="dash-stat-label">Publicados</div></div>
+      <div class="dash-stat-card"><div class="dash-stat-icon" style="background:#3b8ff0">👥</div><div class="dash-stat-val" id="dstat-accounts">—</div><div class="dash-stat-label">Contas Conectadas</div></div>
     </div>
-    <div class="plat-grid" id="plat-grid">
-      <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--muted);font-family:var(--mono)">carregando plataformas...</div>
+
+    <div class="dash-shortcuts-row">
+      <div class="dash-shortcut" onclick="showPage('agendador')">
+        <div class="dash-shortcut-top"><div class="dash-shortcut-icon">✎</div><span class="dash-shortcut-arrow">↗</span></div>
+        <div class="dash-shortcut-title">Compor novo post</div>
+        <div class="dash-shortcut-sub">Crie conteúdo para múltiplas redes</div>
+      </div>
+      <div class="dash-shortcut" onclick="showPage('calendario')">
+        <div class="dash-shortcut-top"><div class="dash-shortcut-icon">📅</div><span class="dash-shortcut-arrow">↗</span></div>
+        <div class="dash-shortcut-title">Ver calendário</div>
+        <div class="dash-shortcut-sub">Acompanhe posts agendados</div>
+      </div>
+      <div class="dash-shortcut" onclick="showPage('analytics')">
+        <div class="dash-shortcut-top"><div class="dash-shortcut-icon">📈</div><span class="dash-shortcut-arrow">↗</span></div>
+        <div class="dash-shortcut-title">Ver analytics</div>
+        <div class="dash-shortcut-sub">Métricas de desempenho</div>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <div class="dash-section-head">
+        <span class="dash-section-title">Plataformas Conectadas</span>
+        <a href="javascript:void(0)" onclick="showPage('tokens')" class="dash-section-link">Gerenciar</a>
+      </div>
+      <div class="dash-plat-row" id="dash-plat-row">
+        <div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:8px 2px">carregando plataformas...</div>
+      </div>
+    </div>
+
+    <div class="dash-section">
+      <div class="dash-section-head">
+        <span class="dash-section-title">Posts Recentes</span>
+        <a href="javascript:void(0)" onclick="showPage('calendario')" class="dash-section-link">Ver todos</a>
+      </div>
+      <div id="dash-recent-posts">
+        <div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:8px 2px">carregando posts...</div>
+      </div>
     </div>
   </div>
 
@@ -2632,100 +2729,88 @@ function profileUrl(platform, handle) {
 
 async function loadDashboard() {
   try {
-    const [{ platforms, summary }, { data: contas }] = await Promise.all([
+    const [{ platforms, summary }, { data: contas }, { posts }] = await Promise.all([
       apiFetch('/api/accounts/stats'),
-      apiFetch('/api/accounts')
+      apiFetch('/api/accounts'),
+      apiFetch('/api/posts')
     ]);
 
-    document.getElementById('stat-total').textContent    = summary.totalAccounts;
-    document.getElementById('stat-total-sub').textContent = `↑ ${platforms.length} plataformas`;
-    document.getElementById('stat-valid').textContent    = summary.validTokensTotal;
-    const percentValido = summary.totalAccounts > 0 ? Math.round(summary.validTokensTotal/summary.totalAccounts*100) : 0;
-    document.getElementById('stat-valid-sub').textContent = `↑ ${percentValido}% do total`;
-    document.getElementById('stat-expiring').textContent = summary.expiringTokensTotal;
-    document.getElementById('stat-error').textContent    = summary.errorTotal;
+    // Stat cards
+    const totalPosts = posts.length;
+    const scheduledPosts = posts.filter(p => p.status === 'scheduled').length;
+    const publishedPosts = posts.filter(p => p.status === 'published').length;
+    document.getElementById('dstat-total').textContent     = totalPosts;
+    document.getElementById('dstat-scheduled').textContent = scheduledPosts;
+    document.getElementById('dstat-published').textContent = publishedPosts;
+    document.getElementById('dstat-accounts').textContent  = summary.totalAccounts;
 
-    // Platform cards
-    const grid = document.getElementById('plat-grid');
-    grid.innerHTML = '';
+    // Platform cards (compacto)
     const platCfg = {
-      facebook: { cls:'fb', icon:PLAT_SVG.facebook, label:'Facebook', api:'Conexão válida por até 60 dias' },
-      instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram', api:'Conexão válida por até 60 dias' },
-      youtube:  { cls:'yt', icon:PLAT_SVG.youtube, label:'YouTube',  api:'Renovação automática' },
-      tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok',  api:'Publica imediatamente ao enviar' },
-      threads:  { cls:'th', icon:PLAT_SVG.threads, label:'Threads', api:'Conexão válida por até 60 dias' },
-      linkedin: { cls:'li', icon:PLAT_SVG.linkedin, label:'LinkedIn', api:'Exige reconexão manual periódica' },
-      pinterest:{ cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest', api:'Renovação automática' }
+      facebook: { cls:'fb', icon:PLAT_SVG.facebook, label:'Facebook' },
+      instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram' },
+      youtube:  { cls:'yt', icon:PLAT_SVG.youtube, label:'YouTube' },
+      tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok' },
+      threads:  { cls:'th', icon:PLAT_SVG.threads, label:'Threads' },
+      linkedin: { cls:'li', icon:PLAT_SVG.linkedin, label:'LinkedIn' },
+      pinterest:{ cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' }
     };
-    platforms.forEach(p => {
+    const platRow = document.getElementById('dash-plat-row');
+    platRow.innerHTML = platforms.map(p => {
       const cfg = platCfg[p.platform];
-      const health = p.total > 0 ? Math.round((p.active / p.total) * 100) : 0;
-      // Status do card: erro real (conta com falha) pesa mais que vencimento
-      // próximo, que pesa mais que "tudo certo" — sem contas é neutro, nunca
-      // erro (é um convite a conectar, não um problema).
-      const cardStatus = p.total === 0 ? 'neutral' : p.error > 0 ? 'error' : p.expiringTokens > 0 ? 'warning' : 'ok';
-      const statusLabel = { neutral:'disconnected', error:'error', warning:'partial', ok:'connected' }[cardStatus];
-      const statusText  = { neutral:'não conectado', error:'com problema', warning:'atenção', ok:'conectado' }[cardStatus];
+      const connected = p.active > 0;
 
-      // Coleta todos os links de perfil válidos para essa plataforma, e a
-      // primeira foto de perfil real encontrada (se alguma conta tiver).
-      const links = [];
       let avatarUrl = null;
       for (const c of contas) {
         if (c.platform !== p.platform || !c.handle) continue;
-        if (!avatarUrl && c.avatarUrl) avatarUrl = c.avatarUrl;
-        const l = profileUrl(p.platform, c.handle);
-        if (l) links.push({ name: c.handle, url: l });
+        if (c.avatarUrl) { avatarUrl = c.avatarUrl; break; }
       }
-      // Algumas redes (TikTok) dão URLs de avatar assinadas com validade curta —
-      // quando expira, a imagem falha ao carregar; o onerror troca pelo ícone
-      // genérico da rede em vez de deixar a imagem quebrada visível.
       const fallbackIcon = `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`.replace(/"/g, '&quot;');
       const platIcon = avatarUrl
         ? `<img class="plat-icon-avatar" src="${escapeHtml(avatarUrl)}" onerror="this.outerHTML='${fallbackIcon}'">`
         : `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`;
-      // "Abrir conta" é a ação mais usada do card (visitar o perfil já
-      // conectado) — leva o peso visual primário. "+ Conta" é rara (raramente
-      // se conecta uma 2ª conta da mesma rede) — fica em ghost.
-      let openBtn;
-      if (links.length === 0) {
-        openBtn = `<button class="plat-btn" disabled title="Nenhuma conta conectada">Abrir conta</button>`;
-      } else if (links.length === 1) {
-        openBtn = `<button class="plat-btn primary" onclick="window.open('${links[0].url}', '_blank')">Abrir conta</button>`;
-      } else {
-        const opts = links.map(l => `<a href="${l.url}" target="_blank" class="account-dropdown-item">${escapeHtml(l.name)}</a>`).join('');
-        openBtn = `<div class="account-dropdown">
-          <button type="button" class="plat-btn primary" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open')">Abrir conta ▾</button>
-          <div class="account-dropdown-menu">${opts}</div>
-        </div>`;
-      }
 
-      const statColor = { neutral:'var(--muted)', error:'var(--red)', warning:'var(--yellow)', ok:'var(--green)' }[cardStatus];
-      const problemCount = p.error || p.expiringTokens;
+      const contaCount = contas.filter(c => c.platform === p.platform).length;
+      const sub = connected
+        ? `${contaCount} ${contaCount === 1 ? 'conta' : 'contas'}`
+        : 'Não conectado';
 
-      grid.innerHTML += `
-        <div class="plat-card ${cfg.cls}" data-status="${cardStatus}">
-          <div class="plat-header">
-            <div class="plat-name">${platIcon}${cfg.label}</div>
-            <span class="status-pill ${statusLabel}">${statusText}</span>
+      return `<div class="dash-plat-item${connected ? '' : ' disconnected'}" onclick="showPage('tokens')" style="cursor:pointer">
+        ${platIcon}
+        <div>
+          <div class="dash-plat-name">${cfg.label}</div>
+          <div class="dash-plat-sub">${sub}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Posts recentes (5 mais recentes por data de criação/agendamento)
+    const recentContainer = document.getElementById('dash-recent-posts');
+    const recent = [...posts]
+      .sort((a, b) => new Date(b.criado_em || b.scheduledAt) - new Date(a.criado_em || a.scheduledAt))
+      .slice(0, 5);
+    if (recent.length === 0) {
+      recentContainer.innerHTML = `<div style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:8px 2px">nenhum post ainda</div>`;
+    } else {
+      const statusLabel = { published:'Publicado', scheduled:'Agendado', partial:'Parcial', error:'Erro', cancelled:'Cancelado' };
+      recentContainer.innerHTML = recent.map(p => {
+        const icons = (p.platforms || []).map(plat => {
+          const cfg = platCfg[plat];
+          if (!cfg) return '';
+          return `<div class="plat-icon ${cfg.cls}">${cfg.icon}</div>`;
+        }).join('');
+        const dateVal = p.status === 'published' ? (p.publishedAt || p.scheduledAt) : p.scheduledAt;
+        const dateText = dateVal ? new Date(dateVal).toLocaleDateString('pt-BR') : '—';
+        const text = (p.text || '(sem texto)').replace(/\s+/g, ' ').trim();
+        return `<div class="dash-recent-post">
+          <div class="dash-recent-post-icons">${icons}</div>
+          <div class="dash-recent-post-body">
+            <div class="dash-recent-post-text">${escapeHtml(text)}</div>
+            <div class="dash-recent-post-date">${dateText}</div>
           </div>
-          <div class="plat-stats">
-            <div class="plat-stat"><div class="plat-stat-val">${p.total}</div><div class="plat-stat-label">Contas</div></div>
-            <div class="plat-stat"><div class="plat-stat-val" style="color:var(--green)">${p.active}</div><div class="plat-stat-label">Funcionando</div></div>
-            <div class="plat-stat${problemCount > 0 ? ' warning' : ''}"><div class="plat-stat-val" style="color:${problemCount > 0 ? statColor : 'var(--muted)'}">${problemCount}</div><div class="plat-stat-label">${p.error>0?'Com problema':p.expiringTokens>0?'Vencendo':'Sem pendências'}</div></div>
-          </div>
-          <div style="margin-bottom:12px">
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px"><span>Funcionando corretamente</span><span>${health}%</span></div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${health}%;background:${statColor}"></div></div>
-            <div style="font-size:11px;color:var(--muted)">${cfg.api}</div>
-          </div>
-          <div class="plat-actions">
-            ${openBtn}
-            <button class="plat-btn" onclick="showPage('tokens')">Ver conexão</button>
-            <button class="plat-btn ghost" onclick="openModal('nova-conta', '${p.platform}')">+ Conta</button>
-          </div>
+          <span class="dash-recent-post-status ${p.status}">${statusLabel[p.status] || p.status}</span>
         </div>`;
-    });
+      }).join('');
+    }
 
     // Sidebar: lista todas as redes sociais com foto/ícone e indicador de conexão
     const sidebarList = document.getElementById('sidebar-plat-list');
