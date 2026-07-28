@@ -408,8 +408,26 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .step.active .step-label { color: var(--accent); }
 
 /* ── Scheduler ───────────────────────────────────────────────────────────── */
-.sched-grid { display: grid; grid-template-columns: 300px 360px 1fr; gap: 16px; }
-.sched-form, .sched-queue, .sched-preview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+.sched-grid { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(0,1fr) minmax(260px,0.9fr); gap: 16px; align-items: start; }
+.sched-form, .sched-queue, .sched-preview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; }
+
+/* Seções do formulário de post ganham título em maiúsculo roxo + borda de destaque,
+   ecoando o padrão visual do dash-section usado no Dashboard. */
+.sched-form > .form-group > label { display: flex; align-items: center; gap: 6px; }
+
+/* Grade de plataformas do "Onde publicar" — botões diretos (toggle), um clique
+   marca/desmarca a rede sem precisar abrir modal. O modal "Gerenciar contas
+   específicas" continua disponível para quando há mais de 1 conta na mesma
+   rede e é preciso escolher qual delas recebe o post. */
+.platform-toggle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.platform-toggle-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 14px 8px; cursor: pointer; transition: all var(--transition); }
+.platform-toggle-btn:hover { border-color: var(--border2); background: var(--surface3); }
+.platform-toggle-btn .plat-icon { width: 34px; height: 34px; font-size: 15px; }
+.platform-toggle-btn-label { font-size: 12px; color: var(--muted2); font-weight: 500; }
+.platform-toggle-btn.active { border-color: var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 1px var(--accent) inset; }
+.platform-toggle-btn.active .platform-toggle-btn-label { color: var(--text); }
+.platform-toggle-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+@media (max-width: 480px) { .platform-toggle-grid { grid-template-columns: repeat(2, 1fr); } }
 
 /* ── Preview visual por rede (Agendador) ────────────────────────────────── */
 .sched-preview { display: flex; flex-direction: column; align-items: center; }
@@ -417,6 +435,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .preview-tab-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
 .preview-tab-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
 .preview-empty { color: var(--muted); font-size: 12px; text-align: center; padding: 3rem 1rem; }
+
+/* Botões primários de publicar/agendar ganham gradiente para se destacarem
+   como ação principal da página (padrão visual pedido para "Compor Post"). */
+.sched-form .btn-accent { background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; box-shadow: 0 4px 14px var(--accent-glow); }
+.sched-form .btn-accent:hover { filter: brightness(1.08); }
 
 .preview-frame-mobile { width: 100%; max-width: 300px; transition: max-width var(--transition); }
 
@@ -1606,20 +1629,20 @@ input, select, textarea, label, .bottom-nav-item {
 
   <!-- AGENDADOR -->
   <div id="page-agendador" class="section-page">
-    <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">Crie uma publicação e escolha quando ela deve ser postada</div></div></div>
+    <div class="page-header"><div><div class="page-title">Programar Post</div><div class="page-sub">Crie conteúdo e publique em múltiplas redes de uma vez</div></div></div>
     <div class="sched-grid">
       <div class="sched-form" id="sched-form-dropzone" style="position:relative">
         <div id="sched-form-dropzone-overlay" style="display:none;position:absolute;inset:0;z-index:30;background:rgba(0,0,0,0.55);border:2px dashed var(--accent);border-radius:10px;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;pointer-events:none">Solte os arquivos aqui</div>
-        <div style="font-size:13px;font-weight:500;margin-bottom:1rem">Novo post</div>
         <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
         <div class="form-group">
-          <label>Onde publicar</label>
-          <button type="button" class="btn" id="account-picker-btn" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openAccountPickerModal()">
-            <span id="account-picker-icons" style="display:flex;align-items:center"></span>
-            <span id="account-picker-label" style="flex:1">Carregando redes...</span>
-            <span style="font-size:10px;color:var(--muted)">▾</span>
-          </button>
+          <label>📱 Plataformas</label>
+          <div id="platform-toggle-grid" class="platform-toggle-grid"></div>
           <div id="account-preview-row" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+          <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+            <span id="account-picker-label" style="font-size:11px;color:var(--muted)"></span>
+            <a href="javascript:void(0)" onclick="openAccountPickerModal()" style="font-size:11px;color:var(--accent);text-decoration:none">Gerenciar contas específicas ▾</a>
+          </div>
+          <span id="account-picker-icons" style="display:none"></span>
         </div>
         <div class="form-group" id="config-tabs-group" style="display:none">
           <label>Configurar por rede</label>
@@ -1686,9 +1709,9 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="preset-row-tiktok" style="margin-top:8px"></div>
         </div>
         <div class="form-group">
-          <label>Texto <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
+          <label>✎ Texto do post <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
-          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="Texto do post (opcional)..." oninput="onPostTextInput()"></textarea>
+          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="O que você quer compartilhar hoje?" oninput="onPostTextInput()"></textarea>
 
           <!-- Barra de ações do editor (emoji, hashtag, link, textos salvos) -->
           <div style="display:flex;align-items:center;gap:4px;margin-top:6px;position:relative">
@@ -1727,7 +1750,7 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="post-first-comment-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
         </div>
         <div class="form-group">
-          <label>Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
+          <label>📎 Mídia <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
           <div class="media-picker">
             <button type="button" class="btn" id="media-trigger-btn" onclick="toggleMediaMenu(event)">
               <span class="btn-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> <span id="media-trigger-label">Selecionar mídia</span></span><span style="font-size:10px;color:var(--muted)">▾</span>
@@ -1766,7 +1789,7 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
 
         <div class="form-group">
-          <label>Data e hora</label>
+          <label>📅 Agendamento</label>
           <div class="date-picker">
             <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="toggleDatePicker(event)"/>
             <input type="hidden" id="post-date"/>
@@ -1798,16 +1821,17 @@ input, select, textarea, label, .bottom-nav-item {
           <select id="post-repeat"><option value="none">Sem repetição</option><option value="daily">Diariamente</option><option value="weekly">Semanalmente</option><option value="monthly">Mensalmente</option></select>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn btn-accent" style="flex:1" onclick="schedulePost()">Agendar post</button>
-          <button class="btn" style="flex:1" onclick="schedulePost(true)">Publicar agora</button>
+          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(true)">📋 Salvar Modelo</button>
+          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(false)">💾 Salvar Rascunho</button>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(false)">💾 Salvar rascunho</button>
-          <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(true)">📋 Salvar template</button>
+          <button class="btn" style="flex:1" onclick="schedulePost()">📅 Agendar post</button>
+          <button class="btn btn-accent" style="flex:1" onclick="schedulePost(true)">✈ Publicar Agora</button>
         </div>
       </div>
       <div class="sched-preview">
         <div class="preview-header">
+          <label style="font-size:11px;font-family:var(--mono);color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;font-weight:500">🌐 Pré-visualização</label>
           <div id="preview-tabs" style="display:flex;gap:6px"></div>
         </div>
         <div id="preview-frame" class="preview-frame-mobile">
@@ -1816,7 +1840,7 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
       <div class="sched-queue">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-          <div style="font-size:13px;font-weight:500">Próximas publicações</div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;font-weight:500">📋 Próximas publicações</div>
           <span id="queue-count" style="font-size:11px;color:var(--muted);font-family:var(--sans)">— posts</span>
         </div>
         <div id="queue-list"><div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div></div>
@@ -3140,6 +3164,7 @@ function applyPlatformSelection(plats) {
   renderConfigTabsBar();
   applyConfigTabVisibility();
   updateAccountPickerLabel();
+  renderPlatformToggleGrid();
   syncTextByPlatformSelection();
   syncTitleByPlatformSelection();
   renderAccountPreviewRow();
@@ -3994,6 +4019,35 @@ function renderTextTabsBar() {
   }).join('');
 
   updateTextTabsCounter();
+}
+
+// Grade de botões diretos (Facebook/Instagram/YouTube/TikTok/...) — um clique
+// marca/desmarca a rede direto no formulário, sem precisar abrir o modal.
+// Redes sem nenhuma conta conectada ficam desabilitadas (nada pra selecionar).
+function renderPlatformToggleGrid() {
+  const grid = document.getElementById('platform-toggle-grid');
+  if (!grid) return;
+  grid.innerHTML = Object.entries(PLAT_ROW_CFG).map(([plat, cfg]) => {
+    const temConta = apContas.some(c => c.platform === plat && c.handle);
+    const active = selectedPlats.has(plat) && temConta;
+    const cls = ['platform-toggle-btn', active ? 'active' : '', temConta ? '' : 'disabled'].filter(Boolean).join(' ');
+    return `<div class="${cls}" onclick="${temConta ? `toggleDirectPlatform('${plat}')` : ''}" title="${temConta ? '' : 'Nenhuma conta conectada'}">
+      <div class="plat-icon ${cfg.cls}">${cfg.icon}</div>
+      <span class="platform-toggle-btn-label">${escapeHtml(cfg.label)}</span>
+    </div>`;
+  }).join('');
+}
+
+// Toggle direto de uma rede a partir da grade de botões — mesmo estado
+// (selectedPlats) usado pelo modal "Gerenciar contas específicas", então os
+// dois pontos de entrada continuam em sincronia.
+function toggleDirectPlatform(plat) {
+  const novo = new Set(selectedPlats);
+  if (novo.has(plat)) novo.delete(plat);
+  else novo.add(plat);
+  applyPlatformSelection([...novo]);
+  updateBestTimesWidget();
+  updatePostScore();
 }
 
 // Resumo do botão "Onde publicar" — nº de contas é a soma, para cada rede
