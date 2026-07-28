@@ -81,7 +81,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .user-role.super_admin { background: rgba(251,191,36,0.15); color: var(--yellow); }
 
 .nav-section { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.7; }
-.sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.nav-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; background: none; border: none; cursor: pointer; font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.7; transition: opacity var(--transition); }
+.nav-section-toggle:hover { opacity: 1; }
+.nav-section-toggle svg { transition: transform var(--transition); flex-shrink: 0; }
+.nav-section-toggle.collapsed svg { transform: rotate(-90deg); }
+.sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); overflow: hidden; max-height: 600px; transition: max-height var(--transition), padding var(--transition); }
+.sidebar-plat-list.collapsed { max-height: 0; padding: 0; border-bottom: none; }
 .sidebar-plat-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--text); cursor: pointer; transition: background var(--transition); }
 .sidebar-plat-item:hover { background: rgba(255,255,255,0.04); }
 .sidebar-plat-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; opacity: 0.5; }
@@ -1476,7 +1481,10 @@ input, select, textarea, label, .bottom-nav-item {
     Dashboard
   </div>
 
-  <div class="nav-section">Redes sociais</div>
+  <button type="button" class="nav-section-toggle" id="nav-plat-toggle" onclick="toggleSidebarPlatList()">
+    Redes sociais
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
   <div class="sidebar-plat-list" id="sidebar-plat-list">
     <div style="padding:8px 1.25rem;font-size:11px;color:var(--muted);font-family:var(--mono)">carregando...</div>
   </div>
@@ -2640,6 +2648,23 @@ function closeSidebar() {
   document.getElementById('sidebar-overlay').classList.remove('open');
   document.body.style.overflow = '';
 }
+
+// Recolhe/expande a lista de redes sociais na sidebar, lembrando a preferência
+function toggleSidebarPlatList() {
+  const list = document.getElementById('sidebar-plat-list');
+  const btn = document.getElementById('nav-plat-toggle');
+  const collapsed = list.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed', collapsed);
+  try { localStorage.setItem('sidebarPlatListCollapsed', collapsed ? '1' : '0'); } catch {}
+}
+(function initSidebarPlatListState() {
+  let collapsed = false;
+  try { collapsed = localStorage.getItem('sidebarPlatListCollapsed') === '1'; } catch {}
+  if (collapsed) {
+    document.getElementById('sidebar-plat-list').classList.add('collapsed');
+    document.getElementById('nav-plat-toggle').classList.add('collapsed');
+  }
+})();
 
 // Página atualmente visível — usada pelo agente de IA para contextualizar sugestões
 window.currentPageName = 'dashboard';
