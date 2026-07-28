@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="/i18n.js"></script>
 <style>
 :root {
   --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
@@ -45,18 +46,18 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div class="topbar">
-  <div class="title">Administração</div>
-  <a href="/">← Voltar ao painel</a>
+  <div class="title" data-i18n="admin.titulo">Administração</div>
+  <a href="/" data-i18n="admin.voltar">← Voltar ao painel</a>
 </div>
 
 <div class="main">
   <div class="msg" id="msg"></div>
 
-  <div class="section-title">Usuários</div>
+  <div class="section-title" data-i18n="admin.usuarios">Usuários</div>
   <div class="card">
     <table>
-      <thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th></th></tr></thead>
-      <tbody id="users-body"><tr><td colspan="6" class="empty">carregando...</td></tr></tbody>
+      <thead><tr><th data-i18n="admin.colEmail">E-mail</th><th data-i18n="admin.colNome">Nome</th><th data-i18n="admin.colPapel">Papel</th><th data-i18n="admin.colSituacao">Situação</th><th data-i18n="admin.colContas">Contas</th><th></th></tr></thead>
+      <tbody id="users-body"><tr><td colspan="6" class="empty" data-i18n="admin.carregando">carregando...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -78,6 +79,7 @@ function showMsg(text, type) {
 const API = 'https://social-api-manager-production.up.railway.app';  // backend (Railway) — front fica na Vercel
 
 async function apiFetch(path, opts = {}) {
+  const t = window.i18n.t;
   const token = localStorage.getItem('authToken');
   const res = await fetch(API + path, {
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
@@ -86,10 +88,10 @@ async function apiFetch(path, opts = {}) {
   if (res.status === 401) {
     localStorage.removeItem('authToken');
     window.location.href = '/login.html';
-    throw new Error('Sessão expirada');
+    throw new Error(t('admin.sessaoExpirada'));
   }
   if (!res.ok) {
-    let mensagem = 'Não foi possível concluir essa ação.';
+    let mensagem = t('admin.acaoFalhou');
     try { const data = await res.json(); if (data?.erro) mensagem = data.erro; } catch {}
     throw new Error(mensagem);
   }
@@ -99,9 +101,9 @@ async function apiFetch(path, opts = {}) {
 let currentUserId = null;
 let currentUserRole = null;
 
-const roleLabels = { super_admin: 'Administrador Principal', admin: 'Administrador', user: 'Usuário' };
-
 async function loadUsers() {
+  const t = window.i18n.t;
+  const roleLabels = { super_admin: t('admin.roleSuperAdmin'), admin: t('admin.roleAdmin'), user: t('admin.roleUser') };
   const body = document.getElementById('users-body');
   try {
     const me = await apiFetch('/api/me');
@@ -110,23 +112,24 @@ async function loadUsers() {
     const souSuperAdmin = currentUserRole === 'super_admin';
 
     const { data: users } = await apiFetch('/api/admin/users');
-    if (!users.length) { body.innerHTML = '<tr><td colspan="6" class="empty">nenhum usuário</td></tr>'; return; }
+    if (!users.length) { body.innerHTML = `<tr><td colspan="6" class="empty">${t('admin.nenhumUsuario')}</td></tr>`; return; }
 
     body.innerHTML = users.map(u => {
       const isMe = u.id === currentUserId;
       const isSuperAdmin = u.role === 'super_admin';
+      const roleActionLabel = u.role === 'admin' ? t('admin.tornarUsuario') : t('admin.tornarAdmin');
       const roleBtn = souSuperAdmin && !isSuperAdmin
-        ? `<button class="btn" onclick="toggleRole(${u.id}, '${u.role}')">${u.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button>`
-        : `<button class="btn" disabled title="${isSuperAdmin ? 'Papel definido diretamente no sistema' : 'Apenas o administrador principal pode alterar papéis'}">${u.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button>`;
+        ? `<button class="btn" onclick="toggleRole(${u.id}, '${u.role}')">${roleActionLabel}</button>`
+        : `<button class="btn" disabled title="${isSuperAdmin ? t('admin.papelDefinidoSistema') : t('admin.apenasSuperAdmin')}">${roleActionLabel}</button>`;
       return `<tr>
         <td>${escapeHtml(u.email)}</td>
         <td>${escapeHtml(u.fullName || '—')}</td>
         <td><span class="pill ${u.role}">${roleLabels[u.role] || u.role}</span></td>
-        <td><span class="pill ${u.ativo ? 'ativo' : 'inativo'}">${u.ativo ? 'Ativo' : 'Desativado'}</span></td>
+        <td><span class="pill ${u.ativo ? 'ativo' : 'inativo'}">${u.ativo ? t('admin.ativo') : t('admin.desativado')}</span></td>
         <td>${u.totalContas}</td>
         <td style="display:flex;gap:6px">
           ${roleBtn}
-          <button class="btn" onclick="toggleAtivo(${u.id}, ${u.ativo})" ${isMe ? 'disabled title="Você não pode desativar sua própria conta"' : ''}>${u.ativo ? 'Desativar' : 'Ativar'}</button>
+          <button class="btn" onclick="toggleAtivo(${u.id}, ${u.ativo})" ${isMe ? `disabled title="${t('admin.naoDesativarProprio')}"` : ''}>${u.ativo ? t('admin.desativar') : t('admin.ativar')}</button>
         </td>
       </tr>`;
     }).join('');
@@ -139,7 +142,7 @@ async function toggleRole(id, currentRole) {
   const novoRole = currentRole === 'admin' ? 'user' : 'admin';
   try {
     await apiFetch(`/api/admin/users/${id}/role`, { method: 'POST', body: JSON.stringify({ role: novoRole }) });
-    showMsg('Papel atualizado com sucesso.', 'ok');
+    showMsg(window.i18n.t('admin.papelAtualizado'), 'ok');
     loadUsers();
   } catch (e) {
     showMsg(e.message, 'err');
@@ -149,7 +152,7 @@ async function toggleRole(id, currentRole) {
 async function toggleAtivo(id, currentlyAtivo) {
   try {
     await apiFetch(`/api/admin/users/${id}/ativo`, { method: 'POST', body: JSON.stringify({ ativo: !currentlyAtivo }) });
-    showMsg('Situação do usuário atualizada.', 'ok');
+    showMsg(window.i18n.t('admin.situacaoAtualizada'), 'ok');
     loadUsers();
   } catch (e) {
     showMsg(e.message, 'err');
@@ -157,6 +160,7 @@ async function toggleAtivo(id, currentlyAtivo) {
 }
 
 loadUsers();
+window.addEventListener('langchange', loadUsers);
 </script>
 
 </body>

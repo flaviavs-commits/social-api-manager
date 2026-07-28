@@ -9,6 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/i18n.js"></script>
 <style>
 :root {
   --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
@@ -45,19 +46,19 @@ footer a:hover { color: var(--text); }
 <div class="wrap">
   <header>
     <div class="logo">MeuEcooMedia</div>
-    <a href="/login.html" class="btn btn-primary">Entrar</a>
+    <a href="/login.html" class="btn btn-primary" data-i18n="landing.entrar">Entrar</a>
   </header>
 
-  <h1>Gerencie suas redes sociais em um só lugar</h1>
-  <p class="subtitle">
+  <h1 data-i18n="landing.h1">Gerencie suas redes sociais em um só lugar</h1>
+  <p class="subtitle" data-i18n="landing.subtitle">
     O MeuEcooMedia é um painel que permite agendar, publicar e
     acompanhar o desempenho de conteúdo em várias redes sociais a partir de
     uma única interface, sem precisar abrir cada aplicativo separadamente.
   </p>
 
   <section class="card">
-    <h2>O que o aplicativo faz</h2>
-    <p>
+    <h2 data-i18n="landing.oQueFazTitle">O que o aplicativo faz</h2>
+    <p data-i18n="landing.oQueFazTexto">
       Você conecta suas próprias contas de redes sociais e, a partir do
       painel, escreve um post, anexa fotos ou vídeos e escolhe em quais
       plataformas ele deve ser publicado — imediatamente ou em uma data
@@ -73,31 +74,31 @@ footer a:hover { color: var(--text); }
   </section>
 
   <section>
-    <h2>Como funciona</h2>
+    <h2 data-i18n="landing.comoFuncionaTitle">Como funciona</h2>
     <ul>
-      <li>Você cria uma conta no aplicativo com seu e-mail e senha.</li>
-      <li>Conecta as redes sociais que quiser, autorizando o acesso diretamente pelo fluxo oficial de login de cada plataforma (OAuth).</li>
-      <li>Cria um post uma única vez e publica nas redes conectadas.</li>
-      <li>Acompanha o histórico de publicações e métricas em um painel central.</li>
-      <li>Pode desconectar qualquer conta a qualquer momento, removendo o acesso imediatamente.</li>
+      <li data-i18n="landing.passo1">Você cria uma conta no aplicativo com seu e-mail e senha.</li>
+      <li data-i18n="landing.passo2">Conecta as redes sociais que quiser, autorizando o acesso diretamente pelo fluxo oficial de login de cada plataforma (OAuth).</li>
+      <li data-i18n="landing.passo3">Cria um post uma única vez e publica nas redes conectadas.</li>
+      <li data-i18n="landing.passo4">Acompanha o histórico de publicações e métricas em um painel central.</li>
+      <li data-i18n="landing.passo5">Pode desconectar qualquer conta a qualquer momento, removendo o acesso imediatamente.</li>
     </ul>
   </section>
 
   <section>
-    <h2>Quem mantém este projeto</h2>
+    <h2 data-i18n="landing.quemMantemTitle">Quem mantém este projeto</h2>
     <p>
-      O MeuEcooMedia é mantido e operado por Breno, como uma ferramenta
+      <span data-i18n="landing.quemMantemTexto1">O MeuEcooMedia é mantido e operado por Breno, como uma ferramenta
       própria de gestão de redes sociais. O contato para dúvidas, suporte ou
-      solicitações relacionadas a dados é
+      solicitações relacionadas a dados é</span>
       <a href="mailto:brenoaugusto@vitissouls.com" style="color:var(--accent)">brenoaugusto@vitissouls.com</a>.
     </p>
   </section>
 
   <footer>
-    <a href="/login.html">Entrar</a>
-    <a href="/support">Suporte</a>
-    <a href="/privacy-policy">Política de Privacidade</a>
-    <a href="/terms-of-service">Termos de Uso</a>
+    <a href="/login.html" data-i18n="landing.entrar">Entrar</a>
+    <a href="/support" data-i18n="landing.suporte">Suporte</a>
+    <a href="/privacy-policy" data-i18n="login.privacidade">Política de Privacidade</a>
+    <a href="/terms-of-service" data-i18n="login.termos">Termos de Uso</a>
   </footer>
 </div>
 
