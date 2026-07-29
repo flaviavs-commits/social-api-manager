@@ -1,0 +1,47 @@
+# Gate de qualidade: nenhum pull request entra no main com a suite vermelha.
+#
+# Motivo de existir: o commit f80e184 (rebrand) alterou o issuer padrao do TOTP
+# sem atualizar o teste correspondente, e o main ficou vermelho sem que nada
+# barrasse o merge. Este workflow fecha essa lacuna.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  testes:
+    name: Testes e auditoria
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A versao acompanha "engines.node" do package.json (>=20.9.0) e a imagem
+      # node:20-alpine usada no Dockerfile do Railway.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Rodar testes
+        run: npm test
+
+      # Auditoria restrita ao que de fato e publicado (o Dockerfile roda
+      # npm ci --only=production), para nao travar o time com ruido vindo de
+      # dependencia de desenvolvimento.
+      #
+      # O nivel esta em "critical", nao em "high", por uma razao deliberada:
+      # hoje a producao ainda tem 1 vulnerabilidade alta conhecida (multer),
+      # tratada na Fase 4 do plano de migracao. Um gate que ja nasce vermelho
+      # e um gate que todo mundo aprende a ignorar. Em "critical" ele passa
+      # agora e mesmo assim barra a volta de algo do nivel do tar.
+      #
+      # Ao fechar a Fase 4, apertar para --audit-level=high.
+      - name: Auditar dependencias de producao
+        run: npm audit --omit=dev --audit-level=critical
