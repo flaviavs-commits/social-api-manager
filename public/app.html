@@ -1411,29 +1411,6 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-model-btn .ai-model-dot.claude  { background: #d97706; }
 .ai-model-unavail { font-size: 9px; color: var(--muted); font-family: var(--mono); }
 
-/* Seletor de modelo no picker */
-.ai-model-pick-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; border-radius: var(--radius);
-  border: 1.5px solid var(--border); background: var(--surface2);
-  cursor: pointer; transition: all 0.15s;
-}
-.ai-model-pick-item:hover:not(.unavailable) { border-color: var(--border2); background: var(--surface3); }
-.ai-model-pick-item.selected { border-color: var(--accent); background: var(--accent-glow); }
-.ai-model-pick-item.unavailable { opacity: 0.38; cursor: not-allowed; }
-.ai-model-pick-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
-.ai-model-pick-icon.gemini { background: rgba(66,133,244,0.15); }
-.ai-model-pick-icon.openai { background: rgba(16,163,127,0.15); }
-.ai-model-pick-icon.claude { background: rgba(217,119,6,0.15); }
-.ai-model-pick-info { flex: 1; min-width: 0; }
-.ai-model-pick-name { font-size: 13px; font-weight: 600; }
-.ai-model-pick-desc { font-size: 11px; color: var(--muted); margin-top:2px; }
-.ai-model-pick-check { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
-.ai-model-pick-item.selected .ai-model-pick-check { background: var(--accent); border-color: var(--accent); }
-#ai-change-model-btn:hover { border-color: var(--accent); color: var(--accent); }
-#ai-change-model-btn:disabled { opacity: 0.35; cursor: not-allowed; border-style: solid; }
-#ai-change-model-btn.locked { opacity: 0.38; cursor: not-allowed; }
-
 @media (max-width: 900px) {
   .ai-page { grid-template-columns: 1fr; }
   .ai-form-panel { position: static; }
@@ -2173,17 +2150,6 @@ input, select, textarea, label, .bottom-nav-item {
         </h2>
         <p style="font-size:12px;color:var(--muted);margin-top:2px" data-i18n="ai.subtitulo">Converse com o agente — ele cria e agenda seus posts automaticamente.</p>
       </div>
-      <!-- Badge do modelo ativo -->
-      <div id="ai-active-model-badge" style="display:flex;align-items:center;gap:8px">
-        <div id="ai-model-badge" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);font-size:12px;font-weight:500">
-          <span id="ai-badge-dot" style="width:7px;height:7px;border-radius:50%;background:#4285f4;flex-shrink:0"></span>
-          <span id="ai-badge-name">Gemini Flash</span>
-          <span style="font-size:10px;color:var(--muted)" data-i18n="ai.padrao">· padrão</span>
-        </div>
-        <button id="ai-change-model-btn" onclick="aiOpenModelPicker()" style="padding:6px 12px;border-radius:20px;border:1px dashed var(--border2);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all var(--transition)" title="Trocar modelo (disponível após criar um post)" data-i18n-title="ai.trocarModeloTitle">
-          <span data-i18n="ai.trocarModelo">⚙ Trocar modelo</span>
-        </button>
-      </div>
     </div>
 
     <!-- Modal API Key do usuário -->
@@ -2220,27 +2186,6 @@ input, select, textarea, label, .bottom-nav-item {
           <button id="ai-apikey-modal-cancel" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer" data-i18n="common.cancelar">Cancelar</button>
           <button id="ai-apikey-modal-test" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text);font-size:13px;cursor:pointer" data-i18n="ai.testarConexao">Testar conexão</button>
           <button id="ai-apikey-modal-save" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer" data-i18n="ai.salvarContinuar">Salvar e continuar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal seletor de modelo -->
-    <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(124,108,255,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 24px 16px;flex-shrink:0">
-          <div>
-            <div style="font-size:14px;font-weight:600" data-i18n="ai.escolherModelo">Escolher modelo de IA</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px" data-i18n="ai.mudancaProximaConversa">A mudança vale para a próxima conversa</div>
-          </div>
-          <button onclick="aiCloseModelPicker()" title="Fechar" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;flex-shrink:0" data-i18n-title="common.fechar">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:0 24px;flex:1;min-height:0"></div>
-        <div style="padding:16px 24px 24px;padding-top:14px;border-top:1px solid var(--border);flex-shrink:0">
-          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#7c6cff,#b36cd9);color:#fff;font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.confirmarEscolha">
-            Confirmar escolha
-          </button>
         </div>
       </div>
     </div>
@@ -8316,30 +8261,13 @@ async function exportAnalyticsPDF() {
 let aiGeneratedPosts = []
 let aiSelectedTone = 'casual'
 let aiSelectedPlats = new Set(['instagram'])
-let aiSelectedModel = 'gemini'
-let aiModelsLoaded = false
+// O agente sempre usa OpenRouter com a chave do servidor — não há mais
+// seleção de provedor/modelo no fluxo principal do chat (ver src/routes/ai.js).
+const AI_MODEL_FIXO = 'openrouter'
 
-// Todos usam a chave do servidor (com limite diário compartilhado) — nenhum
-// exige chave própria do usuário. Ver GEMINI_MODEL_IDS no backend (src/routes/ai.js).
-const GEMINI_MODEL_IDS_FRONT = ['gemini', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-lite']
-
-const AI_MODEL_META = {
-  local:             { label: window.i18n.t('ai.assistenteRapido'),      dot: 'local',  provider: window.i18n.t('ai.semConta') },
-  gemini:            { label: 'Gemini 2.0 Flash',      dot: 'gemini', provider: 'Google' },
-  'gemini-2.5-flash':{ label: 'Gemini 2.5 Flash',      dot: 'gemini', provider: 'Google' },
-  'gemini-2.5-pro':  { label: 'Gemini 2.5 Pro',        dot: 'gemini', provider: 'Google' },
-  'gemini-2.5-lite': { label: 'Gemini 2.5 Flash-Lite', dot: 'gemini', provider: 'Google' },
-  openai:            { label: 'GPT-4o Mini',            dot: 'openai', provider: 'OpenAI' },
-  'openai-4o':       { label: 'GPT-4o',                 dot: 'openai', provider: 'OpenAI' },
-  openrouter:        { label: 'GPT-OSS 20B (OpenRouter)', dot: 'openrouter', provider: 'OpenRouter' },
-  'openrouter-image':{ label: 'Texto + Imagem (OpenRouter)', dot: 'openrouter', provider: 'OpenRouter' },
-  claude:            { label: 'Claude Haiku',           dot: 'claude', provider: 'Anthropic' },
-  'claude-sonnet':   { label: 'Claude Sonnet 5',        dot: 'claude', provider: 'Anthropic' },
-}
-
-let aiAvailableModels = []
-let aiPickerSelectedModel = 'gemini' // seleção temporária no picker antes de confirmar
-
+// Mantido apenas para alimentar os cartões de "chave própria" na tela de
+// Configurações (dentro de "Meu perfil") — não é mais usado para trocar o
+// modelo do chat.
 const AI_MODEL_PICKER_META = {
   local: {
     icon: '🤖',
@@ -8762,180 +8690,6 @@ async function renderAiSettingsCards() {
   })
 }
 
-async function aiLoadModels() {
-  if (aiModelsLoaded) return
-  try {
-    const [data, prefs] = await Promise.all([
-      apiFetch('/api/ai/models'),
-      apiFetch('/api/ai/prefs').catch(() => ({ preferred_model: null })),
-    ])
-    aiModelsLoaded = true
-    aiAvailableModels = data.models || []
-    // Prioridade: 1) preferência salva no servidor, 2) localStorage, 3) primeiro disponível
-    const serverModel = prefs.preferred_model && data.models.find(m => m.id === prefs.preferred_model)
-    const savedModel  = localStorage.getItem('aiSelectedModel')
-    const localModel  = savedModel && data.models.find(m => m.id === savedModel)
-    if (serverModel) {
-      aiSetModel(serverModel.id, false)
-      localStorage.setItem('aiSelectedModel', serverModel.id)
-    } else if (localModel) {
-      aiSetModel(localModel.id, false)
-    } else {
-      const first = data.models.find(m => m.available) || data.models[0]
-      if (first) aiSetModel(first.id, false)
-    }
-  } catch {
-    // fallback: usa lista estática se API falhar
-    aiModelsLoaded = true
-    aiAvailableModels = [
-      { id: 'local',  name: 'Assistente Rápido', provider: 'Sem conta', available: true },
-      { id: 'gemini', name: 'Gemini 2.0 Flash', provider: 'Google',    available: true },
-      { id: 'openai', name: 'GPT-4o Mini',       provider: 'OpenAI',   available: true },
-    ]
-    aiSetModel('local', false)
-  }
-}
-
-function aiSetModel(id, notify = true) {
-  aiSelectedModel = id
-  aiPickerSelectedModel = id
-  const meta = AI_MODEL_META[id] || {}
-  const pickerMeta = AI_MODEL_PICKER_META[id] || {}
-
-  // Atualiza badge da página
-  const dot = document.getElementById('ai-badge-dot')
-  const name = document.getElementById('ai-badge-name')
-  if (dot) dot.style.background = pickerMeta.dotColor || '#7c6cff'
-  if (name) name.textContent = meta.label || id
-
-  // Atualiza nome no cabeçalho do FAB
-  const fabName = document.getElementById('ai-fab-agent-name')
-  if (fabName) fabName.textContent = meta.label || window.i18n.t('aiChat.agentDefaultName')
-
-  // Avisa no chat que o modelo mudou (só se não for inicialização)
-  if (notify) {
-    ;['page', 'fab'].forEach(ctx => {
-      const state = aiChat[ctx]
-      if (state.greeted) {
-        aiChatAddMsg(ctx, 'agent', `✅ ${window.i18n.t('aiChat.modelChangedToPrefix')} ${meta.label}! ${window.i18n.t('aiChat.modelChangedToSuffix')}`)
-        aiChatSetChips(ctx, [`➕ ${window.i18n.t('aiChat.createNewPost')}`])
-      }
-    })
-  }
-}
-
-// Abre o picker — bloqueado após primeira interação do usuário (até criar um post)
-async function aiOpenModelPicker() {
-  const btn = document.getElementById('ai-change-model-btn')
-  if (btn?.disabled) {
-    showToast(window.i18n.t('toast.aiModelPickerLocked'), 'warn')
-    return
-  }
-
-  // Garante que os modelos foram carregados (força se lista vazia)
-  if (!aiAvailableModels.length) aiModelsLoaded = false
-  await aiLoadModels()
-
-  // Renderiza lista
-  const list = document.getElementById('ai-model-picker-list')
-  if (!list) return
-
-  list.innerHTML = aiAvailableModels.map(m => {
-    const pm = AI_MODEL_PICKER_META[m.id] || {}
-    const isSelected = m.id === aiSelectedModel
-    // "sem chave no servidor" só bloqueia de verdade quando o modelo NÃO tem
-    // como usar chave própria do usuário — se tem (requiresKey), o clique
-    // ainda deve funcionar, só que leva direto pro modal de configurar a
-    // chave (em vez de selecionar na hora), em aiConfirmModelPick.
-    const unavail = !m.available && !pm.requiresKey
-    const keyBadgeHtml = pm.keyBadge ? `
-      <div style="margin-top:6px">
-        <span onclick="event.stopPropagation();aiCloseModelPicker();aiOpenKeyModal('${m.id}',()=>{})"
-          style="font-size:10px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px">
-          🔑 ${pm.keyBadge}
-        </span>
-      </div>` : ''
-    return `
-    <div class="ai-model-pick-item${isSelected ? ' selected' : ''}${unavail ? ' unavailable' : ''}"
-      data-model="${m.id}" onclick="${unavail ? '' : `aiPickerSelect('${m.id}')`}">
-      <div class="ai-model-pick-icon ${pm.iconClass || m.id}" style="font-size:20px;color:${pm.dotColor}">${pm.icon || '●'}</div>
-      <div class="ai-model-pick-info">
-        <div class="ai-model-pick-name">
-          ${AI_MODEL_META[m.id]?.label || m.name}
-          ${pm.badge ? `<span style="font-size:9px;background:rgba(124,108,255,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
-          ${unavail ? `<span style="font-size:9px;color:var(--red);margin-left:6px">${window.i18n.t('aiModelPicker.noKey')}</span>` : ''}
-        </div>
-        <div class="ai-model-pick-desc">${unavail ? window.i18n.t('aiModelPicker.keyNotConfigured') : (pm.desc || m.provider)}</div>
-        ${keyBadgeHtml}
-      </div>
-      <div class="ai-model-pick-check">
-        ${isSelected ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
-      </div>
-    </div>`
-  }).join('')
-
-  document.getElementById('ai-model-picker').style.display = 'flex'
-}
-
-function aiPickerSelect(id) {
-  aiPickerSelectedModel = id
-  document.querySelectorAll('.ai-model-pick-item').forEach(el => {
-    const isThis = el.dataset.model === id
-    el.classList.toggle('selected', isThis)
-    const check = el.querySelector('.ai-model-pick-check')
-    check.innerHTML = isThis
-      ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`
-      : ''
-  })
-}
-
-function aiCloseModelPicker() {
-  document.getElementById('ai-model-picker').style.display = 'none'
-}
-
-async function aiConfirmModelPick() {
-  const newModel = aiPickerSelectedModel
-  if (!newModel || newModel === aiSelectedModel) { aiCloseModelPicker(); return }
-
-  // Verifica se o modelo precisa de API key
-  const pm = AI_MODEL_PICKER_META[newModel]
-  if (pm?.requiresKey) {
-    const hasKey = await aiCheckUserKey(newModel)
-    if (!hasKey) {
-      aiCloseModelPicker()
-      aiOpenKeyModal(newModel, () => aiApplyModelChange(newModel))
-      return
-    }
-  }
-
-  aiCloseModelPicker()
-  aiApplyModelChange(newModel)
-}
-
-function aiApplyModelChange(newModel) {
-  localStorage.setItem('aiSelectedModel', newModel)
-  apiFetch('/api/ai/prefs', { method: 'PUT', body: JSON.stringify({ modelo: newModel }) }).catch(() => {})
-  aiSetModel(newModel, false)
-  // Reseta o chat para começar novo com o modelo escolhido
-  ;['page', 'fab'].forEach(ctx => {
-    aiChat[ctx].greeted = false
-    aiChat[ctx].step = 'greeting'
-    aiChat[ctx].pendingPost = null
-    aiChat[ctx].msgs = []
-    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
-    if (msgsEl) msgsEl.innerHTML = ''
-    aiChatSetChips(ctx, [])
-  })
-  const meta = AI_MODEL_META[newModel] || {}
-  showToast(`${window.i18n.t('toast.modelChangedTo')} ${meta.label || newModel}`, 'ok')
-
-  // Inicia nova conversa com saudação do novo modelo
-  setTimeout(() => {
-    if (document.getElementById('page-ai')?.classList.contains('active')) aiChatStart('page')
-    const fabPanel = document.getElementById('ai-fab-panel')
-    if (fabPanel && fabPanel.style.display !== 'none') aiChatStart('fab')
-  }, 100)
-}
 
 function aiLockModelChange(lock) {
   const btn = document.getElementById('ai-change-model-btn')
@@ -8952,9 +8706,7 @@ function aiLockModelChange(lock) {
 }
 
 function aiPageInit() {
-  aiLoadModels().then(() => {
-    aiChatStart('page')
-  })
+  aiChatStart('page')
 }
 
 function aiTogglePlat(el) {
@@ -8997,7 +8749,6 @@ async function aiGenerate() {
         quantidade: qtd,
         tom: aiSelectedTone,
         idioma,
-        modelo: aiSelectedModel,
       })
     })
 
@@ -9568,8 +9319,7 @@ function aiChatGreeting() {
 }
 
 function aiChatAgentName() {
-  const meta = AI_MODEL_META[aiSelectedModel]
-  return meta ? meta.label : window.i18n.t('aiChat.agentDefaultName')
+  return window.i18n.t('aiChat.agentDefaultName')
 }
 
 function aiChatUserInitial() {
@@ -9700,15 +9450,15 @@ async function aiChatStart(ctx) {
   // Busca memórias do modelo ativo para esse usuário
   let memories = []
   try {
-    const data = await apiFetch(`/api/ai/memory?modelo=${aiSelectedModel}`)
+    const data = await apiFetch(`/api/ai/memory?modelo=${AI_MODEL_FIXO}`)
     memories = data.memories || []
   } catch {}
 
   await new Promise(r => setTimeout(r, 900))
   aiChatTyping(ctx, false)
 
-  // Saudação personalizada por modelo
-  aiChatAddMsg(ctx, 'agent', aiModelGreeting(aiSelectedModel))
+  // Saudação do agente (único assistente, sempre via OpenRouter com a chave do servidor)
+  aiChatAddMsg(ctx, 'agent', aiModelGreeting(AI_MODEL_FIXO))
 
   // Pergunta contextual com base na página em que o usuário estava ao abrir o chat
   if (ctx === 'fab') {
@@ -9720,22 +9470,6 @@ async function aiChatStart(ctx) {
       aiChatTyping(ctx, false)
       aiChatAddMsg(ctx, 'agent', hint)
     }
-  }
-
-  // O Assistente Rápido não precisa de chave nenhuma — pula a pergunta de assinatura.
-  // Verifica se usuário tem chave própria — se não tiver, pergunta sobre assinatura
-  let hasKey = false
-  try { const k = await apiFetch(`/api/ai/apikey/${aiSelectedModel}`); hasKey = k.hasKey } catch {}
-  if (aiSelectedModel !== 'local' && !hasKey && !state.askedAboutKey) {
-    state.askedAboutKey = true
-    await new Promise(r => setTimeout(r, 700))
-    aiChatTyping(ctx, true)
-    await new Promise(r => setTimeout(r, 800))
-    aiChatTyping(ctx, false)
-    aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.beforeStartHaveSubscription'))
-    aiChatSetChips(ctx, [`✅ ${window.i18n.t('aiChat.yesIHaveSubscription')}`, `❌ ${window.i18n.t('aiChat.noIDontHave')}`])
-    state.step = 'ask_has_key'
-    return
   }
 
   // Se tem memórias, menciona antes de pedir a rede
@@ -9824,11 +9558,6 @@ async function aiUploadImagemGerada(imageSrc, nomeArquivo) {
 // mídia analisada (aiScheduleMediaPost), com a imagem já enviada ao Blob.
 async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
   const state = aiChat[ctx]
-  const hasKey = await aiCheckUserKey('openrouter')
-  if (!hasKey) {
-    aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.openrouterKeyRequired'))
-    return
-  }
 
   const plats = state.plats?.length ? state.plats : null
   if (!plats) {
@@ -9930,76 +9659,6 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
   }
 }
 
-// Fluxo de geração de imagem — verifica chave e gera ou coleta lead
-//
-// Gerar imagem é independente do modelo de TEXTO selecionado no chat: o
-// usuário pode estar conversando no GPT-OSS 20B, Claude, etc., e ainda assim
-// pedir uma imagem sem precisar trocar de modelo manualmente. Aqui a função
-// escolhe sozinha qual provedor de imagem usar (OpenRouter, se o usuário já
-// tiver chave própria configurada; senão Gemini/Imagen do Google) e nunca
-// mexe em aiSelectedModel — o modelo de texto do chat continua o mesmo antes
-// e depois do pedido de imagem, sem precisar "voltar" porque nunca mudou.
-async function aiHandleImageRequest(ctx, userMsg) {
-  const state = aiChat[ctx]
-
-  // Prioriza OpenRouter se o usuário já tiver chave própria cadastrada (gera
-  // texto+imagem juntos, sem precisar de conta Google/Imagen).
-  const hasOpenrouterKey = await aiCheckUserKey('openrouter')
-  if (hasOpenrouterKey) {
-    return aiHandleImageRequestOpenRouter(ctx, userMsg)
-  }
-
-  aiChatTyping(ctx, true)
-  await new Promise(r => setTimeout(r, 700))
-  aiChatTyping(ctx, false)
-
-  // Verifica se usuário tem chave Google cadastrada
-  const hasKey = await aiCheckUserKey('gemini')
-  if (!hasKey) {
-    // Sem chave — coleta lead
-    state.step = 'image_lead'
-    state.imageDesc = userMsg
-    aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.loveIdeaNeedGoogleImagenAccount'))
-    return
-  }
-
-  // Tem chave — gera a imagem. O Gemini roda em segundo plano (a chamada real
-  // pode levar vários segundos); o indicador de "digitando" fica visível
-  // durante toda a espera, não só um flash inicial, para deixar claro que
-  // ainda está processando.
-  aiChatAddMsg(ctx, 'agent', `🖼️ ${window.i18n.t('aiChat.imageBeingCreatedGemini')}`)
-  aiChatTyping(ctx, true)
-  try {
-    const data = await apiFetch('/api/ai/image/generate', {
-      method: 'POST',
-      body: JSON.stringify({ descricao: userMsg })
-    })
-    aiChatTyping(ctx, false)
-    // Mostra a imagem no chat
-    const msgEl = document.createElement('div')
-    msgEl.className = 'ai-msg agent'
-    msgEl.innerHTML = `
-      <div class="ai-msg-avatar" style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
-      <div style="display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 36px)">
-        <img src="${data.image}" alt="${window.i18n.t('aiChat.generatedImageAlt')}" style="max-width:320px;border-radius:12px;cursor:pointer" onclick="window.open(this.src)">
-        <div class="ai-msg-bubble agent" style="white-space:pre-wrap">${window.i18n.t('aiChat.hereIsYourImage')}</div>
-      </div>`
-    const msgsEl = document.getElementById(ctx === 'fab' ? 'ai-fab-msgs' : 'ai-page-msgs')
-    if (msgsEl) { msgsEl.appendChild(msgEl); msgsEl.scrollTop = msgsEl.scrollHeight }
-    aiChatSetChips(ctx, [`🎨 ${window.i18n.t('aiChat.createAnotherImage')}`, `➕ ${window.i18n.t('common.createPost')}`])
-  } catch (err) {
-    aiChatTyping(ctx, false)
-    const msg = err.message || ''
-    if (msg.includes('billing')) {
-      state.step = 'image_lead'
-      state.imageDesc = userMsg
-      aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.billingRequiredForImages'))
-    } else {
-      aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.hmmCouldNotGenerateImageNow')} ${msg || window.i18n.t('common.tryAgainInMoments')} 🙏`)
-    }
-  }
-}
-
 // Etapas guiadas em que faz sentido tentar entender tudo de uma vez (fora
 // delas — ex: state.step === 'done', 'review_media' — a mensagem já tem
 // outro significado esperado, então a extração livre não se aplica).
@@ -10086,7 +9745,7 @@ async function aiChatProcess(ctx, userMsg) {
 
   // Detecta pedido de imagem em qualquer etapa
   if (aiIsImageRequest(userMsg)) {
-    await aiHandleImageRequest(ctx, userMsg)
+    await aiHandleImageRequestOpenRouter(ctx, userMsg)
     return
   }
 
@@ -10150,58 +9809,6 @@ async function aiChatProcess(ctx, userMsg) {
     }
     return
   }
-  if (msg.includes('usar minha chave') || msg.includes('🔑 Usar')) {
-    aiOpenKeyModal(aiSelectedModel, () => {
-      if (state.lastInstrucao) {
-        state.step = 'ask_instrucao'
-        aiChatProcess(ctx, state.lastInstrucao)
-      }
-    })
-    return
-  }
-  if (msg.includes('trocar modelo') || msg.includes('🔄 Trocar')) {
-    aiOpenModelPicker()
-    return
-  }
-
-  if (state.step === 'ask_has_key') {
-    if (msg.includes('❌') || msg.includes('não tenho')) {
-      // Sem chave de IA: passa a usar o Assistente Rápido (gerador automático,
-      // sem exigir conta), para o usuário conseguir criar posts mesmo assim.
-      // Se um dia GEMINI_API_KEY existir no servidor, o backend usa LLM real
-      // automaticamente dentro do limite diário — sem precisar mudar nada aqui.
-      aiSetModel('local', false)
-      state.step = 'ask_plats'
-      aiChatTyping(ctx, true)
-      await new Promise(r => setTimeout(r, 600))
-      aiChatTyping(ctx, false)
-      aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.noProblemActivatedQuickAssistant'))
-      aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', `🌐 ${window.i18n.t('common.allNetworks')}`])
-    } else {
-      // Tem assinatura — só faz sentido pedir a chave se o modelo atual
-      // realmente exigir uma. Todos os Gemini já funcionam com a chave do
-      // servidor (requiresKey: false), então o modal de chave é oferecido
-      // apenas como opção avançada, não como bloqueio antes de postar.
-      const pmAtual = AI_MODEL_PICKER_META[aiSelectedModel]
-      state.step = 'ask_plats'
-      aiChatTyping(ctx, true)
-      await new Promise(r => setTimeout(r, 600))
-      aiChatTyping(ctx, false)
-      if (pmAtual?.requiresKey) {
-        aiChatAddMsg(ctx, 'agent', `🎉 ${window.i18n.t('aiChat.greatToConnectAccountEnterKey')}`)
-        aiChatSetChips(ctx, [])
-        aiOpenKeyModal(aiSelectedModel, () => {
-          aiChatAddMsg(ctx, 'agent', `✅ ${window.i18n.t('aiChat.keyConfiguredSuccessfullyWhichNetworks')}`)
-          aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', `🌐 ${window.i18n.t('common.allNetworks')}`])
-        })
-      } else {
-        aiChatAddMsg(ctx, 'agent', `🎉 ${window.i18n.t('aiChat.greatModelWorksNoConfigPrefix')} ${AI_MODEL_META[aiSelectedModel]?.label || window.i18n.t('aiChat.currentModel')} ${window.i18n.t('aiChat.greatModelWorksNoConfigSuffix')}`)
-        aiChatSetChips(ctx, ['📸 Instagram', '📘 Facebook', '▶️ YouTube', '🎵 TikTok', `🌐 ${window.i18n.t('common.allNetworks')}`])
-      }
-    }
-    return
-  }
-
   if (msg.includes('Ir para Conexões') || msg.includes('🔗')) {
     showPage('tokens')
     aiFabClose()
@@ -10421,7 +10028,6 @@ async function aiChatProcess(ctx, userMsg) {
           quantidade: state.qtd,
           tom: state.tom,
           idioma: 'pt',
-          modelo: aiSelectedModel,
         })
       })
 
@@ -10435,21 +10041,16 @@ async function aiChatProcess(ctx, userMsg) {
         return
       }
 
-      // Avisos de limite: TODOS os modelos Gemini (incluindo 2.5 Pro/Flash/Lite)
-      // usam a chave do servidor com um limite diário compartilhado — o backend
-      // sinaliza isso via data.llm/data.fallback. Sem chave configurada no
-      // servidor, esses campos nunca aparecem (segue o fluxo normal de erro).
-      if (aiSelectedModel === 'local' || GEMINI_MODEL_IDS_FRONT.includes(aiSelectedModel)) {
-        if (data.fallback === 'limite_diario') {
-          const msgLimite = aiSelectedModel === 'local'
-            ? `🎁 ${window.i18n.t('aiChat.usedAllBoostedGenerationsLocal')}`
-            : `🎁 ${window.i18n.t('aiChat.usedAllFreeGenerationsModel')}`
-          aiChatAddMsg(ctx, 'agent', msgLimite)
-        } else if (data.fallback === 'llm_indisponivel') {
-          aiChatAddMsg(ctx, 'agent', `⚠️ ${window.i18n.t('aiChat.boostedModeUnavailableNow')}`)
-        } else if (data.llm && typeof data.restantes === 'number' && data.restantes <= 3) {
-          aiChatAddMsg(ctx, 'agent', `✨ ${window.i18n.t('aiChat.boostedPostPrefix')} **${data.restantes}** ${window.i18n.t('aiChat.boostedPostSuffix')}`)
-        }
+      // Avisos de limite: a IA roda sempre via OpenRouter com a chave do
+      // servidor, com um limite diário compartilhado — o backend sinaliza
+      // isso via data.llm/data.fallback. Sem chave configurada no servidor,
+      // esses campos nunca aparecem (segue o fluxo normal de erro).
+      if (data.fallback === 'limite_diario') {
+        aiChatAddMsg(ctx, 'agent', `🎁 ${window.i18n.t('aiChat.usedAllFreeGenerationsModel')}`)
+      } else if (data.fallback === 'llm_indisponivel') {
+        aiChatAddMsg(ctx, 'agent', `⚠️ ${window.i18n.t('aiChat.boostedModeUnavailableNow')}`)
+      } else if (data.llm && typeof data.restantes === 'number' && data.restantes <= 3) {
+        aiChatAddMsg(ctx, 'agent', `✨ ${window.i18n.t('aiChat.boostedPostPrefix')} **${data.restantes}** ${window.i18n.t('aiChat.boostedPostSuffix')}`)
       }
 
       // O backend corta automaticamente texto/título que estourem o limite
@@ -10520,20 +10121,14 @@ async function aiChatProcess(ctx, userMsg) {
       const msg429 = !msgLimiteDiario && (err.message?.toLowerCase().includes('limite') || err.message?.includes('429') || err.message?.toLowerCase().includes('quota'))
       const msg401 = err.message?.toLowerCase().includes('chave') || err.message?.toLowerCase().includes('inválid')
       if (msgLimiteDiario) {
-        const pm = AI_MODEL_PICKER_META[aiSelectedModel]
         aiChatAddMsg(ctx, 'agent', `📅 ${err.message}`)
-        aiChatSetChips(ctx, pm?.requiresKey || pm?.keyBadge ? [`🔑 ${window.i18n.t('aiChat.useMyKey')}`] : [])
+        aiChatSetChips(ctx, [])
       } else if (msg429) {
-        const pm = AI_MODEL_PICKER_META[aiSelectedModel]
-        aiChatAddMsg(ctx, 'agent', `⏳ ${window.i18n.t('aiChat.modelHitFreeLimitPrefix')} ${AI_MODEL_META[aiSelectedModel]?.label || aiSelectedModel} ${window.i18n.t('aiChat.modelHitFreeLimitSuffix')}`)
-        if (pm?.requiresKey || pm?.keyBadge) {
-          aiChatSetChips(ctx, [`🔑 ${window.i18n.t('aiChat.useMyKey')}`, `↻ ${window.i18n.t('common.tryAgain')}`])
-        } else {
-          aiChatSetChips(ctx, [`↻ ${window.i18n.t('common.tryAgain')}`])
-        }
+        aiChatAddMsg(ctx, 'agent', `⏳ ${window.i18n.t('aiChat.modelHitFreeLimitPrefix')} ${window.i18n.t('aiChat.currentModel')} ${window.i18n.t('aiChat.modelHitFreeLimitSuffix')}`)
+        aiChatSetChips(ctx, [`↻ ${window.i18n.t('common.tryAgain')}`])
       } else if (msg401) {
         aiChatAddMsg(ctx, 'agent', `🔑 ${window.i18n.t('aiChat.invalidApiKeyConfigured')}`)
-        aiChatSetChips(ctx, [`🔄 ${window.i18n.t('aiModelPicker.changeModel')}`])
+        aiChatSetChips(ctx, [`↻ ${window.i18n.t('common.tryAgain')}`])
       } else {
         aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.opsHadAProblemPrefix')} ${err.message || window.i18n.t('aiChat.errorGenerating')}. ${window.i18n.t('aiChat.letsTryAgain')} 🙏`)
         aiChatSetChips(ctx, [`↻ ${window.i18n.t('common.tryAgain')}`])
@@ -10676,7 +10271,7 @@ async function aiChatRegenOne(ctx, idx) {
     const data = await apiFetch('/api/ai/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instrucao: lastInstrucao, plataformas: state.plats, quantidade: 1, tom: state.tom, idioma: 'pt', modelo: aiSelectedModel })
+      body: JSON.stringify({ instrucao: lastInstrucao, plataformas: state.plats, quantidade: 1, tom: state.tom, idioma: 'pt', modelo: AI_MODEL_FIXO })
     })
     aiChatTyping(ctx, false)
     const novo = data.posts?.[0]
@@ -10907,7 +10502,7 @@ async function aiDoAnalyzeMedia(ctx, base64, mimeType, contexto, plats, uploadPr
   try {
     const data = await apiFetch('/api/ai/analyze-media', {
       method: 'POST',
-      body: JSON.stringify({ mediaBase64: base64, mimeType, plataformas: plats, contexto: contexto || '', modelo: aiSelectedModel })
+      body: JSON.stringify({ mediaBase64: base64, mimeType, plataformas: plats, contexto: contexto || '', modelo: AI_MODEL_FIXO })
     })
 
     aiChatTyping(ctx, false)
@@ -11105,7 +10700,7 @@ async function aiExtractMemories(ctx) {
     const data = await apiFetch('/api/ai/memory/extract', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversa, modelo: aiSelectedModel }),
+      body: JSON.stringify({ conversa, modelo: AI_MODEL_FIXO }),
     })
 
     const saved = data.memories || []
@@ -11127,10 +10722,8 @@ function aiFabToggle() {
   if (aiFabOpen) {
     panel.style.display = 'flex'
     panel.style.flexDirection = 'column'
-    aiLoadModels().then(() => {
-      document.getElementById('ai-fab-agent-name').textContent = aiChatAgentName()
-      aiChatStart('fab')
-    })
+    document.getElementById('ai-fab-agent-name').textContent = aiChatAgentName()
+    aiChatStart('fab')
   } else {
     panel.style.display = 'none'
   }
