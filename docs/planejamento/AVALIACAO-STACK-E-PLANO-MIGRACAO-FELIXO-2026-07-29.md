@@ -113,7 +113,9 @@ Isso viola §7.2 (toda mudança estrutural versionada) e §2.2 (o `server.js` de
 | `start_app.py` | Ausente | `GUIA-START-APP-SCRIPT.md`; guia mínimo item 11 |
 | `AGENTS.md` | Ausente | Convenção dos demais projetos Vitis Souls |
 
-O `.env.example` estar no `.gitignore` é o desvio mais fácil de corrigir e um dos mais custosos hoje: não há nenhuma fonte versionada que liste as variáveis de ambiente necessárias. Pelo código, são pelo menos 15 (`DATABASE_URL`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `FRONTEND_ORIGIN`, `FRONTEND_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `TIKTOK_REVIEW_MODE`, `TIKTOK_REVIEW_USER_ID`, `PORT`, `LAN_IP`, `BLOB_READ_WRITE_TOKEN`).
+O `.env.example` estar no `.gitignore` é o desvio mais fácil de corrigir e um dos mais custosos hoje: não há nenhuma fonte versionada que liste as variáveis de ambiente necessárias.
+
+> **Correção [2026-07-29]**: a estimativa inicial deste documento era de "pelo menos 15" variáveis. A extração real sobre `src/`, `scripts/` e `api/` encontrou **35 ocorrências de `process.env`**, mais `BLOB_READ_WRITE_TOKEN`, que o SDK `@vercel/blob` lê do ambiente sem aparecer como `process.env` no código — **36 no total**. A subestimativa reforça o próprio ponto: sem fonte versionada, nem quem trabalha no projeto sabe de quantas variáveis ele depende. Resolvido no commit `397a6a9`.
 
 ### 3.5 Achados pontuais de segurança e operação
 
@@ -145,7 +147,9 @@ O `DESIGN_SYSTEM_BACKEND.md` §3.2 diz: *"Se a stack escolhida fugir disso, a de
 
 Regra geral: cada fase é um conjunto de commits pequenos (`tipo: descrição`) nesta branch, com testes rodados e `IA.md` atualizado no mesmo passo. Nenhuma fase depende de rewrite total; todas preservam os contratos de API existentes.
 
-### Fase 0 — Fundação documental e destravamento (baixo risco, alto retorno)
+### Fase 0 — Fundação documental e destravamento ✅ CONCLUÍDA em 2026-07-29
+
+> Executada nos commits `271b1cd`, `42a72fa`, `d506e76`, `397a6a9`, `3d8ecca` e `909a56a`. Resultado medido: suíte de 265/265 verde, vulnerabilidades da imagem de produção de **38 → 6**, e os quatro artefatos obrigatórios criados. Ver §8.
 
 Quase sem alterar lógica:
 
@@ -252,7 +256,43 @@ As 9 restantes, com as diretas destacadas:
 
 ## 7. Próximos passos sugeridos
 
-1. Validar esta avaliação com o Breno — especialmente a decisão de **manter Node/Express** e a ordem das fases.
-2. Aprovada a direção, executar a Fase 0 nesta mesma branch (é a de menor risco e destrava o trabalho das demais). Os itens 0 e 0b — teste do issuer, `vercel` para `devDependencies` e gate de CI — podem sair na frente mesmo que o resto do plano ainda esteja em discussão: são correções isoladas, sem impacto em contrato de API.
+1. Validar esta avaliação com o Breno — especialmente a decisão de **manter Node/Express** e a ordem das fases 1 a 5.
+2. Abrir o pull request desta branch. A Fase 0 já está executada e verificada (§8); as fases seguintes seguem aguardando aprovação da direção.
+3. Aprovada a direção, começar pela Fase 1 (migrações), que é o desvio de maior risco operacional em aberto.
+
+---
+
+## 8. Fase 0 — execução e resultado (2026-07-29)
+
+Executada após aprovação. Seis commits, todos verificados com saída real:
+
+| Commit | O que fez | Verificação |
+|---|---|---|
+| `271b1cd` | Corrige `tests/unit/totp.test.js` (issuer obsoleto após o rebrand) | Suíte passa de 264/265 para **265/265** |
+| `42a72fa` | Move o CLI `vercel` para `devDependencies` | `npm audit --omit=dev`: **38 → 6** vulnerabilidades |
+| `d506e76` | Gate de CI (`npm ci`, `npm test`, `npm audit --omit=dev`) | Ambos os níveis testados: `critical` passa, `high` falha |
+| `397a6a9` | `.env.example` com 36 variáveis, fora do `.gitignore` | Diff código × exemplo: nenhuma variável de fora |
+| `3d8ecca` | `start_app.py` com menu interativo | Compila; funções de estado retornam valores reais; painel renderiza |
+| `909a56a` | `IA.md`, `AGENTS.md`, README apontando o menu | — |
+
+### O ganho de segurança, medido
+
+A conta que importa não é a do `npm audit` completo (que inclui ferramenta de desenvolvimento), e sim a do que o Dockerfile de fato publica com `npm ci --only=production`:
+
+| | Antes | Depois |
+|---|---|---|
+| Crítica | 1 (`tar`) | **0** |
+| Alta | 20 | **1** (`multer`) |
+| Moderada | 15 | 4 |
+| Baixa | 2 | 1 |
+| **Total** | **38** | **6** |
+
+Nenhuma linha de lógica de aplicação foi tocada para chegar nesse resultado — só a reclassificação de uma dependência que nunca foi de runtime.
+
+### O que a Fase 0 revelou e não estava no diagnóstico original
+
+- **Não havia gate de CI.** A suíte vermelha não foi um descuido isolado: nada no processo impedia que continuasse assim. Essa é a causa raiz, e o teste quebrado era só o sintoma.
+- **A dependência de configuração era maior do que parecia**: 36 variáveis de ambiente, não ~15. Ver a correção em §3.4.
+- **O `npm audit fix --force` é ativamente perigoso aqui** — propõe downgrade de `vercel` e `node-cron`. Registrado como regra em `AGENTS.md`.
 
 > Ideia para quem quiser contribuir: o runner de migrações da Fase 1 e o `start_app.py` da Fase 0 são genéricos o bastante para virarem ferramenta reutilizável nos outros projetos Node da Vitis Souls, em vez de solução pontual deste repositório.
