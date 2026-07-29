@@ -72,6 +72,9 @@ function parseJsonResponse(rawText) {
   return JSON.parse(match[0])
 }
 
+// getUserApiKey/user_ai_keys ficam como suporte legado do antigo modo BYOK
+// (usuário escolhia o modelo e colava a própria chave) — não usados mais no
+// fluxo atual, que é sempre OpenRouter com a chave de produção do servidor.
 async function getUserApiKey(pool, userId, modelo) {
   try {
     const { rows } = await pool.query(
@@ -83,207 +86,53 @@ async function getUserApiKey(pool, userId, modelo) {
   } catch { return null }
 }
 
-const CLAUDE_MODEL_IDS = {
-  'claude':        'claude-haiku-4-5-20251001',
-  'claude-sonnet': 'claude-sonnet-5',
-}
+// Único provedor de IA usado pelo app: OpenRouter, sempre com a chave de
+// produção do servidor (OPENROUTER_API_KEY). A seleção manual de modelo
+// (Gemini/OpenAI/Claude/OpenRouter) foi removida para simplificar a
+// experiência — o usuário não precisa entender ou escolher entre provedores.
+const OPENROUTER_TEXT_MODEL = 'deepseek/deepseek-v4-flash'
+const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
+const OPENROUTER_IMAGE_MODEL = 'google/gemini-3.1-flash-lite-image'
 
-const OPENAI_MODEL_IDS = {
-  'openai':      'gpt-4o-mini',
-  'openai-4o':   'gpt-4o',
-}
-
-async function generateWithClaude(prompt, userKey, modelId = 'claude') {
-  const key = userKey || process.env.ANTHROPIC_API_KEY
-  if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
-  const Anthropic = require('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey: key })
-  const msg = await client.messages.create({
-    model: CLAUDE_MODEL_IDS[modelId] || CLAUDE_MODEL_IDS.claude,
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  return msg.content[0]?.text || ''
-}
-
-async function generateWithOpenAI(prompt, userKey, modelId = 'openai') {
-  const key = userKey || process.env.OPENAI_API_KEY
-  if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
-  const OpenAI = require('openai')
-  const client = new OpenAI({ apiKey: key })
-  const msg = await client.chat.completions.create({
-    model: OPENAI_MODEL_IDS[modelId] || OPENAI_MODEL_IDS.openai,
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  return msg.choices[0]?.message?.content || ''
-}
-
-// OpenRouter fala o mesmo formato de API que a OpenAI (chat.completions) — só
-// muda a baseURL e o formato do id do modelo ("empresa/modelo"). Um único
-// modelo fixo (gpt-4o-mini via OpenRouter) evita ter que expor ao usuário a
-// escolha entre dezenas de modelos disponíveis no OpenRouter.
-const OPENROUTER_MODEL_IDS = {
-  openrouter: 'openai/gpt-oss-20b:free',
-}
-
-async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
-  const key = userKey || process.env.OPENROUTER_API_KEY
-  if (!key) throw Object.assign(new Error('Para usar o OpenRouter, configure sua chave de API.'), { status: 503 })
+async function generateWithOpenRouter(prompt) {
+  const key = process.env.OPENROUTER_API_KEY
+  if (!key) throw Object.assign(new Error('OPENROUTER_API_KEY não configurada no servidor'), { status: 503 })
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
   const msg = await client.chat.completions.create({
-    model: OPENROUTER_MODEL_IDS[modelId] || OPENROUTER_MODEL_IDS.openrouter,
+    model: OPENROUTER_TEXT_MODEL,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })
   return msg.choices[0]?.message?.content || ''
 }
 
-// O modelo gratuito padrão do OpenRouter (gpt-oss-20b:free) não suporta
-// imagem — usamos um modelo de visão barato do próprio OpenRouter só para
-// análise de mídia, mantendo a mesma chave/conta do usuário.
-const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
+// Analisa uma imagem/vídeo sempre via OpenRouter (modelo de visão), com a
+// chave de produção do servidor. Vídeo (sem mediaBase64) não tem suporte a
+// mídia nativa; o prompt já avisa isso e pede sugestão baseada só no contexto.
+async function analisarMidiaComModelo({ prompt, mediaBase64, mimeType, isVideo }) {
+  const key = process.env.OPENROUTER_API_KEY
+  if (!key) throw Object.assign(new Error('OPENROUTER_API_KEY não configurada no servidor'), { status: 503 })
 
-// "Nano Banana 2 Lite" — modelo multimodal do OpenRouter que gera TEXTO e
-// IMAGEM na mesma resposta (modalities: ["image","text"]), diferente do
-// Imagen do Google (só imagem, endpoint separado generateImages). Usado no
-// modelo "openrouter-image" do Agente IA — sempre exige chave própria do
-// usuário no OpenRouter, mesmo padrão já usado para o Imagen/Gemini.
-const OPENROUTER_IMAGE_MODEL = 'google/gemini-3.1-flash-lite-image'
-
-// Analisa uma imagem/vídeo respeitando o modelo escolhido pelo usuário no
-// seletor — cada provedor recebe a mídia no formato nativo do seu SDK.
-// Vídeo (sem mediaBase64) não tem suporte a mídia nativa em nenhum provedor
-// aqui; o prompt já avisa isso e pede sugestão baseada só no contexto.
-async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo }) {
   if (isVideo) {
     const promptVideo = `${prompt}\n\n(Nota: o usuário enviou um vídeo. Crie sugestões com base no contexto disponível.)`
-    if (OPENAI_MODEL_IDS[modelo])          return generateWithOpenAI(promptVideo, userKey, modelo)
-    if (OPENROUTER_MODEL_IDS[modelo])      return generateWithOpenRouter(promptVideo, userKey, modelo)
-    if (CLAUDE_MODEL_IDS[modelo])          return generateWithClaude(promptVideo, userKey, modelo)
-    return generateWithGemini(promptVideo, userKey, modelo)
+    return generateWithOpenRouter(promptVideo)
   }
 
-  if (OPENAI_MODEL_IDS[modelo]) {
-    const key = userKey || process.env.OPENAI_API_KEY
-    if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
-    const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey: key })
-    const msg = await client.chat.completions.create({
-      model: OPENAI_MODEL_IDS[modelo],
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
-        ],
-      }],
-    })
-    return msg.choices[0]?.message?.content || ''
-  }
-
-  if (OPENROUTER_MODEL_IDS[modelo]) {
-    const key = userKey || process.env.OPENROUTER_API_KEY
-    if (!key) throw Object.assign(new Error('Para usar o OpenRouter, configure sua chave de API.'), { status: 503 })
-    const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
-    const msg = await client.chat.completions.create({
-      model: OPENROUTER_VISION_MODEL,
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
-        ],
-      }],
-    })
-    return msg.choices[0]?.message?.content || ''
-  }
-
-  if (CLAUDE_MODEL_IDS[modelo]) {
-    const key = userKey || process.env.ANTHROPIC_API_KEY
-    if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
-    const Anthropic = require('@anthropic-ai/sdk')
-    const client = new Anthropic({ apiKey: key })
-    const msg = await client.messages.create({
-      model: CLAUDE_MODEL_IDS[modelo],
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: mediaBase64 } },
-          { type: 'text', text: prompt },
-        ],
-      }],
-    })
-    return msg.content[0]?.text || ''
-  }
-
-  // Gemini (padrão) — cobre 'gemini*' e qualquer modelo desconhecido, igual
-  // ao comportamento original desta rota.
-  const key = userKey || process.env.GEMINI_API_KEY
-  if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
-  const { GoogleGenAI } = require('@google/genai')
-  const savedGoogleKey = process.env.GOOGLE_API_KEY
-  if (userKey) delete process.env.GOOGLE_API_KEY
-  const client = new GoogleGenAI({ apiKey: key })
-  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
-  const geminiModel = GEMINI_MODEL_IDS[modelo] || 'gemini-2.0-flash'
-  const result = await client.models.generateContent({
-    model: geminiModel,
-    contents: [
-      { inlineData: { mimeType, data: mediaBase64 } },
-      { text: prompt },
-    ],
+  const OpenAI = require('openai')
+  const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
+  const msg = await client.chat.completions.create({
+    model: OPENROUTER_VISION_MODEL,
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
+      ],
+    }],
   })
-  return result.text
-}
-
-const GEMINI_MODEL_IDS = {
-  'gemini':            'gemini-2.0-flash',
-  'gemini-2.5-flash':  'gemini-2.5-flash',
-  'gemini-2.5-pro':    'gemini-2.5-pro',
-  'gemini-2.5-lite':   'gemini-2.5-flash-lite',
-}
-
-async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
-  const key = userKey || process.env.GEMINI_API_KEY
-  if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
-  const { GoogleGenAI } = require('@google/genai')
-  const savedGoogleKey = process.env.GOOGLE_API_KEY
-  if (userKey) delete process.env.GOOGLE_API_KEY
-  const client = new GoogleGenAI({ apiKey: key })
-  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
-
-  const geminiModel = GEMINI_MODEL_IDS[modelId] || 'gemini-2.0-flash'
-
-  const MAX_RETRIES = 3
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const result = await client.models.generateContent({
-        model: geminiModel,
-        contents: prompt,
-      })
-      return result.text
-    } catch (e) {
-      const msg = e.message || ''
-      if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-        if (attempt < MAX_RETRIES) {
-          // Backoff: 1s, 2s — mantém dentro do timeout do Railway (30s)
-          await new Promise(r => setTimeout(r, 1000 * attempt))
-          continue
-        }
-        throw Object.assign(new Error('quota'), { status: 429 })
-      }
-      if (msg.includes('401') || msg.includes('API_KEY') || msg.includes('invalid')) {
-        throw Object.assign(new Error('Chave Gemini inválida'), { status: 401 })
-      }
-      throw e
-    }
-  }
+  return msg.choices[0]?.message?.content || ''
 }
 
 // ── Gerador local (sem IA / sem chave) ───────────────────────────────────────
@@ -513,7 +362,7 @@ async function registrarUsoDemo(userId) {
 
 // GET /api/ai/demo-status — quanto resta do demo grátis hoje (para o frontend)
 router.get('/demo-status', async (req, res) => {
-  const hasServerKey = !!process.env.GEMINI_API_KEY
+  const hasServerKey = !!process.env.OPENROUTER_API_KEY
   const usados = await demoUsosHoje(req.user.id)
   res.json({
     llmDisponivel: hasServerKey,
@@ -576,135 +425,33 @@ router.post('/generate', async (req, res) => {
     }
 
     // Cai no gerador por template (ilimitado, sem custo). Usado como fallback
-    // do demo quando não há LLM disponível ou o limite diário foi atingido.
+    // quando não há chave de IA disponível, o limite diário foi atingido, ou
+    // a chamada ao OpenRouter falha por qualquer motivo — o usuário nunca
+    // fica sem resposta.
     const responderComTemplate = (motivo = null) => {
       const parsedLocal = gerarPostsLocal(instrucao, plataformas, qtd, tom)
       return montarResposta(parsedLocal.posts, 'local', motivo ? { fallback: motivo } : {})
     }
 
-    // Modo demo (modelo "local"): tenta o LLM real (Gemini) com a CHAVE DO
-    // SERVIDOR, sem exigir conta do usuário — respeitando o limite diário.
-    // Sem chave no servidor OU limite estourado OU erro do LLM → template.
-    if (modelo === 'local') {
-      if (!process.env.GEMINI_API_KEY) return responderComTemplate()
+    // Único provedor de IA do app: OpenRouter, com a chave de produção do
+    // servidor, respeitando o limite diário compartilhado (DEMO_LIMITE_DIA).
+    if (!process.env.OPENROUTER_API_KEY) return responderComTemplate()
 
-      const usados = await demoUsosHoje(req.user.id)
-      if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
+    const usados = await demoUsosHoje(req.user.id)
+    if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
 
-      try {
-        const promptDemo = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
-        // userKey = null → generateWithGemini usa process.env.GEMINI_API_KEY
-        const rawTextDemo = await generateWithGemini(promptDemo, null, 'gemini')
-        const parsedDemo = parseJsonResponse(rawTextDemo)
-        await registrarUsoDemo(req.user.id)
-        return montarResposta(parsedDemo.posts || [], 'local', { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
-      } catch (e) {
-        // Qualquer falha do LLM (quota, formato inválido, rede) → template,
-        // para o usuário nunca ficar sem resposta no modo grátis.
-        console.error('[AI demo] LLM falhou, usando template:', e.message)
-        return responderComTemplate('llm_indisponivel')
-      }
-    }
-
-    const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
-
-    // Um usuário comum não sabe gerar uma API key do Google AI Studio (é uma
-    // credencial técnica, exige projeto no Cloud, às vezes billing) — por isso
-    // TODOS os modelos Gemini (incluindo 2.5 Pro/Flash/Lite) usam a CHAVE DO
-    // SERVIDOR sempre, com o mesmo limite diário do modo "local". Só OpenAI e
-    // Claude continuam exigindo chave própria do usuário (não há chave deles
-    // configurada no servidor).
-    if (GEMINI_MODEL_IDS[modelo]) {
-      if (!process.env.GEMINI_API_KEY) {
-        throw Object.assign(new Error('Nenhum modelo Gemini está disponível no momento.'), { status: 503 })
-      }
-      const usados = await demoUsosHoje(req.user.id)
-      // Diferente do modelo "local" (modo grátis/padrão, onde cair no
-      // template é o comportamento esperado): aqui o usuário escolheu um
-      // modelo Gemini específico de propósito — trocar silenciosamente pelo
-      // template dava um texto genérico sem avisar direito que a IA de
-      // verdade não rodou. Agora vira um erro explícito no limite.
-      if (usados >= DEMO_LIMITE_DIA) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
-      }
-
-      const rawTextGemini = await generateWithGemini(prompt, null, modelo)
-      await registrarUsoDemo(req.user.id)
-      let parsedGemini
-      try {
-        parsedGemini = parseJsonResponse(rawTextGemini)
-      } catch {
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
-      }
-      return montarResposta(parsedGemini.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
-    }
-
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
-
-    // OpenAI (GPT-4o Mini/GPT-4o) roda com a chave do servidor quando o
-    // usuário não tem chave própria salva — mesmo padrão de custo controlado
-    // já usado pelo Gemini, com o mesmo limite diário compartilhado. Claude
-    // continua exigindo chave própria do usuário (sem ANTHROPIC_API_KEY no
-    // servidor); sem chave própria, generateWithClaude já lança erro 503
-    // claro pedindo pra configurar.
-    if (OPENAI_MODEL_IDS[modelo] && !userKey) {
-      if (!process.env.OPENAI_API_KEY) {
-        throw Object.assign(new Error('Para usar o GPT sem sua própria chave, configure a chave de API da OpenAI no servidor.'), { status: 503 })
-      }
-      const usados = await demoUsosHoje(req.user.id)
-      if (usados >= DEMO_LIMITE_DIA) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
-      }
-      const rawTextOpenai = await generateWithOpenAI(prompt, null, modelo)
-      await registrarUsoDemo(req.user.id)
-      let parsedOpenai
-      try {
-        parsedOpenai = parseJsonResponse(rawTextOpenai)
-      } catch {
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
-      }
-      return montarResposta(parsedOpenai.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
-    }
-
-    // OpenRouter segue o mesmo padrão do OpenAI: roda com a chave do servidor
-    // (mesmo limite diário compartilhado) quando o usuário não tem chave
-    // própria salva.
-    if (OPENROUTER_MODEL_IDS[modelo] && !userKey) {
-      if (!process.env.OPENROUTER_API_KEY) {
-        throw Object.assign(new Error('Para usar o OpenRouter sem sua própria chave, configure a chave de API no servidor.'), { status: 503 })
-      }
-      const usados = await demoUsosHoje(req.user.id)
-      if (usados >= DEMO_LIMITE_DIA) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
-      }
-      const rawTextOpenrouter = await generateWithOpenRouter(prompt, null, modelo)
-      await registrarUsoDemo(req.user.id)
-      let parsedOpenrouter
-      try {
-        parsedOpenrouter = parseJsonResponse(rawTextOpenrouter)
-      } catch {
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
-      }
-      return montarResposta(parsedOpenrouter.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
-    }
-
-    let rawText
-    if (OPENAI_MODEL_IDS[modelo])       rawText = await generateWithOpenAI(prompt, userKey, modelo)
-    else if (OPENROUTER_MODEL_IDS[modelo]) rawText = await generateWithOpenRouter(prompt, userKey, modelo)
-    else if (CLAUDE_MODEL_IDS[modelo])  rawText = await generateWithClaude(prompt, userKey, modelo)
-    else                                 rawText = await generateWithGemini(prompt, userKey, modelo)
-
-    let parsed
     try {
-      parsed = parseJsonResponse(rawText)
-    } catch {
-      return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+      const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
+      const rawText = await generateWithOpenRouter(prompt)
+      const parsed = parseJsonResponse(rawText)
+      await registrarUsoDemo(req.user.id)
+      return montarResposta(parsed.posts || [], 'openrouter', { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
+    } catch (e) {
+      console.error('[AI] LLM falhou, usando template:', e.message)
+      return responderComTemplate('llm_indisponivel')
     }
-
-    return montarResposta(parsed.posts || [], modelo)
   } catch (err) {
-    const modeloTentado = req.body?.modelo || 'gemini'
-    registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo: modeloTentado, detalhes: err.message })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo: 'openrouter', detalhes: err.message })
 
     if (err.status === 503) return res.status(503).json({ erro: err.message })
     if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
@@ -892,47 +639,17 @@ router.get('/activity-log', requireSuperAdmin, async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
-// Faz uma chamada mínima e barata ao provedor para confirmar que a chave é
-// válida antes de salvar — evita que o usuário só descubra que errou a chave
-// quando tentar gerar um post de verdade, minutos depois.
+// ── Legado: BYOK (usuário cadastrando a própria chave por modelo) ───────────
+// As rotas abaixo (/apikey*, /prefs) ficaram sem uso no fluxo atual — a IA do
+// app roda sempre em OpenRouter com a chave de produção do servidor
+// (OPENROUTER_API_KEY). Mantidas apenas para não quebrar quem já tinha
+// cadastrado uma chave própria; testarChaveProvedor só valida OpenRouter, já
+// que era o único provedor com sentido de continuar testável aqui.
 async function testarChaveProvedor(modelo, apiKey) {
-  if (OPENAI_MODEL_IDS[modelo]) {
-    const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey })
-    await client.models.list()
-    return
-  }
-  if (OPENROUTER_MODEL_IDS[modelo]) {
-    const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' })
-    await client.models.list()
-    return
-  }
-  if (CLAUDE_MODEL_IDS[modelo]) {
-    const Anthropic = require('@anthropic-ai/sdk')
-    const client = new Anthropic({ apiKey })
-    // Anthropic não tem endpoint de "list models" público simples — usamos uma
-    // chamada de 1 token, que é a forma mais barata de validar a chave.
-    await client.messages.create({
-      model: CLAUDE_MODEL_IDS[modelo],
-      max_tokens: 1,
-      messages: [{ role: 'user', content: 'oi' }],
-    })
-    return
-  }
-  if (GEMINI_MODEL_IDS[modelo]) {
-    const { GoogleGenAI } = require('@google/genai')
-    const savedGoogleKey = process.env.GOOGLE_API_KEY
-    delete process.env.GOOGLE_API_KEY
-    try {
-      const client = new GoogleGenAI({ apiKey })
-      await client.models.generateContent({ model: GEMINI_MODEL_IDS[modelo], contents: 'oi' })
-    } finally {
-      if (savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
-    }
-    return
-  }
-  throw Object.assign(new Error('Modelo não suporta teste de chave.'), { status: 400 })
+  if (modelo !== 'openrouter') throw Object.assign(new Error('Modelo não suporta teste de chave.'), { status: 400 })
+  const OpenAI = require('openai')
+  const client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' })
+  await client.models.list()
 }
 
 // POST /api/ai/apikey/test — valida a chave do usuário direto no provedor,
@@ -1067,7 +784,8 @@ router.delete('/memory/:id', async (req, res) => {
 // POST /api/ai/memory/extract — extrai lembretes/ideias de uma conversa via IA
 router.post('/memory/extract', async (req, res) => {
   try {
-    const { conversa, modelo = 'gemini' } = req.body
+    const { conversa } = req.body
+    const modelo = 'openrouter'
     if (!conversa?.trim()) return res.json({ memories: [] })
 
     const prompt = `Analise a conversa abaixo entre um usuário e um assistente de redes sociais.
@@ -1094,10 +812,7 @@ Se não houver nada relevante, retorne: {"memories": []}`
 
     let rawText = ''
     try {
-      if (modelo === 'openai')     rawText = await generateWithOpenAI(prompt)
-      else if (modelo === 'openrouter') rawText = await generateWithOpenRouter(prompt)
-      else if (modelo === 'claude') rawText = await generateWithClaude(prompt)
-      else                          rawText = await generateWithGemini(prompt)
+      rawText = await generateWithOpenRouter(prompt)
     } catch { return res.json({ memories: [] }) }
 
     let parsed
@@ -1129,49 +844,22 @@ pool.query(`
   )
 `).catch(() => {})
 
-// POST /api/ai/image/generate — gera imagem via Google Imagen com chave do usuário
-router.post('/image/generate', async (req, res) => {
-  try {
-    const { descricao } = req.body || {}
-    if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
-
-    const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
-    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
-
-    const { GoogleGenAI } = require('@google/genai')
-    const client = new GoogleGenAI({ apiKey: userKey })
-    const result = await client.models.generateImages({
-      model: 'imagen-4.0-generate-preview-05-20',
-      prompt: descricao.trim(),
-      config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
-    })
-
-    const imgData = result.generatedImages?.[0]?.image?.imageBytes
-    if (!imgData) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
-
-    res.json({ image: `data:image/jpeg;base64,${imgData}` })
-  } catch (err) {
-    console.error('[AI Image]', err.message)
-    if (err.message?.includes('billing')) return res.status(402).json({ erro: 'billing' })
-    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
-    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
-  }
-})
-
 // POST /api/ai/image/generate-openrouter — gera TEXTO e IMAGEM juntos, na
-// mesma chamada, via modelo multimodal do OpenRouter (Nano Banana 2 Lite).
-// Sempre exige chave própria do usuário no OpenRouter (mesmo padrão do
-// Imagen/Gemini em /image/generate) — sem chave do servidor aqui.
+// mesma chamada, via modelo multimodal do OpenRouter (Nano Banana 2 Lite),
+// sempre com a chave de produção do servidor (OPENROUTER_API_KEY). Antes
+// existia também /image/generate (Imagen nativo do Google, com chave própria
+// do usuário) — removida na simplificação, já que todo o app roda só em
+// OpenRouter agora.
 router.post('/image/generate-openrouter', async (req, res) => {
   try {
     const { descricao } = req.body || {}
     if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
 
-    const userKey = await getUserApiKey(pool, req.user.id, 'openrouter')
-    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
+    const key = process.env.OPENROUTER_API_KEY
+    if (!key) return res.status(503).json({ erro: 'Geração de imagem não está disponível no momento.' })
 
     const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey: userKey, baseURL: 'https://openrouter.ai/api/v1' })
+    const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
     const completion = await client.chat.completions.create({
       model: OPENROUTER_IMAGE_MODEL,
       modalities: ['image', 'text'],
@@ -1209,10 +897,9 @@ router.post('/image/lead', async (req, res) => {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
+    const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '' } = req.body || {}
+    const modelo = 'openrouter'
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
-
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
 
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
@@ -1240,7 +927,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 }`
 
     const isVideo = !mediaBase64
-    const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
+    const rawText = await analisarMidiaComModelo({ prompt, mediaBase64, mimeType, isVideo })
 
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
@@ -1268,41 +955,21 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     })
   } catch (err) {
     const msg = err.message || ''
-    registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: req.body?.modelo || 'gemini', detalhes: msg })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: 'openrouter', detalhes: msg })
     if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Tente novamente.' })
     console.error('[AI analyze-media]', msg)
     serverError(res, err)
   }
 })
 
-// GET /api/ai/models — retorna quais modelos estão disponíveis (chave
-// configurada no servidor OU exige chave própria do usuário, marcado como
-// sempre "disponível" já que basta o usuário colar a chave dele).
+// GET /api/ai/models — legado do antigo seletor de modelo (removido do
+// front-end). Mantida só para não quebrar chamadas antigas em cache do
+// navegador; sempre reporta o único provedor em uso hoje (OpenRouter).
 router.get('/models', (req, res) => {
-  const hasGemini = !!process.env.GEMINI_API_KEY
-  const hasOpenai = !!process.env.OPENAI_API_KEY
   const hasOpenrouter = !!process.env.OPENROUTER_API_KEY
   res.json({
     models: [
-      { id: 'local',             name: 'Assistente Rápido',      provider: 'Sem conta',      available: true },
-      { id: 'gemini',            name: 'Gemini 2.0 Flash',      provider: 'Google',    available: hasGemini },
-      { id: 'gemini-2.5-flash',  name: 'Gemini 2.5 Flash',      provider: 'Google',    available: hasGemini },
-      { id: 'gemini-2.5-pro',    name: 'Gemini 2.5 Pro',        provider: 'Google',    available: hasGemini },
-      { id: 'gemini-2.5-lite',   name: 'Gemini 2.5 Flash-Lite', provider: 'Google',    available: hasGemini },
-      { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: hasOpenai },
-      { id: 'openai-4o',         name: 'GPT-4o',                 provider: 'OpenAI',   available: hasOpenai },
-      { id: 'openrouter',        name: 'GPT-OSS 20B (OpenRouter)', provider: 'OpenRouter', available: hasOpenrouter },
-      // Gera texto E imagem juntos na mesma resposta (Nano Banana 2 Lite) —
-      // sempre exige chave própria do usuário no OpenRouter, por isso
-      // "available: false" fixo aqui (mesmo padrão do Claude acima): não
-      // bloqueia o uso, só evita seleção automática como modelo padrão.
-      { id: 'openrouter-image',  name: 'Texto + Imagem (OpenRouter)', provider: 'OpenRouter', available: false },
-      // Claude não tem chave do servidor configurada — "available: false" aqui
-      // não bloqueia o uso, só evita que o app selecione Claude como modelo
-      // padrão automático (o usuário ainda escolhe manualmente no seletor e
-      // configura a própria chave, via requiresKey no picker do frontend).
-      { id: 'claude',            name: 'Claude Haiku',           provider: 'Anthropic', available: false },
-      { id: 'claude-sonnet',     name: 'Claude Sonnet 5',        provider: 'Anthropic', available: false },
+      { id: 'openrouter', name: 'Assistente IA', provider: 'OpenRouter', available: hasOpenrouter },
     ]
   })
 })
