@@ -1,8 +1,11 @@
 /node_modules
 .env
-.env.example
 /data
 /public/uploads/*
 !/public/uploads/.gitkeep
 *.log
 .vercel
+
+# start_app.py
+__pycache__/
+*.pyc
