@@ -29,7 +29,11 @@ async function requireAuth(req, res, next) {
   // ligado, TODA a API fica pública (dados de todos os usuários incluídos).
   // Desligar (remover a env var) restaura a autenticação normal sem precisar
   // reverter código. NUNCA deixar ligado além do período estrito da revisão.
-  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
+  // Trava adicional: exige REVIEW_MODE_EXPIRES (timestamp ISO) e só bypassa
+  // antes dele — sem essa data (ou já vencida), o bypass nunca ativa, mesmo
+  // que REVIEW_MODE_NO_AUTH fique esquecido em 'true' num deploy futuro.
+  const reviewExpira = process.env.REVIEW_MODE_EXPIRES ? Date.parse(process.env.REVIEW_MODE_EXPIRES) : NaN
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && !Number.isNaN(reviewExpira) && Date.now() < reviewExpira) {
     req.user = { id: Number(process.env.REVIEW_MODE_USER_ID) || null, email: 'review@local', role: 'user', fullName: 'Revisor', avatarUrl: null, totpEnabled: false }
     return next()
   }
