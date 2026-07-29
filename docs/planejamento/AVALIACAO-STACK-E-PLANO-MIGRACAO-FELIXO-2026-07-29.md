@@ -14,7 +14,7 @@
 
 A stack atual (Node + Express + PostgreSQL) é uma escolha legítima dentro do próprio Felixo System Design, que lista TypeScript/JavaScript como prioridades 2 e 3 e admite PostgreSQL quando o cenário exige concorrência, workers e volume — exatamente o caso aqui (publicação paralela em várias redes, cron, métricas). Reescrever em Django seria uma migração de plataforma, não de qualidade: alto custo, alto risco e sem ganho proporcional.
 
-O que de fato falta é **conformidade com o padrão**, e isso é alcançável de forma incremental sobre a stack existente. O backend já tem uma base melhor do que o típico: separação em `routes/services/repositories/middleware/utils`, criptografia AES-256-GCM dos tokens de rede social, error handler que não vaza stack trace, cabeçalhos de segurança, rate limiting e 19 arquivos de teste.
+O que de fato falta é **conformidade com o padrão**, e isso é alcançável de forma incremental sobre a stack existente. O backend já tem uma base melhor do que o típico: separação em `routes/services/repositories/middleware/utils`, criptografia AES-256-GCM dos tokens de rede social, error handler que não vaza stack trace, cabeçalhos de segurança, rate limiting e 265 testes automatizados.
 
 Os desvios concentram-se em quatro frentes, em ordem de gravidade:
 
@@ -24,6 +24,7 @@ Os desvios concentram-se em quatro frentes, em ordem de gravidade:
 | 2 | Camadas vazando: SQL cru em rotas e serviços; integrações externas sem camada própria | Alta |
 | 3 | Dois sistemas de migração concorrentes (`src/db/migrations/*.sql` **e** `runMigrations()` dentro do `server.js`) | Alta |
 | 4 | Artefatos obrigatórios ausentes: `IA.md`, `.env.example`, `start_app.py`, `AGENTS.md` | Média |
+| 5 | Suíte vermelha no `main` desde o commit de rebrand e sem gate de CI; 38 vulnerabilidades no `npm audit`, 29 delas vindas do CLI `vercel` em `dependencies` (§6) | Alta |
 
 **Custo estimado**: 5 fases, ~3 a 5 semanas de trabalho focado. As fases 0 a 2 entregam a maior parte da conformidade com o menor risco.
 
@@ -39,7 +40,7 @@ Os desvios concentram-se em quatro frentes, em ordem de gravidade:
 | Framework | Express 4.18 |
 | Banco | PostgreSQL (driver `pg`, pool `max: 30`) |
 | Sessão/Auth | Bearer token assinado próprio (`src/utils/authToken.js`) + cache de usuário em memória (TTL 60s); TOTP para 2FA; `bcrypt` para senha |
-| Testes | Jest 30 + Supertest — 10 unitários, 7 de integração, 2 de componente |
+| Testes | Jest 30 + Supertest — 19 suítes, 265 testes (264 passando, 1 falhando; ver §6.1) |
 | Agendamento | `node-cron` (`src/services/scheduler.js`) + cron HTTP da Vercel |
 | Mídia | `sharp`, `fluent-ffmpeg`, `ffprobe-static`, `multer`, Vercel Blob |
 | IA | SDKs Anthropic, OpenAI e Google Gemini chamados direto nas rotas |
@@ -119,7 +120,7 @@ O `.env.example` estar no `.gitignore` é o desvio mais fácil de corrigir e um 
 1. **`ssl: { rejectUnauthorized: false }` em `src/db/pool.js`** — a verificação do certificado TLS do Postgres está desligada, o que abre espaço para man-in-the-middle na conexão com o banco. Deve usar o CA do provedor.
 2. **`TIKTOK_REVIEW_MODE`** cria um caminho de auto-login sem senha (`/api/review-token` e redirect na raiz). O código documenta que deve ser desligado após a aprovação, mas nada no sistema força isso. Merece data de expiração ou remoção após o review.
 3. **`process.on('uncaughtException')` que apenas loga e segue** — mantém vivo um processo em estado potencialmente inconsistente. Aceitável como paliativo, mas deve ser registrado como dívida com plano de saída.
-4. **`vercel` (CLI, ~centenas de MB) está em `dependencies`**, não em `devDependencies`. Infla a imagem Docker do Railway sem necessidade em runtime.
+4. **`vercel` (CLI) está em `dependencies`**, não em `devDependencies`. Além de inflar a imagem Docker do Railway sem necessidade em runtime, é a origem de **29 das 38 vulnerabilidades** apontadas pelo `npm audit` (ver §6.2). É a correção de melhor relação custo/benefício de todo este documento.
 5. **Cache de usuário em `Map` de processo** (`requireAuth.js`) não é compartilhado entre instâncias. Com mais de uma réplica no Railway, uma mudança de role pode levar até 60s para propagar em réplicas que não receberam a invalidação. Documentar o limite ou mover para armazenamento compartilhado.
 6. **Tokens de verificação de domínio do TikTok hardcoded** em rotas do `oauth.js`. São valores públicos por natureza (não é vazamento de segredo), mas pertencem a configuração, não a código.
 
@@ -144,10 +145,12 @@ O `DESIGN_SYSTEM_BACKEND.md` §3.2 diz: *"Se a stack escolhida fugir disso, a de
 
 Regra geral: cada fase é um conjunto de commits pequenos (`tipo: descrição`) nesta branch, com testes rodados e `IA.md` atualizado no mesmo passo. Nenhuma fase depende de rewrite total; todas preservam os contratos de API existentes.
 
-### Fase 0 — Fundação documental (baixo risco, alto retorno)
+### Fase 0 — Fundação documental e destravamento (baixo risco, alto retorno)
 
-Sem alterar uma linha de lógica:
+Quase sem alterar lógica:
 
+0. **Consertar a suíte vermelha** (`tests/unit/totp.test.js:92`, issuer obsoleto após o rebrand) e **mover `vercel` para `devDependencies`**. São duas mudanças pequenas que devolvem o sinal verde dos testes e eliminam 29 das 38 vulnerabilidades — pré-requisito para que qualquer fase seguinte possa ser validada de verdade.
+0b. **Adicionar gate de CI** rodando `npm ci && npm test` em pull request. Sem isso, nada impede o `main` de ficar vermelho de novo — foi exatamente o que aconteceu no commit `f80e184`.
 1. Remover `.env.example` do `.gitignore` e criar o arquivo com as ~15 variáveis, **sem valores**, com comentário do que cada uma faz.
 2. Criar `IA.md` a partir do `TEMPLATE-CONTEXTO-IA.md`, tratado como linha do tempo (registros datados, nunca reescritos). Registrar as decisões já tomadas que hoje só vivem em comentários no código: split Railway/Vercel, Bearer em vez de cookie, `trust proxy = 1`, formato `enc:v1:` dos tokens.
 3. Criar `AGENTS.md` com as convenções (português, Conventional Commits, fronteiras de camada) e o roteamento "o pedido mexe em X → arquivo Y".
@@ -188,11 +191,10 @@ Sem alterar uma linha de lógica:
 ### Fase 4 — Segurança e testes
 
 1. Corrigir `rejectUnauthorized: false` usando o CA do provedor de Postgres.
-2. Mover `vercel` para `devDependencies`.
+2. Tratar as vulnerabilidades que sobrarem depois de mover `vercel` para `devDependencies` (feito na Fase 0): avaliar uma a uma as diretas — `multer` (alta), `file-type` e `node-cron` (moderadas) — e a transitiva `tar` (crítica). **Não rodar `npm audit fix --force`**: ele propõe downgrades e mudanças quebradoras.
 3. Definir plano de saída para `TIKTOK_REVIEW_MODE` (remoção ou expiração automática).
-4. Rodar `npm audit` e registrar o resultado — **pendente, ver §6**.
-5. Cobrir com teste o que §8.3 exige e ainda está descoberto: fluxo de publicação (`publisher.js`), refresh de token, e autorização por objeto (IDOR) nas rotas que recebem `:id`.
-6. Documentar/limitar o cache de usuário em memória.
+4. Cobrir com teste o que §8.3 exige e ainda está descoberto: fluxo de publicação (`publisher.js`), refresh de token, e autorização por objeto (IDOR) nas rotas que recebem `:id`.
+5. Documentar/limitar o cache de usuário em memória.
 
 ### Fase 5 — Opcional: TypeScript incremental
 
@@ -200,21 +202,57 @@ Só depois da fase 2. Começar por `checkJs` + JSDoc nos módulos de fronteira (
 
 ---
 
-## 6. Pendências e limites desta avaliação
+## 6. Validação executada e limites desta avaliação
 
-Registrado para não ser confundido com verificação feita:
+### 6.1 Suíte de testes — executada em 2026-07-29
 
-- **Suíte de testes não executada.** O disco da máquina estava a 100% de uso; a árvore de dependências (`vercel` CLI, `sharp`, `ffprobe-static`, `typescript`) não coube no espaço disponível (~940 MB livres após limpeza). O `node_modules` parcial e o cache do npm foram removidos para devolver o espaço. A afirmação "19 arquivos de teste" vem da listagem de `tests/`, **não** de execução. Rodar `npm ci && npm test` continua pendente.
-- **`npm audit` não executado** pelo mesmo motivo.
-- A análise é **estática**: leitura de código, contagem por `grep` e inspeção de configuração. Não houve execução do servidor nem acesso a banco.
+`npm ci` (825 pacotes) seguido de `npm test` (Jest 30, `--runInBand`). Saída real:
+
+```
+Test Suites: 1 failed, 18 passed, 19 total
+Tests:       1 failed, 264 passed, 265 total
+Time:        2.685 s
+```
+
+**A suíte está vermelha no `main`.** A falha é real e regressiva:
+
+- `tests/unit/totp.test.js:92` espera `issuer=Social+Api+Manager`
+- `src/services/totp.js:94` produz `issuer=MeuEcooMedia`
+
+O commit `f80e184` ("rebrand: renomeia Social Api Manager para MeuEcooMedia nas paginas publicas") alterou o valor padrão do issuer sem atualizar o teste correspondente. O código-fonte está correto; o teste é que ficou obsoleto. Isso significa que houve pelo menos um deploy com a suíte vermelha — sinal de que **não há gate de CI bloqueando merge com teste falhando**, o que deve entrar no plano como item próprio.
+
+### 6.2 Auditoria de dependências — executada em 2026-07-29
+
+`npm audit`: **38 vulnerabilidades — 1 crítica, 20 altas, 15 moderadas, 2 baixas.**
+
+O dado mais relevante para priorização: **29 das 38 vêm do pacote `vercel` (CLI)**, que está em `dependencies` em vez de `devDependencies`. Movê-lo elimina ~76% da superfície de vulnerabilidade sem tocar em nenhuma linha de lógica — passa de item cosmético (§3.5) a **item de segurança de alta prioridade**.
+
+As 9 restantes, com as diretas destacadas:
+
+| Pacote | Severidade | Dependência direta |
+|--------|-----------|--------------------|
+| `tar` | **crítica** | não (transitiva) |
+| `multer` | alta | **sim** |
+| `brace-expansion` | alta | não |
+| `minimatch` | alta | não |
+| `file-type` | moderada | **sim** |
+| `node-cron` | moderada | **sim** |
+| `protobufjs`, `uuid` | moderada | não |
+| `body-parser` | baixa | não |
+
+`npm audit fix --force` propõe downgrades e mudanças quebradoras (`vercel@50.41.0`, `node-cron@4.6.0`) — **não deve ser rodado às cegas**. O caminho correto é remover `vercel` de `dependencies` e reavaliar o que sobra.
+
+### 6.3 Limites que permanecem
+
+- A análise de código é **estática**: leitura, contagem por `grep` e inspeção de configuração. Não houve execução do servidor nem acesso a banco de dados.
 - Arquivos lidos integralmente: `server.js`, `db/pool.js`, `middleware/requireAuth.js`, `services/tokenCrypto.js`, `vercel.json`, `railway.toml`, `package.json`, `.gitignore` e o primeiro terço de `routes/ai.js`. Os demais foram avaliados por contagem e amostragem — uma revisão linha a linha de `publisher.js` e `oauth.js` pode revelar itens adicionais.
+- Os testes existentes cobrem utilitários, repositórios e rotas, mas **não** cobrem `publisher.js`, refresh de token nem autorização por objeto (IDOR) — as três áreas que a §8.3 do padrão trata como obrigatórias.
 
 ---
 
 ## 7. Próximos passos sugeridos
 
 1. Validar esta avaliação com o Breno — especialmente a decisão de **manter Node/Express** e a ordem das fases.
-2. Liberar espaço em disco e rodar `npm ci && npm test && npm audit`, anexando a saída real ao `IA.md`.
-3. Aprovada a direção, executar a Fase 0 nesta mesma branch (é a de menor risco e destrava o trabalho das demais).
+2. Aprovada a direção, executar a Fase 0 nesta mesma branch (é a de menor risco e destrava o trabalho das demais). Os itens 0 e 0b — teste do issuer, `vercel` para `devDependencies` e gate de CI — podem sair na frente mesmo que o resto do plano ainda esteja em discussão: são correções isoladas, sem impacto em contrato de API.
 
 > Ideia para quem quiser contribuir: o runner de migrações da Fase 1 e o `start_app.py` da Fase 0 são genéricos o bastante para virarem ferramenta reutilizável nos outros projetos Node da Vitis Souls, em vez de solução pontual deste repositório.
