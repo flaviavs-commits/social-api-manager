@@ -361,7 +361,9 @@ router.get('/instagram/callback', async (req, res) => {
     let { data: longData } = await fetchJsonWithRetry(exchangeUrl, { method: 'GET' }, { retries: 2, delayMs: 500 });
 
     if (longData.error || !longData.access_token) {
-      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform, null, meta.userId);
+      // Não logar shortData: em caso de sucesso na 1ª troca ele carrega um
+      // access_token válido, que não pode acabar em texto puro nos logs.
+      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)}`, platform, null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
