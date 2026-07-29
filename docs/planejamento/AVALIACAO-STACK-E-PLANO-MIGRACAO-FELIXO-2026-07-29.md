@@ -155,7 +155,7 @@ Quase sem alterar lógica:
 
 0. **Consertar a suíte vermelha** (`tests/unit/totp.test.js:92`, issuer obsoleto após o rebrand) e **mover `vercel` para `devDependencies`**. São duas mudanças pequenas que devolvem o sinal verde dos testes e eliminam 29 das 38 vulnerabilidades — pré-requisito para que qualquer fase seguinte possa ser validada de verdade.
 0b. **Adicionar gate de CI** rodando `npm ci && npm test` em pull request. Sem isso, nada impede o `main` de ficar vermelho de novo — foi exatamente o que aconteceu no commit `f80e184`.
-1. Remover `.env.example` do `.gitignore` e criar o arquivo com as ~15 variáveis, **sem valores**, com comentário do que cada uma faz.
+1. Remover `.env.example` do `.gitignore` e criar o arquivo com as variáveis, **sem valores**, com comentário do que cada uma faz. (Na execução foram **36**, não as ~15 estimadas — ver §3.4.)
 2. Criar `IA.md` a partir do `TEMPLATE-CONTEXTO-IA.md`, tratado como linha do tempo (registros datados, nunca reescritos). Registrar as decisões já tomadas que hoje só vivem em comentários no código: split Railway/Vercel, Bearer em vez de cookie, `trust proxy = 1`, formato `enc:v1:` dos tokens.
 3. Criar `AGENTS.md` com as convenções (português, Conventional Commits, fronteiras de camada) e o roteamento "o pedido mexe em X → arquivo Y".
 4. Criar `start_app.py` com menu interativo: Iniciar, Instalar/Setup, Configurar (.env), Status, Sair — cross-platform (`pathlib`, `sys.executable`, `subprocess`), delegando aos comandos npm.
@@ -195,7 +195,8 @@ Quase sem alterar lógica:
 ### Fase 4 — Segurança e testes
 
 1. Corrigir `rejectUnauthorized: false` usando o CA do provedor de Postgres.
-2. Tratar as vulnerabilidades que sobrarem depois de mover `vercel` para `devDependencies` (feito na Fase 0): avaliar uma a uma as diretas — `multer` (alta), `file-type` e `node-cron` (moderadas) — e a transitiva `tar` (crítica). **Não rodar `npm audit fix --force`**: ele propõe downgrades e mudanças quebradoras.
+2. Tratar as 6 vulnerabilidades que sobraram na imagem de produção depois da Fase 0, uma a uma. Diretas: `multer` (alta), `file-type` e `node-cron` (moderadas). Transitivas: `protobufjs`, `uuid` (moderadas) e `body-parser` (baixa). A crítica `tar` **já saiu** junto com o CLI `vercel` — não é mais item desta fase. **Não rodar `npm audit fix --force`**: propõe downgrades e mudanças quebradoras.
+   Ao fechar este item, apertar o gate do CI de `--audit-level=critical` para `high` (ver comentário em `.github/workflows/ci.yml`).
 3. Definir plano de saída para `TIKTOK_REVIEW_MODE` (remoção ou expiração automática).
 4. Cobrir com teste o que §8.3 exige e ainda está descoberto: fluxo de publicação (`publisher.js`), refresh de token, e autorização por objeto (IDOR) nas rotas que recebem `:id`.
 5. Documentar/limitar o cache de usuário em memória.
