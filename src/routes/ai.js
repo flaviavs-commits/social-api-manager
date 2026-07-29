@@ -90,9 +90,14 @@ async function getUserApiKey(pool, userId, modelo) {
 // produção do servidor (OPENROUTER_API_KEY). A seleção manual de modelo
 // (Gemini/OpenAI/Claude/OpenRouter) foi removida para simplificar a
 // experiência — o usuário não precisa entender ou escolher entre provedores.
-const OPENROUTER_TEXT_MODEL = 'deepseek/deepseek-v4-flash'
-const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
-const OPENROUTER_IMAGE_MODEL = 'google/gemini-3.1-flash-lite-image'
+// Modelo por caso de uso configurável via variável de ambiente (mesmo padrão
+// de custo-benefício decidido no Planejador Financeiro): DeepSeek V4 Flash é
+// o mais barato para texto puro, mas não suporta imagem — por isso visão e
+// geração de imagem usam Gemini 2.5 Flash-Lite via OpenRouter, igual ao app
+// financeiro. Sem a env var, cai no padrão abaixo.
+const OPENROUTER_TEXT_MODEL = process.env.OPENROUTER_TEXT_MODEL || 'deepseek/deepseek-v4-flash'
+const OPENROUTER_VISION_MODEL = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.5-flash-lite'
+const OPENROUTER_IMAGE_MODEL = process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image'
 
 async function generateWithOpenRouter(prompt) {
   const key = process.env.OPENROUTER_API_KEY
