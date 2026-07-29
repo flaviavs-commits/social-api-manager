@@ -7,6 +7,13 @@ const tokensRepo = require('../repositories/tokensRepository');
 const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
 
+// Falha ao subir o servidor em vez de assinar o state de OAuth com uma
+// chave vazia/indefinida — sem isso, um deploy sem essa env var aceitaria
+// uma string vazia como secret HMAC do state de account-linking.
+if (!process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET não configurado — defina a variável de ambiente antes de iniciar o servidor.')
+}
+
 // Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
 // instância de função serverless diferente, perdendo qualquer Map em memória.

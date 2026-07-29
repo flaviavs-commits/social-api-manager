@@ -1,5 +1,12 @@
 const crypto = require('crypto')
 
+// Falha ao subir o servidor em vez de assinar tokens de sessão com uma
+// chave vazia/indefinida — sem isso, um deploy com a env var esquecida
+// aceitaria uma string vazia como secret HMAC.
+if (!process.env.AUTH_TOKEN_SECRET) {
+  throw new Error('AUTH_TOKEN_SECRET não configurado — defina a variável de ambiente antes de iniciar o servidor.')
+}
+
 // Mesma técnica do signState/verifyState em routes/oauth.js, mas com secret
 // próprio (AUTH_TOKEN_SECRET) — esses tokens autenticam toda chamada de API
 // (alto blast radius se vazar), enquanto SESSION_SECRET assina apenas o

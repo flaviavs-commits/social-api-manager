@@ -1,5 +1,8 @@
 // Testes de integração — POST/GET/DELETE /api/drafts
 // Mocka o pool do postgres e o requireAuth para testar a rota isoladamente
+process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
+process.env.SESSION_SECRET = 'test-session-xyz'
+
 const request = require('supertest')
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
