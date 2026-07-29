@@ -1,4 +1,4 @@
-# Social Api Manager
+# MeuEcooMedia
 
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
 Suporta Facebook, Instagram, YouTube, TikTok e Kwai via OAuth 2.0.
@@ -52,11 +52,22 @@ social-api-manager/
 └── package.json
 ```
 
-## Instalação
+## Como rodar
+
+Forma mais simples — abre o menu interativo onde você instala, configura e inicia:
 
 ```bash
-# 1. Instalar dependências
-npm install
+python start_app.py
+```
+
+No menu você escolhe: **Instalar/Setup**, **Configurar**, **Iniciar**, **Testes** e **Status**.
+
+<details>
+<summary>Prefere direto pelo npm?</summary>
+
+```bash
+# 1. Instalar dependências (npm ci respeita o package-lock.json)
+npm ci
 
 # 2. Criar arquivo de configuração
 cp .env.example .env
@@ -65,9 +76,31 @@ cp .env.example .env
 nano .env
 
 # 4. Iniciar o servidor
-npm start
+npm run dev     # desenvolvimento, reinicia ao salvar
+npm start       # produção
 # Acesse: http://localhost:3000
 ```
+
+</details>
+
+O `.env.example` documenta todas as variáveis, sem nenhum valor real. As
+obrigatórias para o servidor subir são `DATABASE_URL`, `AUTH_TOKEN_SECRET`,
+`SESSION_SECRET` e `TOKEN_ENCRYPTION_KEY`.
+
+## Testes
+
+```bash
+npm test              # suíte completa
+npm run test:coverage # com cobertura
+```
+
+Todo pull request para o `main` roda testes e auditoria de dependências de
+produção pelo CI (`.github/workflows/ci.yml`).
+
+## Para quem vai contribuir
+
+- [`AGENTS.md`](AGENTS.md) — convenções, onde mexer, o que não quebrar.
+- [`IA.md`](IA.md) — linha do tempo técnica: decisões tomadas e o porquê.
 
 ## Banco de dados
 
