@@ -1,6 +1,12 @@
 const pool = require('../db/pool')
 const crypto = require('crypto')
 
+// Só o hash do token de reset é persistido — um dump do banco não deve
+// permitir usar diretamente um link de redefinição de senha válido.
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
+
 async function criar(userId, passwordHash) {
   await pool.query(
     `INSERT INTO credentials (user_id, password_hash) VALUES ($1, $2)`,
@@ -32,7 +38,7 @@ async function atualizarSenhaPorResetToken(token, passwordHash) {
      SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL, atualizado_em = NOW()
      WHERE reset_token = $2 AND reset_token_expires > NOW()
      RETURNING user_id`,
-    [passwordHash, token]
+    [passwordHash, hashToken(token)]
   )
   return cred || null
 }
@@ -42,7 +48,7 @@ async function gerarTokenReset(userId) {
   const expira = new Date(Date.now() + 60 * 60 * 1000)
   await pool.query(
     `UPDATE credentials SET reset_token = $1, reset_token_expires = $2 WHERE user_id = $3`,
-    [token, expira.toISOString(), userId]
+    [hashToken(token), expira.toISOString(), userId]
   )
   return token
 }
@@ -52,7 +58,7 @@ async function buscarPorResetToken(token) {
     `SELECT c.user_id, c.reset_token_expires, u.email FROM credentials c
      JOIN users u ON u.id = c.user_id
      WHERE c.reset_token = $1 AND c.reset_token_expires > NOW()`,
-    [token]
+    [hashToken(token)]
   )
   return cred || null
 }
