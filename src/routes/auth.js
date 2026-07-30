@@ -9,6 +9,7 @@ const { addLog } = require('../middleware/logger')
 const { validarComplexidadeSenha } = require('../utils/http')
 const totp = require('../services/totp')
 const { gerarTokenSessao, verificarTokenPending2fa, gerarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
+const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
 
 // O caminho precisa ser absoluto e não relativo: essa página é servida pelo
 // backend (Railway) dentro do callback do Google, então um caminho relativo
@@ -70,11 +71,26 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ erro: 'Esta conta foi criada com login do Google. Use o botão "Continuar com o Google" para entrar.' })
     }
 
-    const senhaOk = await bcrypt.compare(password, cred.password_hash)
+    let senhaOk = await bcrypt.compare(password, cred.password_hash)
+    if (!senhaOk) {
+      // Pode ter sido trocada só no Meu Ecoo (ex.: reset de senha feito por
+      // lá). Se ele confirmar, re-hasheia aqui pro próximo login não
+      // depender de rede.
+      const confirmadoPeloMeuEcoo = await autenticarViaMeuEcoo(email, password)
+      if (confirmadoPeloMeuEcoo) {
+        await credentialsRepo.atualizarSenha(user.id, await bcrypt.hash(password, 10))
+        senhaOk = true
+      }
+    }
     if (!senhaOk) {
       addLog('err', 'Falha no login: senha incorreta', null, null, user.id)
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' })
     }
+
+    // O Meu Ecoo é a fonte da verdade da identidade daqui pra frente — cada
+    // login certo também empurra a credencial pra lá (best-effort, nunca
+    // bloqueia este login se o Meu Ecoo estiver fora).
+    void sincronizarCredencial(email, password, user.full_name)
 
     if (user.totp_enabled) {
       // Senha confere, mas falta o segundo fator — não abre sessão ainda,

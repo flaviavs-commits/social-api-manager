@@ -23,17 +23,26 @@ jest.mock('../../src/repositories/credentialsRepository', () => ({
   atualizarSenhaPorResetToken: jest.fn(),
 }))
 jest.mock('../../src/services/mailer', () => ({ enviarEmailRedefinicaoSenha: jest.fn().mockResolvedValue(true) }))
+jest.mock('../../src/services/meuEcoo', () => ({
+  sincronizarCredencial: jest.fn().mockResolvedValue(undefined),
+  autenticarViaMeuEcoo: jest.fn().mockResolvedValue(false),
+}))
 
 const usersRepo = require('../../src/repositories/usersRepository')
 const credRepo  = require('../../src/repositories/credentialsRepository')
 const bcrypt    = require('bcrypt')
 const { gerarTokenPending2fa } = require('../../src/utils/authToken')
 const { gerarSegredo, gerarCodigo } = require('../../src/services/totp')
+const meuEcoo = require('../../src/services/meuEcoo')
 
 const app = require('../../src/server')
 const BASE = '/auth/login'
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  meuEcoo.autenticarViaMeuEcoo.mockResolvedValue(false)
+  meuEcoo.sincronizarCredencial.mockResolvedValue(undefined)
+})
 
 // ── /login ────────────────────────────────────────────────────────────────────
 
@@ -61,19 +70,34 @@ describe('POST /auth/login/login', () => {
     expect(res.status).toBe(401)
   })
 
-  test('401 senha errada', async () => {
+  test('401 senha errada (e o Meu Ecoo também não confirma)', async () => {
     usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', totp_enabled: false })
     credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('correta', 1) })
     const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'errada' })
     expect(res.status).toBe(401)
+    expect(credRepo.atualizarSenha).not.toHaveBeenCalled()
   })
 
-  test('200 login bem-sucedido retorna token', async () => {
-    usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', totp_enabled: false })
+  test('200 login bem-sucedido retorna token e sincroniza credencial com o Meu Ecoo', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', full_name: 'Ana', totp_enabled: false })
     credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('Senha#1', 1) })
     const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'Senha#1' })
     expect(res.status).toBe(200)
     expect(res.body.token).toBeTruthy()
+    expect(meuEcoo.sincronizarCredencial).toHaveBeenCalledWith('a@b.com', 'Senha#1', 'Ana')
+  })
+
+  test('senha local errada cai no fallback do Meu Ecoo e re-hasheia com bcrypt', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', full_name: 'Ana', totp_enabled: false })
+    credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('senha-antiga', 1) })
+    meuEcoo.autenticarViaMeuEcoo.mockResolvedValueOnce(true)
+
+    const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'senha-nova-so-no-meu-ecoo' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.token).toBeTruthy()
+    expect(meuEcoo.autenticarViaMeuEcoo).toHaveBeenCalledWith('a@b.com', 'senha-nova-so-no-meu-ecoo')
+    expect(credRepo.atualizarSenha).toHaveBeenCalledWith(1, expect.any(String))
   })
 
   test('200 com 2FA ativo retorna pendingToken', async () => {
