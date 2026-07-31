@@ -1747,6 +1747,15 @@ input, select, textarea, label, .bottom-nav-item {
           </div>
           <div id="preset-row-tiktok" style="margin-top:8px"></div>
         </div>
+        <div class="form-group" id="post-threads-options-group" style="display:none">
+          <label data-i18n="agendador.labelRespostasThreads">Quem pode responder (Threads)</label>
+          <select id="post-threads-reply-control">
+            <option value="everyone" data-i18n="agendador.optThreadsTodos">Todos</option>
+            <option value="accounts_you_follow" data-i18n="agendador.optThreadsQuemVoceSegue">Contas que você segue</option>
+            <option value="mentioned_only" data-i18n="agendador.optThreadsMencionados">Somente mencionados</option>
+          </select>
+          <div id="preset-row-threads" style="margin-top:8px"></div>
+        </div>
         <div class="form-group">
           <label><span data-i18n="agendador.labelTextoPost">✎ Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
@@ -3305,6 +3314,13 @@ function applyConfigTabVisibility() {
     if (typeof renderPresetRow === 'function') renderPresetRow('youtube');
   }
   if (typeof renderTiktokOptionsGroup === 'function') renderTiktokOptionsGroup();
+
+  const mostrarThreads = selectedPlats.has('threads') && (soUmaRede || activeConfigTab === 'threads');
+  const threadsGroup = document.getElementById('post-threads-options-group');
+  if (threadsGroup) {
+    threadsGroup.style.display = mostrarThreads ? '' : 'none';
+    if (mostrarThreads && typeof renderPresetRow === 'function') renderPresetRow('threads');
+  }
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -3615,6 +3631,9 @@ function lerConfigAtualDaRede(platform) {
     tiktokDisableDuet: !document.getElementById('post-tiktok-allow-duet')?.checked,
     tiktokDisableStitch: !document.getElementById('post-tiktok-allow-stitch')?.checked,
   };
+  if (platform === 'threads') return {
+    threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || 'everyone',
+  };
   return {};
 }
 
@@ -3633,6 +3652,8 @@ function aplicarPresetNaRede(platform, config) {
     if (document.getElementById('post-tiktok-allow-comment')) document.getElementById('post-tiktok-allow-comment').checked = !config.tiktokDisableComment;
     if (document.getElementById('post-tiktok-allow-duet')) document.getElementById('post-tiktok-allow-duet').checked = !config.tiktokDisableDuet;
     if (document.getElementById('post-tiktok-allow-stitch')) document.getElementById('post-tiktok-allow-stitch').checked = !config.tiktokDisableStitch;
+  } else if (platform === 'threads') {
+    if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = config.threadsReplyControl || 'everyone';
   }
   renderValidationPanel();
   renderPreviewContent();
@@ -5322,6 +5343,7 @@ async function schedulePost(publishNow = false) {
   const tiktokDisableComment = !document.getElementById('post-tiktok-allow-comment').checked;
   const tiktokDisableDuet = !document.getElementById('post-tiktok-allow-duet').checked;
   const tiktokDisableStitch = !document.getElementById('post-tiktok-allow-stitch').checked;
+  const threadsReplyControl = document.getElementById('post-threads-reply-control')?.value || '';
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -5404,7 +5426,8 @@ async function schedulePost(publishNow = false) {
     titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}',
     locationId: selectedLocation?.id || '',
     locationName: selectedLocation?.name || '',
-    firstComment: document.getElementById('post-first-comment')?.value.trim() || ''
+    firstComment: document.getElementById('post-first-comment')?.value.trim() || '',
+    threadsReplyControl: platforms.includes('threads') ? threadsReplyControl : ''
   };
 
   if (publishNow) showToast(window.i18n.t('toast.publicandoAgora'), 'ok');
@@ -11435,6 +11458,7 @@ async function applyDraft(id) {
     if (d.location_id && d.location_name) selecionarLocalizacao(d.location_id, d.location_name);
     else limparLocalizacaoSelecionada();
     if (document.getElementById('post-first-comment')) document.getElementById('post-first-comment').value = d.first_comment || '';
+    if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = d.threads_reply_control || 'everyone';
 
     renderTextTabsBar();
     renderIgFormatPills();
@@ -11533,7 +11557,8 @@ async function saveDraft(isTemplate) {
         tiktokDisableStitch: document.getElementById('post-tiktok-allow-stitch') ? !document.getElementById('post-tiktok-allow-stitch').checked : null,
         locationId: selectedLocation?.id || null,
         locationName: selectedLocation?.name || null,
-        firstComment: document.getElementById('post-first-comment')?.value.trim() || null
+        firstComment: document.getElementById('post-first-comment')?.value.trim() || null,
+        threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || null
       })
     });
     showToast(isTemplate ? window.i18n.t('toast.templateSaved') : window.i18n.t('toast.draftSaved'), 'ok');
