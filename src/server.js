@@ -268,6 +268,19 @@ async function runMigrations() {
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_comment BOOLEAN`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_duet BOOLEAN`).catch(() => {}),
     pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_stitch BOOLEAN`).catch(() => {}),
+    // Quem pode responder a um post do Threads (reply_control da Threads
+    // Graph API) — opcional, sem escolha cai no default "everyone" da
+    // própria API (ver src/infra/social/threadsPublisher.js).
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS threads_reply_control TEXT`).catch(() => {}),
+    // Visibilidade do post no LinkedIn (PUBLIC/CONNECTIONS) — opcional, sem
+    // escolha cai no default PUBLIC (mesmo valor hardcoded antes desta
+    // coluna existir, ver src/infra/social/linkedinPublisher.js).
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_visibility TEXT`).catch(() => {}),
+    // Board de destino do Pin no Pinterest — opcional, sem escolha cai no
+    // primeiro board da conta (mesmo fallback de antes desta coluna existir,
+    // ver src/infra/social/pinterestPublisher.js:buscarPrimeiroBoardId).
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS pinterest_board_id TEXT`).catch(() => {}),
+    pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS pinterest_board_name TEXT`).catch(() => {}),
     // Retry automático de publicação com falha transitória (5xx/rate limit) —
     // ver migrations/036. retry_count conta tentativas já feitas (máx. 3,
     // ver services/scheduler.js); next_retry_at é quando o próximo tick do
@@ -340,6 +353,10 @@ async function runMigrations() {
       pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS location_id TEXT`).catch(() => {}),
       pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS location_name TEXT`).catch(() => {}),
       pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS first_comment TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS threads_reply_control TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS linkedin_visibility TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS pinterest_board_id TEXT`).catch(() => {}),
+      pool.query(`ALTER TABLE drafts ADD COLUMN IF NOT EXISTS pinterest_board_name TEXT`).catch(() => {}),
     ])),
     pool.query(`
       CREATE TABLE IF NOT EXISTS push_subscriptions (

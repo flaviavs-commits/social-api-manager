@@ -22,10 +22,11 @@ async function aguardarContainerThreads(containerId, accessToken, { tentativas =
   // (a doc do Threads recomenda tentar após ~30s mesmo sem confirmação final).
 }
 
-async function criarContainerThreads(igUserId, accessToken, { text, item, replyToId }) {
+async function criarContainerThreads(igUserId, accessToken, { text, item, replyToId, replyControl }) {
   const params = new URLSearchParams({ access_token: accessToken })
   if (text) params.append('text', text)
   if (replyToId) params.append('reply_to_id', replyToId)
+  if (replyControl) params.append('reply_control', replyControl)
 
   if (item) {
     params.append('media_type', item.type === 'video' ? 'VIDEO' : 'IMAGE')
@@ -57,7 +58,7 @@ async function publicarThreads(token, post) {
   const item = items[0] || null
   if (!item && !post.text) throw new Error('Threads exige texto ou uma imagem/vídeo para publicar')
 
-  const containerId = await criarContainerThreads(userId, token.accessToken, { text: post.text, item })
+  const containerId = await criarContainerThreads(userId, token.accessToken, { text: post.text, item, replyControl: post.threadsReplyControl })
   await aguardarContainerThreads(containerId, token.accessToken)
 
   const publishRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads_publish`, {

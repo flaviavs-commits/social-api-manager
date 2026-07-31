@@ -8,6 +8,8 @@ const MAX_YOUTUBE_TITLE_LENGTH = 100
 const MAX_CAPTION_LENGTH = 500
 const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private']
 const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
+const THREADS_REPLY_CONTROLS = ['everyone', 'accounts_you_follow', 'mentioned_only']
+const LINKEDIN_VISIBILITIES = ['PUBLIC', 'CONNECTIONS']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
 // Categorias oficiais da YouTube Data API v3 (videoCategories.list, região
@@ -62,7 +64,7 @@ function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspe
 // de cada rede quando o usuário anexou algo diferente naquele card — nesse
 // caso as regras de "cada rede exige tal mídia" validam contra os itens
 // daquela rede específica, não mais contra a lista global.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, threadsReplyControl, linkedinVisibility, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -94,6 +96,16 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
 
   if (igFormat !== undefined && igFormat !== null && igFormat !== '' && !INSTAGRAM_FORMATS.includes(igFormat))
     return 'igFormat inválido. Use post, reel ou story.'
+
+  // Opcional — sem escolha, o Threads usa o próprio default da API
+  // ("everyone"), diferente da privacidade do TikTok, que é obrigatória.
+  if (threadsReplyControl !== undefined && threadsReplyControl !== null && threadsReplyControl !== '' && !THREADS_REPLY_CONTROLS.includes(threadsReplyControl))
+    return 'threadsReplyControl inválido. Use everyone, accounts_you_follow ou mentioned_only.'
+
+  // Opcional — sem escolha, o LinkedIn usa PUBLIC (mesmo default de antes
+  // desta coluna existir).
+  if (linkedinVisibility !== undefined && linkedinVisibility !== null && linkedinVisibility !== '' && !LINKEDIN_VISIBILITIES.includes(linkedinVisibility))
+    return 'linkedinVisibility inválido. Use PUBLIC ou CONNECTIONS.'
 
   if (!Array.isArray(platforms) || !platforms.length || !platforms.every(p => PLATFORMS.includes(p)))
     return `platforms deve ser uma lista com valores de: ${PLATFORMS.join(', ')}`
@@ -207,7 +219,7 @@ function decidirStatusPublicacao(results) {
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
   YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
-  INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS,
+  INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS, THREADS_REPLY_CONTROLS, LINKEDIN_VISIBILITIES,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao
 }
