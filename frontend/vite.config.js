@@ -7,5 +7,13 @@ export default defineConfig({
     outDir: fileURLToPath(new URL('../public/react', import.meta.url)),
     emptyOutDir: true,
     rollupOptions: { input: fileURLToPath(new URL('./index.html', import.meta.url)) }
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3000',
+      '/auth': 'http://localhost:3000',
+      '/oauth': 'http://localhost:3000',
+      '/media-proxy': 'http://localhost:3000'
+    }
   }
 })

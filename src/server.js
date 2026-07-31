@@ -40,7 +40,13 @@ app.set('trust proxy', 1)
 // Frontend (Vercel) e backend (Railway) são domínios diferentes — a
 // autenticação viaja via Bearer token, não cookie, então não precisa de
 // credentials:true aqui (sem cookies envolvidos na requisição cross-origin).
-app.use(cors({ origin: (process.env.FRONTEND_ORIGIN || '').split(',').filter(Boolean) }))
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean)
+app.use(cors({
+  origin: allowedOrigins.length ? allowedOrigins : true,
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
+}))
 app.use(compression())
 
 // Cabeçalhos básicos de segurança (sem dependências extras)
@@ -236,6 +242,13 @@ app.get('/api/platform-health', async (req, res) => {
   const { getStatusMap } = require('./services/platformHealth')
   res.json({ platforms: await getStatusMap() })
 })
+
+// Endpoint técnico, independente de autenticação, usado por Railway/Vercel
+// e por monitores externos para validar que o processo HTTP está de pé.
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 'social-api-manager' }))
+
+// A API nunca deve devolver HTML para uma rota inexistente.
+app.use('/api', (_req, res) => res.status(404).json({ erro: 'Endpoint não encontrado' }))
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/app.html'))
