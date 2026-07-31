@@ -39,15 +39,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
-  --bg: #0d0f14; --surface: #161922; --surface2: #1e222d; --surface3: #262b38;
-  --border: #2a2f3d; --border2: #3a4054;
-  --text: #eef1f7; --muted: #9aa1b5; --muted2: #b7bccc;
-  --accent: #8677ff; --accent2: #b36cd9; --accent-glow: rgba(134,119,255,0.18);
-  --green: #3ecf8e; --red: #f0596b; --yellow: #f5b942; --neutral: #7c8fff;
+  /* Paleta alinhada à marca (mesma do logo, login.html e admin.html) —
+     azul como acento único com propósito, verde/coral só para status. */
+  --bg: #111217; --surface: #181a20; --surface2: #21232b; --surface3: #2a2d37;
+  --border: #2a2d36; --border2: #3a3e4a;
+  --text: #eef0f6; --muted: #9096a8; --muted2: #b4bacc;
+  --accent: #6c8cff; --accent2: #34c9be; --accent-glow: rgba(108,140,255,0.16);
+  --green: #4ade80; --red: #fb7185; --yellow: #fbbf24; --neutral: #7d8ab8;
   --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f8;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
   --radius: 10px; --radius-sm: 6px; --radius-lg: 14px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4); --shadow-lg: 0 12px 48px rgba(0,0,0,0.55);
+  --shadow: 0 4px 20px rgba(0,0,0,0.35); --shadow-lg: 0 16px 44px rgba(0,0,0,0.5);
   --sidebar-w: 248px; --topbar-h: 56px; --bottomnav-h: 60px;
   --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
 }
@@ -75,12 +77,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 .user-info { display: flex; flex-direction: column; gap: 2px; padding: 12px 1.25rem; white-space: nowrap; border-top: 1px solid var(--border); }
 .user-name { font-size: 13px; font-weight: 500; color: var(--text); }
-.user-role { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 99px; width: fit-content; margin-top: 2px; }
+.user-role { font-size: 10px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 99px; width: fit-content; margin-top: 2px; }
 .user-role.user { background: rgba(255,255,255,0.06); color: var(--muted); }
-.user-role.admin { background: rgba(124,108,255,0.15); color: var(--accent); }
+.user-role.admin { background: rgba(108,140,255,0.15); color: var(--accent); }
 .user-role.super_admin { background: rgba(251,191,36,0.15); color: var(--yellow); }
 
-.nav-section { font-size: 10px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.7; }
+.nav-section { font-size: 10.5px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.8; }
 .sidebar-plat-list { display: flex; flex-direction: column; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .sidebar-plat-item { display: flex; align-items: center; gap: 10px; padding: 9px 1.25rem; font-size: 13px; color: var(--text); cursor: pointer; transition: background var(--transition); }
 .sidebar-plat-item:hover { background: rgba(255,255,255,0.04); }
@@ -108,7 +110,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* ── Bottom nav mobile ───────────────────────────────────────────────────── */
 .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottomnav-h); background: var(--surface); border-top: 1px solid var(--border); z-index: 190; align-items: stretch; padding: 0; padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); cursor: pointer; font-size: 9px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.04em; border: none; background: none; padding: 6px 4px; transition: color var(--transition); -webkit-tap-highlight-color: transparent; }
+.bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); cursor: pointer; font-size: 10px; font-family: var(--sans); font-weight: 500; border: none; background: none; padding: 6px 4px; transition: color var(--transition); -webkit-tap-highlight-color: transparent; }
 .bottom-nav-item svg { opacity: 0.6; transition: opacity var(--transition); }
 .bottom-nav-item.active { color: var(--accent); }
 .bottom-nav-item.active svg { opacity: 1; }
@@ -116,7 +118,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 /* ── Page layout ────────────────────────────────────────────────────────── */
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; gap: 12px; }
 .page-title { font-size: 23px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
-.page-sub { font-size: 12px; color: var(--muted); margin-top: 5px; font-family: var(--mono); }
+.page-sub { font-size: 13px; color: var(--muted); margin-top: 5px; font-family: var(--sans); }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn { padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: 13px; cursor: pointer; font-family: var(--sans); transition: all var(--transition); font-weight: 400; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -311,7 +313,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* ── Tables & Rows ───────────────────────────────────────────────────────── */
 .token-table { width: 100%; border-collapse: collapse; }
-.token-table th { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+.token-table th { font-size: 11.5px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
 .token-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
 .token-table tr:last-child td { border-bottom: none; }
 .token-table tr:hover td { background: rgba(255,255,255,0.02); }
@@ -390,7 +392,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* ── Forms ───────────────────────────────────────────────────────────────── */
 .form-group { margin-bottom: 1.1rem; }
-.form-group label { display: block; font-size: 11px; font-family: var(--mono); color: var(--accent2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; }
+.form-group label { display: block; font-size: 12px; font-family: var(--sans); color: var(--muted2); margin-bottom: 6px; font-weight: 500; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; transition: border-color var(--transition), box-shadow var(--transition); }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 .form-group input::placeholder, .form-group textarea::placeholder { color: var(--muted); opacity: 1; }
@@ -438,7 +440,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* Botões primários de publicar/agendar ganham gradiente para se destacarem
    como ação principal da página (padrão visual pedido para "Compor Post"). */
-.sched-form .btn-accent { background: linear-gradient(135deg, var(--accent), var(--accent2)); border-color: transparent; box-shadow: 0 4px 14px var(--accent-glow); }
+.sched-form .btn-accent { background: var(--accent); border-color: transparent; box-shadow: 0 4px 14px var(--accent-glow); }
 .sched-form .btn-accent:hover { filter: brightness(1.08); }
 
 .preview-frame-mobile { width: 100%; max-width: 300px; transition: max-width var(--transition); }
@@ -518,28 +520,21 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 #ai-fab-btn {
   width: 52px; height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7c6cff 0%, #b36cd9 100%);
+  background: var(--accent);
   border: none;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 20px rgba(124,108,255,0.45);
+  box-shadow: 0 4px 16px rgba(108,140,255,0.35);
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
 }
-#ai-fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(124,108,255,0.6); }
-#ai-fab-btn .ai-fab-pulse {
-  position: absolute; inset: -4px; border-radius: 50%;
-  border: 2px solid rgba(124,108,255,0.4);
-  animation: ai-pulse 2s ease-out infinite;
-}
-@keyframes ai-pulse {
-  0%   { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.5); }
-}
+#ai-fab-btn:hover { transform: scale(1.06); box-shadow: 0 6px 22px rgba(108,140,255,0.45); }
+/* Sem anel pulsando — um botão quieto convida mais do que um alarme piscando. */
+#ai-fab-btn .ai-fab-pulse { display: none; }
 #ai-fab-panel {
-  background: var(--surface); border: 1px solid rgba(124,108,255,0.28);
+  background: var(--surface); border: 1px solid var(--border2);
   border-radius: 18px; width: 360px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  box-shadow: var(--shadow-lg);
   overflow: hidden; transform-origin: bottom right;
   animation: ai-panel-in 0.22s cubic-bezier(0.34,1.56,0.64,1);
   display: flex; flex-direction: column; max-height: 540px;
@@ -551,13 +546,13 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* Chat head */
 .ai-chat-head {
-  background: linear-gradient(135deg, rgba(124,108,255,0.18), rgba(179,157,219,0.1));
+  background: var(--surface2);
   padding: 13px 14px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 10px; flex-shrink: 0;
 }
 .ai-chat-head-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg,#7c6cff,#b36cd9);
+  background: var(--accent);
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   position: relative;
 }
@@ -589,7 +584,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-msg.user { flex-direction:row-reverse; }
 .ai-msg-avatar {
   width:28px; height:28px; border-radius:50%; flex-shrink:0;
-  background:linear-gradient(135deg,#7c6cff,#b36cd9);
+  background:var(--accent);
   display:flex; align-items:center; justify-content:center; font-size:12px;
 }
 .ai-msg.user .ai-msg-avatar { background:var(--surface3); color:var(--muted2); }
@@ -602,7 +597,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   border-bottom-left-radius:4px; color:var(--text); white-space:pre-wrap;
 }
 .ai-msg.user .ai-msg-bubble {
-  background:linear-gradient(135deg,#7c6cff,#b36cd9); white-space:normal;
+  background:var(--accent); white-space:normal;
   color:#fff; border-bottom-right-radius:4px;
 }
 .ai-msg-time { font-size:9px; color:var(--muted); margin-top:3px; text-align:right; }
@@ -612,11 +607,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-chip {
   display:inline-flex; align-items:center; flex-shrink:0;
   padding:5px 12px; border-radius:20px; white-space:nowrap;
-  border:1px solid rgba(124,108,255,0.4); background:rgba(124,108,255,0.08);
+  border:1px solid var(--border2); background:var(--surface2);
   color:var(--accent); font-size:11px; cursor:pointer; font-family:var(--sans);
   transition:all 0.15s;
 }
-.ai-chip:hover { background:rgba(124,108,255,0.18); border-color:var(--accent); }
+.ai-chip:hover { background:var(--accent-glow); border-color:var(--accent); }
 
 /* Typing indicator */
 .ai-typing { display:flex; gap:4px; align-items:center; padding:8px 12px; }
@@ -654,7 +649,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-file-preview-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 2px; }
 .ai-file-preview-remove:hover { color:var(--red); }
 .ai-drop-overlay {
-  position:absolute; inset:0; background:rgba(124,108,255,0.13);
+  position:absolute; inset:0; background:rgba(108,140,255,0.13);
   border:2px dashed var(--accent); border-radius:inherit;
   display:flex; align-items:center; justify-content:center;
   font-size:13px; color:var(--accent); font-weight:600; pointer-events:none;
@@ -671,7 +666,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-chat-input:focus { border-color:var(--accent); }
 .ai-chat-send {
   width:34px; height:34px; border-radius:50%; border:none; flex-shrink:0;
-  background:linear-gradient(135deg,#7c6cff,#b36cd9);
+  background:var(--accent);
   color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
   transition:opacity 0.15s, transform 0.15s;
 }
@@ -767,7 +762,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 .ai-when-confirm {
   width:100%; padding:8px; border-radius:8px; border:none;
-  background:linear-gradient(135deg,#7c6cff,#b36cd9); color:#fff;
+  background:var(--accent); color:#fff;
   font-size:11.5px; font-weight:600; cursor:pointer; transition:opacity 0.15s;
   font-family:var(--sans);
 }
@@ -969,12 +964,12 @@ input, select, textarea, label, .bottom-nav-item {
 
 /* Grid do mês */
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-.cal-day-name { text-align: center; font-size: 10px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; padding: 4px 0 10px; }
+.cal-day-name { text-align: center; font-size: 10.5px; font-family: var(--sans); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 0 10px; }
 
 /* Células do mês */
 .cal-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; min-height: 110px; padding: 7px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; gap: 3px; overflow: hidden; position: relative; }
 .cal-cell:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-.cal-cell.today { border-color: var(--accent); background: rgba(124,108,255,0.06); }
+.cal-cell.today { border-color: var(--accent); background: rgba(108,140,255,0.06); }
 .cal-cell.other-month { opacity: 0.35; pointer-events: none; }
 .cal-cell.drag-over { border-color: var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px var(--accent-glow); }
 
@@ -1006,14 +1001,14 @@ input, select, textarea, label, .bottom-nav-item {
 .cal-week-header { display: grid; grid-template-columns: 52px repeat(7, 1fr); border-bottom: 1px solid var(--border); }
 .cal-week-header-cell { padding: 10px 8px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); border-right: 1px solid var(--border); }
 .cal-week-header-cell:last-child { border-right: none; }
-.cal-week-header-cell.today-col { color: var(--accent); background: rgba(124,108,255,0.06); }
-.cal-week-header-cell .day-name { font-size: 9px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; display: block; opacity: 0.7; }
+.cal-week-header-cell.today-col { color: var(--accent); background: rgba(108,140,255,0.06); }
+.cal-week-header-cell .day-name { font-size: 9.5px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; display: block; opacity: 0.8; }
 .cal-week-body { display: grid; grid-template-columns: 52px repeat(7, 1fr); max-height: 65vh; overflow-y: auto; }
 .cal-week-hour-col { border-right: 1px solid var(--border); }
 .cal-week-hour-label { height: 56px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 6px 8px 0 0; font-size: 10px; font-family: var(--mono); color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.04); }
 .cal-week-day-col { border-right: 1px solid var(--border); }
 .cal-week-day-col:last-child { border-right: none; }
-.cal-week-day-col.today-col { background: rgba(124,108,255,0.03); }
+.cal-week-day-col.today-col { background: rgba(108,140,255,0.03); }
 .cal-week-hour-cell { height: 56px; border-bottom: 1px solid rgba(255,255,255,0.04); padding: 3px 4px; display: flex; flex-direction: column; gap: 2px; }
 .cal-week-post { border-radius: 4px; padding: 2px 5px; font-size: 10px; border-left: 3px solid transparent; background: rgba(255,255,255,0.05); cursor: pointer; overflow: hidden; transition: background 0.12s; }
 .cal-week-post:hover { background: rgba(255,255,255,0.1); }
@@ -1175,7 +1170,7 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-composer-send:hover { opacity: 0.85; }
 .inbox-composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.inbox-plat-tag { font-size: 9px; font-family: var(--mono); text-transform: uppercase; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+.inbox-plat-tag { font-size: 9.5px; font-family: var(--sans); text-transform: uppercase; letter-spacing: 0.02em; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
 .inbox-plat-tag.instagram { background: rgba(225,48,108,0.15); color: var(--ig); }
 .inbox-plat-tag.facebook  { background: rgba(24,119,242,0.15); color: var(--fb); }
 .inbox-plat-tag.youtube   { background: rgba(255,0,0,0.15);   color: var(--yt); }
@@ -1317,7 +1312,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-page { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
 .ai-form-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; position: sticky; top: 24px; }
 .ai-form-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-.ai-form-title-badge { font-size: 10px; background: linear-gradient(135deg,#7c6cff,#b36cd9); color:#fff; padding: 2px 8px; border-radius: 20px; font-weight: 600; letter-spacing: 0.04em; }
+.ai-form-title-badge { font-size: 10px; background: var(--accent); color:#fff; padding: 2px 8px; border-radius: 20px; font-weight: 600; letter-spacing: 0.04em; }
 .ai-form-subtitle { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
 .ai-field { margin-bottom: 16px; }
 .ai-field label { display: block; font-size: 11px; font-weight: 500; color: var(--muted2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -1343,7 +1338,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-tone-btn:hover { border-color: var(--border2); color: var(--text); }
 .ai-tone-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
 .ai-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.ai-gen-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: linear-gradient(135deg, #7c6cff, #b36cd9); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity var(--transition), transform var(--transition); margin-top: 4px; }
+.ai-gen-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity var(--transition), transform var(--transition); margin-top: 4px; }
 .ai-gen-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
 .ai-gen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .ai-gen-btn .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -1365,7 +1360,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-card:hover { border-color: var(--border2); }
 .ai-card.scheduled { border-color: var(--green); }
 .ai-card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
-.ai-card-num { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,#7c6cff,#b36cd9); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ai-card-num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ai-card-angulo { flex: 1; font-size: 11px; color: var(--muted); font-style: italic; }
 .ai-card-plats { display: flex; gap: 4px; }
 .ai-card-plat { width: 20px; height: 20px; border-radius: 5px; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
@@ -1518,7 +1513,7 @@ input, select, textarea, label, .bottom-nav-item {
   <div class="nav-item" onclick="showPage('ai')" style="position:relative">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1" fill="currentColor" stroke="none"/></svg>
     <span data-i18n="nav.agenteIA">Agente IA</span>
-    <span data-i18n="nav.novo" style="font-size:9px;background:linear-gradient(135deg,#7c6cff,#b36cd9);color:#fff;padding:1px 5px;border-radius:4px;font-weight:600;letter-spacing:0.03em;position:absolute;right:12px;top:50%;transform:translateY(-50%)">NOVO</span>
+    <span data-i18n="nav.novo" style="font-size:9px;background:var(--yellow);color:#1a1500;padding:1px 5px;border-radius:4px;font-weight:600;letter-spacing:0.03em;position:absolute;right:12px;top:50%;transform:translateY(-50%)">NOVO</span>
   </div>
   <div class="nav-item" id="nav-admin" onclick="window.location.href='/admin.html'" style="display:none">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
@@ -1892,7 +1887,7 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
       <div class="sched-preview">
         <div class="preview-header">
-          <label style="font-size:11px;font-family:var(--mono);color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;font-weight:500" data-i18n="agendador.previsualizacao">🌐 Pré-visualização</label>
+          <label style="font-size:12px;font-family:var(--sans);color:var(--muted2);font-weight:600" data-i18n="agendador.previsualizacao">🌐 Pré-visualização</label>
           <div id="preview-tabs" style="display:flex;gap:6px"></div>
         </div>
         <div id="preview-frame" class="preview-frame-mobile">
@@ -1901,7 +1896,7 @@ input, select, textarea, label, .bottom-nav-item {
       </div>
       <div class="sched-queue">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-          <div style="font-size:11px;font-family:var(--mono);color:var(--accent2);text-transform:uppercase;letter-spacing:0.08em;font-weight:500" data-i18n="agendador.proximasPublicacoes">📋 Próximas publicações</div>
+          <div style="font-size:12px;font-family:var(--sans);color:var(--muted2);font-weight:600" data-i18n="agendador.proximasPublicacoes">📋 Próximas publicações</div>
           <span id="queue-count" style="font-size:11px;color:var(--muted);font-family:var(--sans)">— posts</span>
         </div>
         <div id="queue-list"><div style="text-align:center;color:var(--muted);padding:2rem;font-family:var(--sans);font-size:12px">carregando...</div></div>
@@ -2209,7 +2204,7 @@ input, select, textarea, label, .bottom-nav-item {
         <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7H1a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 10 4a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="var(--accent)" stroke="none"/><circle cx="15" cy="14" r="1" fill="var(--accent)" stroke="none"/></svg>
           <span data-i18n="ai.tituloPagina">Agente IA</span>
-          <span style="font-size:9px;background:linear-gradient(135deg,#7c6cff,#b36cd9);color:#fff;padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.04em" data-i18n="ai.beta">BETA</span>
+          <span style="font-size:9px;background:var(--yellow);color:#1a1500;padding:2px 8px;border-radius:20px;font-weight:600;letter-spacing:.04em" data-i18n="ai.beta">BETA</span>
         </h2>
         <p style="font-size:12px;color:var(--muted);margin-top:2px" data-i18n="ai.subtitulo">Converse com o agente — ele cria e agenda seus posts automaticamente.</p>
       </div>
@@ -2228,7 +2223,7 @@ input, select, textarea, label, .bottom-nav-item {
 
     <!-- Modal API Key do usuário -->
     <div id="ai-apikey-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(124,108,255,0.3);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg)">
+      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg)">
         <div style="margin-bottom:20px">
           <div id="ai-apikey-modal-title" style="font-size:16px;font-weight:600;margin-bottom:8px"></div>
           <div id="ai-apikey-modal-desc" style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px"></div>
@@ -2252,7 +2247,7 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="ai-apikey-modal-err" style="font-size:12px;color:var(--red);margin-top:6px;min-height:16px"></div>
           <div id="ai-apikey-modal-test-ok" style="font-size:12px;color:#22c55e;margin-top:2px;min-height:16px"></div>
         </div>
-        <div style="background:rgba(124,108,255,0.08);border:1px solid rgba(124,108,255,0.15);border-radius:8px;padding:10px 12px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5" data-i18n="ai.chaveSeguranca">
+        <div style="background:rgba(108,140,255,0.08);border:1px solid rgba(108,140,255,0.15);border-radius:8px;padding:10px 12px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5" data-i18n="ai.chaveSeguranca">
           🔒 Sua chave é criptografada e armazenada com segurança. Nunca é compartilhada com terceiros.
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
@@ -2266,7 +2261,7 @@ input, select, textarea, label, .bottom-nav-item {
 
     <!-- Modal seletor de modelo -->
     <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(124,108,255,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
+      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 24px 16px;flex-shrink:0">
           <div>
             <div style="font-size:14px;font-weight:600" data-i18n="ai.escolherModelo">Escolher modelo de IA</div>
@@ -2278,7 +2273,7 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
         <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:0 24px;flex:1;min-height:0"></div>
         <div style="padding:16px 24px 24px;padding-top:14px;border-top:1px solid var(--border);flex-shrink:0">
-          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:linear-gradient(135deg,#7c6cff,#b36cd9);color:#fff;font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.confirmarEscolha">
+          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.confirmarEscolha">
             Confirmar escolha
           </button>
         </div>
@@ -6148,11 +6143,11 @@ function analyticsRenderChart(net, tab) {
   const hasLikes    = postsSorted.some(m => m.metrics?.likes != null);
   const hasComments = postsSorted.some(m => m.metrics?.comments != null);
 
-  if (hasViews)    datasets.push({ label: window.i18n.t('analytics.visualizacoes'), data: postsSorted.map(m => m.metrics?.views || 0),    backgroundColor: 'rgba(124,108,255,0.8)', borderRadius: 4 });
+  if (hasViews)    datasets.push({ label: window.i18n.t('analytics.visualizacoes'), data: postsSorted.map(m => m.metrics?.views || 0),    backgroundColor: 'rgba(108,140,255,0.8)', borderRadius: 4 });
   if (hasLikes)    datasets.push({ label: window.i18n.t('analytics.curtidas'),       data: postsSorted.map(m => m.metrics?.likes || 0),    backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 });
   if (hasComments) datasets.push({ label: window.i18n.t('analytics.comentarios'),    data: postsSorted.map(m => m.metrics?.comments || 0), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 });
 
-  if (!datasets.length) datasets.push({ label: window.i18n.t('analytics.posts'), data: postsSorted.map(() => 1), backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#7c6cff', borderRadius: 4 });
+  if (!datasets.length) datasets.push({ label: window.i18n.t('analytics.posts'), data: postsSorted.map(() => 1), backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#6c8cff', borderRadius: 4 });
 
   analyticsChart = new Chart(ctx, {
     type: 'bar',
@@ -6240,7 +6235,7 @@ function analyticsRenderSummaryTrend(metrics) {
     data: {
       labels: dias.map(formatDiaBR),
       datasets: [
-        { label: window.i18n.t('analytics.alcance'), data: dias.map(d => porDia[d].reach), borderColor: '#7c6cff', backgroundColor: 'rgba(124,108,255,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
+        { label: window.i18n.t('analytics.alcance'), data: dias.map(d => porDia[d].reach), borderColor: '#6c8cff', backgroundColor: 'rgba(108,140,255,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
         { label: window.i18n.t('analytics.engajamento'), data: dias.map(d => porDia[d].engagement), borderColor: '#e94f8a', backgroundColor: 'rgba(233,79,138,0.08)', fill: true, tension: 0.35, pointRadius: 4 }
       ]
     },
@@ -6271,7 +6266,7 @@ function analyticsRenderSummaryPlatforms(metrics) {
     type: 'bar',
     data: {
       labels: plats.map(p => ANALYTICS_PLAT_LABELS[p] || p),
-      datasets: [{ data: plats.map(p => porPlataforma[p]), backgroundColor: plats.map(p => ANALYTICS_PLAT_COLORS[p] || '#7c6cff'), borderRadius: 6, maxBarThickness: 56 }]
+      datasets: [{ data: plats.map(p => porPlataforma[p]), backgroundColor: plats.map(p => ANALYTICS_PLAT_COLORS[p] || '#6c8cff'), borderRadius: 6, maxBarThickness: 56 }]
     },
     options: {
       responsive: true,
@@ -6312,7 +6307,7 @@ function analyticsDestroyDemoCharts() {
   if (analyticsDemoCharts.geo) { analyticsDemoCharts.geo.destroy(); analyticsDemoCharts.geo = null; }
 }
 
-const ANALYTICS_DEMO_COLORS = ['#7c6cff','#e94f8a','#34d399','#fbbf24','#5b8def','#f97316','#a78bfa','#22d3ee'];
+const ANALYTICS_DEMO_COLORS = ['#6c8cff','#e94f8a','#34d399','#fbbf24','#5b8def','#f97316','#a78bfa','#22d3ee'];
 
 function analyticsTopN(itens, n) {
   const ordenado = [...itens].sort((a, b) => b.value - a.value);
@@ -6365,7 +6360,7 @@ function analyticsRenderDemographics(net, tab) {
         datasets: generos.map(g => ({
           label: g,
           data: faixas.map(f => demo.ageGender.find(d => d.age === f && d.gender === g)?.value || 0),
-          backgroundColor: genderColors[g] || '#7c6cff',
+          backgroundColor: genderColors[g] || '#6c8cff',
           borderRadius: 4
         }))
       },
@@ -9125,7 +9120,7 @@ function aiSetModel(id, notify = true) {
   // Atualiza badge da página
   const dot = document.getElementById('ai-badge-dot')
   const name = document.getElementById('ai-badge-name')
-  if (dot) dot.style.background = pickerMeta.dotColor || '#7c6cff'
+  if (dot) dot.style.background = pickerMeta.dotColor || '#6c8cff'
   if (name) name.textContent = meta.label || id
 
   // Atualiza nome no cabeçalho do FAB
@@ -9182,7 +9177,7 @@ async function aiOpenModelPicker() {
       <div class="ai-model-pick-info">
         <div class="ai-model-pick-name">
           ${AI_MODEL_META[m.id]?.label || m.name}
-          ${pm.badge ? `<span style="font-size:9px;background:rgba(124,108,255,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
+          ${pm.badge ? `<span style="font-size:9px;background:rgba(108,140,255,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
           ${unavail ? `<span style="font-size:9px;color:var(--red);margin-left:6px">${window.i18n.t('aiModelPicker.noKey')}</span>` : ''}
         </div>
         <div class="ai-model-pick-desc">${unavail ? window.i18n.t('aiModelPicker.keyNotConfigured') : (pm.desc || m.provider)}</div>
@@ -9808,7 +9803,7 @@ function aiPostCardActionsHtml(ctx, idx, p, cardId) {
     const plataformasQueExigem = p.plataformas.filter(plat => PLAT_REQUIREMENTS[plat]?.media === 'required').map(plat => PLAT_NAMES[plat]).join(', ')
     return `${horarioInput}<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📎 ${plataformasQueExigem} ${window.i18n.t('aiCards.requiresImageOrVideo')}</div>
       <div class="ai-chat-post-actions">
-        <button class="ai-chat-post-btn" style="background:rgba(124,108,255,0.15);color:var(--accent);border-color:rgba(124,108,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">📎 ${window.i18n.t('common.attachMedia')}</button>
+        <button class="ai-chat-post-btn" style="background:rgba(108,140,255,0.15);color:var(--accent);border-color:rgba(108,140,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">📎 ${window.i18n.t('common.attachMedia')}</button>
         <button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ ${window.i18n.t('common.regenerate')}</button>
       </div>
       <input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
@@ -9856,7 +9851,7 @@ async function aiAttachMediaToPost(ctx, idx, cardId, input) {
     post.mediaType = file.type.startsWith('video/') ? 'video' : 'image'
     if (cardEl) cardEl.innerHTML = aiPostCardActionsHtml(ctx, idx, post, cardId)
   } catch (e) {
-    if (cardEl) cardEl.innerHTML = `<div style="font-size:11px;color:var(--red);margin-bottom:8px">${window.i18n.t('aiCards.couldNotSendMedia')} ${e.message || window.i18n.t('common.unknownError')}.</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn" style="background:rgba(124,108,255,0.15);color:var(--accent);border-color:rgba(124,108,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">↻ ${window.i18n.t('common.tryAgain')}</button></div><input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
+    if (cardEl) cardEl.innerHTML = `<div style="font-size:11px;color:var(--red);margin-bottom:8px">${window.i18n.t('aiCards.couldNotSendMedia')} ${e.message || window.i18n.t('common.unknownError')}.</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn" style="background:rgba(108,140,255,0.15);color:var(--accent);border-color:rgba(108,140,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">↻ ${window.i18n.t('common.tryAgain')}</button></div><input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
   }
 }
 
@@ -10000,7 +9995,7 @@ function aiChatSetChips(ctx, chips) {
 
 function aiChipClick(ctx, val, el) {
   document.querySelectorAll(`#${ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'} .ai-chip`).forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '0.5' })
-  el.style.background = 'rgba(124,108,255,0.3)'; el.style.opacity = '1'
+  el.style.background = 'rgba(108,140,255,0.3)'; el.style.opacity = '1'
   aiChatAddMsg(ctx, 'user', val)
   aiChatSetChips(ctx, [])
   setTimeout(() => aiChatProcess(ctx, val), 400)
