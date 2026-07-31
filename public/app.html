@@ -4286,7 +4286,7 @@ function updateFirstCommentGroupVisibility() {
   const suportadas = plats.filter(p => PLATS_COM_COMENTARIO.includes(p));
   const naoSuportadas = plats.filter(p => !PLATS_COM_COMENTARIO.includes(p));
 
-  group.style.display = plats.length ? '' : 'none';
+  group.style.display = suportadas.length ? '' : 'none';
   if (hint) {
     hint.textContent = naoSuportadas.length && suportadas.length
       ? `${window.i18n.t('toast.naoDisponivelParaPrefixo')}${naoSuportadas.map(p => PLATFORM_LABELS[p] || p).join(', ')}${window.i18n.t('toast.naoDisponivelParaSufixo')}`
@@ -5176,6 +5176,8 @@ function dpClear() {
   document.getElementById('post-date').value = '';
   updatePostDateDisplay();
   closeDatePicker();
+  updatePostScore();
+  renderValidationPanel();
 }
 
 // ── Importar mídia do Google Drive ────────────────────────────────────────────
@@ -5478,6 +5480,11 @@ async function schedulePost(publishNow = false) {
   if (platforms.includes('youtube') && !youtubeMadeForKidsRaw) return showToast(window.i18n.t('toast.informeSeVideoFeitoParaCriancas'), 'err');
   if (platforms.includes('tiktok') && !tiktokPrivacyLevel) return showToast(window.i18n.t('toast.escolhaQuemPodeVerTiktok'), 'err');
 
+  const midiaInstagramEnvio = mediaFilesByPlatform.instagram?.length ? mediaFilesByPlatform.instagram : mediaFiles;
+  if (platforms.includes('instagram') && igFormat === 'story' && midiaInstagramEnvio.length > 1) {
+    return showToast(window.i18n.t('toast.storiesNaoSuportaCarrosselEscolha'), 'err');
+  }
+
   // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
   // muito em cima da hora não dá folga pro cron confirmar a tempo. Mesma regra
   // validada no backend (src/domain/posts/post.js, INSTAGRAM_MIN_ANTECEDENCIA_MIN).
@@ -5587,6 +5594,8 @@ async function schedulePost(publishNow = false) {
   youtubeFormat = null;
   limparLocalizacaoSelecionada();
   document.getElementById('post-first-comment').value = '';
+  document.getElementById('post-repeat').value = 'none';
+  dpClear();
   updateMediaPreview();
   renderMediaByPlatformGroup();
   initSchedulerDefaultPlatforms();
@@ -7604,6 +7613,21 @@ function calRenderWeek() {
   setTimeout(() => { body.scrollTop = Math.max(0, nowH * 56 - 112); }, 0);
 }
 
+// Pré-preenche a data/hora do agendador com o dia clicado no calendário —
+// sem isso, os botões "Agendar post"/"Agendar novo post neste dia" do modal
+// de dia levavam para um formulário em branco, ignorando o dia escolhido.
+function calAgendarNesteDia(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const hourDefault = dpNowParts().hour;
+  dpSelected = { year, month: month - 1, day, hour: hourDefault, minute: 0 };
+  const pad = n => String(n).padStart(2, '0');
+  const input = document.getElementById('post-date');
+  if (input) input.value = `${year}-${pad(month)}-${pad(day)}T${pad(hourDefault)}:00`;
+  updatePostDateDisplay();
+  showPage('agendador');
+  calCloseDayModal();
+}
+
 // ── Modal de dia ──────────────────────────────────────────────────────────────
 function calOpenDayModal(dateStr, date, posts) {
   calDayModalDate = { dateStr, date, posts };
@@ -7626,7 +7650,7 @@ function _calRenderDayModal(dateStr, date, posts) {
   if (posts.length === 0) {
     body.innerHTML = `<div style="text-align:center;color:var(--muted);padding:3rem 1rem;font-family:var(--mono);font-size:12px">
       ${window.i18n.t('cal.nenhumPostAgendadoNesteDia')}<br><br>
-      <button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="font-size:11px;padding:6px 14px">${window.i18n.t('cal.agendarPost')}</button>
+      <button class="btn" onclick="calAgendarNesteDia('${dateStr}')" style="font-size:11px;padding:6px 14px">${window.i18n.t('cal.agendarPost')}</button>
     </div>`;
     return;
   }
@@ -7664,7 +7688,7 @@ function _calRenderDayModal(dateStr, date, posts) {
   body.appendChild(timeline);
   const footer = document.createElement('div');
   footer.style.cssText = 'padding:10px 14px;border-top:1px solid var(--border);';
-  footer.innerHTML = `<button class="btn" onclick="showPage('agendador');calCloseDayModal()" style="width:100%;font-size:11px;padding:7px">${window.i18n.t('cal.agendarNovoPostNesteDia')}</button>`;
+  footer.innerHTML = `<button class="btn" onclick="calAgendarNesteDia('${dateStr}')" style="width:100%;font-size:11px;padding:7px">${window.i18n.t('cal.agendarNovoPostNesteDia')}</button>`;
   body.appendChild(footer);
 }
 
@@ -11546,8 +11570,8 @@ async function applyDraft(id) {
     titleByPlatform = {};
     activeTextTab = null;
     document.getElementById('post-text').value = d.text || '';
-    if (d.youtube_title) document.getElementById('post-youtube-title').value = d.youtube_title;
-    if (d.youtube_visibility) document.getElementById('post-youtube-visibility').value = d.youtube_visibility;
+    document.getElementById('post-youtube-title').value = d.youtube_title || '';
+    document.getElementById('post-youtube-visibility').value = d.youtube_visibility || 'public';
 
     // Formato por rede, opções do TikTok, localização e primeiro comentário —
     // mesmos campos gravados em saveDraft().
