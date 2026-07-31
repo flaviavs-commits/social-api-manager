@@ -22,7 +22,8 @@
 body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
-.logo { font-size: 18px; font-weight: 700; }
+.logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+.logo img { width: 32px; height: 32px; border-radius: 8px; }
 .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-primary:hover { opacity: 0.9; }
@@ -45,7 +46,7 @@ footer a:hover { color: var(--text); }
 
 <div class="wrap">
   <header>
-    <div class="logo">MeuEcooMedia</div>
+    <div class="logo"><img src="/favicon.svg" alt="" width="32" height="32">MeuEcooMedia</div>
     <a href="/login.html" class="btn btn-primary" data-i18n="landing.entrar">Entrar</a>
   </header>
 

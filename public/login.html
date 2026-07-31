@@ -19,6 +19,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 2.25rem 2rem; width: 100%; max-width: 380px; }
+.brand { display: flex; justify-content: center; margin-bottom: 1.25rem; }
+.brand img { width: 48px; height: 48px; border-radius: 12px; }
 .title { font-size: 20px; font-weight: 600; margin-bottom: 0.25rem; }
 .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 1.75rem; }
 label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
@@ -41,6 +43,7 @@ input:focus { outline: none; border-color: var(--accent); }
 <body>
 
 <div class="card">
+  <div class="brand"><img src="/favicon.svg" alt="MeuEcooMedia" width="48" height="48"></div>
   <div class="title" id="title">Bem vindo de volta</div>
   <div class="subtitle" data-i18n="login.subtitle">Entre para acessar o gerenciador das suas redes sociais</div>
 
