@@ -1,9 +1,9 @@
 const pool = require('../../db/pool')
 
-async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, threadsReplyControl = null, linkedinVisibility = null, accountId = null, userId, status = 'scheduled' }) {
+async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, threadsReplyControl = null, linkedinVisibility = null, pinterestBoardId = null, pinterestBoardName = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, location_id, location_name, first_comment, threads_reply_control, linkedin_visibility, account_id, user_id, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, location_id, location_name, first_comment, threads_reply_control, linkedin_visibility, pinterest_board_id, pinterest_board_name, account_id, user_id, status)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
     RETURNING *, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_category_id AS "youtubeCategoryId",
       youtube_format AS "youtubeFormat", youtube_is_short AS "youtubeIsShort", youtube_made_for_kids AS "youtubeMadeForKids",
@@ -11,8 +11,9 @@ async function criarPost({ text, textByPlatform = null, titleByPlatform = null, 
       tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment",
       tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
       location_id AS "locationId", location_name AS "locationName", first_comment AS "firstComment",
-      threads_reply_control AS "threadsReplyControl", linkedin_visibility AS "linkedinVisibility"
-  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility, accountId, userId, status])
+      threads_reply_control AS "threadsReplyControl", linkedin_visibility AS "linkedinVisibility",
+      pinterest_board_id AS "pinterestBoardId", pinterest_board_name AS "pinterestBoardName"
+  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility, pinterestBoardId, pinterestBoardName, accountId, userId, status])
   return rows[0]
 }
 
@@ -98,6 +99,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.tiktok_privacy_level AS "tiktokPrivacyLevel", p.tiktok_disable_comment AS "tiktokDisableComment",
       p.tiktok_disable_duet AS "tiktokDisableDuet", p.tiktok_disable_stitch AS "tiktokDisableStitch",
       p.threads_reply_control AS "threadsReplyControl", p.linkedin_visibility AS "linkedinVisibility",
+      p.pinterest_board_id AS "pinterestBoardId", p.pinterest_board_name AS "pinterestBoardName",
       p.account_id AS "accountId",
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole",
@@ -152,7 +154,8 @@ async function reservarPostsPendentes() {
         media_path, media_type, media_items,
         youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids,
         ig_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id,
-        retry_count, location_id, location_name, first_comment, threads_reply_control, linkedin_visibility
+        retry_count, location_id, location_name, first_comment, threads_reply_control, linkedin_visibility,
+        pinterest_board_id, pinterest_board_name
     )
     SELECT
       r.id, r.text, r.text_by_platform AS "textByPlatform", r.title_by_platform AS "titleByPlatform", r.platforms,
@@ -167,6 +170,7 @@ async function reservarPostsPendentes() {
       r.retry_count AS "retryCount",
       r.location_id AS "locationId", r.location_name AS "locationName", r.first_comment AS "firstComment",
       r.threads_reply_control AS "threadsReplyControl", r.linkedin_visibility AS "linkedinVisibility",
+      r.pinterest_board_id AS "pinterestBoardId", r.pinterest_board_name AS "pinterestBoardName",
       u.role AS "userRole",
       COALESCE(
         JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
@@ -181,7 +185,8 @@ async function reservarPostsPendentes() {
              r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
              r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format,
              r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count,
-             r.location_id, r.location_name, r.first_comment, r.threads_reply_control, r.linkedin_visibility, u.role
+             r.location_id, r.location_name, r.first_comment, r.threads_reply_control, r.linkedin_visibility,
+             r.pinterest_board_id, r.pinterest_board_name, u.role
   `)
   return rows
 }

@@ -76,7 +76,7 @@ async function processarMidia(media, captions, platforms) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility, pinterestBoardId, pinterestBoardName } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -264,6 +264,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     firstComment: firstComment?.trim() || null,
     threadsReplyControl: platforms.includes('threads') ? (threadsReplyControl || null) : null,
     linkedinVisibility: platforms.includes('linkedin') ? (linkedinVisibility || null) : null,
+    pinterestBoardId: platforms.includes('pinterest') ? (pinterestBoardId || null) : null,
+    pinterestBoardName: platforms.includes('pinterest') ? (pinterestBoardName || null) : null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 

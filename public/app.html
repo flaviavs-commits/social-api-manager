@@ -1764,6 +1764,11 @@ input, select, textarea, label, .bottom-nav-item {
           </select>
           <div id="preset-row-linkedin" style="margin-top:8px"></div>
         </div>
+        <div class="form-group" id="post-pinterest-options-group" style="display:none">
+          <label data-i18n="agendador.labelBoardPinterest">Board (Pinterest)</label>
+          <select id="post-pinterest-board" onchange="onPinterestBoardChange()"></select>
+          <div id="pinterest-board-hint" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+        </div>
         <div class="form-group">
           <label><span data-i18n="agendador.labelTextoPost">✎ Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
@@ -3336,6 +3341,8 @@ function applyConfigTabVisibility() {
     linkedinGroup.style.display = mostrarLinkedin ? '' : 'none';
     if (mostrarLinkedin && typeof renderPresetRow === 'function') renderPresetRow('linkedin');
   }
+
+  if (typeof renderPinterestOptionsGroup === 'function') renderPinterestOptionsGroup();
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -3376,6 +3383,8 @@ function applyPlatformSelection(plats) {
   renderYoutubeFormatPills();
   if (!selectedPlats.has('tiktok')) resetTiktokOptions();
   renderTiktokOptionsGroup();
+  if (!selectedPlats.has('pinterest') && typeof resetPinterestOptions === 'function') resetPinterestOptions();
+  if (typeof renderPinterestOptionsGroup === 'function') renderPinterestOptionsGroup();
   syncMediaByPlatformSelection();
   renderMediaByPlatformGroup();
   if (typeof updateLocationGroupVisibility === 'function') updateLocationGroupVisibility();
@@ -3529,6 +3538,14 @@ function setYoutubeFormat(value) {
 // buscarCreatorInfo). Sem essa tela, o backend decidia tudo sozinho.
 let tiktokCreatorInfo = null;
 let tiktokCreatorInfoContaId = null;
+
+// Boards do Pinterest da conta conectada, para o seletor de board por post —
+// GET /api/posts/pinterest-boards (ver buscarBoardsPinterest.js). Cacheado
+// por contaId, mesmo padrão de tiktokCreatorInfo, para não reconsultar a API
+// a cada re-render (troca de aba, digitação de texto etc.).
+let pinterestBoards = null;
+let pinterestBoardsContaId = null;
+let selectedPinterestBoard = null; // { id, name }
 const TIKTOK_PRIVACY_LABELS = {
   PUBLIC_TO_EVERYONE: () => window.i18n.t('toast.tiktokPrivacyPublico'),
   MUTUAL_FOLLOW_FRIENDS: () => window.i18n.t('toast.tiktokPrivacyAmigos'),
@@ -3612,6 +3629,69 @@ function resetTiktokOptions() {
     const cb = document.getElementById(id);
     if (cb) { cb.checked = true; cb.disabled = false; }
   });
+}
+
+async function renderPinterestOptionsGroup() {
+  const group = document.getElementById('post-pinterest-options-group');
+  if (!group) return;
+
+  const aplica = selectedPlats.has('pinterest');
+  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'pinterest';
+  group.style.display = (aplica && abaPermite) ? '' : 'none';
+  if (!aplica || !abaPermite) return;
+
+  const conta = apContas.find(c => c.platform === 'pinterest' && c.handle);
+  const hintEl = document.getElementById('pinterest-board-hint');
+  const select = document.getElementById('post-pinterest-board');
+
+  if (!conta) {
+    if (hintEl) hintEl.textContent = window.i18n.t('toast.conectePinterestParaBoards');
+    return;
+  }
+
+  if (pinterestBoardsContaId === conta.id && pinterestBoards) return;
+  pinterestBoardsContaId = conta.id;
+
+  if (hintEl) hintEl.textContent = window.i18n.t('toast.carregandoBoardsPinterest');
+  try {
+    ({ boards: pinterestBoards } = await apiFetch('/api/posts/pinterest-boards'));
+  } catch (e) {
+    pinterestBoards = null;
+    if (hintEl) hintEl.textContent = e.message || window.i18n.t('toast.erroCarregarBoardsPinterest');
+    return;
+  }
+
+  if (!pinterestBoards.length) {
+    if (hintEl) hintEl.textContent = window.i18n.t('toast.nenhumBoardPinterest');
+    if (select) select.innerHTML = '';
+    return;
+  }
+
+  if (hintEl) hintEl.textContent = '';
+  if (select) {
+    select.innerHTML = pinterestBoards.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`).join('');
+    const preSelecionado = selectedPinterestBoard && pinterestBoards.some(b => b.id === selectedPinterestBoard.id)
+      ? selectedPinterestBoard.id
+      : pinterestBoards[0].id;
+    select.value = preSelecionado;
+    onPinterestBoardChange();
+  }
+}
+
+function onPinterestBoardChange() {
+  const select = document.getElementById('post-pinterest-board');
+  const board = pinterestBoards?.find(b => b.id === select?.value);
+  selectedPinterestBoard = board ? { id: board.id, name: board.name } : null;
+}
+
+function resetPinterestOptions() {
+  pinterestBoards = null;
+  pinterestBoardsContaId = null;
+  selectedPinterestBoard = null;
+  const select = document.getElementById('post-pinterest-board');
+  if (select) select.innerHTML = '';
+  const hintEl = document.getElementById('pinterest-board-hint');
+  if (hintEl) hintEl.textContent = '';
 }
 
 // ── Presets de configuração por rede ─────────────────────────────────────────
@@ -5449,7 +5529,9 @@ async function schedulePost(publishNow = false) {
     locationName: selectedLocation?.name || '',
     firstComment: document.getElementById('post-first-comment')?.value.trim() || '',
     threadsReplyControl: platforms.includes('threads') ? threadsReplyControl : '',
-    linkedinVisibility: platforms.includes('linkedin') ? linkedinVisibility : ''
+    linkedinVisibility: platforms.includes('linkedin') ? linkedinVisibility : '',
+    pinterestBoardId: platforms.includes('pinterest') ? (selectedPinterestBoard?.id || '') : '',
+    pinterestBoardName: platforms.includes('pinterest') ? (selectedPinterestBoard?.name || '') : ''
   };
 
   if (publishNow) showToast(window.i18n.t('toast.publicandoAgora'), 'ok');
@@ -11482,6 +11564,11 @@ async function applyDraft(id) {
     if (document.getElementById('post-first-comment')) document.getElementById('post-first-comment').value = d.first_comment || '';
     if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = d.threads_reply_control || 'everyone';
     if (document.getElementById('post-linkedin-visibility')) document.getElementById('post-linkedin-visibility').value = d.linkedin_visibility || 'PUBLIC';
+    // O board real só é confirmado quando a lista carregar (fetch assíncrono
+    // em renderPinterestOptionsGroup, disparado por applyPlatformSelection
+    // acima) — guarda a intenção aqui, o render escolhe esse id se ele
+    // ainda existir na lista de boards da conta.
+    selectedPinterestBoard = d.pinterest_board_id ? { id: d.pinterest_board_id, name: d.pinterest_board_name } : null;
 
     renderTextTabsBar();
     renderIgFormatPills();
@@ -11582,7 +11669,9 @@ async function saveDraft(isTemplate) {
         locationName: selectedLocation?.name || null,
         firstComment: document.getElementById('post-first-comment')?.value.trim() || null,
         threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || null,
-        linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || null
+        linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || null,
+        pinterestBoardId: selectedPinterestBoard?.id || null,
+        pinterestBoardName: selectedPinterestBoard?.name || null
       })
     });
     showToast(isTemplate ? window.i18n.t('toast.templateSaved') : window.i18n.t('toast.draftSaved'), 'ok');
