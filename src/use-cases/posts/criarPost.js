@@ -6,7 +6,7 @@ const contasRepo = require('../../repositories/contasRepository')
 const { publishPost } = require('../../infra/social/publisher')
 const { probeVideo } = require('../../infra/storage/videoProbe')
 const { converterParaJpeg } = require('../../infra/storage/mediaConverter')
-const { salvarBuffer } = require('../../infra/storage/blobStorage')
+const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC, decidirStatusPublicacao } = require('../../domain/posts/post')
 const { ValidationError } = require('../../domain/posts/errors')
@@ -149,6 +149,12 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('media inválido')
   }
   if (!Array.isArray(media) || media.some(m => !m?.url || !m?.mimetype)) throw new ValidationError('Cada item de media precisa ter url e mimetype')
+  // Bloqueia SSRF: só aceita mídia que já passou pelo upload direto ao Vercel
+  // Blob (POST /upload-url) — o servidor faz fetch() dessas URLs mais adiante
+  // (conversão de imagem, probe de vídeo, publishers), então aceitar qualquer
+  // URL aqui deixaria um usuário autenticado apontar o servidor para rede
+  // interna ou metadata da nuvem.
+  if (media.some(m => !isBlobUrl(m.url))) throw new ValidationError('URL de mídia inválida — envie o arquivo pelo upload padrão.')
 
   let captions = []
   try {
@@ -177,6 +183,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   for (const [platform, mediaDaRede] of Object.entries(mediaByPlatform)) {
     if (!Array.isArray(mediaDaRede) || mediaDaRede.some(m => !m?.url || !m?.mimetype))
       throw new ValidationError(`Cada item de mediaByPlatform.${platform} precisa ter url e mimetype`)
+    if (mediaDaRede.some(m => !isBlobUrl(m.url)))
+      throw new ValidationError(`URL de mídia inválida em mediaByPlatform.${platform} — envie o arquivo pelo upload padrão.`)
   }
 
   const { items, mediaType, aspectRatioValidoTiktok, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms)

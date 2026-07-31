@@ -39,4 +39,22 @@ async function salvarBuffer(filename, buffer, contentType) {
   return url
 }
 
-module.exports = { ALLOWED_MEDIA_TYPES, gerarUploadUrl, salvarBuffer }
+// Único domínio de onde o servidor tem permissão de baixar mídia enviada
+// pelo cliente (conversão de imagem, probe de vídeo, geração de capa, etc.).
+// Sem essa checagem, media[].url viajava direto do body da requisição até
+// fetch() no servidor (criarPost.js, mediaFetch.js, pinterestPublisher.js) —
+// um usuário autenticado podia apontar para qualquer URL (rede interna,
+// metadata da nuvem) e ainda ter o conteúdo baixado processado por
+// sharp/ffprobe. Mesma restrição de host já aplicada em GET /media-proxy
+// (server.js) para o caso inverso (proxy de saída).
+function isBlobUrl(url) {
+  if (typeof url !== 'string') return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.public.blob.vercel-storage.com')
+  } catch {
+    return false
+  }
+}
+
+module.exports = { ALLOWED_MEDIA_TYPES, gerarUploadUrl, salvarBuffer, isBlobUrl }

@@ -33,17 +33,30 @@ async function consumirPkceVerifier(state) {
 // depender de req.user ali. Em vez disso, assinamos o userId dentro do
 // próprio "state" (HMAC com SESSION_SECRET) — o provedor devolve esse state
 // inalterado, e validamos a assinatura no callback antes de usá-lo.
+// exp: 10 minutos — janela suficiente para o usuário completar o consentimento
+// no provedor, mas curta o bastante para que um state vazado (ex.: em log de
+// proxy/histórico do navegador) não fique reutilizável indefinidamente.
+const STATE_TTL_MS = 10 * 60 * 1000;
+
 function signState(payload) {
-  const json = JSON.stringify(payload);
+  const withExp = { ...payload, exp: Date.now() + STATE_TTL_MS };
+  const json = JSON.stringify(withExp);
   const sig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(json).digest('hex');
-  return Buffer.from(JSON.stringify({ ...payload, sig })).toString('base64');
+  return Buffer.from(JSON.stringify({ ...withExp, sig })).toString('base64');
 }
 
 function verifyState(state) {
   const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
   const { sig, ...payload } = decoded;
   const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(JSON.stringify(payload)).digest('hex');
-  if (sig !== expectedSig) throw new Error('state inválido ou adulterado');
+  // Comparação em tempo constante — mesmo padrão usado em authToken.js e
+  // mediaToken.js; `!==` direto vazaria a assinatura correta por timing.
+  const sigBuf = Buffer.from(String(sig || ''));
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    throw new Error('state inválido ou adulterado');
+  }
+  if (payload.exp && Date.now() > payload.exp) throw new Error('state expirado');
   return payload;
 }
 
@@ -1051,7 +1064,11 @@ function decodificarSignedRequest(signedRequest, appSecret) {
     .update(encodedPayload)
     .digest('base64url');
 
-  if (expectedSig !== encodedSig) throw new Error('Assinatura do signed_request inválida');
+  const sigBuf = Buffer.from(encodedSig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    throw new Error('Assinatura do signed_request inválida');
+  }
 
   return JSON.parse(Buffer.from(encodedPayload, 'base64url').toString());
 }
