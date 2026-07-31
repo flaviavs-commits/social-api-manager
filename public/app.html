@@ -3247,6 +3247,7 @@ function setConfigTab(plat) {
   activeConfigTab = plat;
   renderConfigTabsBar();
   applyConfigTabVisibility();
+  if (typeof updateLocationGroupVisibility === 'function') updateLocationGroupVisibility();
   // Sem isto, o pill de formato (Instagram post/reel/story, YouTube
   // video/short) fica preso na visibilidade calculada da última vez que a
   // seleção de redes mudou — trocar de aba (sem mexer na seleção) não
@@ -4091,9 +4092,17 @@ let selectedLocation = null; // { id, name }
 function updateLocationGroupVisibility() {
   const group = document.getElementById('post-location-group');
   if (!group) return;
-  const mostra = selectedPlats.has('facebook') || selectedPlats.has('instagram');
+  // Localização é compartilhada entre Facebook e Instagram (mesma infra de
+  // Places), mas só deve aparecer quando a aba de configuração ativa for uma
+  // dessas duas redes — mesmo padrão de "abaPermite" usado pelo YouTube/
+  // TikTok em applyConfigTabVisibility()/renderTiktokOptionsGroup(), dando
+  // ao Facebook uma aba de configuração de verdade em vez de um campo
+  // sempre visível independente da aba selecionada.
+  const aplica = selectedPlats.has('facebook') || selectedPlats.has('instagram');
+  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'facebook' || activeConfigTab === 'instagram';
+  const mostra = aplica && abaPermite;
   group.style.display = mostra ? '' : 'none';
-  if (!mostra) limparLocalizacaoSelecionada();
+  if (!aplica) limparLocalizacaoSelecionada();
 }
 
 function onLocationSearchInput() {
