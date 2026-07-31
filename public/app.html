@@ -3113,6 +3113,45 @@ async function renewAll() {
 const selectedAccountIds = new Set();
 const selectedPlats = new Set();
 
+// Uma "unidade de customização" por conta selecionada: quando uma rede tem
+// só 1 conta marcada, a chave é o nome da rede (idêntico ao comportamento
+// de sempre — nada muda pra quem só tem 1 conta por rede, o caso comum).
+// Quando tem 2+ contas marcadas (ex.: 2 perfis de Instagram), 1 chave por
+// conta ("<rede>:<idDaConta>") — permite texto diferente por conta da
+// mesma rede nas abas de texto/preview, como o multiposting do Metricool.
+// Mídia e opções específicas (YouTube/TikTok/Instagram) continuam por
+// REDE, não por conta, por ora.
+function getCustomizationUnits() {
+  const porRede = {};
+  for (const id of selectedAccountIds) {
+    const c = apContas.find(a => a.id === id);
+    if (!c) continue;
+    (porRede[c.platform] ||= []).push(c);
+  }
+  const unidades = [];
+  for (const [plat, contas] of Object.entries(porRede)) {
+    const isMulti = contas.length > 1;
+    for (const c of contas) {
+      unidades.push({ key: isMulti ? `${plat}:${c.id}` : plat, platform: plat, accountId: c.id, conta: c, isMulti });
+    }
+  }
+  return unidades;
+}
+
+// Extrai o nome da rede de uma chave de unidade ("instagram:123" -> "instagram";
+// "instagram" -> "instagram") — usado sempre que algo keyed por unidade
+// precisa da rede em si (ícone, PLAT_ROW_CFG, limites de caracteres etc.).
+function platformFromKey(key) {
+  return key && key.includes(':') ? key.slice(0, key.indexOf(':')) : key;
+}
+
+// Rótulo de uma aba: nome da rede quando ela só tem 1 conta selecionada
+// (igual a sempre), ou o handle da conta quando a rede tem 2+ (pra dar pra
+// distinguir "Loja" de "Casa", por exemplo).
+function unitLabel(u) {
+  return u.isMulti ? (u.conta.handle || u.platform) : (PLAT_ROW_CFG[u.platform]?.label || u.platform);
+}
+
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube'];
 
@@ -3196,7 +3235,17 @@ function setConfigTab(plat) {
   // escondia o formato da rede que deixou de estar em foco.
   if (typeof renderIgFormatPills === 'function') renderIgFormatPills();
   if (typeof renderYoutubeFormatPills === 'function') renderYoutubeFormatPills();
-  if (typeof switchTextTab === 'function' && selectedPlats.size >= 2) switchTextTab(plat);
+  // Sincroniza a aba de texto para esta rede — mas só troca de CONTA dentro
+  // dela se a aba de texto ativa não for já uma conta desta mesma rede,
+  // senão trocar de aba de configuração "roubava" a conta que o usuário
+  // tinha escolhido no texto e voltava sempre para a primeira.
+  if (typeof switchTextTab === 'function' && getCustomizationUnits().length >= 2) {
+    const platAtivaNoTexto = activeTextTab ? platformFromKey(activeTextTab) : null;
+    if (platAtivaNoTexto !== plat) {
+      const unidade = getCustomizationUnits().find(u => u.platform === plat);
+      if (unidade) switchTextTab(unidade.key);
+    }
+  }
   if (typeof setPreviewTab === 'function') setPreviewTab(plat);
   // Painel de validação mostra só as pendências da aba ativa quando há
   // várias redes marcadas (ver renderValidationPanel) — precisa re-renderizar
@@ -3637,12 +3686,29 @@ function previewAvatarHtml(cfg, conta) {
 
 // Texto resolvido para uma rede específica — mesma regra de textByPlatform
 // já usada em schedulePost() (aba editada individualmente > texto principal).
+// Quando a rede tem 2+ contas marcadas, prioriza o texto da conta que está
+// com a aba de texto ativa no momento (activeTextTab); senão cai na
+// primeira conta selecionada da rede.
 function previewTextForPlatform(plat) {
-  if (Object.keys(textByPlatform).length && textByPlatform[plat] !== undefined) return textByPlatform[plat] || '';
-  return (document.getElementById('post-text')?.value || '');
+  if (!Object.keys(textByPlatform).length) return (document.getElementById('post-text')?.value || '');
+  if (activeTextTab && platformFromKey(activeTextTab) === plat && textByPlatform[activeTextTab] !== undefined) {
+    return textByPlatform[activeTextTab] || '';
+  }
+  const unidade = getCustomizationUnits().find(u => u.platform === plat);
+  if (unidade && textByPlatform[unidade.key] !== undefined) return textByPlatform[unidade.key] || '';
+  return textByPlatform[plat] || '';
 }
 
+// Conta cujo avatar/handle aparece no preview de uma rede — mesma prioridade
+// do texto acima (aba de texto ativa > primeira conta selecionada > primeira
+// conta conectada, mesmo sem estar marcada, só pra não deixar o preview vazio).
 function previewFirstConta(plat) {
+  if (activeTextTab && platformFromKey(activeTextTab) === plat) {
+    const unidadeAtiva = getCustomizationUnits().find(u => u.key === activeTextTab);
+    if (unidadeAtiva) return unidadeAtiva.conta;
+  }
+  const unidade = getCustomizationUnits().find(u => u.platform === plat);
+  if (unidade) return unidade.conta;
   return apContas.find(c => c.platform === plat && c.handle) || null;
 }
 
@@ -3832,35 +3898,43 @@ let titleByPlatform = {};
 // entradas de redes desmarcadas, e sai do modo por-rede se sobrar menos de 2
 // redes marcadas (a barra de abas não faz sentido com 0 ou 1 rede).
 function syncTextByPlatformSelection() {
-  for (const p of Object.keys(textByPlatform)) {
-    if (!selectedPlats.has(p)) delete textByPlatform[p];
+  const unidades = getCustomizationUnits();
+  const chavesValidas = new Set(unidades.map(u => u.key));
+  for (const k of Object.keys(textByPlatform)) {
+    if (!chavesValidas.has(k)) delete textByPlatform[k];
   }
-  if (selectedPlats.size < 2 || (activeTextTab && !selectedPlats.has(activeTextTab))) {
+  if (unidades.length < 2 || (activeTextTab && !chavesValidas.has(activeTextTab))) {
     textByPlatform = {};
     activeTextTab = null;
   }
   renderTextTabsBar();
 }
 
-function switchTextTab(platform) {
-  if (activeTextTab !== platform) {
+// "key" é uma unidade de customização — o nome da rede (rede com 1 conta
+// só) ou "<rede>:<idDaConta>" (rede com 2+ contas marcadas). Ver
+// getCustomizationUnits().
+function switchTextTab(key) {
+  if (activeTextTab !== key) {
     const textarea = document.getElementById('post-text');
     if (!Object.keys(textByPlatform).length) {
-      // Primeira vez entrando no modo por-rede: copia o texto atual (compartilhado)
-      // para todas as redes marcadas — "copia pro resto ao digitar".
+      // Primeira vez entrando no modo por-rede/conta: copia o texto atual
+      // (compartilhado) para todas as unidades marcadas — "copia pro resto
+      // ao digitar".
       const textoAtual = textarea.value;
       textTabsBaseText = textoAtual;
-      for (const p of selectedPlats) textByPlatform[p] = textoAtual;
+      for (const u of getCustomizationUnits()) textByPlatform[u.key] = textoAtual;
     }
-    activeTextTab = platform;
-    textarea.value = textByPlatform[platform] ?? '';
+    activeTextTab = key;
+    textarea.value = textByPlatform[key] ?? '';
     renderTextTabsBar();
   }
   // Mantém a barra de configuração por rede e o preview sincronizados com a
   // aba de texto, mesmo quando o clique parte da barra de texto (não da de
-  // configuração) — as três abas representam a mesma "rede ativa".
-  if (activeConfigTab !== platform && typeof setConfigTab === 'function') setConfigTab(platform);
-  else if (typeof setPreviewTab === 'function') setPreviewTab(platform);
+  // configuração) — as três abas representam a mesma "rede ativa" (a
+  // configuração continua por REDE mesmo quando o texto já é por CONTA).
+  const plat = platformFromKey(key);
+  if (activeConfigTab !== plat && typeof setConfigTab === 'function') setConfigTab(plat);
+  else if (typeof setPreviewTab === 'function') setPreviewTab(plat);
 }
 
 function onPostTextInput() {
@@ -4085,7 +4159,7 @@ function updateTextTabsCounter() {
   const limites = isFoto ? AI_LIMITS_PHOTO : AI_LIMITS;
   let limite;
   if (activeTextTab) {
-    limite = limites[activeTextTab];
+    limite = limites[platformFromKey(activeTextTab)];
   } else {
     const valores = plats.map(p => limites[p]).filter(l => l != null);
     limite = valores.length ? Math.min(...valores) : null;
@@ -4100,7 +4174,8 @@ function renderTextTabsBar() {
   const unifyLink = document.getElementById('text-tabs-unify');
   if (!bar) return;
 
-  if (selectedPlats.size < 2) {
+  const unidades = getCustomizationUnits();
+  if (unidades.length < 2) {
     bar.style.display = 'none';
     bar.innerHTML = '';
     unifyLink.style.display = 'none';
@@ -4112,15 +4187,15 @@ function renderTextTabsBar() {
   const emModoPorRede = Object.keys(textByPlatform).length > 0;
   unifyLink.style.display = emModoPorRede ? '' : 'none';
 
-  bar.innerHTML = [...selectedPlats].map(p => {
-    const cfg = PLAT_ROW_CFG[p];
+  bar.innerHTML = unidades.map(u => {
+    const cfg = PLAT_ROW_CFG[u.platform];
     if (!cfg) return '';
-    const ativo = activeTextTab === p;
-    const divergente = emModoPorRede && (textByPlatform[p] || '') !== textTabsBaseText;
+    const ativo = activeTextTab === u.key;
+    const divergente = emModoPorRede && (textByPlatform[u.key] || '') !== textTabsBaseText;
     const style = `display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:11px;border:1px solid ${ativo ? 'var(--accent)' : 'var(--border2)'};background:${ativo ? 'var(--accent-glow)' : 'transparent'};color:${ativo ? 'var(--accent)' : 'var(--muted)'}`;
-    return `<span style="${style}" onclick="switchTextTab('${p}')">
+    return `<span style="${style}" onclick="switchTextTab('${u.key}')">
       <span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>
-      ${escapeHtml(cfg.label)}${divergente ? ' •' : ''}
+      ${escapeHtml(unitLabel(u))}${divergente ? ' •' : ''}
     </span>`;
   }).join('');
 
@@ -5097,8 +5172,8 @@ function buildValidationIssues() {
   const issues = [];
   const plats = [...selectedPlats];
   const emModoPorRede = Object.keys(textByPlatform).length > 0;
-  const primeiraPlat = plats[0];
-  const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : (document.getElementById('post-text')?.value || '')).trim();
+  const primeiraUnidade = getCustomizationUnits()[0];
+  const text = (emModoPorRede ? (textByPlatform[primeiraUnidade?.key] || '') : (document.getElementById('post-text')?.value || '')).trim();
   const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title')?.value || '').trim();
   const scheduledAt = document.getElementById('post-date')?.value;
 
@@ -5209,8 +5284,8 @@ async function schedulePost(publishNow = false) {
   // usado como fallback e nas telas que ainda leem só o texto único) é o da
   // primeira rede marcada. Ver src/domain/posts/post.js e migrations/029.
   const emModoPorRede = Object.keys(textByPlatform).length > 0;
-  const primeiraPlat = [...selectedPlats][0];
-  const text = (emModoPorRede ? (textByPlatform[primeiraPlat] || '') : document.getElementById('post-text').value).trim();
+  const primeiraUnidade = getCustomizationUnits()[0];
+  const text = (emModoPorRede ? (textByPlatform[primeiraUnidade?.key] || '') : document.getElementById('post-text').value).trim();
   saveTitleFromActiveConfigTab();
   const youtubeTitle = (titleByPlatform.youtube || document.getElementById('post-youtube-title').value.trim());
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
@@ -11362,7 +11437,7 @@ async function deleteDraft(id) {
 
 async function saveDraft(isTemplate) {
   const emModoPorRedeDraft = Object.keys(textByPlatform).length > 0;
-  const text = (emModoPorRedeDraft ? (textByPlatform[[...selectedPlats][0]] || '') : document.getElementById('post-text').value).trim();
+  const text = (emModoPorRedeDraft ? (textByPlatform[getCustomizationUnits()[0]?.key] || '') : document.getElementById('post-text').value).trim();
   const youtubeTitle = document.getElementById('post-youtube-title').value.trim();
   const youtubeVisibility = document.getElementById('post-youtube-visibility').value;
   const platforms = (typeof selectedPlats !== 'undefined') ? [...selectedPlats] : [];

@@ -116,12 +116,17 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   const platform = account.platform
   // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
   // cai no texto principal (post.text) quando a rede não tem entrada própria
-  // em text_by_platform. Ver domain/posts/post.js e migrations/029.
-  const textoResolvido = post.textByPlatform?.[platform] ?? post.text
+  // em text_by_platform. Quando a rede tem 2+ contas marcadas no mesmo post
+  // (ex.: 2 perfis de Instagram), o front grava 1 entrada por conta, com
+  // chave "<rede>:<idDaConta>" — tentada primeiro, antes da chave só por
+  // rede (compatível com posts antigos/de 1 conta só). Ver domain/posts/post.js,
+  // migrations/029 e o front (getCustomizationUnits()).
+  const chaveConta = `${platform}:${account.accountId}`
+  const textoResolvido = post.textByPlatform?.[chaveConta] ?? post.textByPlatform?.[platform] ?? post.text
   // Título diferente por rede — opcional, cai no título principal do YouTube
   // (post.youtubeTitle) quando a rede não tem entrada própria em
   // title_by_platform. Ver domain/posts/post.js e migrations/032.
-  const tituloResolvido = post.titleByPlatform?.[platform] ?? post.youtubeTitle
+  const tituloResolvido = post.titleByPlatform?.[chaveConta] ?? post.titleByPlatform?.[platform] ?? post.youtubeTitle
   post = { ...post, text: textoResolvido, youtubeTitle: tituloResolvido }
 
   // Mídia independente por rede — opcional, cai na mídia compartilhada do
