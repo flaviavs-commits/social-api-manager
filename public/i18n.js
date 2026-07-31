@@ -2262,6 +2262,23 @@
 
   function buildSwitcher() {
     if (document.getElementById('lang-switch')) return;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .lang-switch { display: flex; gap: 4px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 4px; }
+      .lang-switch-option { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 11px; font-family: inherit; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+      .lang-switch-option:hover { color: #fff; background: rgba(255,255,255,0.08); }
+      .lang-switch-option.active { color: #fff; background: #6c8cff; }
+      /* Só usado quando a página não tem sidebar (login, cadastro, admin) — nessas
+         páginas não há nenhum botão fixo no canto superior direito para colidir. */
+      .lang-switch.lang-switch-floating { position: fixed; top: 12px; right: 12px; z-index: 9999; background: rgba(20,21,28,0.85); backdrop-filter: blur(6px); }
+      @media (max-width: 480px) {
+        .lang-switch.lang-switch-floating { top: 8px; right: 8px; }
+        .lang-switch.lang-switch-floating .lang-switch-option { font-size: 10px; padding: 4px 6px; }
+      }
+    `;
+    document.head.appendChild(style);
+
     const wrap = document.createElement('div');
     wrap.id = 'lang-switch';
     wrap.className = 'lang-switch';
@@ -2269,28 +2286,24 @@
       <button type="button" class="lang-switch-option" data-lang="pt-BR" title="Português (Brasil)">🇧🇷 PT-BR</button>
       <button type="button" class="lang-switch-option" data-lang="en-US" title="English (US)">🇺🇸 EN-US</button>
     `;
-    document.body.appendChild(wrap);
     wrap.querySelectorAll('.lang-switch-option').forEach(btn => {
       btn.addEventListener('click', () => setLang(btn.getAttribute('data-lang')));
     });
 
-    const style = document.createElement('style');
-    style.textContent = `
-      /* Canto inferior direito, empilhado acima do FAB de IA (bottom:28px/right:28px,
-         52px de altura, ver #ai-fab em app.html) — no topo (top:12px/right:12px) ele
-         caía em cima do botão "Criar Post" do cabeçalho de página (.page-header usa
-         justify-content:space-between com o botão à direita), tanto no desktop quanto
-         no mobile (mesma posição, logo abaixo da topbar). */
-      .lang-switch { position: fixed; bottom: 92px; right: 28px; z-index: 9999; display: flex; gap: 4px; background: rgba(20,21,28,0.85); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 4px; backdrop-filter: blur(6px); }
-      .lang-switch-option { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 12px; font-family: inherit; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
-      .lang-switch-option:hover { color: #fff; background: rgba(255,255,255,0.08); }
-      .lang-switch-option.active { color: #fff; background: #6c8cff; }
-      @media (max-width: 900px) {
-        .lang-switch { top: auto; bottom: calc(var(--bottomnav-h, 60px) + 76px); right: 14px; }
-        .lang-switch-option { font-size: 11px; padding: 4px 6px; }
-      }
-    `;
-    document.head.appendChild(style);
+    // Páginas com sidebar (o painel principal): embute o seletor no rodapé da
+    // própria sidebar, no fluxo normal — nunca sobrepõe nada. Páginas sem
+    // sidebar (login, cadastro, admin): fica fixo no canto, onde não há
+    // nenhum outro elemento fixo para colidir.
+    const sidebarFooterLinks = document.querySelector('.sidebar a[href="/terms-of-service"], .sidebar a[href="/terms-of-service.html"]');
+    const sidebarFooter = sidebarFooterLinks ? sidebarFooterLinks.closest('div') : null;
+    if (sidebarFooter && sidebarFooter.parentElement) {
+      wrap.style.marginTop = '4px';
+      sidebarFooter.parentElement.insertBefore(wrap, sidebarFooter);
+    } else {
+      wrap.classList.add('lang-switch-floating');
+      document.body.appendChild(wrap);
+    }
+
     updateSwitcherUI(getLang());
   }
 
