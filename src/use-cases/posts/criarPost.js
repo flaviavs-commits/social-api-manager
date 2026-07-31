@@ -100,6 +100,19 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('platforms inválido')
   }
 
+  // Contas específicas escolhidas no modal "Gerenciar contas específicas"
+  // (ex.: só 1 das 2 contas de Instagram conectadas) — opcional, por
+  // compatibilidade com quem ainda não manda accountIds (nesse caso, cai no
+  // comportamento antigo de publicar em todas as contas de cada rede
+  // marcada, resolvido mais abaixo). Ver contasRepository.listarContasPorIds.
+  let accountIds = null
+  try {
+    const parsed = JSON.parse(body.accountIds || 'null')
+    if (Array.isArray(parsed) && parsed.length) accountIds = parsed.map(Number)
+  } catch {
+    throw new ValidationError('accountIds inválido')
+  }
+
   // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
   // só contém as plataformas cujo texto foi explicitamente diferenciado do
   // texto principal (text). Ver domain/posts/post.js e migrations/029.
@@ -198,11 +211,18 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   })
   if (erro) throw new ValidationError(erro)
 
-  // O post publica em TODAS as contas conectadas de cada rede marcada — não
-  // existe mais escolha de 1 conta pelo usuário (ver migrations/027_post_accounts.sql).
-  // Se uma rede marcada não tiver nenhuma conta conectada, falha aqui, antes
-  // de criar o post — em vez de deixar o publisher descobrir isso depois.
-  const contas = await contasRepo.listarContasAtivasPorPlataformas(platforms, userId, isAdmin)
+  // Com accountIds, publica só nas contas escolhidas pelo usuário no modal
+  // "Gerenciar contas específicas" (ex.: 1 de 2 contas de Instagram). Sem
+  // accountIds (compatibilidade), publica em TODAS as contas conectadas de
+  // cada rede marcada, como sempre foi (ver migrations/027_post_accounts.sql).
+  // Se uma rede marcada não acabar resolvendo nenhuma conta, falha aqui,
+  // antes de criar o post — em vez de deixar o publisher descobrir isso depois.
+  const contas = accountIds
+    ? await contasRepo.listarContasPorIds(accountIds, userId, isAdmin)
+    : await contasRepo.listarContasAtivasPorPlataformas(platforms, userId, isAdmin)
+  if (accountIds && contas.length !== accountIds.length) {
+    throw new ValidationError('Uma ou mais contas selecionadas não foram encontradas ou não pertencem a você.')
+  }
   const platformsSemConta = platforms.filter(p => !contas.some(c => c.platform === p))
   if (platformsSemConta.length) {
     const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' }

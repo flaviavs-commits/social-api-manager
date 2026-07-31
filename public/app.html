@@ -3103,9 +3103,14 @@ async function renewAll() {
 }
 
 // ── Agendador ────────────────────────────────────────────────────────────────
-// selectedPlats: redes marcadas para o post. O post publica em TODAS as
-// contas conectadas de cada rede marcada (não há mais escolha de 1 conta —
-// ver src/use-cases/posts/criarPost.js e migrations/027_post_accounts.sql).
+// selectedAccountIds: contas específicas marcadas para o post (fonte da
+// verdade da seleção). selectedPlats: derivado — plataformas que têm ao
+// menos 1 conta selecionada, mantido em sincronia por applyPlatformSelection()
+// e pelos toggles do modal, porque dezenas de funções no restante do arquivo
+// já leem selectedPlats para decidir visibilidade de campos por rede
+// (YouTube/TikTok/Instagram), sem precisar saber qual conta exata foi
+// escolhida. Ver src/use-cases/posts/criarPost.js e migrations/027_post_accounts.sql.
+const selectedAccountIds = new Set();
 const selectedPlats = new Set();
 
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
@@ -3242,9 +3247,24 @@ function syncTitleByPlatformSelection() {
   }
 }
 
+// Quando "plats" é informado, substitui a seleção por TODAS as contas
+// conectadas dessas redes (comportamento antigo, ainda usado por quem
+// aciona a seleção por rede inteira: grade de ícones, restaurar rascunho,
+// default inicial). Sem argumento, só recalcula selectedPlats a partir do
+// que já está em selectedAccountIds — usado depois que o modal "Gerenciar
+// contas específicas" já mexeu direto em selectedAccountIds conta a conta.
 function applyPlatformSelection(plats) {
+  if (plats) {
+    selectedAccountIds.clear();
+    for (const c of apContas) {
+      if (c.handle && plats.includes(c.platform)) selectedAccountIds.add(c.id);
+    }
+  }
   selectedPlats.clear();
-  for (const p of plats) selectedPlats.add(p);
+  for (const id of selectedAccountIds) {
+    const conta = apContas.find(c => c.id === id);
+    if (conta) selectedPlats.add(conta.platform);
+  }
   updateMediaAccept();
   renderConfigTabsBar();
   applyConfigTabVisibility();
@@ -3279,7 +3299,7 @@ function renderAccountPreviewRow() {
   const chips = plats.map(p => {
     const cfg = PLAT_ROW_CFG[p];
     if (!cfg) return '';
-    const contasDaRede = apContas.filter(c => c.platform === p && c.handle);
+    const contasDaRede = apContas.filter(c => c.platform === p && c.handle && selectedAccountIds.has(c.id));
     if (!contasDaRede.length) return '';
     const principal = contasDaRede[0];
     const resto = contasDaRede.length - 1;
@@ -4124,14 +4144,16 @@ function renderPlatformToggleGrid() {
   }).join('');
 }
 
-// Toggle direto de uma rede a partir da grade de botões — mesmo estado
-// (selectedPlats) usado pelo modal "Gerenciar contas específicas", então os
-// dois pontos de entrada continuam em sincronia.
+// Toggle direto de uma rede a partir da grade de botões — marca/desmarca
+// TODAS as contas daquela rede de uma vez (seleção fina conta a conta fica
+// no modal "Gerenciar contas específicas"; os dois pontos de entrada
+// compartilham o mesmo estado, selectedAccountIds).
 function toggleDirectPlatform(plat) {
-  const novo = new Set(selectedPlats);
-  if (novo.has(plat)) novo.delete(plat);
-  else novo.add(plat);
-  applyPlatformSelection([...novo]);
+  const idsDaRede = apContas.filter(c => c.platform === plat && c.handle).map(c => c.id);
+  const todasSelecionadas = idsDaRede.length > 0 && idsDaRede.every(id => selectedAccountIds.has(id));
+  if (todasSelecionadas) idsDaRede.forEach(id => selectedAccountIds.delete(id));
+  else idsDaRede.forEach(id => selectedAccountIds.add(id));
+  applyPlatformSelection();
   updateBestTimesWidget();
   updatePostScore();
 }
@@ -4149,9 +4171,9 @@ function updateAccountPickerLabel() {
     return;
   }
 
-  const totalContas = plats.reduce((n, p) => n + apContas.filter(c => c.platform === p && c.handle).length, 0);
-  const todasComConta = Object.keys(AP_PLAT_LABELS).filter(p => apContas.some(c => c.platform === p && c.handle));
-  const label = (todasComConta.length && plats.length === todasComConta.length && todasComConta.every(p => plats.includes(p)))
+  const totalContas = selectedAccountIds.size;
+  const totalContasDisponiveis = apContas.filter(c => c.handle).length;
+  const label = (totalContas === totalContasDisponiveis && totalContasDisponiveis > 0)
     ? window.i18n.t('toast.todasAsRedes')
     : plats.map(p => AP_PLAT_LABELS[p] || p).join(', ');
   el.textContent = `${label} (${totalContas} ${totalContas === 1 ? window.i18n.t('toast.conta') : window.i18n.t('toast.contas')})`;
@@ -4282,17 +4304,39 @@ function renderApPlatformList() {
   list.innerHTML = Object.entries(PLAT_ROW_CFG).map(([plat, cfg]) => {
     const contasDaRede = apContas.filter(c => c.platform === plat && c.handle);
     const temConta = contasDaRede.length > 0;
-    const checked = selectedPlats.has(plat) && temConta;
+    const multiConta = contasDaRede.length > 1;
+    const idsDaRede = contasDaRede.map(c => c.id);
+    const algumaSelecionada = idsDaRede.some(id => selectedAccountIds.has(id));
+    const todasSelecionadas = temConta && idsDaRede.every(id => selectedAccountIds.has(id));
     const nomes = contasDaRede.map(c => c.handle).join(', ');
     const meta = temConta
       ? `${contasDaRede.length} ${contasDaRede.length === 1 ? window.i18n.t('toast.conta') : window.i18n.t('toast.contas')} · ${escapeHtml(nomes)}`
       : `<span class="ap-empty-note">${window.i18n.t('toast.nenhumaContaConectada')}</span>`;
     const avatares = temConta ? apAccountAvatarsHtml(cfg, contasDaRede) : '';
-    const cls = ['ap-card', checked ? 'checked' : '', temConta ? '' : 'disabled'].filter(Boolean).join(' ');
-    const notice = checked ? apNoticeHtml(plat) : '';
+    const cls = ['ap-card', algumaSelecionada ? 'checked' : '', temConta ? '' : 'disabled'].filter(Boolean).join(' ');
+    const notice = algumaSelecionada ? apNoticeHtml(plat) : '';
+
+    // Quando a rede tem mais de 1 conta conectada, mostra um checkbox por
+    // conta (com avatar/handle) abaixo do card — permite publicar em só uma
+    // delas, ou customizar diferente por conta, igual ao multiposting do
+    // Metricool. Com 1 conta só, o checkbox do cabeçalho já basta (comportamento
+    // idêntico ao de antes desta mudança).
+    const accountRows = multiConta ? `<div style="margin:2px 0 6px 46px;display:flex;flex-direction:column;gap:6px">${contasDaRede.map(c => {
+      const contaChecked = selectedAccountIds.has(c.id);
+      const fallback = `<div class="ap-avatar-fallback plat-icon ${cfg.cls}" style="width:20px;height:20px;font-size:9px">${cfg.icon}</div>`.replace(/"/g, '&quot;');
+      const avatarHtml = c.avatarUrl
+        ? `<img src="${escapeHtml(c.avatarUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.outerHTML='${fallback}'">`
+        : `<div class="ap-avatar-fallback plat-icon ${cfg.cls}" style="width:20px;height:20px;font-size:9px;flex-shrink:0">${cfg.icon}</div>`;
+      return `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer">
+        <input type="checkbox" ${contaChecked ? 'checked' : ''} onchange="apToggleAccount(${c.id}, this.checked)">
+        ${avatarHtml}
+        <span>${escapeHtml(c.handle)}</span>
+      </label>`;
+    }).join('')}</div>` : '';
+
     return `<div class="${cls}">
       <label class="ap-card-toggle-row">
-        <input type="checkbox" ${checked ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
+        <input type="checkbox" ${todasSelecionadas ? 'checked' : ''} ${temConta ? '' : 'disabled'} onchange="apTogglePlatform('${plat}', this.checked)">
         <div class="plat-icon ${cfg.cls}" style="width:34px;height:34px;font-size:14px;flex-shrink:0">${cfg.icon}</div>
         <div class="ap-card-body">
           <div class="ap-card-name">${escapeHtml(cfg.label)}</div>
@@ -4301,23 +4345,45 @@ function renderApPlatformList() {
         ${avatares}
         <div class="ap-toggle"></div>
       </label>
+      ${accountRows}
       ${notice}
     </div>`;
   }).join('');
 
-  okBtn.disabled = ![...selectedPlats].some(p => apContas.some(c => c.platform === p && c.handle));
+  okBtn.disabled = selectedAccountIds.size === 0;
   apRenderRatioNotices();
 }
 
+// Checkbox de cabeçalho de cada rede no modal — marca/desmarca TODAS as
+// contas daquela rede de uma vez. selectedPlats é atualizado aqui mesmo
+// (antes de "Confirmar") para os avisos por rede (apNoticeHtml/ratio) já
+// refletirem a seleção em andamento; o restante do formulário (abas de
+// texto/mídia/configuração) só reage no confirmAccountPicker.
 function apTogglePlatform(plat, checked) {
-  if (checked) selectedPlats.add(plat);
-  else selectedPlats.delete(plat);
+  const idsDaRede = apContas.filter(c => c.platform === plat && c.handle).map(c => c.id);
+  if (checked) { idsDaRede.forEach(id => selectedAccountIds.add(id)); selectedPlats.add(plat); }
+  else { idsDaRede.forEach(id => selectedAccountIds.delete(id)); selectedPlats.delete(plat); }
+  renderApPlatformList();
+}
+
+// Checkbox de uma conta específica (só aparece quando a rede tem mais de 1
+// conta conectada) — permite escolher exatamente quais contas publicam,
+// em vez de tudo-ou-nada por rede.
+function apToggleAccount(accountId, checked) {
+  if (checked) selectedAccountIds.add(accountId);
+  else selectedAccountIds.delete(accountId);
+  const conta = apContas.find(c => c.id === accountId);
+  if (conta) {
+    const aindaTemAlguma = apContas.some(c => c.platform === conta.platform && c.handle && selectedAccountIds.has(c.id));
+    if (aindaTemAlguma) selectedPlats.add(conta.platform);
+    else selectedPlats.delete(conta.platform);
+  }
   renderApPlatformList();
 }
 
 function confirmAccountPicker() {
-  if (![...selectedPlats].length) return;
-  applyPlatformSelection([...selectedPlats]);
+  if (!selectedAccountIds.size) return;
+  applyPlatformSelection();
   closeModal();
   updateBestTimesWidget();
   updatePostScore();
@@ -5225,6 +5291,7 @@ async function schedulePost(publishNow = false) {
     tiktokDisableDuet: tiktokDisableDuet ? 'true' : 'false',
     tiktokDisableStitch: tiktokDisableStitch ? 'true' : 'false',
     platforms: JSON.stringify(platforms),
+    accountIds: JSON.stringify([...selectedAccountIds]),
     scheduledAt, repeat,
     publishNow: publishNow ? 'true' : 'false',
     media: JSON.stringify(media),

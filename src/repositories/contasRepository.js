@@ -134,6 +134,26 @@ async function listarContasAtivasPorPlataformas(platforms, userId, isAdmin) {
   return rows
 }
 
+// Contas específicas escolhidas pelo usuário no modal "Gerenciar contas
+// específicas" (seleção por conta, não por rede inteira) — usado por
+// criarPost.js quando o body traz accountIds. Confirma posse (isAdmin
+// ignora) e que a conta está ativa, do mesmo jeito que
+// listarContasAtivasPorPlataformas.
+async function listarContasPorIds(ids, userId, isAdmin) {
+  if (!ids.length) return []
+  const conds = ['c.id = ANY($1)', 'c.ativo = true']
+  const params = [ids]
+  if (!isAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+
+  const { rows } = await pool.query(`
+    SELECT c.id, c.platform, c.handle
+    FROM contas c
+    WHERE ${conds.join(' AND ')}
+    ORDER BY c.platform, c.criado_em ASC
+  `, params)
+  return rows
+}
+
 // ── Criar conta ───────────────────────────────────────────────────────────────
 async function criarConta({ platform, handle, tipo, userId }) {
   const { rows } = await pool.query(`
@@ -300,7 +320,7 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 }
 
 module.exports = {
-  getDashboardStats, listarContas, listarContasAtivasPorPlataformas, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
+  getDashboardStats, listarContas, listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
   registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok,
