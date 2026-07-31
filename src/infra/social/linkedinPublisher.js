@@ -72,7 +72,7 @@ async function publicarLinkedin(token, post) {
   const body = {
     author: authorUrn,
     commentary: post.text || '',
-    visibility: 'PUBLIC',
+    visibility: post.linkedinVisibility || 'PUBLIC',
     distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
     lifecycleState: 'PUBLISHED',
     isReshareDisabledByAuthor: false

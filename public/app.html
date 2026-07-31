@@ -1756,6 +1756,14 @@ input, select, textarea, label, .bottom-nav-item {
           </select>
           <div id="preset-row-threads" style="margin-top:8px"></div>
         </div>
+        <div class="form-group" id="post-linkedin-options-group" style="display:none">
+          <label data-i18n="agendador.labelVisibilidadeLinkedin">Visibilidade (LinkedIn)</label>
+          <select id="post-linkedin-visibility">
+            <option value="PUBLIC" data-i18n="agendador.optPublico">Público</option>
+            <option value="CONNECTIONS" data-i18n="agendador.optLinkedinConexoes">Somente conexões</option>
+          </select>
+          <div id="preset-row-linkedin" style="margin-top:8px"></div>
+        </div>
         <div class="form-group">
           <label><span data-i18n="agendador.labelTextoPost">✎ Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
           <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
@@ -3321,6 +3329,13 @@ function applyConfigTabVisibility() {
     threadsGroup.style.display = mostrarThreads ? '' : 'none';
     if (mostrarThreads && typeof renderPresetRow === 'function') renderPresetRow('threads');
   }
+
+  const mostrarLinkedin = selectedPlats.has('linkedin') && (soUmaRede || activeConfigTab === 'linkedin');
+  const linkedinGroup = document.getElementById('post-linkedin-options-group');
+  if (linkedinGroup) {
+    linkedinGroup.style.display = mostrarLinkedin ? '' : 'none';
+    if (mostrarLinkedin && typeof renderPresetRow === 'function') renderPresetRow('linkedin');
+  }
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -3634,6 +3649,9 @@ function lerConfigAtualDaRede(platform) {
   if (platform === 'threads') return {
     threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || 'everyone',
   };
+  if (platform === 'linkedin') return {
+    linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || 'PUBLIC',
+  };
   return {};
 }
 
@@ -3654,6 +3672,8 @@ function aplicarPresetNaRede(platform, config) {
     if (document.getElementById('post-tiktok-allow-stitch')) document.getElementById('post-tiktok-allow-stitch').checked = !config.tiktokDisableStitch;
   } else if (platform === 'threads') {
     if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = config.threadsReplyControl || 'everyone';
+  } else if (platform === 'linkedin') {
+    if (document.getElementById('post-linkedin-visibility')) document.getElementById('post-linkedin-visibility').value = config.linkedinVisibility || 'PUBLIC';
   }
   renderValidationPanel();
   renderPreviewContent();
@@ -5344,6 +5364,7 @@ async function schedulePost(publishNow = false) {
   const tiktokDisableDuet = !document.getElementById('post-tiktok-allow-duet').checked;
   const tiktokDisableStitch = !document.getElementById('post-tiktok-allow-stitch').checked;
   const threadsReplyControl = document.getElementById('post-threads-reply-control')?.value || '';
+  const linkedinVisibility = document.getElementById('post-linkedin-visibility')?.value || '';
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -5427,7 +5448,8 @@ async function schedulePost(publishNow = false) {
     locationId: selectedLocation?.id || '',
     locationName: selectedLocation?.name || '',
     firstComment: document.getElementById('post-first-comment')?.value.trim() || '',
-    threadsReplyControl: platforms.includes('threads') ? threadsReplyControl : ''
+    threadsReplyControl: platforms.includes('threads') ? threadsReplyControl : '',
+    linkedinVisibility: platforms.includes('linkedin') ? linkedinVisibility : ''
   };
 
   if (publishNow) showToast(window.i18n.t('toast.publicandoAgora'), 'ok');
@@ -11459,6 +11481,7 @@ async function applyDraft(id) {
     else limparLocalizacaoSelecionada();
     if (document.getElementById('post-first-comment')) document.getElementById('post-first-comment').value = d.first_comment || '';
     if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = d.threads_reply_control || 'everyone';
+    if (document.getElementById('post-linkedin-visibility')) document.getElementById('post-linkedin-visibility').value = d.linkedin_visibility || 'PUBLIC';
 
     renderTextTabsBar();
     renderIgFormatPills();
@@ -11558,7 +11581,8 @@ async function saveDraft(isTemplate) {
         locationId: selectedLocation?.id || null,
         locationName: selectedLocation?.name || null,
         firstComment: document.getElementById('post-first-comment')?.value.trim() || null,
-        threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || null
+        threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || null,
+        linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || null
       })
     });
     showToast(isTemplate ? window.i18n.t('toast.templateSaved') : window.i18n.t('toast.draftSaved'), 'ok');

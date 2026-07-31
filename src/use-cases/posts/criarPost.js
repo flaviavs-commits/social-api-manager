@@ -76,7 +76,7 @@ async function processarMidia(media, captions, platforms) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment, threadsReplyControl } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -205,7 +205,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, threadsReplyControl,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, threadsReplyControl, linkedinVisibility,
     platforms, repeat, items, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform,
     scheduledAtUTC, publishNow
   })
@@ -263,6 +263,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     locationName: temFacebookOuInstagram ? (locationName || null) : null,
     firstComment: firstComment?.trim() || null,
     threadsReplyControl: platforms.includes('threads') ? (threadsReplyControl || null) : null,
+    linkedinVisibility: platforms.includes('linkedin') ? (linkedinVisibility || null) : null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 
