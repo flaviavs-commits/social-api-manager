@@ -62,7 +62,7 @@
 
       'landing.entrar': 'Entrar',
       'landing.h1': 'Gerencie suas redes sociais em um só lugar',
-      'landing.subtitle': 'O MeuEcooMedia é um painel que permite agendar, publicar e acompanhar o desempenho de conteúdo em várias redes sociais a partir de uma única interface, sem precisar abrir cada aplicativo separadamente.',
+      'landing.subtitle': 'O Meu Ecoo Mídia é um painel que permite agendar, publicar e acompanhar o desempenho de conteúdo em várias redes sociais a partir de uma única interface, sem precisar abrir cada aplicativo separadamente.',
       'landing.oQueFazTitle': 'O que o aplicativo faz',
       'landing.oQueFazTexto': 'Você conecta suas próprias contas de redes sociais e, a partir do painel, escreve um post, anexa fotos ou vídeos e escolhe em quais plataformas ele deve ser publicado — imediatamente ou em uma data agendada. O aplicativo também mostra o status de cada publicação e métricas básicas de desempenho (curtidas, comentários, visualizações).',
       'landing.comoFuncionaTitle': 'Como funciona',
@@ -72,7 +72,7 @@
       'landing.passo4': 'Acompanha o histórico de publicações e métricas em um painel central.',
       'landing.passo5': 'Pode desconectar qualquer conta a qualquer momento, removendo o acesso imediatamente.',
       'landing.quemMantemTitle': 'Quem mantém este projeto',
-      'landing.quemMantemTexto1': 'O MeuEcooMedia é mantido e operado por Breno, como uma ferramenta própria de gestão de redes sociais. O contato para dúvidas, suporte ou solicitações relacionadas a dados é',
+      'landing.quemMantemTexto1': 'O Meu Ecoo Mídia é mantido e operado por Breno, como uma ferramenta própria de gestão de redes sociais. O contato para dúvidas, suporte ou solicitações relacionadas a dados é',
       'landing.suporte': 'Suporte',
 
       'admin.titulo': 'Administração',
@@ -1163,7 +1163,7 @@
 
       'landing.entrar': 'Sign In',
       'landing.h1': 'Manage your social networks in one place',
-      'landing.subtitle': 'MeuEcooMedia is a dashboard that lets you schedule, publish, and track content performance across multiple social networks from a single interface, without opening each app separately.',
+      'landing.subtitle': 'Meu Ecoo Mídia is a dashboard that lets you schedule, publish, and track content performance across multiple social networks from a single interface, without opening each app separately.',
       'landing.oQueFazTitle': 'What the app does',
       'landing.oQueFazTexto': 'You connect your own social media accounts and, from the dashboard, write a post, attach photos or videos, and choose which platforms it should be published to — immediately or on a scheduled date. The app also shows the status of each publication and basic performance metrics (likes, comments, views).',
       'landing.comoFuncionaTitle': 'How it works',
@@ -1173,7 +1173,7 @@
       'landing.passo4': 'Track the publication history and metrics in a central dashboard.',
       'landing.passo5': 'Disconnect any account at any time, revoking access immediately.',
       'landing.quemMantemTitle': 'Who maintains this project',
-      'landing.quemMantemTexto1': 'MeuEcooMedia is maintained and operated by Breno, as his own social media management tool. The contact for questions, support, or data-related requests is',
+      'landing.quemMantemTexto1': 'Meu Ecoo Mídia is maintained and operated by Breno, as his own social media management tool. The contact for questions, support, or data-related requests is',
       'landing.suporte': 'Support',
 
       'admin.titulo': 'Administration',
@@ -2276,12 +2276,17 @@
 
     const style = document.createElement('style');
     style.textContent = `
-      .lang-switch { position: fixed; top: 12px; right: 12px; z-index: 9999; display: flex; gap: 4px; background: rgba(20,21,28,0.85); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 4px; backdrop-filter: blur(6px); }
+      /* Canto inferior direito, empilhado acima do FAB de IA (bottom:28px/right:28px,
+         52px de altura, ver #ai-fab em app.html) — no topo (top:12px/right:12px) ele
+         caía em cima do botão "Criar Post" do cabeçalho de página (.page-header usa
+         justify-content:space-between com o botão à direita), tanto no desktop quanto
+         no mobile (mesma posição, logo abaixo da topbar). */
+      .lang-switch { position: fixed; bottom: 92px; right: 28px; z-index: 9999; display: flex; gap: 4px; background: rgba(20,21,28,0.85); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 4px; backdrop-filter: blur(6px); }
       .lang-switch-option { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 12px; font-family: inherit; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
       .lang-switch-option:hover { color: #fff; background: rgba(255,255,255,0.08); }
       .lang-switch-option.active { color: #fff; background: #6c8cff; }
       @media (max-width: 900px) {
-        .lang-switch { top: calc(var(--topbar-h, 56px) + 8px); right: 8px; }
+        .lang-switch { top: auto; bottom: calc(var(--bottomnav-h, 60px) + 76px); right: 14px; }
         .lang-switch-option { font-size: 11px; padding: 4px 6px; }
       }
     `;
