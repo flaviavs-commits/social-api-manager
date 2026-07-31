@@ -56,19 +56,23 @@
     "nodemailer": "^9.0.1",
     "openai": "^6.45.0",
     "pg": "^8.21.0",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "qrcode": "^1.5.4",
     "sharp": "^0.35.2",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@jest/globals": "^30.4.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "autoprefixer": "^10.5.4",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
-    "vite": "^7.0.6",
+    "postcss": "^8.5.25",
     "supertest": "^7.2.2",
-    "vercel": "^54.14.5"
+    "tailwindcss": "^4.3.3",
+    "vercel": "^54.14.5",
+    "vite": "^7.0.6"
   },
   "engines": {
     "node": ">=20.9.0"

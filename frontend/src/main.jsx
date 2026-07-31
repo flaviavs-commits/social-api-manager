@@ -9,6 +9,7 @@ import { apiFetch } from './lib/api.js'
 import './styles/tokens.css'
 import './styles/app.css'
 import './styles/modules.css'
+import './styles/tailwind.css'
 
 function App() {
   const [page, setPage] = useState('dashboard')

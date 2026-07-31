@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  /* Fundo principal do app: preto quase absoluto */
+  --color-app: #0b0b0c;
+  /* Fundo de sidebar e cards */
+  --color-surface: #121214;
+  /* Cards sobre surface (posts dentro dos dias do calendário) */
+  --color-surface-soft: #1e1e22;
+  /* Bordas divisórias sutis */
+  --color-subtle: #222226;
+  /* Destaque dourado/âmbar principal */
+  --color-gold: #e5b842;
+  /* Variante dourada mais quente, usada em texto secundário sobre dourado */
+  --color-gold-muted: #d4a373;
+}
