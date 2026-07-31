@@ -10,36 +10,41 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
-  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
-  --text: #eef0f6; --muted: #8b8fa3;
-  --accent: #6c8cff;
+  /* Mesma paleta do dashboard (app.html) — consistência de marca em toda a aplicação. */
+  --bg: #111217; --surface: #181a20; --surface2: #21232b;
+  --border: #2a2d36; --border2: #3a3e4a;
+  --text: #eef0f6; --muted: #9096a8;
+  --accent: #d1993e;
   --sans: 'IBM Plex Sans', sans-serif;
+  --radius: 10px;
+  --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
 .legal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.5rem; }
-.legal-header img { width: 48px; height: 48px; border-radius: 10px; }
-.legal-header h1 { font-size: 24px; font-weight: 700; }
+.legal-header img { width: 48px; height: 48px; }
+.legal-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
 .updated { color: var(--muted); font-size: 13px; margin-bottom: 1.25rem; }
-.intro { color: var(--text); font-size: 15px; margin-bottom: 2rem; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
-h2 { font-size: 16px; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+.intro { color: var(--text); font-size: 15px; margin-bottom: 2rem; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+h2 { font-size: 13px; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
 h3 { font-size: 14px; font-weight: 600; margin: 1.25rem 0 0.5rem; color: var(--text); }
 p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
 ul { margin: 0.5rem 0 0.75rem 1.1rem; color: var(--text); font-size: 15px; }
 li { margin-bottom: 0.4rem; }
-a { color: var(--accent); }
-.callout { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 14px 16px; font-size: 14px; margin: 0.75rem 0 1.25rem; }
-.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 2rem; }
+li::marker { color: var(--accent); }
+a { color: var(--accent); transition: opacity var(--transition); }
+a:hover { opacity: 0.85; }
+.callout { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 14px 16px; font-size: 14px; margin: 0.75rem 0 1.25rem; }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 2rem; }
 .toc p { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.6rem; }
 .toc ol { margin: 0 0 0 1.1rem; font-size: 14px; }
 .toc li { margin-bottom: 0.3rem; }
 .toc a { text-decoration: none; }
-.toc a:hover { text-decoration: underline; }
+.toc a:hover { text-decoration: underline; opacity: 1; }
 footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
 footer a { color: var(--muted); text-decoration: none; }
-footer a:hover { color: var(--text); }
+footer a:hover { color: var(--text); text-decoration: underline; opacity: 1; }
 </style>
 </head>
 <body>

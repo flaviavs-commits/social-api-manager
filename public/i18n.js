@@ -8,6 +8,7 @@
 
   const DICT = {
     'pt-BR': {
+      'brand.tagline': 'Conecte. Crie. Agende. Cresça.',
       'nav.dashboard': 'Dashboard',
       'nav.redesSociais': 'Redes sociais',
       'nav.conexoes': 'Conexões das Contas',
@@ -1109,6 +1110,7 @@
       'drafts.editDraft': 'Editar rascunho'
     },
     'en-US': {
+      'brand.tagline': 'Connect. Create. Schedule. Grow.',
       'nav.dashboard': 'Dashboard',
       'nav.redesSociais': 'Social Networks',
       'nav.conexoes': 'Account Connections',
@@ -2268,7 +2270,7 @@
       .lang-switch { display: flex; gap: 4px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 4px; }
       .lang-switch-option { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 11px; font-family: inherit; padding: 5px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
       .lang-switch-option:hover { color: #fff; background: rgba(255,255,255,0.08); }
-      .lang-switch-option.active { color: #fff; background: #6c8cff; }
+      .lang-switch-option.active { color: #111217; background: #d1993e; font-weight: 600; }
       /* Só usado quando a página não tem sidebar (login, cadastro, admin) — nessas
          páginas não há nenhum botão fixo no canto superior direito para colidir. */
       .lang-switch.lang-switch-floating { position: fixed; top: 12px; right: 12px; z-index: 9999; background: rgba(20,21,28,0.85); backdrop-filter: blur(6px); }

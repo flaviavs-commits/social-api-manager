@@ -40,11 +40,11 @@
 <style>
 :root {
   /* Paleta alinhada à marca (mesma do logo, login.html e admin.html) —
-     azul como acento único com propósito, verde/coral só para status. */
+     dourado como acento único com propósito, verde/coral só para status. */
   --bg: #111217; --surface: #181a20; --surface2: #21232b; --surface3: #2a2d37;
   --border: #2a2d36; --border2: #3a3e4a;
   --text: #eef0f6; --muted: #9096a8; --muted2: #b4bacc;
-  --accent: #6c8cff; --accent2: #34c9be; --accent-glow: rgba(108,140,255,0.16);
+  --accent: #d1993e; --accent2: #f0c877; --accent-glow: rgba(209,153,62,0.18);
   --green: #4ade80; --red: #fb7185; --yellow: #fbbf24; --neutral: #7d8ab8;
   --fb: #5b8def; --ig: #e94f8a; --yt: #ff5c5c; --tt: #eef0f8;
   --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
@@ -62,24 +62,35 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar { display: flex; flex-direction: column; width: var(--sidebar-w); flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); height: 100vh; position: sticky; top: 0; overflow-y: auto; overflow-x: hidden; z-index: 200; }
-.main { flex: 1; padding: 2rem 2.25rem; max-width: 1140px; margin: 0 auto; width: 100%; min-width: 0; }
+.main { flex: 1; padding: calc(2rem + var(--topbar-h)) 2.25rem 2rem; max-width: 1140px; margin: 0 auto; width: 100%; min-width: 0; }
 
-.logo { font-family: var(--sans); font-weight: 700; font-size: 15px; letter-spacing: -0.01em; color: var(--text); padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
-.logo-icon { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; }
+.logo { position: relative; padding: 1.35rem 1.25rem 1.15rem; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+/* Glow decorativo dourado no canto — ecoa o degradê da marca sem competir com o conteúdo da sidebar. */
+.logo::before {
+  content: ''; position: absolute; top: -60px; left: -60px; width: 220px; height: 220px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+.logo-row { position: relative; display: flex; align-items: center; gap: 10px; }
+.logo-icon { width: 34px; height: 34px; flex-shrink: 0; }
+.logo-word { font-family: var(--sans); font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--text); }
+.logo-word .logo-gold { color: var(--accent); }
+.logo-tagline { position: relative; font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 0.02em; }
+.topbar-logo .logo-icon { width: 20px; height: 20px; flex-shrink: 0; }
 
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 2px 10px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 400; color: var(--muted); cursor: pointer; transition: color var(--transition), background var(--transition); white-space: nowrap; }
 .nav-item svg { opacity: 0.7; flex-shrink: 0; transition: opacity var(--transition); }
 .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
 .nav-item:hover svg { opacity: 1; }
-.nav-item.active { color: #fff; background: var(--accent); font-weight: 500; box-shadow: 0 4px 14px var(--accent-glow); }
-.nav-item.active svg { opacity: 1; }
+.nav-item.active { color: var(--text); background: var(--accent-glow); font-weight: 600; border-left: 3px solid var(--accent); padding-left: 11px; }
+.nav-item.active svg { opacity: 1; color: var(--accent); }
 .nav-spacer { flex: 1; }
 
 .user-info { display: flex; flex-direction: column; gap: 2px; padding: 12px 1.25rem; white-space: nowrap; border-top: 1px solid var(--border); }
 .user-name { font-size: 13px; font-weight: 500; color: var(--text); }
 .user-role { font-size: 10px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 99px; width: fit-content; margin-top: 2px; }
 .user-role.user { background: rgba(255,255,255,0.06); color: var(--muted); }
-.user-role.admin { background: rgba(108,140,255,0.15); color: var(--accent); }
+.user-role.admin { background: rgba(209,153,62,0.15); color: var(--accent); }
 .user-role.super_admin { background: rgba(251,191,36,0.15); color: var(--yellow); }
 
 .nav-section { font-size: 10.5px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 16px 1.25rem 6px; opacity: 0.8; }
@@ -98,11 +109,22 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .sidebar-plat-dot.error { background: var(--red); animation: statusPulse 1.6s ease-in-out infinite; }
 .sidebar-plat-dot.disconnected { background: var(--muted2); opacity: 0.5; }
 
-/* ── Topbar mobile ───────────────────────────────────────────────────────── */
-.topbar { display: none; position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); z-index: 190; align-items: center; padding: 0 1rem; gap: 12px; }
+/* ── Topbar (visível em todas as telas — no desktop começa após a sidebar) ── */
+.topbar { display: flex; position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--border); z-index: 190; align-items: center; padding: 0 1.25rem; gap: 12px; }
 .topbar-logo { font-weight: 700; font-size: 15px; flex: 1; display: flex; align-items: center; gap: 7px; }
+.topbar-page-title { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
 .menu-toggle { width: 40px; height: 40px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: var(--surface2); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all var(--transition); }
 .menu-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.topbar-icon-btn { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); flex-shrink: 0; }
+.topbar-icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+.topbar-badge { position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font-size: 9px; font-weight: 700; font-family: var(--sans); line-height: 16px; text-align: center; }
+.topbar-user { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 10px 4px 4px; border-radius: 99px; transition: background var(--transition); flex-shrink: 0; }
+.topbar-user:hover { background: rgba(255,255,255,0.05); }
+.topbar-user-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.topbar-user-chevron { color: var(--muted); flex-shrink: 0; }
+@media (min-width: 769px) { .topbar-logo { display: none; } }
+@media (max-width: 768px) { .topbar-page-title, .topbar-user-name, .topbar-user-chevron { display: none; } }
 
 /* Overlay escuro quando sidebar mobile está aberto */
 .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 195; backdrop-filter: blur(2px); opacity: 0; transition: opacity var(--transition); }
@@ -172,8 +194,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .media-item input.media-caption { font-size: 12px; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-family: var(--sans); }
 .media-item .media-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 2px 4px; }
 .media-item .media-remove:hover { color: var(--red, #e55); }
-.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-accent:hover { background: #6a5ae6; border-color: #6a5ae6; color: #fff; }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.btn-accent:hover { filter: brightness(1.1); color: var(--bg); }
 
 /* ── Cards & Stats ───────────────────────────────────────────────────────── */
 .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 2rem; }
@@ -236,8 +258,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
    nunca mais de 1 primary por card. */
 .plat-btn { flex: 1; padding: 8px 0; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: transparent; color: var(--muted2); font-size: 12px; cursor: pointer; transition: all var(--transition); text-align: center; font-family: var(--sans); font-weight: 500; }
 .plat-btn:hover { color: var(--text); background: var(--surface2); border-color: var(--border2); }
-.plat-btn.primary { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
-.plat-btn.primary:hover { background: #6a5ae6; border-color: #6a5ae6; }
+.plat-btn.primary { border-color: var(--accent); background: var(--accent); color: var(--bg); font-weight: 600; }
+.plat-btn.primary:hover { filter: brightness(1.1); }
 .plat-btn.ghost { border-color: transparent; color: var(--muted); }
 .plat-btn.ghost:hover { color: var(--text); background: var(--surface2); border-color: transparent; }
 .plat-btn:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -524,11 +546,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   border: none;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(108,140,255,0.35);
+  box-shadow: 0 4px 16px rgba(209,153,62,0.35);
   transition: transform 0.2s, box-shadow 0.2s;
   position: relative;
 }
-#ai-fab-btn:hover { transform: scale(1.06); box-shadow: 0 6px 22px rgba(108,140,255,0.45); }
+#ai-fab-btn:hover { transform: scale(1.06); box-shadow: 0 6px 22px rgba(209,153,62,0.45); }
 /* Sem anel pulsando — um botão quieto convida mais do que um alarme piscando. */
 #ai-fab-btn .ai-fab-pulse { display: none; }
 #ai-fab-panel {
@@ -649,7 +671,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-file-preview-remove { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 2px; }
 .ai-file-preview-remove:hover { color:var(--red); }
 .ai-drop-overlay {
-  position:absolute; inset:0; background:rgba(108,140,255,0.13);
+  position:absolute; inset:0; background:rgba(209,153,62,0.13);
   border:2px dashed var(--accent); border-radius:inherit;
   display:flex; align-items:center; justify-content:center;
   font-size:13px; color:var(--accent); font-weight:600; pointer-events:none;
@@ -685,7 +707,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
   padding:5px 12px; border-radius:20px; font-size:11px; font-weight:600;
   cursor:pointer; transition:all 0.15s; border:none;
 }
-.ai-chat-post-btn.confirm { background:var(--accent); color:#fff; }
+.ai-chat-post-btn.confirm { background:var(--accent); color:var(--bg); }
 .ai-chat-post-btn.confirm:hover { opacity:0.85; }
 .ai-chat-post-btn.edit { background:var(--surface2); color:var(--muted2); border:1px solid var(--border2); }
 .ai-chat-post-btn.edit:hover { border-color:var(--accent); color:var(--accent); }
@@ -762,7 +784,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 
 .ai-when-confirm {
   width:100%; padding:8px; border-radius:8px; border:none;
-  background:var(--accent); color:#fff;
+  background:var(--accent); color:var(--bg);
   font-size:11.5px; font-weight:600; cursor:pointer; transition:opacity 0.15s;
   font-family:var(--sans);
 }
@@ -780,6 +802,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .ai-chat-fullpage .ai-chat-composer { padding:14px 20px; }
 .ai-chat-fullpage .ai-chips { padding:0 20px 10px; }
 
+/* No desktop a topbar fixa consome --topbar-h a mais do que o cálculo original previa */
+@media (min-width: 769px) {
+  .ai-chat-fullpage { height: calc(100vh - 120px - var(--topbar-h)); }
+}
+
 @media (max-width: 768px) {
   #ai-fab { bottom: calc(var(--bottomnav-h) + 12px); right: 14px; }
   #ai-fab-panel { width: calc(100vw - 28px); max-height: calc(100vh - var(--topbar-h) - var(--bottomnav-h) - 80px); }
@@ -789,6 +816,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 body.inbox-mode .main {
   max-width: none;
   padding: 0;
+  padding-top: var(--topbar-h);
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -796,7 +824,7 @@ body.inbox-mode .main {
 body.inbox-mode #page-inbox.active {
   flex: 1;
   min-height: 0;
-  height: 100vh;
+  height: calc(100vh - var(--topbar-h));
   display: flex !important;
   flex-direction: column;
 }
@@ -822,6 +850,10 @@ body.inbox-mode #page-inbox.active {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+/* ── Acessibilidade: foco visível por teclado ────────────────────────────── */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent); color: #fff; }
 
 /* ── Touch interactions ─────────────────────────────────────────────────── */
 a, button, .btn, .nav-item, .plat-btn, .tab, .step, .menu-toggle,
@@ -852,8 +884,8 @@ input, select, textarea, label, .bottom-nav-item {
 @media (max-width: 768px) {
   .app { flex-direction: column; }
 
-  /* Topbar fixa no topo */
-  .topbar { display: flex; }
+  /* Topbar fixa no topo — no mobile a sidebar é um drawer, então a topbar ocupa a largura inteira */
+  .topbar { left: 0; padding: 0 1rem; }
 
   /* Sidebar vira drawer lateral deslizante */
   .sidebar {
@@ -969,7 +1001,7 @@ input, select, textarea, label, .bottom-nav-item {
 /* Células do mês */
 .cal-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; min-height: 110px; padding: 7px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; display: flex; flex-direction: column; gap: 3px; overflow: hidden; position: relative; }
 .cal-cell:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-.cal-cell.today { border-color: var(--accent); background: rgba(108,140,255,0.06); }
+.cal-cell.today { border-color: var(--accent); background: rgba(209,153,62,0.06); }
 .cal-cell.other-month { opacity: 0.35; pointer-events: none; }
 .cal-cell.drag-over { border-color: var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px var(--accent-glow); }
 
@@ -1001,14 +1033,14 @@ input, select, textarea, label, .bottom-nav-item {
 .cal-week-header { display: grid; grid-template-columns: 52px repeat(7, 1fr); border-bottom: 1px solid var(--border); }
 .cal-week-header-cell { padding: 10px 8px; text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); border-right: 1px solid var(--border); }
 .cal-week-header-cell:last-child { border-right: none; }
-.cal-week-header-cell.today-col { color: var(--accent); background: rgba(108,140,255,0.06); }
+.cal-week-header-cell.today-col { color: var(--accent); background: rgba(209,153,62,0.06); }
 .cal-week-header-cell .day-name { font-size: 9.5px; font-family: var(--sans); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; display: block; opacity: 0.8; }
 .cal-week-body { display: grid; grid-template-columns: 52px repeat(7, 1fr); max-height: 65vh; overflow-y: auto; }
 .cal-week-hour-col { border-right: 1px solid var(--border); }
 .cal-week-hour-label { height: 56px; display: flex; align-items: flex-start; justify-content: flex-end; padding: 6px 8px 0 0; font-size: 10px; font-family: var(--mono); color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.04); }
 .cal-week-day-col { border-right: 1px solid var(--border); }
 .cal-week-day-col:last-child { border-right: none; }
-.cal-week-day-col.today-col { background: rgba(108,140,255,0.03); }
+.cal-week-day-col.today-col { background: rgba(209,153,62,0.03); }
 .cal-week-hour-cell { height: 56px; border-bottom: 1px solid rgba(255,255,255,0.04); padding: 3px 4px; display: flex; flex-direction: column; gap: 2px; }
 .cal-week-post { border-radius: 4px; padding: 2px 5px; font-size: 10px; border-left: 3px solid transparent; background: rgba(255,255,255,0.05); cursor: pointer; overflow: hidden; transition: background 0.12s; }
 .cal-week-post:hover { background: rgba(255,255,255,0.1); }
@@ -1157,7 +1189,7 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-comment-reply-btn:hover { color: var(--accent); }
 .inbox-reply-box { margin-top: 6px; margin-left: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; gap: 8px; align-items: flex-end; }
 .inbox-reply-box textarea { flex: 1; background: none; border: none; outline: none; font-size: 12px; color: var(--text); resize: none; font-family: inherit; min-height: 36px; max-height: 100px; }
-.inbox-reply-box button { background: var(--accent); border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
+.inbox-reply-box button { background: var(--accent); border: none; border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 700; color: var(--bg); cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
 .inbox-reply-box button:hover { opacity: 0.85; }
 
 /* Composer de reply geral (fixo no bottom) */
@@ -1166,7 +1198,7 @@ input, select, textarea, label, .bottom-nav-item {
 .inbox-composer-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--text); resize: none; outline: none; min-height: 44px; max-height: 120px; font-family: inherit; }
 .inbox-composer-input:focus { border-color: var(--accent); }
 .inbox-composer-count { font-size: 10px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
-.inbox-composer-send { background: var(--accent); border: none; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; white-space: nowrap; }
+.inbox-composer-send { background: var(--accent); border: none; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 700; color: var(--bg); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; white-space: nowrap; }
 .inbox-composer-send:hover { opacity: 0.85; }
 .inbox-composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -1338,7 +1370,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-tone-btn:hover { border-color: var(--border2); color: var(--text); }
 .ai-tone-btn.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
 .ai-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.ai-gen-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity var(--transition), transform var(--transition); margin-top: 4px; }
+.ai-gen-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--accent); color: var(--bg); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity var(--transition), transform var(--transition); margin-top: 4px; }
 .ai-gen-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
 .ai-gen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .ai-gen-btn .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -1349,7 +1381,7 @@ input, select, textarea, label, .bottom-nav-item {
 .ai-results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .ai-results-title { font-size: 14px; font-weight: 600; }
 .ai-results-actions { display: flex; gap: 8px; }
-.ai-schedule-all-btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity var(--transition); }
+.ai-schedule-all-btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity var(--transition); }
 .ai-schedule-all-btn:hover:not(:disabled) { opacity: 0.85; }
 .ai-schedule-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .ai-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 320px; gap: 12px; color: var(--muted); text-align: center; }
@@ -1446,7 +1478,7 @@ input, select, textarea, label, .bottom-nav-item {
 <body>
 <div class="app">
 
-<!-- Topbar mobile -->
+<!-- Topbar: mobile mostra a marca; desktop mostra o título da página ativa -->
 <div class="topbar" id="topbar">
   <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -1455,7 +1487,18 @@ input, select, textarea, label, .bottom-nav-item {
     <img src="/favicon.svg" alt="" class="logo-icon">
     Meu Ecoo Mídia
   </div>
-  <div id="user-avatar-placeholder-top" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">—</div>
+  <div class="topbar-page-title" id="topbar-page-title" data-i18n="nav.dashboard">Dashboard</div>
+  <div class="topbar-actions">
+    <button class="topbar-icon-btn" onclick="showPage('inbox')" title="Notificações" aria-label="Notificações">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span id="topbar-notif-badge" class="topbar-badge" style="display:none">0</span>
+    </button>
+    <div class="topbar-user" onclick="openProfileModal()" title="Meu perfil">
+      <div id="user-avatar-placeholder-top" style="width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">—</div>
+      <span class="topbar-user-name" id="topbar-user-name">—</span>
+      <svg class="topbar-user-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+  </div>
 </div>
 
 <!-- Overlay para fechar sidebar no mobile -->
@@ -1463,8 +1506,11 @@ input, select, textarea, label, .bottom-nav-item {
 
 <div class="sidebar" id="sidebar">
   <div class="logo">
-    <img src="/favicon.svg" alt="" class="logo-icon">
-    Meu Ecoo Mídia
+    <div class="logo-row">
+      <img src="/favicon.svg" alt="" class="logo-icon">
+      <span class="logo-word">Meu <span class="logo-gold">Ecoo</span> Mídia</span>
+    </div>
+    <div class="logo-tagline" data-i18n="brand.tagline">Conecte. Crie. Agende. Cresça.</div>
   </div>
 
   <div class="nav-item active" onclick="showPage('dashboard')">
@@ -2223,7 +2269,7 @@ input, select, textarea, label, .bottom-nav-item {
 
     <!-- Modal API Key do usuário -->
     <div id="ai-apikey-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg)">
+      <div style="background:var(--surface);border:1px solid rgba(209,153,62,0.3);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:calc(100vw - 2rem);box-shadow:var(--shadow-lg)">
         <div style="margin-bottom:20px">
           <div id="ai-apikey-modal-title" style="font-size:16px;font-weight:600;margin-bottom:8px"></div>
           <div id="ai-apikey-modal-desc" style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px"></div>
@@ -2247,21 +2293,21 @@ input, select, textarea, label, .bottom-nav-item {
           <div id="ai-apikey-modal-err" style="font-size:12px;color:var(--red);margin-top:6px;min-height:16px"></div>
           <div id="ai-apikey-modal-test-ok" style="font-size:12px;color:#22c55e;margin-top:2px;min-height:16px"></div>
         </div>
-        <div style="background:rgba(108,140,255,0.08);border:1px solid rgba(108,140,255,0.15);border-radius:8px;padding:10px 12px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5" data-i18n="ai.chaveSeguranca">
+        <div style="background:rgba(209,153,62,0.08);border:1px solid rgba(209,153,62,0.15);border-radius:8px;padding:10px 12px;margin-bottom:20px;font-size:12px;color:var(--muted);line-height:1.5" data-i18n="ai.chaveSeguranca">
           🔒 Sua chave é criptografada e armazenada com segurança. Nunca é compartilhada com terceiros.
         </div>
         <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
           <button id="ai-apikey-modal-remove" style="display:none;padding:8px 16px;border-radius:8px;border:1px solid rgba(251,113,133,0.3);background:transparent;color:var(--red);font-size:13px;cursor:pointer;margin-right:auto" data-i18n="ai.removerChave">Remover chave</button>
           <button id="ai-apikey-modal-cancel" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-size:13px;cursor:pointer" data-i18n="common.cancelar">Cancelar</button>
           <button id="ai-apikey-modal-test" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border2);background:transparent;color:var(--text);font-size:13px;cursor:pointer" data-i18n="ai.testarConexao">Testar conexão</button>
-          <button id="ai-apikey-modal-save" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:500;cursor:pointer" data-i18n="ai.salvarContinuar">Salvar e continuar</button>
+          <button id="ai-apikey-modal-save" style="padding:8px 20px;border-radius:8px;border:none;background:var(--accent);color:var(--bg);font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.salvarContinuar">Salvar e continuar</button>
         </div>
       </div>
     </div>
 
     <!-- Modal seletor de modelo -->
     <div id="ai-model-picker" style="display:none;position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
-      <div style="background:var(--surface);border:1px solid rgba(108,140,255,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
+      <div style="background:var(--surface);border:1px solid rgba(209,153,62,0.3);border-radius:var(--radius-lg);width:340px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);box-shadow:var(--shadow-lg);animation:ai-panel-in .2s cubic-bezier(.34,1.56,.64,1);display:flex;flex-direction:column">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 24px 16px;flex-shrink:0">
           <div>
             <div style="font-size:14px;font-weight:600" data-i18n="ai.escolherModelo">Escolher modelo de IA</div>
@@ -2273,7 +2319,7 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
         <div id="ai-model-picker-list" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding:0 24px;flex:1;min-height:0"></div>
         <div style="padding:16px 24px 24px;padding-top:14px;border-top:1px solid var(--border);flex-shrink:0">
-          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.confirmarEscolha">
+          <button onclick="aiConfirmModelPick()" id="ai-confirm-model-btn" style="width:100%;padding:10px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:var(--bg);font-size:13px;font-weight:600;cursor:pointer" data-i18n="ai.confirmarEscolha">
             Confirmar escolha
           </button>
         </div>
@@ -2680,6 +2726,15 @@ function closeSidebar() {
 // Página atualmente visível — usada pelo agente de IA para contextualizar sugestões
 window.currentPageName = 'dashboard';
 
+// Espelha no topbar desktop o rótulo (já traduzido) do item de navegação ativo.
+// Também é chamada em 'langchange' para re-sincronizar após troca de idioma.
+function syncTopbarTitle() {
+  const topTitleEl = document.getElementById('topbar-page-title');
+  const activeNavLabel = document.querySelector('.nav-item.active span');
+  if (topTitleEl && activeNavLabel) topTitleEl.textContent = activeNavLabel.textContent;
+}
+window.addEventListener('langchange', syncTopbarTitle);
+
 function showPage(name) {
   window.currentPageName = name;
   document.querySelectorAll('.section-page').forEach(p => p.classList.remove('active'));
@@ -2693,6 +2748,9 @@ function showPage(name) {
   // para não deslocar a numeração dos demais itens quando visível/invisível.
   if (name === 'ai-log') document.getElementById('nav-ai-log')?.classList.add('active');
   else document.querySelectorAll('.nav-item')[map[name]]?.classList.add('active');
+
+  // Topbar desktop: espelha o rótulo do item de navegação ativo
+  syncTopbarTitle();
 
   // Bottom nav mobile: ativa item correto
   document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
@@ -6143,11 +6201,11 @@ function analyticsRenderChart(net, tab) {
   const hasLikes    = postsSorted.some(m => m.metrics?.likes != null);
   const hasComments = postsSorted.some(m => m.metrics?.comments != null);
 
-  if (hasViews)    datasets.push({ label: window.i18n.t('analytics.visualizacoes'), data: postsSorted.map(m => m.metrics?.views || 0),    backgroundColor: 'rgba(108,140,255,0.8)', borderRadius: 4 });
+  if (hasViews)    datasets.push({ label: window.i18n.t('analytics.visualizacoes'), data: postsSorted.map(m => m.metrics?.views || 0),    backgroundColor: 'rgba(209,153,62,0.8)', borderRadius: 4 });
   if (hasLikes)    datasets.push({ label: window.i18n.t('analytics.curtidas'),       data: postsSorted.map(m => m.metrics?.likes || 0),    backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 });
   if (hasComments) datasets.push({ label: window.i18n.t('analytics.comentarios'),    data: postsSorted.map(m => m.metrics?.comments || 0), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 });
 
-  if (!datasets.length) datasets.push({ label: window.i18n.t('analytics.posts'), data: postsSorted.map(() => 1), backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#6c8cff', borderRadius: 4 });
+  if (!datasets.length) datasets.push({ label: window.i18n.t('analytics.posts'), data: postsSorted.map(() => 1), backgroundColor: ANALYTICS_PLAT_COLORS[net] || '#d1993e', borderRadius: 4 });
 
   analyticsChart = new Chart(ctx, {
     type: 'bar',
@@ -6235,7 +6293,7 @@ function analyticsRenderSummaryTrend(metrics) {
     data: {
       labels: dias.map(formatDiaBR),
       datasets: [
-        { label: window.i18n.t('analytics.alcance'), data: dias.map(d => porDia[d].reach), borderColor: '#6c8cff', backgroundColor: 'rgba(108,140,255,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
+        { label: window.i18n.t('analytics.alcance'), data: dias.map(d => porDia[d].reach), borderColor: '#d1993e', backgroundColor: 'rgba(209,153,62,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
         { label: window.i18n.t('analytics.engajamento'), data: dias.map(d => porDia[d].engagement), borderColor: '#e94f8a', backgroundColor: 'rgba(233,79,138,0.08)', fill: true, tension: 0.35, pointRadius: 4 }
       ]
     },
@@ -6266,7 +6324,7 @@ function analyticsRenderSummaryPlatforms(metrics) {
     type: 'bar',
     data: {
       labels: plats.map(p => ANALYTICS_PLAT_LABELS[p] || p),
-      datasets: [{ data: plats.map(p => porPlataforma[p]), backgroundColor: plats.map(p => ANALYTICS_PLAT_COLORS[p] || '#6c8cff'), borderRadius: 6, maxBarThickness: 56 }]
+      datasets: [{ data: plats.map(p => porPlataforma[p]), backgroundColor: plats.map(p => ANALYTICS_PLAT_COLORS[p] || '#d1993e'), borderRadius: 6, maxBarThickness: 56 }]
     },
     options: {
       responsive: true,
@@ -6307,7 +6365,7 @@ function analyticsDestroyDemoCharts() {
   if (analyticsDemoCharts.geo) { analyticsDemoCharts.geo.destroy(); analyticsDemoCharts.geo = null; }
 }
 
-const ANALYTICS_DEMO_COLORS = ['#6c8cff','#e94f8a','#34d399','#fbbf24','#5b8def','#f97316','#a78bfa','#22d3ee'];
+const ANALYTICS_DEMO_COLORS = ['#d1993e','#e94f8a','#34d399','#fbbf24','#5b8def','#f97316','#a78bfa','#22d3ee'];
 
 function analyticsTopN(itens, n) {
   const ordenado = [...itens].sort((a, b) => b.value - a.value);
@@ -6360,7 +6418,7 @@ function analyticsRenderDemographics(net, tab) {
         datasets: generos.map(g => ({
           label: g,
           data: faixas.map(f => demo.ageGender.find(d => d.age === f && d.gender === g)?.value || 0),
-          backgroundColor: genderColors[g] || '#6c8cff',
+          backgroundColor: genderColors[g] || '#d1993e',
           borderRadius: 4
         }))
       },
@@ -7003,9 +7061,11 @@ function renderAvatar(me) {
   } else {
     img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = inicial;
   }
-  // Avatar no topbar mobile
+  // Avatar no topbar (mobile mostra só o círculo; desktop mostra nome também)
   const topPh = document.getElementById('user-avatar-placeholder-top');
   if (topPh) topPh.textContent = inicial;
+  const topName = document.getElementById('topbar-user-name');
+  if (topName) topName.textContent = me.fullName || me.email;
   // Avatar no modal
   const pImg = document.getElementById('profile-avatar-preview');
   const pPh = document.getElementById('profile-avatar-placeholder');
@@ -7810,7 +7870,7 @@ const PLAT_SUPPORTS_REPLY = ['instagram']; // demais são só leitura por ora
 
 function inboxUpdateBadge() {
   const total = Object.values(inboxUnreadMap).reduce((s, n) => s + n, 0);
-  [document.getElementById('inbox-nav-badge'), document.getElementById('inbox-bottom-badge')].forEach(el => {
+  [document.getElementById('inbox-nav-badge'), document.getElementById('inbox-bottom-badge'), document.getElementById('topbar-notif-badge')].forEach(el => {
     if (!el) return;
     if (total > 0) { el.textContent = total > 99 ? '99+' : total; el.style.display = 'inline-block'; }
     else { el.style.display = 'none'; }
@@ -8479,7 +8539,7 @@ async function exportAnalyticsPDF() {
     let y = margin;
 
     // ── Cabeçalho ─────────────────────────────────────────────────────────────
-    doc.setFillColor(108, 140, 255);
+    doc.setFillColor(209, 153, 62);
     doc.rect(0, 0, W, 28, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
@@ -9120,7 +9180,7 @@ function aiSetModel(id, notify = true) {
   // Atualiza badge da página
   const dot = document.getElementById('ai-badge-dot')
   const name = document.getElementById('ai-badge-name')
-  if (dot) dot.style.background = pickerMeta.dotColor || '#6c8cff'
+  if (dot) dot.style.background = pickerMeta.dotColor || '#d1993e'
   if (name) name.textContent = meta.label || id
 
   // Atualiza nome no cabeçalho do FAB
@@ -9177,7 +9237,7 @@ async function aiOpenModelPicker() {
       <div class="ai-model-pick-info">
         <div class="ai-model-pick-name">
           ${AI_MODEL_META[m.id]?.label || m.name}
-          ${pm.badge ? `<span style="font-size:9px;background:rgba(108,140,255,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
+          ${pm.badge ? `<span style="font-size:9px;background:rgba(209,153,62,0.2);color:var(--accent);padding:1px 6px;border-radius:10px;margin-left:6px;font-weight:600">${pm.badge}</span>` : ''}
           ${unavail ? `<span style="font-size:9px;color:var(--red);margin-left:6px">${window.i18n.t('aiModelPicker.noKey')}</span>` : ''}
         </div>
         <div class="ai-model-pick-desc">${unavail ? window.i18n.t('aiModelPicker.keyNotConfigured') : (pm.desc || m.provider)}</div>
@@ -9803,7 +9863,7 @@ function aiPostCardActionsHtml(ctx, idx, p, cardId) {
     const plataformasQueExigem = p.plataformas.filter(plat => PLAT_REQUIREMENTS[plat]?.media === 'required').map(plat => PLAT_NAMES[plat]).join(', ')
     return `${horarioInput}<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📎 ${plataformasQueExigem} ${window.i18n.t('aiCards.requiresImageOrVideo')}</div>
       <div class="ai-chat-post-actions">
-        <button class="ai-chat-post-btn" style="background:rgba(108,140,255,0.15);color:var(--accent);border-color:rgba(108,140,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">📎 ${window.i18n.t('common.attachMedia')}</button>
+        <button class="ai-chat-post-btn" style="background:rgba(209,153,62,0.15);color:var(--accent);border-color:rgba(209,153,62,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">📎 ${window.i18n.t('common.attachMedia')}</button>
         <button class="ai-chat-post-btn regen" onclick="aiChatRegenOne('${ctx}',${idx})">↻ ${window.i18n.t('common.regenerate')}</button>
       </div>
       <input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
@@ -9851,7 +9911,7 @@ async function aiAttachMediaToPost(ctx, idx, cardId, input) {
     post.mediaType = file.type.startsWith('video/') ? 'video' : 'image'
     if (cardEl) cardEl.innerHTML = aiPostCardActionsHtml(ctx, idx, post, cardId)
   } catch (e) {
-    if (cardEl) cardEl.innerHTML = `<div style="font-size:11px;color:var(--red);margin-bottom:8px">${window.i18n.t('aiCards.couldNotSendMedia')} ${e.message || window.i18n.t('common.unknownError')}.</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn" style="background:rgba(108,140,255,0.15);color:var(--accent);border-color:rgba(108,140,255,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">↻ ${window.i18n.t('common.tryAgain')}</button></div><input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
+    if (cardEl) cardEl.innerHTML = `<div style="font-size:11px;color:var(--red);margin-bottom:8px">${window.i18n.t('aiCards.couldNotSendMedia')} ${e.message || window.i18n.t('common.unknownError')}.</div><div class="ai-chat-post-actions"><button class="ai-chat-post-btn" style="background:rgba(209,153,62,0.15);color:var(--accent);border-color:rgba(209,153,62,0.3)" onclick="aiTriggerAttachMedia('${ctx}',${idx},'${cardId}')">↻ ${window.i18n.t('common.tryAgain')}</button></div><input type="file" id="ai-post-media-input-${cardId}" accept="image/*,video/*" style="display:none" onchange="aiAttachMediaToPost('${ctx}',${idx},'${cardId}',this)">`
   }
 }
 
@@ -9995,7 +10055,7 @@ function aiChatSetChips(ctx, chips) {
 
 function aiChipClick(ctx, val, el) {
   document.querySelectorAll(`#${ctx === 'fab' ? 'ai-fab-chips' : 'ai-page-chips'} .ai-chip`).forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '0.5' })
-  el.style.background = 'rgba(108,140,255,0.3)'; el.style.opacity = '1'
+  el.style.background = 'rgba(209,153,62,0.3)'; el.style.opacity = '1'
   aiChatAddMsg(ctx, 'user', val)
   aiChatSetChips(ctx, [])
   setTimeout(() => aiChatProcess(ctx, val), 400)

@@ -10,37 +10,43 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #14151c; --surface: #1b1d27; --surface2: #242733;
-  --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
-  --text: #eef0f6; --muted: #8b8fa3;
-  --accent: #6c8cff; --red: #fb7185; --green: #4ade80;
+  /* Mesma paleta do dashboard (app.html) — consistência de marca em toda a aplicação. */
+  --bg: #111217; --surface: #181a20; --surface2: #21232b;
+  --border: #2a2d36; --border2: #3a3e4a;
+  --text: #eef0f6; --muted: #9096a8;
+  --accent: #d1993e; --accent-glow: rgba(209,153,62,0.18);
+  --red: #fb7185; --green: #4ade80;
   --sans: 'IBM Plex Sans', sans-serif;
+  --radius: 12px; --radius-sm: 8px;
+  --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
-.logo { font-size: 18px; font-weight: 700; }
-.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-primary:hover { opacity: 0.9; }
-h1 { font-size: 30px; font-weight: 700; margin-bottom: 0.75rem; }
+.logo { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border2); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 500; transition: all var(--transition); }
+.btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; box-shadow: 0 4px 16px var(--accent-glow); }
+.btn-primary:hover { filter: brightness(1.08); color: var(--bg); background: var(--accent); }
+h1 { font-size: 32px; font-weight: 700; margin-bottom: 0.75rem; letter-spacing: -0.02em; }
 .subtitle { color: var(--muted); font-size: 16px; margin-bottom: 2.5rem; max-width: 560px; }
 section { margin-bottom: 2.25rem; }
-h2 { font-size: 16px; font-weight: 600; margin-bottom: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+h2 { font-size: 13px; font-weight: 600; margin-bottom: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
 p { color: var(--text); font-size: 15px; margin-bottom: 0.75rem; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
-.contact-email { font-size: 18px; font-weight: 600; color: var(--accent); text-decoration: none; }
-.contact-email:hover { text-decoration: underline; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+.contact-email { font-size: 18px; font-weight: 600; color: var(--accent); text-decoration: none; transition: opacity var(--transition); }
+.contact-email:hover { opacity: 0.85; text-decoration: underline; }
 .faq { border-top: 1px solid var(--border); padding-top: 1.25rem; margin-top: 1.25rem; }
 .faq:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 .faq h3 { font-size: 15px; font-weight: 600; margin-bottom: 0.4rem; }
 .faq p { color: var(--muted); }
 ul { margin: 0.5rem 0 0 1.1rem; color: var(--text); font-size: 15px; }
 li { margin-bottom: 0.4rem; }
+li::marker { color: var(--accent); }
 footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
-footer a { color: var(--muted); text-decoration: none; }
-footer a:hover { color: var(--text); }
+footer a { color: var(--muted); text-decoration: none; transition: color var(--transition); }
+footer a:hover { color: var(--text); text-decoration: underline; }
 </style>
 </head>
 <body>
