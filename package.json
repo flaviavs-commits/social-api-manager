@@ -5,8 +5,10 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --runInBand",
-    "test:coverage": "jest --runInBand --coverage"
+    "frontend:dev": "vite --config frontend/vite.config.js",
+    "frontend:build": "vite build --config frontend/vite.config.js",
+    "test": "set NODE_ENV=test&& jest --runInBand",
+    "test:coverage": "set NODE_ENV=test&& jest --runInBand --coverage"
   },
   "jest": {
     "testEnvironment": "node",
@@ -54,6 +56,8 @@
     "nodemailer": "^9.0.1",
     "openai": "^6.45.0",
     "pg": "^8.21.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "qrcode": "^1.5.4",
     "sharp": "^0.35.2",
     "web-push": "^3.6.7"
@@ -62,6 +66,7 @@
     "@jest/globals": "^30.4.1",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
+    "vite": "^7.0.6",
     "supertest": "^7.2.2",
     "vercel": "^54.14.5"
   },

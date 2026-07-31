@@ -29,7 +29,9 @@ async function requireAuth(req, res, next) {
   // ligado, TODA a API fica pública (dados de todos os usuários incluídos).
   // Desligar (remover a env var) restaura a autenticação normal sem precisar
   // reverter código. NUNCA deixar ligado além do período estrito da revisão.
-  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
+  // O modo de revisão nunca pode interferir em testes automatizados, mesmo
+  // quando um `.env` local o deixa configurado para homologação.
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && process.env.NODE_ENV !== 'test') {
     req.user = { id: Number(process.env.REVIEW_MODE_USER_ID) || null, email: 'review@local', role: 'user', fullName: 'Revisor', avatarUrl: null, totpEnabled: false }
     return next()
   }
@@ -52,7 +54,7 @@ async function requireAuth(req, res, next) {
   }
 
   try {
-    let user = getCachedUser(userId)
+    let user = process.env.NODE_ENV === 'test' ? null : getCachedUser(userId)
     if (!user) {
       user = await usersRepo.buscarPorId(userId)
       if (user) setCachedUser(userId, user)

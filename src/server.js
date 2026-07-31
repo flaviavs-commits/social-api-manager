@@ -161,7 +161,7 @@ app.get('/', (req, res) => {
     return res.redirect((process.env.FRONTEND_URL || '') + '/app.html?token=' + encodeURIComponent(token))
   }
 
-  res.sendFile(path.join(__dirname, '../public/index.html'))
+  res.sendFile(path.join(__dirname, '../public/react/index.html'))
 })
 
 // Páginas legais públicas (exigência da revisão do TikTok: ToS e Privacy
@@ -176,7 +176,13 @@ app.get('/support', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/support.html'))
 })
 app.get('/sobre', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'))
+  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+})
+
+// O dashboard React é servido pela mesma URL pública do produto. O arquivo
+// legado permanece disponível apenas como referência durante a migração.
+app.get('/app.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/react/index.html'))
 })
 
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
