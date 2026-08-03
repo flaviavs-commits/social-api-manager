@@ -9956,18 +9956,15 @@ async function aiUploadImagemGerada(imageSrc, nomeArquivo) {
 }
 
 // Fluxo de geração de imagem via OpenRouter (Nano Banana 2 Lite) — gera texto
-// e imagem juntos, na mesma resposta. Exige sempre chave própria do usuário
-// no OpenRouter, sem fallback de lead (diferente do fluxo Gemini/Imagen).
+// e imagem juntos, na mesma resposta. Usa a chave própria do usuário quando
+// cadastrada; sem ela, o backend cai para OPENROUTER_API_KEY do servidor
+// automaticamente (ver POST /api/ai/image/generate-openrouter) — só falha
+// de verdade se NENHUMA das duas existir ('sem_chave').
 // Depois de gerar, pergunta a(s) rede(s) (se ainda não escolhidas na
 // conversa) e monta o mesmo card de Agendar/Publicar agora usado no fluxo de
 // mídia analisada (aiScheduleMediaPost), com a imagem já enviada ao Blob.
 async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
   const state = aiChat[ctx]
-  const hasKey = await aiCheckUserKey('openrouter')
-  if (!hasKey) {
-    aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.openrouterKeyRequired'))
-    return
-  }
 
   const plats = state.plats?.length ? state.plats : null
   if (!plats) {
@@ -10065,7 +10062,15 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
     aiChatSetChips(ctx, sugestoes.length > 1 ? [`✅ ${window.i18n.t('common.scheduleAll')}`] : [`✅ ${window.i18n.t('common.schedule')}`])
   } catch (err) {
     aiChatTyping(ctx, false)
-    aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.hmmCouldNotGenerateNow')} ${err.message || window.i18n.t('common.tryAgainInMoments')} 🙏`)
+    // 'sem_chave': nem usuário nem servidor têm chave do OpenRouter — único
+    // caso em que não há como gerar de jeito nenhum (hoje não deveria
+    // acontecer em produção, já que OPENROUTER_API_KEY do servidor está
+    // configurada, mas cobre o cenário mesmo assim).
+    if (err.message === 'sem_chave') {
+      aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.openrouterKeyRequired'))
+    } else {
+      aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.hmmCouldNotGenerateNow')} ${err.message || window.i18n.t('common.tryAgainInMoments')} 🙏`)
+    }
   }
 }
 
@@ -10081,14 +10086,22 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
 // texto do chat continua o mesmo antes e depois do pedido de imagem, sem
 // precisar "voltar" porque nunca mudou.
 async function aiHandleImageRequest(ctx, userMsg) {
-  const state = aiChat[ctx]
+  // Usa OpenRouter — funciona com chave própria do usuário OU com a chave
+  // do servidor (fallback automático, ver POST /api/ai/image/generate-
+  // openrouter), e gera texto+imagem juntos numa chamada só. Preferido sobre
+  // o Gemini porque, hoje, a GEMINI_API_KEY do servidor está sem billing
+  // habilitado no Google Cloud (bloqueio conhecido, testado em 2026-08-03) —
+  // o OpenRouter não tem essa limitação (testado, funciona de verdade). A
+  // função já trata os próprios erros internamente (mostra mensagem no
+  // chat), então não precisa de try/catch aqui.
+  return aiHandleImageRequestOpenRouter(ctx, userMsg)
+}
 
-  // Prioriza OpenRouter se o usuário já tiver chave própria cadastrada (gera
-  // texto+imagem juntos, sem precisar de conta Google/Imagen).
-  const hasOpenrouterKey = await aiCheckUserKey('openrouter')
-  if (hasOpenrouterKey) {
-    return aiHandleImageRequestOpenRouter(ctx, userMsg)
-  }
+// Fluxo de geração de imagem via Gemini/Imagen — mantido para o caso de o
+// OpenRouter ficar indisponível no futuro (troca manual, não é chamado
+// automaticamente hoje — ver aiHandleImageRequest acima).
+async function aiHandleImageRequestGemini(ctx, userMsg) {
+  const state = aiChat[ctx]
 
   // Gemini (chave própria do usuário, se tiver, senão a do servidor — o
   // backend decide sozinho). Mensagem no chat identifica qual delas está em

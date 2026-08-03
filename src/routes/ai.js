@@ -1180,18 +1180,23 @@ router.post('/image/generate', async (req, res) => {
 
 // POST /api/ai/image/generate-openrouter — gera TEXTO e IMAGEM juntos, na
 // mesma chamada, via modelo multimodal do OpenRouter (Nano Banana 2 Lite).
-// Sempre exige chave própria do usuário no OpenRouter (mesmo padrão do
-// Imagen/Gemini em /image/generate) — sem chave do servidor aqui.
+// Usa a chave própria do usuário quando cadastrada; sem ela, cai para
+// OPENROUTER_API_KEY do servidor — mesmo padrão de fallback já usado em
+// /image/generate (Gemini). Confirmado por teste real (2026-08-03): a
+// chave do servidor gera imagem de verdade com esse modelo, sem o bloqueio
+// de billing que afeta o Gemini/Imagen hoje.
 router.post('/image/generate-openrouter', async (req, res) => {
   try {
     const { descricao } = req.body || {}
     if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
 
     const userKey = await getUserApiKey(pool, req.user.id, 'openrouter')
-    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
+    const usandoChaveServidor = !userKey
+    const key = userKey || process.env.OPENROUTER_API_KEY
+    if (!key) return res.status(402).json({ erro: 'sem_chave' })
 
     const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey: userKey, baseURL: 'https://openrouter.ai/api/v1' })
+    const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
     const completion = await client.chat.completions.create({
       model: OPENROUTER_IMAGE_MODEL,
       modalities: ['image', 'text'],
@@ -1202,9 +1207,11 @@ router.post('/image/generate-openrouter', async (req, res) => {
     const imageUrl = message?.images?.[0]?.image_url?.url
     if (!imageUrl) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
 
-    res.json({ image: imageUrl, texto: message?.content || '' })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'openrouter', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
+    res.json({ image: imageUrl, texto: message?.content || '', chaveServidor: usandoChaveServidor })
   } catch (err) {
     console.error('[AI Image OpenRouter]', err.message)
+    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'openrouter', detalhes: err.message })
     if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
     return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
   }
