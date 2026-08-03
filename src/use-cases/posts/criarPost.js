@@ -18,17 +18,21 @@ const crypto = require('crypto')
 const { pipeline } = require('stream/promises')
 
 // Instagram e TikTok só aceitam imagens em JPEG — converte antes de publicar,
-// em vez de bloquear o post. Para o TikTok, também redimensiona para 9:16 —
-// isso troca a proporção real da imagem quando Instagram e TikTok são
-// marcados juntos com a MESMA mídia compartilhada, então a validação de
-// proporção do Instagram (isAspectRatioValidForInstagram) precisa das
-// dimensões finais pós-conversão, não do arquivo original enviado.
+// em vez de bloquear o post.
+//
+// resizeForTiktok é decidido pelo CHAMADOR, não por "platforms.includes
+// ('tiktok')" — quando Instagram e TikTok são marcados juntos com a MESMA
+// mídia compartilhada, redimensionar aqui contaminaria a versão que vai
+// pro Instagram também (bug real: um post com Instagram+TikTok e uma foto
+// horizontal/quadrada falhava no Instagram com "aspect ratio outside
+// allowed range" mesmo a foto original sendo compatível, porque a única
+// versão gerada já tinha sido forçada para 9:16 pensando só no TikTok).
+// Ver processarMidiaParaRedes, que decide isso por rede.
 // dimensoesPorPath acumula width/height de cada imagem tocada aqui (a
 // resolução real que efetivamente será publicada), lido depois em
 // processarMidia — evita rebaixar (fetch) a URL final de novo só para medir.
-async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
+async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, resizeForTiktok) {
   if (!platforms.includes('instagram') && !platforms.includes('tiktok')) return files
-  const resizeForTiktok = platforms.includes('tiktok')
 
   return Promise.all(files.map(async f => {
     if (!f.mimetype.startsWith('image/')) return f
@@ -89,10 +93,12 @@ async function probarVideos(files) {
 // anexa mídia independente num card (mediaByPlatform). Ver migrations/035.
 // igFormat: formato escolhido para o Instagram ('post'/'reel'/'story') — só
 // relevante quando 'instagram' está em platforms; decide a faixa de
-// proporção aceita (ver domain/posts/videoRules.js).
-async function processarMidia(media, captions, platforms, igFormat) {
+// proporção aceita (ver domain/posts/videoRules.js). resizeForTiktok:
+// decidido pelo chamador (ver processarMidiaParaRedes) para nunca
+// redimensionar a mídia usada por outra rede além do TikTok.
+async function processarMidia(media, captions, platforms, igFormat, resizeForTiktok) {
   const dimensoesPorPath = {}
-  const files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath)
+  const files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath, resizeForTiktok)
   const probes = await probarVideos(files)
   const items = montarItensMedia(files, captions)
   const mediaType = items[0]?.type || null
@@ -227,22 +233,42 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
       throw new ValidationError(`URL de mídia inválida em mediaByPlatform.${platform} — envie o arquivo pelo upload padrão.`)
   }
 
-  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat)
+  // A mídia COMPARTILHADA nunca é redimensionada para o TikTok (resizeForTiktok:
+  // false) — isso evita que uma foto horizontal/quadrada compatível com o
+  // Instagram vire 9:16 "achatada" na versão usada por TODAS as redes sem
+  // mídia própria, quebrando o Instagram quando os dois são marcados juntos
+  // com a mesma foto (bug real, corrigido — ver comentário em
+  // converterMidiasSeNecessario).
+  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat, false)
   const mediaPath = items[0]?.path || null
   const mediaItems = items.length > 1 ? items : null
 
   // Processa a mídia própria de cada rede que tiver (em paralelo) — o
   // resultado alimenta tanto a validação por rede (domain/posts/post.js)
-  // quanto o que é gravado em post_accounts.media_items por conta.
+  // quanto o que é gravado em post_accounts.media_items por conta. TikTok
+  // sempre entra aqui quando está entre as plataformas e é uma foto — mesmo
+  // sem o usuário ter escolhido mídia independente manualmente — para ganhar
+  // sua própria versão redimensionada (9:16) sem afetar a mídia compartilhada
+  // usada pelas demais redes. Se o usuário JÁ escolheu mídia independente
+  // para o TikTok (mediaByPlatform.tiktok), usa essa (não a compartilhada)
+  // como origem do redimensionamento, respeitando a escolha dele.
   const platformsComMidiaPropria = Object.keys(mediaByPlatform).filter(p => platforms.includes(p))
+  const tiktokPrecisaDeVersaoPropria = platforms.includes('tiktok') && !platformsComMidiaPropria.includes('tiktok') && mediaType === 'image'
+  const todasComMidiaPropria = tiktokPrecisaDeVersaoPropria ? [...platformsComMidiaPropria, 'tiktok'] : platformsComMidiaPropria
+
   const resultadosPorPlataforma = await Promise.all(
-    platformsComMidiaPropria.map(p => processarMidia(mediaByPlatform[p], captionsByPlatform[p] || [], [p], igFormat))
+    todasComMidiaPropria.map(p => {
+      const origemMedia = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? media : mediaByPlatform[p]
+      const origemCaptions = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? captions : (captionsByPlatform[p] || [])
+      const resizeParaEssaChamada = p === 'tiktok'
+      return processarMidia(origemMedia, origemCaptions, [p], igFormat, resizeParaEssaChamada)
+    })
   )
   const itemsByPlatform = {}
   const aspectRatioValidoTiktokByPlatform = {}
   const aspectRatioValidoInstagramByPlatform = {}
   const shortElegivelByPlatform = {}
-  platformsComMidiaPropria.forEach((p, i) => {
+  todasComMidiaPropria.forEach((p, i) => {
     itemsByPlatform[p] = resultadosPorPlataforma[i].items
     aspectRatioValidoTiktokByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoTiktok
     aspectRatioValidoInstagramByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoInstagram
