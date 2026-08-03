@@ -6,11 +6,9 @@ const { registrarLog, broadcastEvent } = require('../../repositories/logsReposit
 const tokensRepo = require('../../repositories/tokensRepository')
 const postsRepo = require('../db/postsRepository')
 const { decrypt } = require('../../services/tokenCrypto')
-const { publicarFacebook } = require('./facebookPublisher')
 const { statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
-const { publicarZernioInstagram } = require('./zernioPublisher')
+const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('./zernioPublisher')
 const { publicarYoutube } = require('./youtubePublisher')
-const { publicarTiktok } = require('./tiktokPublisher')
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
@@ -68,27 +66,23 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
 // TikTok não retorna um ID público utilizável (a Content Posting API
 // devolve só um publish_id interno, assíncrono) — fica sem métricas.
 function extrairExternalId(platform, data) {
-  if (platform === 'facebook') return data?.id || null
-  // Instagram publica via Zernio — o objeto post devolvido usa "_id" (estilo
-  // Mongo), não "id". Ver src/infra/social/zernioPublisher.js.
+  // Facebook/Instagram/TikTok publicam via Zernio — o objeto post devolvido
+  // usa "_id" (estilo Mongo), não "id". Ver src/infra/social/zernioPublisher.js.
+  if (platform === 'facebook') return data?._id || null
   if (platform === 'instagram') return data?._id || null
+  if (platform === 'tiktok') return data?._id || null
   if (platform === 'youtube') return data?.id || null
-  // O Content Posting API só devolve um publish_id (identificador da
-  // operação de publicação) — não o ID do vídeo em si, que a API não expõe
-  // de volta nessa chamada. Serve para rastrear o post via /v2/post/publish/status/fetch/.
-  if (platform === 'tiktok') return data?.publish_id || null
   return null
 }
 
-// Instagram publica via Zernio agora (docs.zernio.com) — ver
-// src/infra/social/zernioPublisher.js e src/routes/oauth.js
-// (syncZernioAccount). Facebook e TikTok continuam na integração direta até
-// serem migrados também (Fase 2).
+// Facebook/Instagram/TikTok publicam via Zernio agora (docs.zernio.com) —
+// ver src/infra/social/zernioPublisher.js e src/routes/oauth.js
+// (syncZernioAccount). YouTube continua na integração direta.
 const PUBLISHERS = {
-  facebook: publicarFacebook,
+  facebook: publicarZernioFacebook,
   instagram: publicarZernioInstagram,
   youtube: publicarYoutube,
-  tiktok: publicarTiktok
+  tiktok: publicarZernioTiktok
 }
 
 // Distingue falha transitória (vale tentar de novo mais tarde: 5xx, rate

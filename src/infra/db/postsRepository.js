@@ -207,10 +207,14 @@ async function reagendarParaRetry(id, nextRetryAt) {
 // guardam só a PRIMEIRA rede publicada (usadas por comentários/inbox, que só
 // precisam de algum ID do post) — não sobrescreve se já houver uma, para não
 // perder qual foi a primeira quando publicando em paralelo.
-// Redes com endpoint de comentário na API oficial — TikTok não tem (a
-// Content Posting API não expõe comentários), então nunca entra na fila
-// do primeiro comentário automático.
-const PLATAFORMAS_COM_COMENTARIO = ['facebook', 'instagram', 'youtube']
+// Redes com endpoint de comentário na API oficial, publicado via este fluxo
+// separado (cron, depois do post já estar no ar) — só o YouTube ainda usa
+// esse caminho. Facebook/Instagram/TikTok migraram para o Zernio, que posta
+// o firstComment nativamente no momento da publicação (ver
+// src/infra/social/zernioPublisher.js) — colocar essas redes aqui de novo
+// duplicaria o comentário ou falharia, já que o token guardado para elas
+// não é mais um access_token real da Graph API/Content Posting API.
+const PLATAFORMAS_COM_COMENTARIO = ['youtube']
 
 async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt, accountId = null }) {
   // accountId sempre vem preenchido no fluxo atual (publisher.js resolve a

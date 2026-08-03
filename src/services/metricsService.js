@@ -1,6 +1,7 @@
 const { buscarContaToken, listarContasToken } = require('../infra/social/publisher')
 const contasRepo = require('../repositories/contasRepository')
 const tokensRepo = require('../repositories/tokensRepository')
+const zernioClient = require('../infra/social/zernioClient')
 
 // Access tokens do Google (YouTube) expiram em ~1h. Se o token estiver
 // expirado (ou prestes a expirar) na hora de buscar métricas, a Data API e a
@@ -8,9 +9,13 @@ const tokensRepo = require('../repositories/tokensRepository')
 // margem de segurança evita usar um token que expira no meio da chamada.
 const TOKEN_EXPIRY_MARGIN_MS = 2 * 60 * 1000
 
-// Plataformas com API de métricas acessível com os escopos já usados na conexão.
-// TikTok (sem ID público de vídeo) não é suportado.
-const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'youtube']
+// Plataformas com API de métricas acessível com os escopos já usados na
+// conexão. Facebook/Instagram/TikTok publicam via Zernio agora — o Zernio
+// também é quem tem os dados de analytics dessas contas (nosso token direto
+// não é mais válido para chamar a Graph API/Content Posting API). TikTok
+// passou a ser suportado (antes não tinha ID público de post/vídeo; o
+// Zernio devolve um platformPostId real).
+const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'tiktok', 'youtube']
 
 // Sem timeout, um fetch a uma API externa lenta ou travada bloqueia
 // indefinidamente a tela de Analytics inteira (Promise.allSettled só resolve
@@ -29,42 +34,22 @@ async function fetchComTimeout(url, opts = {}) {
   }
 }
 
-// Facebook não expõe visualizações para posts comuns de feed (foto/texto) no
-// Graph API público — só vídeo, via Insights API com a permissão extra
-// read_insights, que a conexão atual não solicita. Por isso views fica null
-// aqui, em vez de inventar um número.
-async function metricsFacebook(token, externalPostId) {
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}?fields=likes.summary(true),comments.summary(true)&access_token=${encodeURIComponent(token.accessToken)}`
-  const res = await fetchComTimeout(url)
-  const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `Facebook respondeu ${res.status}`)
-  return { likes: data.likes?.summary?.total_count ?? null, comments: data.comments?.summary?.total_count ?? null, views: null }
-}
-
-// O Instagram descontinuou os campos diretos "impressions"/"plays" no objeto
-// da mídia (Graph API v19+ retorna "Tried accessing nonexisting field").
-// Visualizações de qualquer tipo de mídia (foto, carrossel, vídeo, Reels)
-// agora só ficam disponíveis pelo endpoint de Insights, com a métrica
-// "views" — que por sua vez exige o escopo instagram_business_manage_insights
-// na conexão OAuth (contas conectadas antes dessa permissão existir
-// precisam ser reconectadas; até lá, a chamada abaixo retorna 403 e views
-// fica null).
-async function metricsInstagram(token, externalPostId) {
-  const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}?fields=like_count,comments_count&access_token=${encodeURIComponent(token.accessToken)}`
-  const insightsUrl = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/insights?metric=views&access_token=${encodeURIComponent(token.accessToken)}`
-
-  // likes/comments e views são endpoints independentes — busca em paralelo em vez
-  // de sequencial, já que um não depende do resultado do outro.
-  const [res, viewsResult] = await Promise.all([
-    fetchComTimeout(url),
-    fetchComTimeout(insightsUrl).then(async r => ({ ok: r.ok, data: await r.json() })).catch(() => null)
-  ])
-  const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `Instagram respondeu ${res.status}`)
-
-  const views = viewsResult?.ok ? (viewsResult.data.data?.[0]?.values?.[0]?.value ?? null) : null
-
-  return { likes: data.like_count ?? null, comments: data.comments_count ?? null, views }
+// Facebook/Instagram/TikTok publicam via Zernio agora — as métricas também
+// vêm de lá. GET /v1/analytics não aceita filtro por post via query
+// (testado em 2026-08-03), então busca a lista inteira e acha o post pelo
+// platformPostId (external_post_id salvo em post_publications). Ineficiente
+// em volume alto, mas aceitável no volume atual do app; revisar se o Zernio
+// expuser um filtro server-side no futuro.
+async function metricsZernio(token, externalPostId) {
+  const { posts } = await zernioClient.getAnalytics()
+  for (const post of posts) {
+    const plataforma = post.platforms?.find(p => p.platformPostId === externalPostId)
+    if (plataforma) {
+      const a = plataforma.analytics || {}
+      return { likes: a.likes ?? null, comments: a.comments ?? null, views: a.views ?? null }
+    }
+  }
+  return { likes: null, comments: null, views: null }
 }
 
 // Tempo médio de visualização (em segundos) de um vídeo específico, via
@@ -109,8 +94,9 @@ async function metricsYoutube(token, externalPostId) {
 }
 
 const METRIC_FETCHERS = {
-  facebook: metricsFacebook,
-  instagram: metricsInstagram,
+  facebook: metricsZernio,
+  instagram: metricsZernio,
+  tiktok: metricsZernio,
   youtube: metricsYoutube
 }
 

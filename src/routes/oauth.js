@@ -154,30 +154,97 @@ function checkEnv(vars, platform) {
   return null;
 }
 
-// ─── Facebook ─────────────────────────────────────────────────────────────────
+const ZERNIO_PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
 
-router.get('/meta', requireAuth, (req, res) => {
-  const configError = checkEnv(['META_APP_ID', 'META_APP_SECRET', 'META_REDIRECT_URI'], 'facebook');
+// O Zernio (docs.zernio.com) processa o OAuth inteiro sozinho para
+// Facebook/Instagram/TikTok — não manda nenhum "code" pra gente processar,
+// quando o navegador chega no nosso /*/zernio-return a conta JÁ está
+// conectada do lado deles. Só precisamos descobrir QUAL conta foi essa (o
+// Zernio não sabe nada sobre nosso userId) e espelhar em contas/tokens. A
+// heurística é a mesma já usada em contasRepository.criarContaRapida para
+// outras redes: como não há um ID de correlação direto, casamos pela conta
+// mais recente daquela plataforma — suficiente para o uso atual (uma
+// conexão por vez), mas pode casar errado se o usuário conectar 2 contas da
+// mesma rede em abas paralelas.
+async function syncZernioAccount(platform, userId, accountName) {
+  const { accounts } = await zernioClient.listAccounts();
+  const daPlataforma = accounts.filter(a => a.platform === platform);
+  const escolhida = daPlataforma[daPlataforma.length - 1];
+  if (!escolhida) throw new Error(`Nenhuma conta do ${ZERNIO_PLATFORM_LABELS[platform] || platform} encontrada no Zernio após a conexão`);
+
+  const nomeFinal = accountName || escolhida.username || escolhida.name || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
+  const conta = await contasRepo.criarContaRapida({
+    name: nomeFinal,
+    platform,
+    userId,
+    avatarUrl: escolhida.profilePictureUrl || escolhida.avatarUrl || null,
+    externalUserId: escolhida._id
+  });
+
+  await contasRepo.definirZernioAccountId(conta.id, escolhida._id);
+
+  // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
+  // accountId do Zernio no lugar do access_token (já é uma string opaca) e
+  // sem data de expiração: quem renova é o Zernio, não nós. calcularStatus()
+  // já trata expiresAt=null como 'valid' permanentemente.
+  await tokensRepo.salvarToken({
+    accountId: conta.id,
+    platform,
+    accessToken: escolhida._id,
+    expiresAt: null,
+    accountName: nomeFinal
+  });
+
+  return conta;
+}
+
+// ─── Facebook (via Zernio, docs.zernio.com) ────────────────────────────────────
+// Mesmo padrão do Instagram (ver bloco abaixo) — o Zernio processa o OAuth
+// inteiro e devolve o navegador para /meta/zernio-return via o parâmetro
+// redirectUrl. Antes conectava via JS SDK (FB.login), agora usa o mesmo
+// popup+redirect das demais redes — troca refletida em public/app.html
+// (startOAuth, oauthMap.facebook = 'meta').
+
+router.get('/meta', requireAuth, async (req, res) => {
+  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
   const { accountName } = req.query;
   const platform = 'facebook';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const scopes = [
-    'pages_manage_posts',
-    'pages_read_engagement',
-    'public_profile'
-  ].join(',');
+  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/meta/zernio-return?state=${encodeURIComponent(state)}`;
 
-  const url = `https://www.facebook.com/v18.0/dialog/oauth` +
-    `?client_id=${process.env.META_APP_ID}` +
-    `&redirect_uri=${encodeURIComponent(process.env.META_REDIRECT_URI)}` +
-    `&scope=${scopes}` +
-    `&state=${state}` +
-    `&response_type=code`;
+  try {
+    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    addLog('info', `OAuth Facebook (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
+    res.json({ authUrl });
+  } catch (err) {
+    addLog('err', `Falha ao iniciar OAuth Facebook via Zernio: ${err.message}`, platform, null, req.user.id);
+    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o Facebook no momento.' });
+  }
+});
 
-  addLog('info', `OAuth Facebook iniciado para "${accountName}"`, platform, null, req.user.id);
-  res.json({ authUrl: url });
+router.get('/meta/zernio-return', async (req, res) => {
+  const { state } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  const platform = 'facebook';
+
+  if (!meta.userId) {
+    addLog('err', 'Falha no retorno do Zernio (Facebook): state inválido ou sem usuário associado', platform);
+    return res.send(popupError('oauth_failed'));
+  }
+
+  try {
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
+    addLog('ok', `Conta Facebook conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha ao sincronizar conta Facebook do Zernio: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
 });
 
 // Troca um access_token de usuário do Facebook (curta ou já longa duração)
@@ -311,49 +378,6 @@ router.get('/instagram', requireAuth, async (req, res) => {
   }
 });
 
-// O Zernio não manda nenhum "code" pra gente processar — quando o navegador
-// chega aqui, a conta JÁ está conectada do lado deles. Só precisamos
-// descobrir QUAL conta foi essa (o Zernio não sabe nada sobre nosso userId)
-// e espelhar em contas/tokens. A heurística é a mesma já usada em
-// contasRepository.criarContaRapida para outras redes: como não há um ID de
-// correlação direto, casamos pela conta mais recente daquela plataforma que
-// ainda não estava na nossa lista antes de iniciar este fluxo.
-async function syncZernioAccount(platform, userId, accountName, contasAntes) {
-  const { accounts } = await zernioClient.listAccounts();
-  const daPlataforma = accounts.filter(a => a.platform === platform);
-  const idsAntes = new Set(contasAntes.map(a => a._id));
-  const novas = daPlataforma.filter(a => !idsAntes.has(a._id));
-  // Se não achou nenhuma conta "nova" (ex.: reconexão de uma já existente),
-  // cai para a mais recente da plataforma como fallback.
-  const escolhida = novas[0] || daPlataforma[daPlataforma.length - 1];
-  if (!escolhida) throw new Error('Nenhuma conta do Instagram encontrada no Zernio após a conexão');
-
-  const nomeFinal = accountName || escolhida.username || escolhida.name || 'Nova Conta Instagram';
-  const conta = await contasRepo.criarContaRapida({
-    name: nomeFinal,
-    platform,
-    userId,
-    avatarUrl: escolhida.profilePictureUrl || escolhida.avatarUrl || null,
-    externalUserId: escolhida._id
-  });
-
-  await contasRepo.definirZernioAccountId(conta.id, escolhida._id);
-
-  // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
-  // accountId do Zernio no lugar do access_token (já é uma string opaca) e
-  // sem data de expiração: quem renova é o Zernio, não nós. calcularStatus()
-  // já trata expiresAt=null como 'valid' permanentemente.
-  await tokensRepo.salvarToken({
-    accountId: conta.id,
-    platform,
-    accessToken: escolhida._id,
-    expiresAt: null,
-    accountName: nomeFinal
-  });
-
-  return conta;
-}
-
 router.get('/instagram/zernio-return', async (req, res) => {
   const { state } = req.query;
 
@@ -368,14 +392,7 @@ router.get('/instagram/zernio-return', async (req, res) => {
   }
 
   try {
-    // contasAntes precisaria ter sido capturado ANTES do redirect para o
-    // Zernio — como não temos esse snapshot aqui (o state só carrega
-    // accountName/platform/userId), a sync usa direto o fallback "mais
-    // recente da plataforma". Suficiente para o uso atual (uma conexão por
-    // vez), mas pode casar errado se o usuário conectar 2 contas da mesma
-    // rede em abas paralelas — risco aceito por ora, mesmo padrão de
-    // "assume a mais recente" já usado em outras partes do código.
-    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, []);
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
     addLog('ok', `Conta Instagram conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
@@ -541,11 +558,51 @@ const TIKTOK_SCOPES = [
   'video.upload'
 ];
 
+// TikTok agora conecta via Zernio (docs.zernio.com), mesmo padrão de
+// Facebook/Instagram — sem PKCE nosso (iniciarOAuthTiktok/salvarPkceVerifier/
+// consumirPkceVerifier ficam como código morto, não removido ainda). Isso
+// também elimina o mecanismo que já causou um crash-loop histórico (INSERT
+// duplicado de PKCE em oauth_pkce_state ao reconectar).
 router.get('/tiktok', requireAuth, async (req, res) => {
-  await iniciarOAuthTiktok(req, res, {
-    scopes: TIKTOK_SCOPES,
-    logMessage: `OAuth TikTok iniciado para "${req.query.accountName}"`
-  });
+  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'tiktok');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'tiktok';
+  const state = signState({ accountName, platform, userId: req.user.id });
+  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/tiktok/zernio-return?state=${encodeURIComponent(state)}`;
+
+  try {
+    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    addLog('info', `OAuth TikTok (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
+    res.json({ authUrl });
+  } catch (err) {
+    addLog('err', `Falha ao iniciar OAuth TikTok via Zernio: ${err.message}`, platform, null, req.user.id);
+    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o TikTok no momento.' });
+  }
+});
+
+router.get('/tiktok/zernio-return', async (req, res) => {
+  const { state } = req.query;
+
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  const platform = 'tiktok';
+
+  if (!meta.userId) {
+    addLog('err', 'Falha no retorno do Zernio (TikTok): state inválido ou sem usuário associado', platform);
+    return res.send(popupError('oauth_failed'));
+  }
+
+  try {
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
+    addLog('ok', `Conta TikTok conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha ao sincronizar conta TikTok do Zernio: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
 });
 
 router.get('/tiktok/google', requireAuth, async (req, res) => {

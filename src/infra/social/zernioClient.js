@@ -119,8 +119,15 @@ async function getPost(postId) {
   return zernioFetch(`/posts/${postId}`)
 }
 
+// GET /v1/analytics não aceita filtro por post/conta via query (testado em
+// 2026-08-03: ?postId= e ?accountId= são ignorados, sempre devolve a lista
+// inteira) — busca tudo e filtra no nosso lado.
+async function getAnalytics() {
+  return zernioFetch('/analytics')
+}
+
 module.exports = {
   ZernioError,
   connectUrl, listAccounts, getAccountHealth, disconnectAccount, listProfiles,
-  createPost, getPost
+  createPost, getPost, getAnalytics
 }

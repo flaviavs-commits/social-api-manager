@@ -6,8 +6,6 @@ const tokensRepo = require('../repositories/tokensRepository')
 const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
 const { verificarSaudePlataformas } = require('./platformHealth')
-const { comentarFacebook } = require('../infra/social/facebookPublisher')
-const { comentarInstagram } = require('../infra/social/instagramPublisher')
 const { comentarYoutube } = require('../infra/social/youtubePublisher')
 
 // Retry automático de publicação com falha transitória (5xx/rate limit/rede)
@@ -143,9 +141,9 @@ async function renovarTokensProativamente() {
 
 // Publishers de comentário por rede — só as que têm endpoint de comentário
 // na API oficial (ver postsRepository.js, PLATAFORMAS_COM_COMENTARIO).
+// Facebook/Instagram/TikTok não entram mais aqui: migraram para o Zernio,
+// que posta o firstComment nativamente na publicação (ver zernioPublisher.js).
 const COMENTAR_POR_PLATAFORMA = {
-  facebook: comentarFacebook,
-  instagram: comentarInstagram,
   youtube: comentarYoutube
 }
 

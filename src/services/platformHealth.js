@@ -1,6 +1,7 @@
 const pool = require('../db/pool')
 const { decrypt } = require('./tokenCrypto')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
+const zernioClient = require('../infra/social/zernioClient')
 
 // Quantas falhas seguidas até considerar a plataforma "fora do ar". Evita
 // marcar como down por causa de uma falha isolada de rede (flakiness).
@@ -8,31 +9,41 @@ const FAIL_THRESHOLD = 2
 
 const PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
 
+// Facebook/Instagram/TikTok publicam via Zernio agora — o access_token
+// guardado para essas contas não é mais um token real da Graph API/Content
+// Posting API, é o accountId do Zernio (ver src/routes/oauth.js,
+// syncZernioAccount), então a sonda de saúde chama a API deles em vez de
+// bater direto na rede social.
+const PLATAFORMAS_VIA_ZERNIO = ['instagram', 'facebook', 'tiktok']
+
 // Chamada leve (não conta como publicação) só para verificar se a API da
-// plataforma está respondendo, usando o token de uma conta conectada
-// qualquer como sonda.
+// plataforma está respondendo, usando o token/accountId de uma conta
+// conectada qualquer como sonda.
 async function pingPlatform(platform, accessToken) {
+  if (PLATAFORMAS_VIA_ZERNIO.includes(platform)) {
+    try {
+      // accessToken aqui é o zernio_account_id (ver buscarTokenSonda).
+      const health = await zernioClient.getAccountHealth(accessToken)
+      // status "healthy"/"degraded"/"disconnected" observados em teste real
+      // — só "disconnected" (token realmente inválido no Zernio) conta como
+      // falha de disponibilidade; degraded ainda posta.
+      return { ok: health?.status !== 'disconnected', message: health?.status }
+    } catch (err) {
+      return { ok: false, message: err.message || 'erro ao consultar saúde no Zernio' }
+    }
+  }
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
   try {
     let url
-    if (platform === 'facebook') {
-      url = `https://graph.facebook.com/v19.0/me?access_token=${encodeURIComponent(accessToken)}`
-    } else if (platform === 'instagram') {
-      url = `https://graph.instagram.com/me?fields=id&access_token=${encodeURIComponent(accessToken)}`
-    } else if (platform === 'youtube') {
+    if (platform === 'youtube') {
       url = `https://www.googleapis.com/youtube/v3/channels?part=id&mine=true`
-    } else if (platform === 'tiktok') {
-      url = `https://open.tiktokapis.com/v2/user/info/?fields=open_id`
     } else {
       return { ok: false, message: 'plataforma desconhecida' }
     }
 
-    const headers = ['youtube', 'tiktok'].includes(platform)
-      ? { Authorization: `Bearer ${accessToken}` }
-      : {}
-
-    const res = await fetch(url, { headers, signal: controller.signal })
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal: controller.signal })
 
     // 401/403 = token inválido, não é a API estar fora do ar — não conta como falha de disponibilidade
     if (res.status === 401 || res.status === 403) return { ok: true }
@@ -49,6 +60,20 @@ async function pingPlatform(platform, accessToken) {
 }
 
 async function buscarTokenSonda(platform) {
+  // Para redes via Zernio, zernio_account_id é o identificador certo a usar
+  // (access_token guardado é só um espelho opaco do mesmo valor, ver
+  // src/routes/oauth.js/syncZernioAccount) — busca direto da coluna dedicada
+  // para não depender de decifrar o "access_token" fake.
+  if (PLATAFORMAS_VIA_ZERNIO.includes(platform)) {
+    const { rows } = await pool.query(`
+      SELECT c.zernio_account_id AS "zernioAccountId"
+      FROM tokens t JOIN contas c ON c.id = t.conta_id
+      WHERE t.platform = $1 AND t.status != 'expired' AND c.zernio_account_id IS NOT NULL
+      ORDER BY t.id DESC LIMIT 1
+    `, [platform])
+    return rows[0]?.zernioAccountId || null
+  }
+
   const { rows } = await pool.query(`
     SELECT access_token AS "accessToken"
     FROM tokens

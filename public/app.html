@@ -6698,83 +6698,13 @@ async function startOAuthGoogle() {
   }
 }
 
-// ── Facebook via JS SDK (FB.login) ──────────────────────────────────────────
-// O Facebook é a única rede conectada via SDK client-side (FB.login), em vez
-// do redirect de página inteira usado pelas demais (Instagram/YouTube/TikTok) —
-// o SDK abre um popup gerenciado pelo próprio Facebook e já devolve um
-// accessToken pronto no navegador, sem precisar do "code" trocado no backend.
-let fbSdkLoadPromise = null;
-
-function loadFacebookSdk(appId) {
-  if (window.FB) return Promise.resolve(window.FB);
-  if (fbSdkLoadPromise) return fbSdkLoadPromise;
-
-  fbSdkLoadPromise = new Promise((resolve, reject) => {
-    window.fbAsyncInit = function () {
-      FB.init({ appId, cookie: true, xfbml: false, version: 'v19.0' });
-      resolve(window.FB);
-    };
-    const script = document.createElement('script');
-    script.src = 'https://connect.facebook.net/pt_BR/sdk.js';
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = 'anonymous';
-    script.onerror = () => reject(new Error(window.i18n.t('error.sdkFacebookNaoCarregou')));
-    document.body.appendChild(script);
-  });
-  return fbSdkLoadPromise;
-}
-
-async function connectFacebookViaSdk(accountName) {
-  const btn = document.querySelector('#modal-nova-conta .btn-accent');
-  if (btn) { btn.disabled = true; btn.textContent = window.i18n.t('common.aguarde'); }
-
-  try {
-    const cfg = await apiFetch('/api/config');
-    if (!cfg.facebookAppId) {
-      showOAuthConfigError({ error: 'META_APP_ID não configurado', detail: 'Abra o arquivo .env e preencha META_APP_ID com a credencial correspondente.' });
-      return;
-    }
-
-    const FB = await loadFacebookSdk(cfg.facebookAppId);
-
-    const response = await new Promise(resolve => {
-      FB.login(resolve, { scope: 'pages_manage_posts,pages_read_engagement,public_profile' });
-    });
-
-    if (response.status !== 'connected' || !response.authResponse?.accessToken) {
-      showToast(window.i18n.t('toast.conexaoFacebookCancelada'), 'err');
-      return;
-    }
-
-    closeModal();
-    showToast(window.i18n.t('toast.conectandoContaFacebook'), 'ok');
-
-    await apiFetch('/auth/meta/sdk-login', {
-      method: 'POST',
-      body: JSON.stringify({ accessToken: response.authResponse.accessToken, accountName })
-    });
-
-    showToast(window.i18n.t('toast.contaConectadaSucesso'), 'ok');
-    loadTokens();
-    loadDashboard();
-    initSchedulerDefaultPlatforms();
-  } catch (e) {
-    showToast(window.i18n.t('toast.erroConexaoPrefixo') + e.message, 'err');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = window.i18n.t('account.conectarConta'); }
-  }
-}
-
 async function startOAuth() {
   const platform = document.getElementById('modal-platform').value;
   const name     = resolveInputName('modal-name');
 
   if (!name || name === window.i18n.t('account.novaConta')) return showToast(window.i18n.t('toast.informeNomeOuLinkConta'), 'err');
 
-  if (platform === 'facebook') return connectFacebookViaSdk(name);
-
-  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok' };
+  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok', facebook:'meta' };
   const provider = oauthMap[platform];
 
   // Nome único evita reaproveitar/colidir com uma janela "_blank" anterior.
