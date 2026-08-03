@@ -206,6 +206,14 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null, exte
   return conta
 }
 
+// Grava o accountId do Zernio (docs.zernio.com) numa conta — usado nas redes
+// migradas para essa integração (Facebook/Instagram/TikTok), onde o Zernio
+// detém o token OAuth real e nosso lado só guarda esse identificador para
+// chamar a API deles. Ver migrations/040 e src/infra/social/zernioClient.js.
+async function definirZernioAccountId(contaId, zernioAccountId) {
+  await pool.query(`UPDATE contas SET zernio_account_id = $1 WHERE id = $2`, [zernioAccountId, contaId])
+}
+
 // Localiza todas as contas conectadas (de qualquer usuário) cujo ID externo
 // na rede social bate com o informado — usado pelo Data Deletion Callback da
 // Meta, que identifica o usuário pelo facebook_user_id, não pelo handle.
@@ -321,7 +329,7 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 
 module.exports = {
   getDashboardStats, listarContas, listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
-  buscarContasPorExternalUserId, apagarDadosDaConta,
+  buscarContasPorExternalUserId, apagarDadosDaConta, definirZernioAccountId,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
   registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok,
   registrarSnapshotSeguidoresYoutube, buscarHistoricoSeguidoresYoutube

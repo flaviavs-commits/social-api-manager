@@ -497,6 +497,9 @@ async function runMigrations() {
       await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS post_metrics_history_post_platform_day
         ON post_metrics_history (post_id, platform, captured_on)`).catch(() => {})
     })().catch(() => {}),
+    // Contas migradas para a integração via Zernio (docs.zernio.com) guardam
+    // aqui o accountId deles — ver migrations/040 e src/infra/social/zernioClient.js.
+    pool.query(`ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_account_id TEXT`).catch(() => {}),
   ])
 }
 

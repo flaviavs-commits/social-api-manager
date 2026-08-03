@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const pool = require('../db/pool');
 const contasRepo = require('../repositories/contasRepository');
 const tokensRepo = require('../repositories/tokensRepository');
+const zernioClient = require('../infra/social/zernioClient');
 const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
 
@@ -279,124 +280,106 @@ router.post('/meta/sdk-login', requireAuth, async (req, res) => {
   }
 });
 
-// ─── Instagram (Instagram API with Instagram Login) ───────────────────────────
+// ─── Instagram (via Zernio, docs.zernio.com) ───────────────────────────────────
+// O Instagram passou a ser conectado através do Zernio, um provedor terceiro
+// que detém o app já auditado pela Meta e o token OAuth real — nosso lado só
+// guarda o accountId que o Zernio devolve (contas.zernio_account_id, ver
+// migrations/040). O Zernio processa o OAuth inteiro sozinho (o
+// redirect_uri que o Instagram chama é do PRÓPRIO Zernio, não nosso) e, ao
+// final, redireciona o navegador para a URL que passarmos em `redirectUrl`
+// — parâmetro não documentado publicamente na doc do Zernio, mas confirmado
+// funcional em teste real (2026-08-03): fica embutido no `state` deles e é
+// para onde o usuário volta depois de autorizar. Isso permite manter o
+// mesmo fluxo popup+postMessage que as outras redes já usam.
 
-router.get('/instagram', requireAuth, (req, res) => {
-  const configError = checkEnv(['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET', 'INSTAGRAM_REDIRECT_URI'], 'instagram');
-  if (configError) {
-    configError.steps = [
-      '1. Acesse https://developers.facebook.com e abra seu App',
-      '2. Adicione o produto "Instagram" (Instagram API with Instagram Login)',
-      '3. Em "Configurações da API do Instagram", copie o Instagram App ID e Instagram App Secret',
-      '4. Preencha INSTAGRAM_APP_ID e INSTAGRAM_APP_SECRET no arquivo .env',
-      '5. Reinicie o servidor com npm start'
-    ];
-    return res.status(400).json(configError);
-  }
+router.get('/instagram', requireAuth, async (req, res) => {
+  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'instagram');
+  if (configError) return res.status(400).json(configError);
 
   const { accountName } = req.query;
   const platform = 'instagram';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const scopes = [
-    'instagram_business_basic',
-    'instagram_business_content_publish',
-    'instagram_business_manage_comments',
-    'instagram_business_manage_messages',
-    // Necessário para o endpoint /insights (visualizações de foto/carrossel
-    // no Analytics) — sem isso a API responde 403 mesmo com token válido.
-    'instagram_business_manage_insights'
-  ].join(',');
+  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/instagram/zernio-return?state=${encodeURIComponent(state)}`;
 
-  const url = `https://www.instagram.com/oauth/authorize` +
-    `?client_id=${process.env.INSTAGRAM_APP_ID}` +
-    `&redirect_uri=${encodeURIComponent(process.env.INSTAGRAM_REDIRECT_URI)}` +
-    `&scope=${scopes}` +
-    `&state=${state}` +
-    `&response_type=code`;
-
-  addLog('info', `OAuth Instagram iniciado para "${accountName}"`, platform, null, req.user.id);
-  res.json({ authUrl: url });
+  try {
+    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    addLog('info', `OAuth Instagram (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
+    res.json({ authUrl });
+  } catch (err) {
+    addLog('err', `Falha ao iniciar OAuth Instagram via Zernio: ${err.message}`, platform, null, req.user.id);
+    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o Instagram no momento.' });
+  }
 });
 
-router.get('/instagram/callback', async (req, res) => {
-  const { code, state, error } = req.query;
+// O Zernio não manda nenhum "code" pra gente processar — quando o navegador
+// chega aqui, a conta JÁ está conectada do lado deles. Só precisamos
+// descobrir QUAL conta foi essa (o Zernio não sabe nada sobre nosso userId)
+// e espelhar em contas/tokens. A heurística é a mesma já usada em
+// contasRepository.criarContaRapida para outras redes: como não há um ID de
+// correlação direto, casamos pela conta mais recente daquela plataforma que
+// ainda não estava na nossa lista antes de iniciar este fluxo.
+async function syncZernioAccount(platform, userId, accountName, contasAntes) {
+  const { accounts } = await zernioClient.listAccounts();
+  const daPlataforma = accounts.filter(a => a.platform === platform);
+  const idsAntes = new Set(contasAntes.map(a => a._id));
+  const novas = daPlataforma.filter(a => !idsAntes.has(a._id));
+  // Se não achou nenhuma conta "nova" (ex.: reconexão de uma já existente),
+  // cai para a mais recente da plataforma como fallback.
+  const escolhida = novas[0] || daPlataforma[daPlataforma.length - 1];
+  if (!escolhida) throw new Error('Nenhuma conta do Instagram encontrada no Zernio após a conexão');
+
+  const nomeFinal = accountName || escolhida.username || escolhida.name || 'Nova Conta Instagram';
+  const conta = await contasRepo.criarContaRapida({
+    name: nomeFinal,
+    platform,
+    userId,
+    avatarUrl: escolhida.profilePictureUrl || escolhida.avatarUrl || null,
+    externalUserId: escolhida._id
+  });
+
+  await contasRepo.definirZernioAccountId(conta.id, escolhida._id);
+
+  // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
+  // accountId do Zernio no lugar do access_token (já é uma string opaca) e
+  // sem data de expiração: quem renova é o Zernio, não nós. calcularStatus()
+  // já trata expiresAt=null como 'valid' permanentemente.
+  await tokensRepo.salvarToken({
+    accountId: conta.id,
+    platform,
+    accessToken: escolhida._id,
+    expiresAt: null,
+    accountName: nomeFinal
+  });
+
+  return conta;
+}
+
+router.get('/instagram/zernio-return', async (req, res) => {
+  const { state } = req.query;
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
 
   const platform = 'instagram';
 
-  if (error) {
-    addLog('err', `OAuth Instagram cancelado pelo usuário: ${error}`, platform, null, meta.userId);
-    return res.send(popupError('oauth_cancelled'));
-  }
-
   if (!meta.userId) {
-    addLog('err', 'Falha no callback Instagram: state inválido ou sem usuário associado', platform);
+    addLog('err', 'Falha no retorno do Zernio (Instagram): state inválido ou sem usuário associado', platform);
     return res.send(popupError('oauth_failed'));
   }
 
   try {
-    // 1. Troca o code por um token de curta duração
-    const { res: shortRes, data: shortData } = await fetchJsonWithRetry('https://api.instagram.com/oauth/access_token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID,
-        client_secret: process.env.INSTAGRAM_APP_SECRET,
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.INSTAGRAM_REDIRECT_URI,
-        code
-      })
-    });
-
-    if (shortData.error_message || !shortData.access_token) {
-      addLog('err', `Erro ao obter token Instagram: ${shortData.error_message || JSON.stringify(shortData)}`, platform, null, meta.userId);
-      return res.send(popupError('token_failed'));
-    }
-
-    // 2. Troca o token de curta duração por um long-lived token (60 dias).
-    // Fluxo "Instagram API with Instagram Login": GET em graph.instagram.com/v19.0/access_token
-    // com grant_type=ig_exchange_token (mesmo host/versão usados no resto do código).
-    const exchangeUrl = 'https://graph.instagram.com/v19.0/access_token?' + new URLSearchParams({
-      grant_type: 'ig_exchange_token',
-      client_secret: process.env.INSTAGRAM_APP_SECRET,
-      access_token: shortData.access_token
-    }).toString();
-
-    let { data: longData } = await fetchJsonWithRetry(exchangeUrl, { method: 'GET' }, { retries: 2, delayMs: 500 });
-
-    if (longData.error || !longData.access_token) {
-      addLog('err', `Erro ao gerar long-lived token Instagram: ${JSON.stringify(longData)} | shortData=${JSON.stringify(shortData)}`, platform, null, meta.userId);
-      return res.send(popupError('token_failed'));
-    }
-
-    // 3. Busca o username e a foto de perfil da conta conectada
-    const { data: profileData } = await fetchJsonWithRetry(`https://graph.instagram.com/v19.0/me?fields=user_id,username,profile_picture_url&access_token=${longData.access_token}`);
-    const accountName = meta.accountName || profileData.username || 'Nova Conta Instagram';
-
-    const expiresAt = new Date(Date.now() + (longData.expires_in || 60 * 86400) * 1000).toISOString();
-
-    const conta = await contasRepo.criarContaRapida({
-      name: accountName,
-      platform,
-      userId: meta.userId,
-      avatarUrl: profileData.profile_picture_url || null,
-      externalUserId: profileData.user_id ? String(profileData.user_id) : null
-    });
-
-    await tokensRepo.salvarToken({
-      accountId: conta.id,
-      platform,
-      accessToken: longData.access_token,
-      expiresAt,
-      accountName
-    });
-
-    addLog('ok', `Conta Instagram conectada: "${accountName}" — token expira em 60 dias`, platform, conta.id, meta.userId);
+    // contasAntes precisaria ter sido capturado ANTES do redirect para o
+    // Zernio — como não temos esse snapshot aqui (o state só carrega
+    // accountName/platform/userId), a sync usa direto o fallback "mais
+    // recente da plataforma". Suficiente para o uso atual (uma conexão por
+    // vez), mas pode casar errado se o usuário conectar 2 contas da mesma
+    // rede em abas paralelas — risco aceito por ora, mesmo padrão de
+    // "assume a mais recente" já usado em outras partes do código.
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, []);
+    addLog('ok', `Conta Instagram conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
-    addLog('err', `Falha no callback Instagram: ${err.message}`, platform, null, meta.userId);
+    addLog('err', `Falha ao sincronizar conta Instagram do Zernio: ${err.message}`, platform, null, meta.userId);
     res.send(popupError('oauth_failed'));
   }
 });

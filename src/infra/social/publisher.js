@@ -7,7 +7,8 @@ const tokensRepo = require('../../repositories/tokensRepository')
 const postsRepo = require('../db/postsRepository')
 const { decrypt } = require('../../services/tokenCrypto')
 const { publicarFacebook } = require('./facebookPublisher')
-const { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
+const { statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
+const { publicarZernioInstagram } = require('./zernioPublisher')
 const { publicarYoutube } = require('./youtubePublisher')
 const { publicarTiktok } = require('./tiktokPublisher')
 
@@ -68,7 +69,9 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
 // devolve só um publish_id interno, assíncrono) — fica sem métricas.
 function extrairExternalId(platform, data) {
   if (platform === 'facebook') return data?.id || null
-  if (platform === 'instagram') return data?.id || null
+  // Instagram publica via Zernio — o objeto post devolvido usa "_id" (estilo
+  // Mongo), não "id". Ver src/infra/social/zernioPublisher.js.
+  if (platform === 'instagram') return data?._id || null
   if (platform === 'youtube') return data?.id || null
   // O Content Posting API só devolve um publish_id (identificador da
   // operação de publicação) — não o ID do vídeo em si, que a API não expõe
@@ -77,9 +80,13 @@ function extrairExternalId(platform, data) {
   return null
 }
 
+// Instagram publica via Zernio agora (docs.zernio.com) — ver
+// src/infra/social/zernioPublisher.js e src/routes/oauth.js
+// (syncZernioAccount). Facebook e TikTok continuam na integração direta até
+// serem migrados também (Fase 2).
 const PUBLISHERS = {
   facebook: publicarFacebook,
-  instagram: publicarInstagram,
+  instagram: publicarZernioInstagram,
   youtube: publicarYoutube,
   tiktok: publicarTiktok
 }
