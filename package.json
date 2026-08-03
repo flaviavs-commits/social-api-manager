@@ -8,7 +8,8 @@
     "frontend:dev": "vite --config frontend/vite.config.js",
     "frontend:build": "vite build --config frontend/vite.config.js",
     "test": "set NODE_ENV=test&& jest --runInBand",
-    "test:coverage": "set NODE_ENV=test&& jest --runInBand --coverage"
+    "test:coverage": "set NODE_ENV=test&& jest --runInBand --coverage",
+    "test:components": "vitest run --config frontend/vitest.config.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -65,14 +66,20 @@
   "devDependencies": {
     "@jest/globals": "^30.4.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.5.4",
     "jest": "^30.4.2",
+    "jsdom": "^29.1.1",
     "nodemon": "^3.1.14",
     "postcss": "^8.5.25",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",
     "vercel": "^54.14.5",
-    "vite": "^7.0.6"
+    "vite": "^7.0.6",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.9.0"
