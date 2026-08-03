@@ -465,6 +465,19 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .sched-form .btn-accent { background: var(--accent); border-color: transparent; color: var(--bg); box-shadow: 0 4px 14px var(--accent-glow); }
 .sched-form .btn-accent:hover { filter: brightness(1.08); }
 
+/* Blocos numerados do formulário de agendamento — agrupa os form-group
+   soltos em seções com título, para dar hierarquia visual a um formulário
+   que tem muitos campos condicionais (config por rede) aparecendo juntos. */
+.sched-section { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px 4px; margin-bottom: 14px; background: var(--surface2); }
+.sched-section-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+.sched-section-num { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: var(--mono); }
+.sched-section > .form-group:last-child { margin-bottom: 1.1rem; }
+
+/* Painel de pendências: cada item agora é clicável e leva direto ao campo
+   com o problema (ver goToValidationIssue) — cursor+hover comunicam isso. */
+.validation-panel-item[data-field] { cursor: pointer; transition: background var(--transition); border-radius: 6px; }
+.validation-panel-item[data-field]:hover { background: rgba(255,255,255,0.06); }
+
 .preview-frame-mobile { width: 100%; max-width: 300px; transition: max-width var(--transition); }
 
 .preview-card { background: #fff; color: #000; border-radius: 10px; overflow: hidden; font-family: var(--sans); border: 1px solid rgba(0,0,0,0.08); }
@@ -1698,192 +1711,213 @@ input, select, textarea, label, .bottom-nav-item {
       <div class="sched-form" id="sched-form-dropzone" style="position:relative">
         <div id="sched-form-dropzone-overlay" style="display:none;position:absolute;inset:0;z-index:30;background:rgba(0,0,0,0.55);border:2px dashed var(--accent);border-radius:10px;align-items:center;justify-content:center;font-size:14px;font-weight:500;color:#fff;pointer-events:none" data-i18n="agendador.solteArquivos">Solte os arquivos aqui</div>
         <div id="post-validation-panel" style="display:none;margin-bottom:1rem"></div>
-        <div class="form-group">
-          <label data-i18n="agendador.labelPlataformas">📱 Plataformas</label>
-          <div id="platform-toggle-grid" class="platform-toggle-grid"></div>
-          <div id="account-preview-row" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-          <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-            <span id="account-picker-label" style="font-size:11px;color:var(--muted)"></span>
-            <a href="javascript:void(0)" onclick="openAccountPickerModal()" style="font-size:11px;color:var(--accent);text-decoration:none" data-i18n="agendador.gerenciarContasEspecificas">Gerenciar contas específicas ▾</a>
-          </div>
-          <span id="account-picker-icons" style="display:none"></span>
-        </div>
-        <div class="form-group" id="config-tabs-group" style="display:none">
-          <label data-i18n="agendador.labelConfigurarPorRede">Configurar por rede</label>
-          <div id="config-tabs-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-        </div>
-        <div class="form-group" id="post-ig-format-group" style="display:none">
-          <label data-i18n="agendador.labelFormatoInstagram">Formato (Instagram)</label>
-          <div id="ig-format-pills" style="display:flex;gap:6px"></div>
-          <div id="preset-row-instagram" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group" id="post-youtube-title-group" style="display:none">
-          <label><span data-i18n="agendador.labelTituloYoutube">Título do vídeo (YouTube)</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.obrigatorio">(obrigatório)</span></label>
-          <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" data-i18n-placeholder="agendador.placeholderTituloYoutube" oninput="onPostYoutubeTitleInput();"/>
-        </div>
-        <div class="form-group" id="post-youtube-visibility-group" style="display:none">
-          <label data-i18n="agendador.labelVisibilidadeYoutube">Visibilidade (YouTube)</label>
-          <select id="post-youtube-visibility">
-            <option value="public" data-i18n="agendador.optPublico">Público</option>
-            <option value="unlisted" data-i18n="agendador.optNaoListado">Não listado</option>
-            <option value="private" data-i18n="agendador.optPrivado">Privado</option>
-          </select>
-        </div>
-        <div class="form-group" id="post-youtube-made-for-kids-group" style="display:none">
-          <label><span data-i18n="agendador.labelFeitoParaCriancas">Feito para crianças?</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.obrigatorioYoutube">(obrigatório, exigido pelo YouTube)</span></label>
-          <select id="post-youtube-made-for-kids" onchange="if (typeof renderValidationPanel === 'function') renderValidationPanel();">
-            <option value="" data-i18n="agendador.optSelecione">Selecione...</option>
-            <option value="false" data-i18n="agendador.optNaoFeitoParaCriancas">Não, este vídeo não é feito para crianças</option>
-            <option value="true" data-i18n="agendador.optSimFeitoParaCriancas">Sim, este vídeo é feito para crianças</option>
-          </select>
-        </div>
-        <div class="form-group" id="post-youtube-category-group" style="display:none">
-          <label><span data-i18n="agendador.labelCategoria">Categoria</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcionalYoutube">(opcional, YouTube)</span></label>
-          <select id="post-youtube-category">
-            <option value="" data-i18n="agendador.optPadraoYoutube">Padrão do YouTube</option>
-          </select>
-          <div id="preset-row-youtube" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group" id="post-youtube-format-group" style="display:none">
-          <label data-i18n="agendador.labelFormatoYoutube">Formato (YouTube)</label>
-          <div id="youtube-format-pills" style="display:flex;gap:6px"></div>
-          <div id="youtube-format-warning" style="font-size:11px;color:var(--yellow);margin-top:5px;display:none"></div>
-        </div>
-        <div class="form-group" id="post-tiktok-options-group" style="display:none">
-          <label data-i18n="agendador.labelPublicacaoTiktok">Publicação (TikTok)</label>
-          <div id="tiktok-creator-info" style="font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px"></div>
-          <select id="post-tiktok-privacy" onchange="onTiktokOptionsChange()">
-            <option value="" data-i18n="agendador.optSelecioneQuemPodeVer">Selecione quem pode ver...</option>
-          </select>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
-              <input type="checkbox" id="post-tiktok-allow-comment" checked onchange="onTiktokOptionsChange()"/> <span data-i18n="agendador.checkComentarios">Comentários</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
-              <input type="checkbox" id="post-tiktok-allow-duet" checked onchange="onTiktokOptionsChange()"/> Duet
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
-              <input type="checkbox" id="post-tiktok-allow-stitch" checked onchange="onTiktokOptionsChange()"/> Stitch
-            </label>
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5" data-i18n-html="agendador.avisoTiktokEnvio">
-            O envio pode levar alguns instantes para processar. Ao publicar, você concorda com a
-            <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Music Usage Confirmation</a> do TikTok.
-          </div>
-          <div id="preset-row-tiktok" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group">
-          <label><span data-i18n="agendador.labelTextoPost">✎ Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
-          <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
-          <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="O que você quer compartilhar hoje?" data-i18n-placeholder="agendador.placeholderTextoPost" oninput="onPostTextInput()"></textarea>
 
-          <!-- Barra de ações do editor (emoji, hashtag, link, textos salvos) -->
-          <div style="display:flex;align-items:center;gap:4px;margin-top:6px;position:relative">
-            <button type="button" class="btn" style="padding:5px 8px;font-size:14px" title="Inserir emoji" data-i18n-title="agendador.tituloInserirEmoji" onclick="toggleEmojiPicker(event)">😀</button>
-            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir hashtag" data-i18n-title="agendador.tituloInserirHashtag" onclick="inserirHashtagRapida()">#</button>
-            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir link" data-i18n-title="agendador.tituloInserirLink" onclick="inserirLinkNoTexto()">🔗</button>
-            <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Textos salvos" data-i18n-title="agendador.tituloTextosSalvos" onclick="toggleSavedTextsMenu(event)">📁</button>
-            <div id="emoji-picker-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;max-width:260px;flex-wrap:wrap;padding:8px"></div>
-            <div id="saved-texts-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;min-width:220px;max-height:260px;overflow-y:auto"></div>
-          </div>
-
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
-            <span id="text-tabs-unify" style="display:none;font-size:11px;color:var(--accent);cursor:pointer" onclick="unifyPlatformTexts()" data-i18n="agendador.usarMesmoTexto">usar o mesmo texto para todas</span>
-            <span id="text-tabs-counter" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
-          </div>
-          <button type="button" class="btn" style="margin-top:6px;font-size:11px;padding:5px 10px" onclick="salvarTextoAtualComoSalvo()" data-i18n="agendador.salvarTextoReutilizar">💾 Salvar este texto para reutilizar</button>
-        </div>
-
-        <!-- Localização (Facebook/Instagram) -->
-        <div class="form-group" id="post-location-group" style="display:none">
-          <label><span data-i18n="agendador.labelLocalizacao">Localização</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcionalFacebookInstagram">(opcional, Facebook/Instagram)</span></label>
-          <div style="position:relative">
-            <input type="text" id="post-location-search" placeholder="Buscar local (ex: Av. Paulista, São Paulo)" data-i18n-placeholder="agendador.placeholderBuscarLocal" oninput="onLocationSearchInput()" autocomplete="off"/>
-            <div id="location-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;margin-top:4px;max-height:220px;overflow-y:auto"></div>
-          </div>
-          <div id="post-location-selected" style="display:none;margin-top:6px;font-size:12px;color:var(--accent);align-items:center;gap:6px">
-            <span id="post-location-selected-name"></span>
-            <span style="cursor:pointer;color:var(--muted)" onclick="limparLocalizacaoSelecionada()" title="Remover" data-i18n-title="agendador.tituloRemover">✕</span>
-          </div>
-        </div>
-
-        <!-- Primeiro comentário automático -->
-        <div class="form-group" id="post-first-comment-group" style="display:none">
-          <label><span data-i18n="agendador.labelPrimeiroComentario">Primeiro comentário</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaPrimeiroComentario">(opcional — publicado automaticamente logo após o post ir ao ar)</span></label>
-          <textarea id="post-first-comment" style="min-height:50px;resize:vertical" placeholder="Ex: link na bio, hashtags extras..." data-i18n-placeholder="agendador.placeholderPrimeiroComentario"></textarea>
-          <div id="post-first-comment-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
-        </div>
-        <div class="form-group">
-          <label><span data-i18n="agendador.labelMidia">📎 Mídia</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaMidia">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
-          <div class="media-picker">
-            <button type="button" class="btn" id="media-trigger-btn" onclick="toggleMediaMenu(event)">
-              <span class="btn-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> <span id="media-trigger-label" data-i18n="agendador.selecionarMidia">Selecionar mídia</span></span><span style="font-size:10px;color:var(--muted)">▾</span>
-            </button>
-            <div class="media-picker-menu" id="media-picker-menu">
-              <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
-                <span data-i18n="agendador.arquivosDoComputador">Arquivo(s) do computador</span>
-              </div>
-              <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 19H2l4-12h12l4 12z"/><path d="M2 19l3-7h14l3 7"/></svg>
-                Google Drive
-              </div>
+        <!-- 1. Plataformas -->
+        <div class="sched-section">
+          <div class="sched-section-title"><span class="sched-section-num">1</span> <span data-i18n="agendador.labelPlataformas">📱 Plataformas</span></div>
+          <div class="form-group" style="margin-bottom:0">
+            <div id="platform-toggle-grid" class="platform-toggle-grid"></div>
+            <div id="account-preview-row" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+              <span id="account-picker-label" style="font-size:11px;color:var(--muted)"></span>
+              <a href="javascript:void(0)" onclick="openAccountPickerModal()" style="font-size:11px;color:var(--accent);text-decoration:none" data-i18n="agendador.gerenciarContasEspecificas">Gerenciar contas específicas ▾</a>
             </div>
-            <input type="file" id="post-media" accept="image/*,video/*" multiple onchange="onMediaFilesSelected()" style="display:none"/>
+            <span id="account-picker-icons" style="display:none"></span>
           </div>
-          <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--sans);margin-top:5px;min-height:16px"></div>
-          <div id="post-media-guidelines" style="font-size:11px;color:var(--yellow);font-family:var(--sans);margin-top:3px;display:flex;flex-direction:column;gap:2px"></div>
-          <div id="media-list" class="media-list"></div>
-        </div>
-        <div class="form-group" id="post-media-by-platform-group" style="display:none">
-          <label><span data-i18n="agendador.labelMidiaPorRede">Mídia por rede</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaMidiaPorRede">(opcional — cada rede publica a mídia acima, a menos que você anexe uma diferente aqui)</span></label>
-          <div id="media-by-platform-cards" style="display:flex;flex-direction:column;gap:10px"></div>
-        </div>
-        <!-- Score de qualidade do post -->
-        <div id="post-quality-score" style="margin-bottom:1rem;display:none">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-            <span id="score-label" style="font-size:12px;font-weight:500" data-i18n="agendador.qualidadeDoPost">Qualidade do post</span>
-            <span id="score-value" style="font-size:13px;font-weight:600;font-family:var(--mono)">0/100</span>
-          </div>
-          <div style="height:6px;border-radius:99px;background:var(--surface2);overflow:hidden">
-            <div id="score-bar" style="height:100%;border-radius:99px;transition:width 0.3s,background 0.3s;width:0%;background:var(--red)"></div>
-          </div>
-          <div id="score-text" style="font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--sans)"></div>
-          <ul id="score-suggestions" style="font-size:11px;color:var(--muted);margin-top:4px;padding-left:1.2em;line-height:1.7"></ul>
         </div>
 
-        <div class="form-group">
-          <label data-i18n="agendador.labelAgendamento">📅 Agendamento</label>
-          <div class="date-picker">
-            <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="toggleDatePicker(event)"/>
-            <input type="hidden" id="post-date"/>
-            <div class="date-picker-popover" id="date-picker-popover">
-              <div class="date-picker-header">
-                <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(-1)">‹</button></div>
-                <div class="dp-month" id="dp-month-label"></div>
-                <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(1)">›</button></div>
+        <!-- 2. Conteúdo: texto + mídia (mídia sobe pra logo depois do texto, em vez -->
+        <!-- de ficar escondida depois de todas as configs específicas de rede) -->
+        <div class="sched-section">
+          <div class="sched-section-title"><span class="sched-section-num">2</span> <span data-i18n="agendador.labelConteudo">✎ Conteúdo</span></div>
+          <div class="form-group">
+            <label><span data-i18n="agendador.labelTextoPost">Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
+            <div id="text-tabs-bar" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
+            <textarea id="post-text" style="min-height:80px;resize:vertical" placeholder="O que você quer compartilhar hoje?" data-i18n-placeholder="agendador.placeholderTextoPost" oninput="onPostTextInput()"></textarea>
+
+            <!-- Barra de ações do editor (emoji, hashtag, link, textos salvos) -->
+            <div style="display:flex;align-items:center;gap:4px;margin-top:6px;position:relative">
+              <button type="button" class="btn" style="padding:5px 8px;font-size:14px" title="Inserir emoji" data-i18n-title="agendador.tituloInserirEmoji" onclick="toggleEmojiPicker(event)">😀</button>
+              <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir hashtag" data-i18n-title="agendador.tituloInserirHashtag" onclick="inserirHashtagRapida()">#</button>
+              <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Inserir link" data-i18n-title="agendador.tituloInserirLink" onclick="inserirLinkNoTexto()">🔗</button>
+              <button type="button" class="btn" style="padding:5px 8px;font-size:13px" title="Textos salvos" data-i18n-title="agendador.tituloTextosSalvos" onclick="toggleSavedTextsMenu(event)">📁</button>
+              <div id="emoji-picker-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;max-width:260px;flex-wrap:wrap;padding:8px"></div>
+              <div id="saved-texts-menu" class="media-picker-menu" style="display:none;position:absolute;top:100%;left:0;z-index:20;min-width:220px;max-height:260px;overflow-y:auto"></div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+              <span id="text-tabs-unify" style="display:none;font-size:11px;color:var(--accent);cursor:pointer" onclick="unifyPlatformTexts()" data-i18n="agendador.usarMesmoTexto">usar o mesmo texto para todas</span>
+              <span id="text-tabs-counter" style="font-size:11px;color:var(--muted);margin-left:auto"></span>
+            </div>
+            <button type="button" class="btn" style="margin-top:6px;font-size:11px;padding:5px 10px" onclick="salvarTextoAtualComoSalvo()" data-i18n="agendador.salvarTextoReutilizar">💾 Salvar este texto para reutilizar</button>
+          </div>
+
+          <div class="form-group">
+            <label><span data-i18n="agendador.labelMidia">📎 Mídia</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaMidia">(imagem(ns) ou vídeo — selecione várias fotos para carrossel no Instagram, Facebook e TikTok)</span></label>
+            <div class="media-picker">
+              <button type="button" class="btn" id="media-trigger-btn" onclick="toggleMediaMenu(event)">
+                <span class="btn-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> <span id="media-trigger-label" data-i18n="agendador.selecionarMidia">Selecionar mídia</span></span><span style="font-size:10px;color:var(--muted)">▾</span>
+              </button>
+              <div class="media-picker-menu" id="media-picker-menu">
+                <div class="media-picker-option" onclick="document.getElementById('post-media').click(); closeMediaMenu()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+                  <span data-i18n="agendador.arquivosDoComputador">Arquivo(s) do computador</span>
+                </div>
+                <div class="media-picker-option" onclick="openDrivePicker(); closeMediaMenu()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 19H2l4-12h12l4 12z"/><path d="M2 19l3-7h14l3 7"/></svg>
+                  Google Drive
+                </div>
               </div>
-              <div class="date-picker-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
-              <div class="date-picker-grid" id="dp-grid"></div>
-              <div class="date-picker-time">
-                <select id="dp-hour"></select> : <select id="dp-minute"></select>
-              </div>
-              <div class="date-picker-actions">
-                <div class="dp-links"><a onclick="dpClear()" data-i18n="agendador.limpar">Limpar</a><a onclick="dpToday()" data-i18n="agendador.hoje">Hoje</a></div>
-                <button type="button" class="btn btn-accent" onclick="dpApply()" data-i18n="agendador.aplicar">Aplicar</button>
-              </div>
+              <input type="file" id="post-media" accept="image/*,video/*" multiple onchange="onMediaFilesSelected()" style="display:none"/>
+            </div>
+            <div id="post-media-hint" style="font-size:11px;color:var(--muted);font-family:var(--sans);margin-top:5px;min-height:16px"></div>
+            <div id="post-media-guidelines" style="font-size:11px;color:var(--yellow);font-family:var(--sans);margin-top:3px;display:flex;flex-direction:column;gap:2px"></div>
+            <div id="media-list" class="media-list"></div>
+          </div>
+          <div class="form-group" id="post-media-by-platform-group" style="display:none">
+            <label><span data-i18n="agendador.labelMidiaPorRede">Mídia por rede</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaMidiaPorRede">(opcional — cada rede publica a mídia acima, a menos que você anexe uma diferente aqui)</span></label>
+            <div id="media-by-platform-cards" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+
+          <!-- Score de qualidade do post -->
+          <div id="post-quality-score" style="margin-bottom:1rem;display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <span id="score-label" style="font-size:12px;font-weight:500" data-i18n="agendador.qualidadeDoPost">Qualidade do post</span>
+              <span id="score-value" style="font-size:13px;font-weight:600;font-family:var(--mono)">0/100</span>
+            </div>
+            <div style="height:6px;border-radius:99px;background:var(--surface2);overflow:hidden">
+              <div id="score-bar" style="height:100%;border-radius:99px;transition:width 0.3s,background 0.3s;width:0%;background:var(--red)"></div>
+            </div>
+            <div id="score-text" style="font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--sans)"></div>
+            <ul id="score-suggestions" style="font-size:11px;color:var(--muted);margin-top:4px;padding-left:1.2em;line-height:1.7"></ul>
+          </div>
+        </div>
+
+        <!-- 3. Configurações específicas por rede (só existe quando alguma rede que precisa disso está marcada) -->
+        <div class="sched-section" id="sched-section-per-network">
+          <div class="sched-section-title"><span class="sched-section-num">3</span> <span data-i18n="agendador.labelConfiguracoesPorRede">⚙ Configurações por rede</span></div>
+          <div class="form-group" id="config-tabs-group" style="display:none">
+            <label data-i18n="agendador.labelConfigurarPorRede">Configurar por rede</label>
+            <div id="config-tabs-bar" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          </div>
+          <div class="form-group" id="post-ig-format-group" style="display:none">
+            <label data-i18n="agendador.labelFormatoInstagram">Formato (Instagram)</label>
+            <div id="ig-format-pills" style="display:flex;gap:6px"></div>
+            <div id="preset-row-instagram" style="margin-top:8px"></div>
+          </div>
+          <div class="form-group" id="post-youtube-title-group" style="display:none">
+            <label><span data-i18n="agendador.labelTituloYoutube">Título do vídeo (YouTube)</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.obrigatorio">(obrigatório)</span></label>
+            <input type="text" id="post-youtube-title" maxlength="100" placeholder="Título do vídeo no YouTube" data-i18n-placeholder="agendador.placeholderTituloYoutube" oninput="onPostYoutubeTitleInput();"/>
+          </div>
+          <div class="form-group" id="post-youtube-visibility-group" style="display:none">
+            <label data-i18n="agendador.labelVisibilidadeYoutube">Visibilidade (YouTube)</label>
+            <select id="post-youtube-visibility">
+              <option value="public" data-i18n="agendador.optPublico">Público</option>
+              <option value="unlisted" data-i18n="agendador.optNaoListado">Não listado</option>
+              <option value="private" data-i18n="agendador.optPrivado">Privado</option>
+            </select>
+          </div>
+          <div class="form-group" id="post-youtube-made-for-kids-group" style="display:none">
+            <label><span data-i18n="agendador.labelFeitoParaCriancas">Feito para crianças?</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.obrigatorioYoutube">(obrigatório, exigido pelo YouTube)</span></label>
+            <select id="post-youtube-made-for-kids" onchange="if (typeof renderValidationPanel === 'function') renderValidationPanel();">
+              <option value="" data-i18n="agendador.optSelecione">Selecione...</option>
+              <option value="false" data-i18n="agendador.optNaoFeitoParaCriancas">Não, este vídeo não é feito para crianças</option>
+              <option value="true" data-i18n="agendador.optSimFeitoParaCriancas">Sim, este vídeo é feito para crianças</option>
+            </select>
+          </div>
+          <div class="form-group" id="post-youtube-category-group" style="display:none">
+            <label><span data-i18n="agendador.labelCategoria">Categoria</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcionalYoutube">(opcional, YouTube)</span></label>
+            <select id="post-youtube-category">
+              <option value="" data-i18n="agendador.optPadraoYoutube">Padrão do YouTube</option>
+            </select>
+            <div id="preset-row-youtube" style="margin-top:8px"></div>
+          </div>
+          <div class="form-group" id="post-youtube-format-group" style="display:none">
+            <label data-i18n="agendador.labelFormatoYoutube">Formato (YouTube)</label>
+            <div id="youtube-format-pills" style="display:flex;gap:6px"></div>
+            <div id="youtube-format-warning" style="font-size:11px;color:var(--yellow);margin-top:5px;display:none"></div>
+          </div>
+          <div class="form-group" id="post-tiktok-options-group" style="display:none">
+            <label data-i18n="agendador.labelPublicacaoTiktok">Publicação (TikTok)</label>
+            <div id="tiktok-creator-info" style="font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px"></div>
+            <select id="post-tiktok-privacy" onchange="onTiktokOptionsChange()">
+              <option value="" data-i18n="agendador.optSelecioneQuemPodeVer">Selecione quem pode ver...</option>
+            </select>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
+                <input type="checkbox" id="post-tiktok-allow-comment" checked onchange="onTiktokOptionsChange()"/> <span data-i18n="agendador.checkComentarios">Comentários</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
+                <input type="checkbox" id="post-tiktok-allow-duet" checked onchange="onTiktokOptionsChange()"/> Duet
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;font-family:var(--sans);color:var(--muted);cursor:pointer">
+                <input type="checkbox" id="post-tiktok-allow-stitch" checked onchange="onTiktokOptionsChange()"/> Stitch
+              </label>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5" data-i18n-html="agendador.avisoTiktokEnvio">
+              O envio pode levar alguns instantes para processar. Ao publicar, você concorda com a
+              <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Music Usage Confirmation</a> do TikTok.
+            </div>
+            <div id="preset-row-tiktok" style="margin-top:8px"></div>
+          </div>
+
+          <!-- Localização (Facebook/Instagram) -->
+          <div class="form-group" id="post-location-group" style="display:none">
+            <label><span data-i18n="agendador.labelLocalizacao">Localização</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcionalFacebookInstagram">(opcional, Facebook/Instagram)</span></label>
+            <div style="position:relative">
+              <input type="text" id="post-location-search" placeholder="Buscar local (ex: Av. Paulista, São Paulo)" data-i18n-placeholder="agendador.placeholderBuscarLocal" oninput="onLocationSearchInput()" autocomplete="off"/>
+              <div id="location-search-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;margin-top:4px;max-height:220px;overflow-y:auto"></div>
+            </div>
+            <div id="post-location-selected" style="display:none;margin-top:6px;font-size:12px;color:var(--accent);align-items:center;gap:6px">
+              <span id="post-location-selected-name"></span>
+              <span style="cursor:pointer;color:var(--muted)" onclick="limparLocalizacaoSelecionada()" title="Remover" data-i18n-title="agendador.tituloRemover">✕</span>
             </div>
           </div>
-        </div>
-        <!-- Melhores horários (abaixo do picker) -->
-        <div id="best-times-widget" style="display:none;margin-top:-8px;margin-bottom:1rem">
-          <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px" data-i18n="agendador.melhoresHorarios">⚡ Melhores horários para engajamento</div>
-          <div id="best-times-chips" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+
+          <!-- Primeiro comentário automático -->
+          <div class="form-group" id="post-first-comment-group" style="display:none">
+            <label><span data-i18n="agendador.labelPrimeiroComentario">Primeiro comentário</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.ajudaPrimeiroComentario">(opcional — publicado automaticamente logo após o post ir ao ar)</span></label>
+            <textarea id="post-first-comment" style="min-height:50px;resize:vertical" placeholder="Ex: link na bio, hashtags extras..." data-i18n-placeholder="agendador.placeholderPrimeiroComentario"></textarea>
+            <div id="post-first-comment-hint" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          </div>
         </div>
 
-        <div class="form-group"><label data-i18n="agendador.labelRepeticao">Repetição</label>
-          <select id="post-repeat"><option value="none" data-i18n="agendador.optSemRepeticao">Sem repetição</option><option value="daily" data-i18n="agendador.optDiariamente">Diariamente</option><option value="weekly" data-i18n="agendador.optSemanalmente">Semanalmente</option><option value="monthly" data-i18n="agendador.optMensalmente">Mensalmente</option></select>
+        <!-- 4. Agendamento -->
+        <div class="sched-section">
+          <div class="sched-section-title"><span class="sched-section-num">4</span> <span data-i18n="agendador.labelAgendamento">📅 Agendamento</span></div>
+          <div class="form-group">
+            <div class="date-picker">
+              <input type="text" id="post-date-display" placeholder="dd/mm/aaaa --:--" readonly style="cursor:pointer" onclick="toggleDatePicker(event)"/>
+              <input type="hidden" id="post-date"/>
+              <div class="date-picker-popover" id="date-picker-popover">
+                <div class="date-picker-header">
+                  <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(-1)">‹</button></div>
+                  <div class="dp-month" id="dp-month-label"></div>
+                  <div class="date-picker-nav"><button type="button" onclick="dpChangeMonth(1)">›</button></div>
+                </div>
+                <div class="date-picker-weekdays"><span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span></div>
+                <div class="date-picker-grid" id="dp-grid"></div>
+                <div class="date-picker-time">
+                  <select id="dp-hour"></select> : <select id="dp-minute"></select>
+                </div>
+                <div class="date-picker-actions">
+                  <div class="dp-links"><a onclick="dpClear()" data-i18n="agendador.limpar">Limpar</a><a onclick="dpToday()" data-i18n="agendador.hoje">Hoje</a></div>
+                  <button type="button" class="btn btn-accent" onclick="dpApply()" data-i18n="agendador.aplicar">Aplicar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Melhores horários (abaixo do picker) -->
+          <div id="best-times-widget" style="display:none;margin-top:-8px;margin-bottom:1rem">
+            <div style="font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px" data-i18n="agendador.melhoresHorarios">⚡ Melhores horários para engajamento</div>
+            <div id="best-times-chips" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+          </div>
+
+          <div class="form-group"><label data-i18n="agendador.labelRepeticao">Repetição</label>
+            <select id="post-repeat"><option value="none" data-i18n="agendador.optSemRepeticao">Sem repetição</option><option value="daily" data-i18n="agendador.optDiariamente">Diariamente</option><option value="weekly" data-i18n="agendador.optSemanalmente">Semanalmente</option><option value="monthly" data-i18n="agendador.optMensalmente">Mensalmente</option></select>
+          </div>
         </div>
+
         <div style="display:flex;gap:8px;margin-bottom:8px">
           <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(true)" data-i18n="agendador.salvarModelo">📋 Salvar Modelo</button>
           <button class="btn" style="flex:1;font-size:12px" onclick="saveDraft(false)" data-i18n="agendador.salvarRascunho">💾 Salvar Rascunho</button>
@@ -3298,6 +3332,7 @@ function setConfigTab(plat) {
   // várias redes marcadas (ver renderValidationPanel) — precisa re-renderizar
   // ao trocar de aba, senão continua mostrando o filtro da aba anterior.
   if (typeof renderValidationPanel === 'function') renderValidationPanel();
+  updateSchedSectionPerNetworkVisibility();
 }
 
 // Grava o valor atual do campo de título da rede que estava ativa em
@@ -3333,6 +3368,19 @@ function applyConfigTabVisibility() {
     if (typeof renderPresetRow === 'function') renderPresetRow('youtube');
   }
   if (typeof renderTiktokOptionsGroup === 'function') renderTiktokOptionsGroup();
+}
+
+// O bloco "3. Configurações por rede" só faz sentido visível quando pelo
+// menos uma sub-seção dentro dele está visível (ex: nenhuma rede marcada
+// precisa de config extra) — evita mostrar um card vazio com só o título.
+function updateSchedSectionPerNetworkVisibility() {
+  const wrapper = document.getElementById('sched-section-per-network');
+  if (!wrapper) return;
+  const algumaSubsecaoVisivel = [...wrapper.children].some(child => {
+    if (child.classList.contains('sched-section-title')) return false;
+    return child.style.display !== 'none';
+  });
+  wrapper.style.display = algumaSubsecaoVisivel ? '' : 'none';
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -3379,6 +3427,7 @@ function applyPlatformSelection(plats) {
   if (typeof updateFirstCommentGroupVisibility === 'function') updateFirstCommentGroupVisibility();
   renderValidationPanel();
   renderPreviewTabs();
+  updateSchedSectionPerNetworkVisibility();
 }
 
 // ── Preview de conta conectada por rede (Agendador) ─────────────────────────
@@ -5240,13 +5289,13 @@ function buildValidationIssues() {
   // com texto vazio + mídia só no card do TikTok acusava falsamente falta de
   // mídia/texto.
   const temAlgumaMidia = mediaFiles.length > 0 || Object.values(mediaFilesByPlatform).some(arr => arr?.length > 0);
-  if (!text && !temAlgumaMidia) issues.push({ platform: null, message: window.i18n.t('toast.escrevaTextoOuAnexeMidia') });
-  if (plats.length === 0) issues.push({ platform: null, message: window.i18n.t('toast.escolhaAoMenosUmaRedeOndePublicar') });
+  if (!text && !temAlgumaMidia) issues.push({ platform: null, message: window.i18n.t('toast.escrevaTextoOuAnexeMidia'), field: 'post-text' });
+  if (plats.length === 0) issues.push({ platform: null, message: window.i18n.t('toast.escolhaAoMenosUmaRedeOndePublicar'), field: 'platform-toggle-grid' });
 
   // "Publicar agora" fica sem data (post-date vazio) — só valida quando o
   // usuário escolheu uma data específica (agendamento).
   if (scheduledAt && new Date(scheduledAt).getTime() < Date.now()) {
-    issues.push({ platform: null, message: window.i18n.t('toast.dataPublicacaoNaoPodeEstarNoPassado') });
+    issues.push({ platform: null, message: window.i18n.t('toast.dataPublicacaoNaoPodeEstarNoPassado'), field: 'post-date-display' });
   }
 
   const indisponiveis = plataformasForaDoAr(plats);
@@ -5261,7 +5310,7 @@ function buildValidationIssues() {
       if (mediaUsaCompartilhada.has(p)) continue;
       if (mediaFilesByPlatform[p]?.length) continue;
       const label = PLAT_ROW_CFG[p]?.label || p;
-      issues.push({ platform: p, message: `${window.i18n.t('toast.anexeMidiaParaPrefixo')}${label}${window.i18n.t('toast.anexeMidiaParaSufixo')}` });
+      issues.push({ platform: p, message: `${window.i18n.t('toast.anexeMidiaParaPrefixo')}${label}${window.i18n.t('toast.anexeMidiaParaSufixo')}`, field: 'media-trigger-btn' });
     }
   }
 
@@ -5271,27 +5320,27 @@ function buildValidationIssues() {
   // isso o post é aceito aqui e só falha na hora de agendar/publicar.
   const midiaYoutube = mediaFilesByPlatform.youtube?.length ? mediaFilesByPlatform.youtube : mediaFiles;
   if (plats.includes('youtube') && !midiaYoutube.some(m => m.file.type.startsWith('video/'))) {
-    issues.push({ platform: 'youtube', message: window.i18n.t('toast.faltaVideoYoutube') });
+    issues.push({ platform: 'youtube', message: window.i18n.t('toast.faltaVideoYoutube'), field: 'media-trigger-btn' });
   }
 
-  if (plats.includes('youtube') && !youtubeTitle) issues.push({ platform: 'youtube', message: window.i18n.t('toast.informeTituloVideoYoutube') });
+  if (plats.includes('youtube') && !youtubeTitle) issues.push({ platform: 'youtube', message: window.i18n.t('toast.informeTituloVideoYoutube'), field: 'post-youtube-title' });
 
   if (plats.includes('youtube') && !document.getElementById('post-youtube-made-for-kids')?.value) {
-    issues.push({ platform: 'youtube', message: window.i18n.t('toast.informeSeVideoFeitoParaCriancas') });
+    issues.push({ platform: 'youtube', message: window.i18n.t('toast.informeSeVideoFeitoParaCriancas'), field: 'post-youtube-made-for-kids' });
   }
 
   if (plats.includes('instagram') && scheduledAt) {
     const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000;
-    if (minutosAteAgendamento < 20) issues.push({ platform: 'instagram', message: window.i18n.t('toast.escolhaHorarioAntecedencia20min') });
+    if (minutosAteAgendamento < 20) issues.push({ platform: 'instagram', message: window.i18n.t('toast.escolhaHorarioAntecedencia20min'), field: 'post-date-display' });
   }
 
   const midiaInstagram = mediaFilesByPlatform.instagram?.length ? mediaFilesByPlatform.instagram : mediaFiles;
   if (plats.includes('instagram') && igFormat === 'story' && midiaInstagram.length > 1) {
-    issues.push({ platform: 'instagram', message: window.i18n.t('toast.storiesNaoSuportaCarrosselEscolha') });
+    issues.push({ platform: 'instagram', message: window.i18n.t('toast.storiesNaoSuportaCarrosselEscolha'), field: 'ig-format-pills' });
   }
 
   if (plats.includes('tiktok') && !document.getElementById('post-tiktok-privacy')?.value) {
-    issues.push({ platform: 'tiktok', message: window.i18n.t('toast.escolhaQuemPodeVerTiktok') });
+    issues.push({ platform: 'tiktok', message: window.i18n.t('toast.escolhaQuemPodeVerTiktok'), field: 'post-tiktok-privacy' });
   }
 
   return issues;
@@ -5322,10 +5371,29 @@ function renderValidationPanel() {
       ${issuesExibidas.map(i => {
         const cfg = i.platform ? PLAT_ROW_CFG[i.platform] : null;
         const icon = cfg ? `<span class="plat-icon ${cfg.cls}" style="width:16px;height:16px;font-size:8px">${cfg.icon}</span>` : '•';
-        return `<div class="validation-panel-item">${icon} ${escapeHtml(i.message)}</div>`;
+        const attrs = i.field ? `data-field="${escapeHtml(i.field)}" data-platform="${escapeHtml(i.platform || '')}" onclick="goToValidationIssue(this)"` : '';
+        return `<div class="validation-panel-item" ${attrs}>${icon} ${escapeHtml(i.message)}</div>`;
       }).join('')}
     </div>
   </div>`;
+}
+
+// Clique num item do painel de pendências leva direto ao campo com problema:
+// troca pra aba de config da rede certa (se precisar) e rola+foca o campo.
+// Sem isso, com várias redes marcadas, o campo podia estar escondido numa
+// aba diferente da ativa (ver applyConfigTabVisibility).
+function goToValidationIssue(el) {
+  const fieldId = el.dataset.field;
+  const platform = el.dataset.platform;
+  if (platform && selectedPlats.size >= 2 && activeConfigTab !== platform && typeof setConfigTab === 'function') {
+    setConfigTab(platform);
+  }
+  requestAnimationFrame(() => {
+    const target = document.getElementById(fieldId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+  });
 }
 
 async function schedulePost(publishNow = false) {
