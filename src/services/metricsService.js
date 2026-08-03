@@ -148,6 +148,16 @@ async function metricsSeguidoresAtuaisInstagram(token) {
   return data.followers_count ?? null
 }
 
+// Mesmo dado, mas para contas migradas para o Zernio (docs.zernio.com) —
+// token.accessToken deixa de ser um access_token real assim que a conta
+// migra, então busca via GET /v1/accounts, que já traz followersCount pronto.
+async function metricsSeguidoresAtuaisInstagramZernio(zernioAccountId) {
+  const { accounts } = await zernioClient.listAccounts()
+  const conta = accounts.find(a => a._id === zernioAccountId)
+  if (!conta) throw new Error('Conta Instagram não encontrada no Zernio')
+  return conta.followersCount ?? conta.metadata?.profileData?.followersCount ?? null
+}
+
 // Busca o número atual de seguidores de cada conta do Instagram do usuário,
 // grava um snapshot de hoje para cada uma, e devolve o histórico diário
 // somado entre as contas — construído a partir de hoje em diante, já que
@@ -156,7 +166,9 @@ async function buscarSeriesSeguidoresInstagram(userId, isAdmin) {
   const tokens = await listarContasToken('instagram', userId, isAdmin)
 
   await Promise.allSettled(tokens.map(async t => {
-    const followerCount = await metricsSeguidoresAtuaisInstagram({ accessToken: t.accessToken })
+    const followerCount = t.zernioAccountId
+      ? await metricsSeguidoresAtuaisInstagramZernio(t.zernioAccountId)
+      : await metricsSeguidoresAtuaisInstagram({ accessToken: t.accessToken })
     if (followerCount != null) await contasRepo.registrarSnapshotSeguidoresInstagram(t.contaId, followerCount)
   }))
 
@@ -197,6 +209,11 @@ async function metricsDemografiaAtualInstagram(token) {
 // valores de cada dimensão entre contas (mesmo padrão de soma usado nas
 // séries de seguidores). Falha silenciosa por conta (token sem o escopo,
 // revogado etc.) — o resultado só reflete as contas que responderam.
+// Contas migradas para o Zernio sempre falham aqui (accessToken não é mais
+// um token real da Graph API) e o Zernio não expõe demografia de seguidores
+// no objeto de conta — fica sem essa métrica até o Zernio adicionar suporte
+// equivalente. Não é crítico: a tela já trata ausência de demografia como
+// estado normal.
 async function buscarDemografiaInstagram(userId, isAdmin) {
   const tokens = await listarContasToken('instagram', userId, isAdmin)
   const resultados = await Promise.allSettled(
