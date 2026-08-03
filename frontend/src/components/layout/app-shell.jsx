@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -137,6 +138,8 @@ export function AppShell({ page, onPageChange, children, user }) {
 
         <main className="flex-1">{children}</main>
       </div>
+
+      <AiAssistantWidget hidden={page === 'ai'} />
     </div>
   )
 }
