@@ -38,9 +38,20 @@ function montarMediaItems(post) {
 // platforms[]. Confundir os dois faz o post.externalPostId salvo nunca
 // bater com nada em GET /v1/analytics (que indexa por platformPostId),
 // deixando toda métrica por-post null para sempre.
+//
+// POST /v1/posts NÃO é síncrono apesar do publishNow:true e da mensagem
+// "Post published successfully" — confirmado em teste real (2026-08-03):
+// a resposta imediata pode vir com platforms[].status "processing" e sem
+// platformPostId (o TikTok em particular demora mais, por causa de
+// upload/compressão de vídeo). Quando isso acontece, sinaliza pending do
+// mesmo jeito que o Instagram direto sinalizava (data.pending) — quem
+// chama (publisher.js/publicarNaConta) já sabe tratar esse contrato.
 function extrairDadosDaPlataforma(created, platform) {
   const entrada = created.platforms?.find(p => p.platform === platform)
-  return { ...created, platformPostId: entrada?.platformPostId || null, platformPostUrl: entrada?.platformPostUrl || null }
+  if (!entrada?.platformPostId) {
+    return { pending: true, provider: 'zernio', zernioPostId: created._id, platform }
+  }
+  return { ...created, platformPostId: entrada.platformPostId, platformPostUrl: entrada.platformPostUrl || null }
 }
 
 async function publicarZernioInstagram(token, post) {

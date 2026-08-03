@@ -1,5 +1,5 @@
 const cron = require('node-cron')
-const { publishPost, finalizarInstagramPendentes, buscarContaToken } = require('../infra/social/publisher')
+const { publishPost, finalizarInstagramPendentes, finalizarZernioPendentes, buscarContaToken } = require('../infra/social/publisher')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const postsRepo = require('../infra/db/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
@@ -200,6 +200,15 @@ async function processarPendentes() {
     await finalizarInstagramPendentes()
   } catch (err) {
     await registrarLog({ type: 'err', message: `Erro ao finalizar publicações pendentes do Instagram: ${err.message}`, platform: 'instagram' })
+  }
+
+  // Mesma ideia, para posts publicados via Zernio (Facebook/Instagram/
+  // TikTok) cujo platformPostId ainda não veio na resposta imediata —
+  // ver publisher.js/finalizarZernioPendentes.
+  try {
+    await finalizarZernioPendentes()
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao finalizar publicações pendentes do Zernio: ${err.message}`, platform: null })
   }
 
   // Primeiro comentário automático — mesmo cron, roda por último (depende

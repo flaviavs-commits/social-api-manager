@@ -8,6 +8,7 @@ const postsRepo = require('../db/postsRepository')
 const { decrypt } = require('../../services/tokenCrypto')
 const { statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
 const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('./zernioPublisher')
+const zernioClient = require('./zernioClient')
 const { publicarYoutube } = require('./youtubePublisher')
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
@@ -174,18 +175,28 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   try {
     const data = await publisher(token, post)
 
-    // Instagram: o container foi criado, mas ainda precisa terminar de
-    // processar antes de poder ser publicado de fato — isso é confirmado
-    // depois, via finalizarInstagramPendentes() (chamada pelo cron), não
-    // bloqueando esta requisição/invocação à espera do Instagram. A
-    // pendência é por (post, conta) — post_accounts.id — para suportar
-    // múltiplas contas de Instagram publicando o mesmo post em paralelo.
+    // Instagram (fluxo direto, não migrado): o container foi criado, mas
+    // ainda precisa terminar de processar antes de poder ser publicado de
+    // fato — confirmado depois via finalizarInstagramPendentes() (cron).
+    // Facebook/Instagram/TikTok via Zernio: publishNow:true não é síncrono
+    // apesar do nome — o post pode continuar "processing" no lado deles por
+    // segundos/minutos (confirmado em teste real, mais comum com vídeo no
+    // TikTok) sem devolver o platformPostId ainda; confirmado depois via
+    // finalizarZernioPendentes() (cron). Os dois casos usam o mesmo
+    // contrato (data.pending) e a mesma coluna post_accounts.instagram_pending
+    // como espaço de estado — o nome da coluna ficou datado, mas reaproveitar
+    // evita uma migration só para isso; o campo "provider" dentro do JSON
+    // diferencia qual finalizador (cron) deve tratar cada linha.
     if (data?.pending) {
-      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId })
+      const isZernio = data.provider === 'zernio'
+      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
       const tipoPost = data.stage === 'carousel_children' ? 'Carrossel' : 'Post'
       await registrarLog({
         type: 'info',
-        message: `${tipoPost} enviado para o Instagram na conta "${token.handle || token.accountName}" — aguardando processamento (pode levar até 1 min)`,
+        message: isZernio
+          ? `${tipoPost} enviado para o ${platLabel} na conta "${token.handle || token.accountName}" — aguardando confirmação do Zernio (pode levar alguns minutos)`
+          : `${tipoPost} enviado para o Instagram na conta "${token.handle || token.accountName}" — aguardando processamento (pode levar até 1 min)`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId
@@ -256,6 +267,10 @@ async function publishPost(post) {
 // (mesmo tick de processarPendentes), substituindo o polling bloqueante que
 // existia antes dentro da própria publicação.
 //
+// post_accounts.instagram_pending também guarda pendências do Zernio agora
+// (ver publicarNaConta) — cada linha tem data.provider === 'zernio' quando
+// veio de lá, e este loop as ignora (finalizarZernioPendentes trata essas).
+//
 // O status final do post só é decidido quando NENHUMA conta do post (de
 // nenhuma rede) ainda estiver pendente — antes disso, uma falha real de
 // outra rede publicada no mesmo ciclo seria perdida se fechássemos o status
@@ -263,7 +278,8 @@ async function publishPost(post) {
 // reconstruídos a partir de post_publications (sucesso) — contas que não
 // aparecem lá e não estão mais pendentes são tratadas como falha.
 async function finalizarInstagramPendentes() {
-  const pendentes = await postsRepo.listarPostsComInstagramPendente()
+  const pendentes = (await postsRepo.listarPostsComInstagramPendente())
+    .filter(linha => linha.instagramPending.provider !== 'zernio')
 
   await Promise.all(pendentes.map(async linha => {
     const pending = linha.instagramPending
@@ -300,6 +316,61 @@ async function finalizarInstagramPendentes() {
   }))
 }
 
+// Timeout de segurança: se o Zernio nunca terminar de processar um post
+// (falha silenciosa do lado deles, vídeo corrompido que trava para sempre
+// etc.), a pendência não pode ficar presa indefinidamente — depois desse
+// tempo, desiste e marca como falha em vez de reter o post como
+// "processing" para sempre.
+const ZERNIO_PENDING_TIMEOUT_MS = 15 * 60 * 1000
+
+// Equivalente a finalizarInstagramPendentes(), mas para posts publicados
+// via Zernio (Facebook/Instagram/TikTok) cujo platformPostId não veio na
+// resposta imediata do createPost — ver zernioPublisher.js/
+// extrairDadosDaPlataforma. Consulta GET /v1/posts/{id} de novo a cada
+// tick do cron até status virar "published" (extrai o platformPostId real)
+// ou "failed"/timeout (desiste).
+async function finalizarZernioPendentes() {
+  const pendentes = (await postsRepo.listarPostsComInstagramPendente())
+    .filter(linha => linha.instagramPending.provider === 'zernio')
+
+  await Promise.all(pendentes.map(async linha => {
+    const pending = linha.instagramPending
+    const postId = linha.id
+    const platform = pending.platform
+    try {
+      const { post: zernioPost } = await zernioClient.getPost(pending.zernioPostId)
+      const entrada = zernioPost?.platforms?.find(p => p.platform === platform)
+
+      if (entrada?.status === 'failed' || zernioPost?.status === 'failed') {
+        throw new Error(entrada?.errorMessage || 'O Zernio não conseguiu publicar o post.')
+      }
+
+      if (!entrada?.platformPostId) {
+        // Ainda processando — tenta de novo no próximo tick, a menos que já
+        // tenha estourado o timeout de segurança.
+        const iniciadoEm = new Date(pending.criadoEm || linha.criado_em || Date.now()).getTime()
+        if (Date.now() - iniciadoEm > ZERNIO_PENDING_TIMEOUT_MS) {
+          throw new Error('Tempo esgotado aguardando confirmação do Zernio.')
+        }
+        return
+      }
+
+      const externalId = entrada.platformPostId
+      await postsRepo.salvarPublicacaoExterna(postId, { externalPostId: externalId, externalPlatform: platform, publishedAt: new Date().toISOString(), accountId: linha.accountId })
+      await postsRepo.limparInstagramPending(linha.postAccountId)
+
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
+      await registrarLog({ type: 'ok', message: `Post publicado no ${platLabel} na conta "${pending.accountName}" com sucesso! ✓`, platform, conta_id: pending.contaId, user_id: linha.userId })
+      await fecharStatusSeSemPendencias(postId, linha)
+    } catch (err) {
+      await postsRepo.limparInstagramPending(linha.postAccountId)
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
+      await registrarLog({ type: 'err', message: `Não foi possível publicar no ${platLabel} na conta "${pending.accountName}": ${err.message}`, platform, conta_id: pending.contaId, user_id: linha.userId })
+      await fecharStatusSeSemPendencias(postId, linha)
+    }
+  }))
+}
+
 // Recompõe e grava o status final do post (published/partial/error) a partir
 // de TODAS as suas contas, não só do Instagram — só roda quando não sobra
 // nenhuma pendência para este post_id (pode haver mais de uma conta de
@@ -326,4 +397,4 @@ async function fecharStatusSeSemPendencias(postId, linha) {
   broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
 
-module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes }
+module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, finalizarZernioPendentes }
