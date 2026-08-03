@@ -1129,13 +1129,21 @@ pool.query(`
   )
 `).catch(() => {})
 
-// POST /api/ai/image/generate — gera imagem via Google Imagen. Usa a chave
-// própria do usuário quando cadastrada; sem ela, cai para GEMINI_API_KEY do
-// servidor (mesma chave já usada pelo chat de texto, ver generateWithGemini)
-// em vez de recusar — o chat mostra pro usuário qual chave está em uso.
-// Chamada roda "em segundo plano" da perspectiva do chat (aiHandleImageRequest
-// no frontend): o modelo de TEXTO selecionado pelo usuário não muda, só essa
-// requisição pontual usa o Gemini para a parte de imagem.
+// POST /api/ai/image/generate — gera imagem via Gemini multimodal ("Nano
+// Banana", modelo gemini-2.5-flash-image). O Imagen dedicado (client.models.
+// generateImages, método predict) foi descontinuado pelo Google para novas
+// contas ("This model ... is no longer available to new users", testado em
+// 2026-08-03) — a geração de imagem hoje passa pelo mesmo generateContent
+// usado para texto, só que o modelo devolve a imagem como um inlineData
+// dentro dos parts da resposta, em vez de texto.
+// Usa a chave própria do usuário quando cadastrada; sem ela, cai para
+// GEMINI_API_KEY do servidor (mesma chave já usada pelo chat de texto, ver
+// generateWithGemini) em vez de recusar — o chat mostra pro usuário qual
+// chave está em uso. Chamada roda "em segundo plano" da perspectiva do chat
+// (aiHandleImageRequest no frontend): o modelo de TEXTO selecionado pelo
+// usuário não muda, só essa requisição pontual usa o Gemini para a imagem.
+const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image'
+
 router.post('/image/generate', async (req, res) => {
   const { descricao } = req.body || {}
   if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
@@ -1148,17 +1156,19 @@ router.post('/image/generate', async (req, res) => {
   try {
     const { GoogleGenAI } = require('@google/genai')
     const client = new GoogleGenAI({ apiKey: key })
-    const result = await client.models.generateImages({
-      model: 'imagen-4.0-generate-preview-05-20',
-      prompt: descricao.trim(),
-      config: { numberOfImages: 1, outputMimeType: 'image/jpeg' },
+    const result = await client.models.generateContent({
+      model: GEMINI_IMAGE_MODEL,
+      contents: descricao.trim(),
     })
 
-    const imgData = result.generatedImages?.[0]?.image?.imageBytes
+    const parts = result.candidates?.[0]?.content?.parts || []
+    const imgPart = parts.find(p => p.inlineData)
+    const imgData = imgPart?.inlineData?.data
+    const mimeType = imgPart?.inlineData?.mimeType || 'image/png'
     if (!imgData) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
 
     registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'gemini', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
-    res.json({ image: `data:image/jpeg;base64,${imgData}`, chaveServidor: usandoChaveServidor })
+    res.json({ image: `data:${mimeType};base64,${imgData}`, chaveServidor: usandoChaveServidor })
   } catch (err) {
     console.error('[AI Image]', err.message)
     registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'gemini', detalhes: `${usandoChaveServidor ? 'chave do servidor' : 'chave do usuário'}: ${err.message}` })
