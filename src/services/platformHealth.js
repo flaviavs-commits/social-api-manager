@@ -6,7 +6,7 @@ const { registrarLog, broadcastEvent } = require('../repositories/logsRepository
 // marcar como down por causa de uma falha isolada de rede (flakiness).
 const FAIL_THRESHOLD = 2
 
-const PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok', 'threads', 'linkedin', 'pinterest']
+const PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
 
 // Chamada leve (não conta como publicação) só para verificar se a API da
 // plataforma está respondendo, usando o token de uma conta conectada
@@ -24,17 +24,11 @@ async function pingPlatform(platform, accessToken) {
       url = `https://www.googleapis.com/youtube/v3/channels?part=id&mine=true`
     } else if (platform === 'tiktok') {
       url = `https://open.tiktokapis.com/v2/user/info/?fields=open_id`
-    } else if (platform === 'threads') {
-      url = `https://graph.threads.net/v1.0/me?fields=id&access_token=${encodeURIComponent(accessToken)}`
-    } else if (platform === 'linkedin') {
-      url = `https://api.linkedin.com/v2/userinfo`
-    } else if (platform === 'pinterest') {
-      url = `https://api.pinterest.com/v5/user_account`
     } else {
       return { ok: false, message: 'plataforma desconhecida' }
     }
 
-    const headers = ['youtube', 'tiktok', 'linkedin', 'pinterest'].includes(platform)
+    const headers = ['youtube', 'tiktok'].includes(platform)
       ? { Authorization: `Bearer ${accessToken}` }
       : {}
 

@@ -220,47 +220,6 @@ async function renovarTokenFacebook(token) {
   return newExpiry
 }
 
-// ── Renova o access_token do Threads via refresh_access_token (long-lived,
-// mesmo padrão do Instagram, API própria em graph.threads.net) ──────────────
-async function renovarTokenThreads(token) {
-  const res = await fetch(`https://graph.threads.net/refresh_access_token` +
-    `?grant_type=th_refresh_token&access_token=${encodeURIComponent(token.access_token)}`)
-  const data = await res.json()
-
-  if (data.error || !data.access_token) {
-    throw new Error(data.error?.message || 'Falha ao renovar token do Threads')
-  }
-
-  const newExpiry = new Date(Date.now() + (data.expires_in || 60 * 86400) * 1000)
-  await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
-    [encrypt(data.access_token), newExpiry.toISOString(), token.id])
-
-  return newExpiry
-}
-
-// ── Renova o access_token do Pinterest via refresh_token (OAuth padrão) ─────
-async function renovarTokenPinterest(token) {
-  if (!token.refresh_token) throw new Error('Token Pinterest sem refresh_token salvo')
-
-  const basicAuth = Buffer.from(`${process.env.PINTEREST_APP_ID}:${process.env.PINTEREST_APP_SECRET}`).toString('base64')
-  const res = await fetch('https://api.pinterest.com/v5/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` },
-    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: token.refresh_token })
-  })
-  const data = await res.json()
-
-  if (!data.access_token) {
-    throw new Error(data.message || 'Falha ao renovar token do Pinterest')
-  }
-
-  const newExpiry = new Date(Date.now() + (data.expires_in || 30 * 86400) * 1000)
-  await pool.query(`UPDATE tokens SET access_token = $1, expires_at = $2, status = 'valid', atualizado_em = NOW() WHERE id = $3`,
-    [encrypt(data.access_token), newExpiry.toISOString(), token.id])
-
-  return newExpiry
-}
-
 // ── Renovar um token específico ────────────────────────────────────────────────
 async function renovarToken(id, userId, isAdmin) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
@@ -296,22 +255,6 @@ async function renovarToken(id, userId, isAdmin) {
       await registrarLog({ type: 'ok', message: 'Token Facebook renovado automaticamente (fb_exchange_token)', platform: 'facebook', conta_id: token.conta_id })
       return { success: true, message: 'Token renovado via fb_exchange_token', newExpiry }
     }
-
-    if (token.platform === 'threads') {
-      const newExpiry = await renovarTokenThreads(token)
-      await registrarLog({ type: 'ok', message: 'Token Threads renovado automaticamente', platform: 'threads', conta_id: token.conta_id })
-      return { success: true, message: 'Token renovado via long-lived token refresh', newExpiry }
-    }
-
-    if (token.platform === 'pinterest' && token.refresh_token) {
-      const newExpiry = await renovarTokenPinterest(token)
-      await registrarLog({ type: 'ok', message: 'Token Pinterest renovado automaticamente', platform: 'pinterest', conta_id: token.conta_id })
-      return { success: true, message: 'Token renovado via refresh_token', newExpiry }
-    }
-
-    // LinkedIn: refresh_token programático só é concedido a parceiros
-    // aprovados na Marketing Developer Platform (ver guia de referência,
-    // Cap. 5.4) — sem isso, cai no fallback "exige reconexão manual" abaixo.
 
   } catch (err) {
     await pool.query(`UPDATE tokens SET status = 'error', atualizado_em = NOW() WHERE id = $1`, [token.id])

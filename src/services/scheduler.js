@@ -9,8 +9,6 @@ const { verificarSaudePlataformas } = require('./platformHealth')
 const { comentarFacebook } = require('../infra/social/facebookPublisher')
 const { comentarInstagram } = require('../infra/social/instagramPublisher')
 const { comentarYoutube } = require('../infra/social/youtubePublisher')
-const { comentarThreads } = require('../infra/social/threadsPublisher')
-const { comentarLinkedin } = require('../infra/social/linkedinPublisher')
 
 // Retry automático de publicação com falha transitória (5xx/rate limit/rede)
 // — ver src/infra/social/publisher.js (isErroTransitorio) e migrations/036.
@@ -148,9 +146,7 @@ async function renovarTokensProativamente() {
 const COMENTAR_POR_PLATAFORMA = {
   facebook: comentarFacebook,
   instagram: comentarInstagram,
-  youtube: comentarYoutube,
-  threads: comentarThreads,
-  linkedin: comentarLinkedin
+  youtube: comentarYoutube
 }
 
 // Publica o primeiro comentário automático nas publicações que já saíram e

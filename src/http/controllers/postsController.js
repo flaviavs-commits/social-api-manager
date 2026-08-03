@@ -10,7 +10,6 @@ const { buscarAnalytics, buscarMetricsHistory } = require('../../use-cases/posts
 const { listarTiktokVideos } = require('../../use-cases/posts/listarTiktokVideos')
 const { buscarTiktokCreatorInfo } = require('../../use-cases/posts/buscarTiktokCreatorInfo')
 const { buscarLocaisFacebook } = require('../../use-cases/posts/buscarLocaisFacebook')
-const { buscarBoardsPinterest } = require('../../use-cases/posts/buscarBoardsPinterest')
 const { criarPost } = require('../../use-cases/posts/criarPost')
 const { reagendarPost } = require('../../use-cases/posts/reagendarPost')
 const { deletarPost } = require('../../use-cases/posts/deletarPost')
@@ -125,16 +124,6 @@ async function getFacebookPlaces(req, res) {
   }
 }
 
-async function getPinterestBoards(req, res) {
-  try {
-    const result = await buscarBoardsPinterest({ ...ctx(req) })
-    res.json(result)
-  } catch (e) {
-    if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })
-    serverError(res, e, 'Não foi possível buscar os boards do Pinterest')
-  }
-}
-
 async function getMetricsHistory(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -219,6 +208,6 @@ async function deletePost(req, res) {
 
 module.exports = {
   postUploadUrl, getInboxUnread, postCommentSeen, getInbox, getCalendar, getPosts,
-  getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getPinterestBoards, getMetricsHistory, postCreate, getComments,
+  getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
   postCommentReply, patchPost, deletePost
 }

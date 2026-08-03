@@ -233,9 +233,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .plat-icon.ig { background: rgba(225,48,108,0.15); color: var(--ig); }
 .plat-icon.yt { background: rgba(255,68,68,0.15); color: var(--yt); }
 .plat-icon.tt { background: rgba(232,232,240,0.1); color: var(--tt); }
-.plat-icon.th { background: rgba(230,230,230,0.1); color: #e6e6e6; }
-.plat-icon.li { background: rgba(10,102,194,0.15); color: #0a66c2; }
-.plat-icon.pt { background: rgba(230,0,35,0.15); color: #e60023; }
 .status-pill { font-size: 11px; font-family: var(--mono); padding: 3px 10px 3px 8px; border-radius: 99px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
 .status-pill.connected { background: rgba(62,207,142,0.12); color: var(--green); border: 1px solid rgba(62,207,142,0.3); }
@@ -1677,24 +1674,6 @@ input, select, textarea, label, .bottom-nav-item {
         </div>
         <div style="font-size:13px;color:var(--muted);line-height:1.6" data-i18n="integracoes.descTiktok">Publique vídeos na sua conta do TikTok. Importante: o TikTok publica o vídeo imediatamente ao receber, então use a opção "Publicar agora" para essa rede.</div>
       </div>
-      <div class="plat-card th">
-        <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon th"><svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M12.2 22c-2.9 0-5.2-.9-6.8-2.7C3.9 17.6 3 15.1 3 12s.9-5.6 2.4-7.3C7 2.9 9.3 2 12.2 2c2.2 0 4 .5 5.5 1.6 1.4 1 2.4 2.5 2.9 4.3l-2.3.6c-.4-1.3-1.1-2.4-2.1-3.1-1-.7-2.3-1.1-3.9-1.1-2.1 0-3.7.7-4.9 2-1.2 1.4-1.8 3.3-1.8 5.7s.6 4.3 1.8 5.7c1.2 1.3 2.8 2 4.9 2 1.8 0 3.2-.5 4.2-1.4.9-.8 1.4-1.9 1.6-3.2-.5.2-1.1.3-1.8.3-1.4 0-2.5-.4-3.4-1.1-.9-.8-1.3-1.8-1.3-3 0-1.3.5-2.3 1.4-3.1.9-.8 2.1-1.2 3.6-1.2.7 0 1.4.1 2 .3-.1-.8-.4-1.4-.9-1.9-.6-.5-1.4-.8-2.4-.8-1.2 0-2.2.4-3 1.2l-1.8-1.4c1.2-1.3 2.8-2 4.8-2 1.7 0 3.1.5 4.1 1.5 1 1 1.5 2.3 1.6 4v.5c.9.4 1.6 1 2.1 1.7.6.9.9 1.9.9 3.1 0 2.1-.8 3.8-2.3 5-1.5 1.2-3.5 1.9-6 1.9Zm.6-8.8c-.9 0-1.6.2-2.1.6-.5.4-.7.9-.7 1.5 0 .6.2 1 .6 1.4.4.3 1 .5 1.7.5 1.1 0 2-.3 2.6-.9.5-.5.8-1.2.9-2.2-.9-.5-1.9-.9-3-.9Z"/></svg></div>Threads</div>
-        </div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.6" data-i18n="integracoes.descThreads">Conectado pelo mesmo aplicativo do Facebook — não precisa cadastrar nada separado. Publique texto, imagem ou vídeo. A conexão fica válida por até 60 dias e é renovada automaticamente.</div>
-      </div>
-      <div class="plat-card li">
-        <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon li"><svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M4.98 3.5C4.98 4.88 3.93 6 2.5 6S0 4.88 0 3.5 1.05 1 2.5 1s2.48 1.12 2.48 2.5ZM.5 8.25h4V23h-4V8.25ZM8.5 8.25h3.83v2.02h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1V23h-4v-6.62c0-1.58-.03-3.6-2.2-3.6-2.2 0-2.54 1.72-2.54 3.5V23h-4V8.25Z"/></svg></div>LinkedIn</div>
-        </div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.6" data-i18n="integracoes.descLinkedin">Publica no seu perfil pessoal (não em páginas de empresa). Aceita texto, imagem ou vídeo. A conexão fica válida por até 60 dias, mas o LinkedIn não permite renovação automática — quando expirar, você precisa reconectar manualmente em "Conexões das Contas".</div>
-      </div>
-      <div class="plat-card pt">
-        <div class="plat-header">
-          <div class="plat-name"><div class="plat-icon pt"><svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.64 7.86 6.36 9.32-.09-.79-.17-2.02.03-2.89.19-.79 1.22-5.06 1.22-5.06s-.31-.62-.31-1.53c0-1.44.83-2.51 1.87-2.51.88 0 1.31.66 1.31 1.46 0 .89-.57 2.22-.86 3.45-.24 1.03.52 1.87 1.54 1.87 1.85 0 3.09-2.38 3.09-5.2 0-2.14-1.44-3.75-4.06-3.75-2.96 0-4.81 2.21-4.81 4.67 0 .85.25 1.45.64 1.91.18.21.2.3.14.55-.05.18-.16.63-.2.81-.07.26-.27.35-.5.25-1.39-.57-2.04-2.09-2.04-3.8 0-2.83 2.38-6.22 7.11-6.22 3.8 0 6.3 2.75 6.3 5.7 0 3.9-2.14 6.82-5.3 6.82-1.06 0-2.06-.58-2.4-1.23l-.68 2.63c-.21.83-.62 1.86-.98 2.55.87.26 1.79.4 2.75.4 5.52 0 10-4.48 10-10S17.52 2 12 2Z"/></svg></div>Pinterest</div>
-        </div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.6" data-i18n="integracoes.descPinterest">Publique imagens ou vídeos como Pins num board da sua conta. A conexão fica válida por até 30 dias e é renovada automaticamente.</div>
-      </div>
     </div>
     <div style="margin-top:1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--muted);line-height:1.6" data-i18n-html="integracoes.rodape">
       Precisa conectar uma conta nova? Vá até <strong style="color:var(--text)">Conexões das Contas</strong> e clique em "+ Adicionar conexão". Configurações avançadas são feitas pelo administrador do sistema.
@@ -1792,28 +1771,6 @@ input, select, textarea, label, .bottom-nav-item {
             <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Music Usage Confirmation</a> do TikTok.
           </div>
           <div id="preset-row-tiktok" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group" id="post-threads-options-group" style="display:none">
-          <label data-i18n="agendador.labelRespostasThreads">Quem pode responder (Threads)</label>
-          <select id="post-threads-reply-control">
-            <option value="everyone" data-i18n="agendador.optThreadsTodos">Todos</option>
-            <option value="accounts_you_follow" data-i18n="agendador.optThreadsQuemVoceSegue">Contas que você segue</option>
-            <option value="mentioned_only" data-i18n="agendador.optThreadsMencionados">Somente mencionados</option>
-          </select>
-          <div id="preset-row-threads" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group" id="post-linkedin-options-group" style="display:none">
-          <label data-i18n="agendador.labelVisibilidadeLinkedin">Visibilidade (LinkedIn)</label>
-          <select id="post-linkedin-visibility">
-            <option value="PUBLIC" data-i18n="agendador.optPublico">Público</option>
-            <option value="CONNECTIONS" data-i18n="agendador.optLinkedinConexoes">Somente conexões</option>
-          </select>
-          <div id="preset-row-linkedin" style="margin-top:8px"></div>
-        </div>
-        <div class="form-group" id="post-pinterest-options-group" style="display:none">
-          <label data-i18n="agendador.labelBoardPinterest">Board (Pinterest)</label>
-          <select id="post-pinterest-board" onchange="onPinterestBoardChange()"></select>
-          <div id="pinterest-board-hint" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
         </div>
         <div class="form-group">
           <label><span data-i18n="agendador.labelTextoPost">✎ Texto do post</span> <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-family:var(--sans)" data-i18n="agendador.opcional">(opcional)</span></label>
@@ -2432,7 +2389,7 @@ input, select, textarea, label, .bottom-nav-item {
       <div class="step"><div class="step-num">03</div><div class="step-label" data-i18n="modal.passoConfirmar">Confirmar</div></div>
     </div>
     <div class="form-group"><label data-i18n="modal.plataforma">Plataforma</label>
-      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="threads">Threads</option><option value="linkedin">LinkedIn</option><option value="pinterest">Pinterest</option></select>
+      <select id="modal-platform" onchange="updatePlatformUI(this.value)"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option></select>
     </div>
     <div class="form-group">
       <label data-i18n="modal.nomeOuLinkConta">Nome ou link da conta</label>
@@ -2700,10 +2657,7 @@ const PLAT_SVG = {
   facebook: '<svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M22 12.06C22 6.51 17.52 2 12 2S2 6.51 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.86c0-2.52 1.49-3.92 3.77-3.92 1.09 0 2.24.2 2.24.2v2.48h-1.26c-1.24 0-1.63.78-1.63 1.58v1.9h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94Z"/></svg>',
   instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="60%" height="60%"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
   youtube: '<svg viewBox="0 0 24 24" fill="currentColor" width="62%" height="62%"><path d="M23 7.2s-.23-1.62-.94-2.34c-.9-.94-1.9-.95-2.36-1C16.34 3.6 12 3.6 12 3.6h-.01s-4.34 0-7.7.26c-.46.05-1.46.06-2.36 1C1.23 5.58 1 7.2 1 7.2S.77 9.1.77 11v1.79c0 1.9.23 3.8.23 3.8s.23 1.62.94 2.34c.9.94 2.08.91 2.6 1.01 1.9.18 8.05.24 8.46.24 0 0 4.34 0 7.71-.26.46-.06 1.46-.06 2.36-1 .71-.72.94-2.34.94-2.34s.23-1.9.23-3.8V11c0-1.9-.23-3.8-.23-3.8ZM9.75 14.98V8.62l6.28 3.19-6.28 3.17Z"/></svg>',
-  tiktok: '<svg viewBox="0 0 24 24" fill="currentColor" width="55%" height="55%"><path d="M16.6 2h-3.2v13.9c0 1.55-1.25 2.82-2.8 2.82a2.81 2.81 0 0 1-2.8-2.82c0-1.55 1.25-2.81 2.8-2.81.31 0 .6.05.88.14v-3.26a6.1 6.1 0 0 0-.88-.06A6 6 0 0 0 4.6 15.9a6 6 0 0 0 6 5.99 6 6 0 0 0 6-5.99V8.34a8.18 8.18 0 0 0 4.8 1.54V6.66a4.85 4.85 0 0 1-4.8-4.66Z"/></svg>',
-  threads: '<svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M12.2 22c-2.9 0-5.2-.9-6.8-2.7C3.9 17.6 3 15.1 3 12s.9-5.6 2.4-7.3C7 2.9 9.3 2 12.2 2c2.2 0 4 .5 5.5 1.6 1.4 1 2.4 2.5 2.9 4.3l-2.3.6c-.4-1.3-1.1-2.4-2.1-3.1-1-.7-2.3-1.1-3.9-1.1-2.1 0-3.7.7-4.9 2-1.2 1.4-1.8 3.3-1.8 5.7s.6 4.3 1.8 5.7c1.2 1.3 2.8 2 4.9 2 1.8 0 3.2-.5 4.2-1.4.9-.8 1.4-1.9 1.6-3.2-.5.2-1.1.3-1.8.3-1.4 0-2.5-.4-3.4-1.1-.9-.8-1.3-1.8-1.3-3 0-1.3.5-2.3 1.4-3.1.9-.8 2.1-1.2 3.6-1.2.7 0 1.4.1 2 .3-.1-.8-.4-1.4-.9-1.9-.6-.5-1.4-.8-2.4-.8-1.2 0-2.2.4-3 1.2l-1.8-1.4c1.2-1.3 2.8-2 4.8-2 1.7 0 3.1.5 4.1 1.5 1 1 1.5 2.3 1.6 4v.5c.9.4 1.6 1 2.1 1.7.6.9.9 1.9.9 3.1 0 2.1-.8 3.8-2.3 5-1.5 1.2-3.5 1.9-6 1.9Zm.6-8.8c-.9 0-1.6.2-2.1.6-.5.4-.7.9-.7 1.5 0 .6.2 1 .6 1.4.4.3 1 .5 1.7.5 1.1 0 2-.3 2.6-.9.5-.5.8-1.2.9-2.2-.9-.5-1.9-.9-3-.9Z"/></svg>',
-  linkedin: '<svg viewBox="0 0 24 24" fill="currentColor" width="58%" height="58%"><path d="M4.98 3.5C4.98 4.88 3.93 6 2.5 6S0 4.88 0 3.5 1.05 1 2.5 1s2.48 1.12 2.48 2.5ZM.5 8.25h4V23h-4V8.25ZM8.5 8.25h3.83v2.02h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.65 4.78 6.1V23h-4v-6.62c0-1.58-.03-3.6-2.2-3.6-2.2 0-2.54 1.72-2.54 3.5V23h-4V8.25Z"/></svg>',
-  pinterest: '<svg viewBox="0 0 24 24" fill="currentColor" width="60%" height="60%"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.64 7.86 6.36 9.32-.09-.79-.17-2.02.03-2.89.19-.79 1.22-5.06 1.22-5.06s-.31-.62-.31-1.53c0-1.44.83-2.51 1.87-2.51.88 0 1.31.66 1.31 1.46 0 .89-.57 2.22-.86 3.45-.24 1.03.52 1.87 1.54 1.87 1.85 0 3.09-2.38 3.09-5.2 0-2.14-1.44-3.75-4.06-3.75-2.96 0-4.81 2.21-4.81 4.67 0 .85.25 1.45.64 1.91.18.21.2.3.14.55-.05.18-.16.63-.2.81-.07.26-.27.35-.5.25-1.39-.57-2.04-2.09-2.04-3.8 0-2.83 2.38-6.22 7.11-6.22 3.8 0 6.3 2.75 6.3 5.7 0 3.9-2.14 6.82-5.3 6.82-1.06 0-2.06-.58-2.4-1.23l-.68 2.63c-.21.83-.62 1.86-.98 2.55.87.26 1.79.4 2.75.4 5.52 0 10-4.48 10-10S17.52 2 12 2Z"/></svg>'
+  tiktok: '<svg viewBox="0 0 24 24" fill="currentColor" width="55%" height="55%"><path d="M16.6 2h-3.2v13.9c0 1.55-1.25 2.82-2.8 2.82a2.81 2.81 0 0 1-2.8-2.82c0-1.55 1.25-2.81 2.8-2.81.31 0 .6.05.88.14v-3.26a6.1 6.1 0 0 0-.88-.06A6 6 0 0 0 4.6 15.9a6 6 0 0 0 6 5.99 6 6 0 0 0 6-5.99V8.34a8.18 8.18 0 0 0 4.8 1.54V6.66a4.85 4.85 0 0 1-4.8-4.66Z"/></svg>'
 };
 
 // Escapa texto antes de injetar em innerHTML, evitando XSS com dados
@@ -2918,10 +2872,7 @@ async function loadDashboard() {
     facebook: { cls:'fb', icon:PLAT_SVG.facebook, label:'Facebook' },
     instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram' },
     youtube:  { cls:'yt', icon:PLAT_SVG.youtube, label:'YouTube' },
-    tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok' },
-    threads:  { cls:'th', icon:PLAT_SVG.threads, label:'Threads' },
-    linkedin: { cls:'li', icon:PLAT_SVG.linkedin, label:'LinkedIn' },
-    pinterest:{ cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' }
+    tiktok:   { cls:'tt', icon:PLAT_SVG.tiktok, label:'TikTok' }
   };
   renderSidebarPlatList(platCfgSidebar, platforms, contas);
 
@@ -3055,10 +3006,7 @@ const PLAT_ROW_CFG = {
   facebook:  { cls:'fb', icon:PLAT_SVG.facebook,  label:'Facebook' },
   instagram: { cls:'ig', icon:PLAT_SVG.instagram, label:'Instagram' },
   youtube:   { cls:'yt', icon:PLAT_SVG.youtube,   label:'YouTube' },
-  tiktok:    { cls:'tt', icon:PLAT_SVG.tiktok,    label:'TikTok' },
-  threads:   { cls:'th', icon:PLAT_SVG.threads,   label:'Threads' },
-  linkedin:  { cls:'li', icon:PLAT_SVG.linkedin,  label:'LinkedIn' },
-  pinterest: { cls:'pt', icon:PLAT_SVG.pinterest, label:'Pinterest' }
+  tiktok:    { cls:'tt', icon:PLAT_SVG.tiktok,    label:'TikTok' }
 };
 
 // Limites reais de caracteres por rede (espelha src/domain/posts/platformLimits.js
@@ -3066,7 +3014,7 @@ const PLAT_ROW_CFG = {
 // (2200) — o mais permissivo — porque a mídia ainda não foi anexada nesta
 // etapa; o limite mais restrito de foto (90) é aplicado de fato pelo backend
 // na hora de publicar.
-const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200, threads: 500, linkedin: 3000, pinterest: 500 }
+const AI_LIMITS = { instagram: 2200, facebook: 63206, youtube: 5000, tiktok: 2200 }
 // Só para o TikTok com FOTO (não vídeo) o limite real cai para 90 — usado
 // pelo fluxo de geração de imagem (OpenRouter) e pelo contador do editor,
 // que já sabem que a mídia é uma foto nesse ponto.
@@ -3253,7 +3201,7 @@ function unitLabel(u) {
 // Plataformas que só aceitam vídeo (sem suporte a imagem para publicação)
 const VIDEO_ONLY_PLATS = ['youtube'];
 
-const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok', threads:'Threads', linkedin:'LinkedIn', pinterest:'Pinterest' };
+const AP_PLAT_LABELS = { facebook:'Facebook', instagram:'Instagram', youtube:'YouTube', tiktok:'TikTok' };
 let apContas = [];
 
 // Categorias oficiais da YouTube Data API v3 — espelha
@@ -3385,22 +3333,6 @@ function applyConfigTabVisibility() {
     if (typeof renderPresetRow === 'function') renderPresetRow('youtube');
   }
   if (typeof renderTiktokOptionsGroup === 'function') renderTiktokOptionsGroup();
-
-  const mostrarThreads = selectedPlats.has('threads') && (soUmaRede || activeConfigTab === 'threads');
-  const threadsGroup = document.getElementById('post-threads-options-group');
-  if (threadsGroup) {
-    threadsGroup.style.display = mostrarThreads ? '' : 'none';
-    if (mostrarThreads && typeof renderPresetRow === 'function') renderPresetRow('threads');
-  }
-
-  const mostrarLinkedin = selectedPlats.has('linkedin') && (soUmaRede || activeConfigTab === 'linkedin');
-  const linkedinGroup = document.getElementById('post-linkedin-options-group');
-  if (linkedinGroup) {
-    linkedinGroup.style.display = mostrarLinkedin ? '' : 'none';
-    if (mostrarLinkedin && typeof renderPresetRow === 'function') renderPresetRow('linkedin');
-  }
-
-  if (typeof renderPinterestOptionsGroup === 'function') renderPinterestOptionsGroup();
 }
 
 // Mantém titleByPlatform coerente quando a seleção de redes muda — mesmo
@@ -3441,8 +3373,6 @@ function applyPlatformSelection(plats) {
   renderYoutubeFormatPills();
   if (!selectedPlats.has('tiktok')) resetTiktokOptions();
   renderTiktokOptionsGroup();
-  if (!selectedPlats.has('pinterest') && typeof resetPinterestOptions === 'function') resetPinterestOptions();
-  if (typeof renderPinterestOptionsGroup === 'function') renderPinterestOptionsGroup();
   syncMediaByPlatformSelection();
   renderMediaByPlatformGroup();
   if (typeof updateLocationGroupVisibility === 'function') updateLocationGroupVisibility();
@@ -3597,13 +3527,6 @@ function setYoutubeFormat(value) {
 let tiktokCreatorInfo = null;
 let tiktokCreatorInfoContaId = null;
 
-// Boards do Pinterest da conta conectada, para o seletor de board por post —
-// GET /api/posts/pinterest-boards (ver buscarBoardsPinterest.js). Cacheado
-// por contaId, mesmo padrão de tiktokCreatorInfo, para não reconsultar a API
-// a cada re-render (troca de aba, digitação de texto etc.).
-let pinterestBoards = null;
-let pinterestBoardsContaId = null;
-let selectedPinterestBoard = null; // { id, name }
 const TIKTOK_PRIVACY_LABELS = {
   PUBLIC_TO_EVERYONE: () => window.i18n.t('toast.tiktokPrivacyPublico'),
   MUTUAL_FOLLOW_FRIENDS: () => window.i18n.t('toast.tiktokPrivacyAmigos'),
@@ -3689,69 +3612,6 @@ function resetTiktokOptions() {
   });
 }
 
-async function renderPinterestOptionsGroup() {
-  const group = document.getElementById('post-pinterest-options-group');
-  if (!group) return;
-
-  const aplica = selectedPlats.has('pinterest');
-  const abaPermite = selectedPlats.size < 2 || activeConfigTab === 'pinterest';
-  group.style.display = (aplica && abaPermite) ? '' : 'none';
-  if (!aplica || !abaPermite) return;
-
-  const conta = apContas.find(c => c.platform === 'pinterest' && c.handle);
-  const hintEl = document.getElementById('pinterest-board-hint');
-  const select = document.getElementById('post-pinterest-board');
-
-  if (!conta) {
-    if (hintEl) hintEl.textContent = window.i18n.t('toast.conectePinterestParaBoards');
-    return;
-  }
-
-  if (pinterestBoardsContaId === conta.id && pinterestBoards) return;
-  pinterestBoardsContaId = conta.id;
-
-  if (hintEl) hintEl.textContent = window.i18n.t('toast.carregandoBoardsPinterest');
-  try {
-    ({ boards: pinterestBoards } = await apiFetch('/api/posts/pinterest-boards'));
-  } catch (e) {
-    pinterestBoards = null;
-    if (hintEl) hintEl.textContent = e.message || window.i18n.t('toast.erroCarregarBoardsPinterest');
-    return;
-  }
-
-  if (!pinterestBoards.length) {
-    if (hintEl) hintEl.textContent = window.i18n.t('toast.nenhumBoardPinterest');
-    if (select) select.innerHTML = '';
-    return;
-  }
-
-  if (hintEl) hintEl.textContent = '';
-  if (select) {
-    select.innerHTML = pinterestBoards.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.name)}</option>`).join('');
-    const preSelecionado = selectedPinterestBoard && pinterestBoards.some(b => b.id === selectedPinterestBoard.id)
-      ? selectedPinterestBoard.id
-      : pinterestBoards[0].id;
-    select.value = preSelecionado;
-    onPinterestBoardChange();
-  }
-}
-
-function onPinterestBoardChange() {
-  const select = document.getElementById('post-pinterest-board');
-  const board = pinterestBoards?.find(b => b.id === select?.value);
-  selectedPinterestBoard = board ? { id: board.id, name: board.name } : null;
-}
-
-function resetPinterestOptions() {
-  pinterestBoards = null;
-  pinterestBoardsContaId = null;
-  selectedPinterestBoard = null;
-  const select = document.getElementById('post-pinterest-board');
-  if (select) select.innerHTML = '';
-  const hintEl = document.getElementById('pinterest-board-hint');
-  if (hintEl) hintEl.textContent = '';
-}
-
 // ── Presets de configuração por rede ─────────────────────────────────────────
 // Guarda só as opções de publicação (formato/visibilidade/privacidade), não
 // texto nem mídia — ver src/routes/platformPresets.js e migrations/038.
@@ -3784,12 +3644,6 @@ function lerConfigAtualDaRede(platform) {
     tiktokDisableDuet: !document.getElementById('post-tiktok-allow-duet')?.checked,
     tiktokDisableStitch: !document.getElementById('post-tiktok-allow-stitch')?.checked,
   };
-  if (platform === 'threads') return {
-    threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || 'everyone',
-  };
-  if (platform === 'linkedin') return {
-    linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || 'PUBLIC',
-  };
   return {};
 }
 
@@ -3808,10 +3662,6 @@ function aplicarPresetNaRede(platform, config) {
     if (document.getElementById('post-tiktok-allow-comment')) document.getElementById('post-tiktok-allow-comment').checked = !config.tiktokDisableComment;
     if (document.getElementById('post-tiktok-allow-duet')) document.getElementById('post-tiktok-allow-duet').checked = !config.tiktokDisableDuet;
     if (document.getElementById('post-tiktok-allow-stitch')) document.getElementById('post-tiktok-allow-stitch').checked = !config.tiktokDisableStitch;
-  } else if (platform === 'threads') {
-    if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = config.threadsReplyControl || 'everyone';
-  } else if (platform === 'linkedin') {
-    if (document.getElementById('post-linkedin-visibility')) document.getElementById('post-linkedin-visibility').value = config.linkedinVisibility || 'PUBLIC';
   }
   renderValidationPanel();
   renderPreviewContent();
@@ -4333,8 +4183,8 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// ── Primeiro comentário automático (Facebook/Instagram/YouTube/Threads/LinkedIn) ──
-const PLATS_COM_COMENTARIO = ['facebook', 'instagram', 'youtube', 'threads', 'linkedin'];
+// ── Primeiro comentário automático (Facebook/Instagram/YouTube) ──
+const PLATS_COM_COMENTARIO = ['facebook', 'instagram', 'youtube'];
 
 function updateFirstCommentGroupVisibility() {
   const group = document.getElementById('post-first-comment-group');
@@ -5365,7 +5215,7 @@ function startPlatformHealthPolling() {
   platformHealthTimer = setInterval(refreshPlatformHealth, 60000);
 }
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' };
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' };
 
 // Retorna a lista de plataformas selecionadas que estão marcadas como fora do ar
 function plataformasForaDoAr(platforms) {
@@ -5503,8 +5353,6 @@ async function schedulePost(publishNow = false) {
   const tiktokDisableComment = !document.getElementById('post-tiktok-allow-comment').checked;
   const tiktokDisableDuet = !document.getElementById('post-tiktok-allow-duet').checked;
   const tiktokDisableStitch = !document.getElementById('post-tiktok-allow-stitch').checked;
-  const threadsReplyControl = document.getElementById('post-threads-reply-control')?.value || '';
-  const linkedinVisibility = document.getElementById('post-linkedin-visibility')?.value || '';
   const repeat = document.getElementById('post-repeat').value;
   const platforms = [...selectedPlats];
 
@@ -5592,11 +5440,7 @@ async function schedulePost(publishNow = false) {
     titleByPlatform: Object.keys(titleByPlatform).length ? JSON.stringify(titleByPlatform) : '{}',
     locationId: selectedLocation?.id || '',
     locationName: selectedLocation?.name || '',
-    firstComment: document.getElementById('post-first-comment')?.value.trim() || '',
-    threadsReplyControl: platforms.includes('threads') ? threadsReplyControl : '',
-    linkedinVisibility: platforms.includes('linkedin') ? linkedinVisibility : '',
-    pinterestBoardId: platforms.includes('pinterest') ? (selectedPinterestBoard?.id || '') : '',
-    pinterestBoardName: platforms.includes('pinterest') ? (selectedPinterestBoard?.name || '') : ''
+    firstComment: document.getElementById('post-first-comment')?.value.trim() || ''
   };
 
   if (publishNow) showToast(window.i18n.t('toast.publicandoAgora'), 'ok');
@@ -6498,7 +6342,7 @@ function analyticsRenderPostsList(net, tab) {
   const THUMB_FALLBACK = `<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted)">🖼️</div>`.replace(/"/g,'&quot;');
 
   // Agrupa por postId para mostrar métricas de múltiplas plataformas no mesmo card
-  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', linkedin:'💼' };
+  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦' };
   const grupos = {};
   for (const m of metrics) {
     const key = m.postId || (m.text||'') + (m.publishedAt||'');
@@ -6736,24 +6580,6 @@ const PLAT_FIELD_CFG = {
     pattern: /tiktok\.com\/@?([^/?#\s]+)/i,
     label: 'TikTok',
     example: window.i18n.t('platField.exampleTiktok')
-  },
-  threads: {
-    placeholder: window.i18n.t('platField.placeholderThreads'),
-    pattern: /threads\.net\/@?([^/?#\s]+)/i,
-    label: 'Threads',
-    example: window.i18n.t('platField.exampleThreads')
-  },
-  linkedin: {
-    placeholder: window.i18n.t('platField.placeholderLinkedin'),
-    pattern: /linkedin\.com\/in\/([^/?#\s]+)/i,
-    label: 'LinkedIn',
-    example: window.i18n.t('platField.exampleLinkedin')
-  },
-  pinterest: {
-    placeholder: window.i18n.t('platField.placeholderPinterest'),
-    pattern: /pinterest\.com\/([^/?#\s]+)/i,
-    label: 'Pinterest',
-    example: window.i18n.t('platField.examplePinterest')
   }
 };
 
@@ -6948,7 +6774,7 @@ async function startOAuth() {
 
   if (platform === 'facebook') return connectFacebookViaSdk(name);
 
-  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok', threads:'threads', linkedin:'linkedin', pinterest:'pinterest' };
+  const oauthMap = { instagram:'instagram', youtube:'google', tiktok:'tiktok' };
   const provider = oauthMap[platform];
 
   // Nome único evita reaproveitar/colidir com uma janela "_blank" anterior.
@@ -8283,14 +8109,6 @@ function getScoreRules() {
     { pts: 15, check: ({date}) => !!date,                   tip: window.i18n.t('score.dataHora')                      },
     { pts: 15, check: ({text}) => text.length >= 50,        tip: window.i18n.t('score.tt.legenda50')               },
   ],
-  linkedin: [
-    { pts: 25, check: ({text}) => text.length >= 100,       tip: window.i18n.t('score.li.textosLongos100') },
-    { pts: 15, check: ({text}) => text.length > 0,          tip: window.i18n.t('score.li.textoProfissional')            },
-    { pts: 15, check: ({text}) => /#\w/.test(text),         tip: window.i18n.t('score.li.hashtagsProfissionais')          },
-    { pts: 20, check: ({hasMedia}) => hasMedia,             tip: window.i18n.t('score.imagemVideo')                 },
-    { pts: 15, check: ({date}) => !!date,                   tip: window.i18n.t('score.dataHora')                     },
-    { pts: 10, check: ({text}) => text.includes('?'),       tip: window.i18n.t('score.li.facaPerguntaConexoes')  },
-  ],
   twitter: [
     { pts: 25, check: ({text}) => text.length > 0 && text.length <= 280, tip: window.i18n.t('score.tw.texto280') },
     { pts: 20, check: ({hasMedia}) => hasMedia,             tip: window.i18n.t('score.tw.imagemVideoAlcance')        },
@@ -8351,7 +8169,6 @@ const PLAT_SCORE_LABELS = {
   facebook:  'Facebook',
   youtube:   'YouTube',
   tiktok:    'TikTok',
-  linkedin:  'LinkedIn',
   twitter:   'X (Twitter)',
 };
 
@@ -8421,11 +8238,6 @@ function getBestTimes() {
     { time: '12:00', label: window.i18n.t('time.almoco')     },
     { time: '19:00', label: window.i18n.t('time.noite')      },
     { time: '21:00', label: window.i18n.t('time.tardeNoite')},
-  ],
-  linkedin: [
-    { time: '08:00', label: window.i18n.t('time.manha')      },
-    { time: '12:00', label: window.i18n.t('time.almoco')     },
-    { time: '17:00', label: window.i18n.t('time.saida')      },
   ],
   twitter: [
     { time: '09:00', label: window.i18n.t('time.manha')      },
@@ -11546,7 +11358,7 @@ function renderDraftList(items, isTemplate) {
   if (!items.length) {
     return `<div style="text-align:center;color:var(--muted);padding:2rem;font-size:12px">${isTemplate ? window.i18n.t('drafts.noTemplateSaved') : window.i18n.t('drafts.noDraftSaved')}</div>`;
   }
-  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦', linkedin:'💼' };
+  const PLAT_ICON = { instagram:'📸', facebook:'📘', youtube:'▶️', tiktok:'🎵', twitter:'🐦' };
   const PLAT_COLOR = { instagram:'var(--ig)', facebook:'var(--fb)', youtube:'var(--yt)', tiktok:'#888' };
 
   return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:4px 2px">` +
@@ -11645,13 +11457,6 @@ async function applyDraft(id) {
     if (d.location_id && d.location_name) selecionarLocalizacao(d.location_id, d.location_name);
     else limparLocalizacaoSelecionada();
     if (document.getElementById('post-first-comment')) document.getElementById('post-first-comment').value = d.first_comment || '';
-    if (document.getElementById('post-threads-reply-control')) document.getElementById('post-threads-reply-control').value = d.threads_reply_control || 'everyone';
-    if (document.getElementById('post-linkedin-visibility')) document.getElementById('post-linkedin-visibility').value = d.linkedin_visibility || 'PUBLIC';
-    // O board real só é confirmado quando a lista carregar (fetch assíncrono
-    // em renderPinterestOptionsGroup, disparado por applyPlatformSelection
-    // acima) — guarda a intenção aqui, o render escolhe esse id se ele
-    // ainda existir na lista de boards da conta.
-    selectedPinterestBoard = d.pinterest_board_id ? { id: d.pinterest_board_id, name: d.pinterest_board_name } : null;
 
     renderTextTabsBar();
     renderIgFormatPills();
@@ -11750,11 +11555,7 @@ async function saveDraft(isTemplate) {
         tiktokDisableStitch: document.getElementById('post-tiktok-allow-stitch') ? !document.getElementById('post-tiktok-allow-stitch').checked : null,
         locationId: selectedLocation?.id || null,
         locationName: selectedLocation?.name || null,
-        firstComment: document.getElementById('post-first-comment')?.value.trim() || null,
-        threadsReplyControl: document.getElementById('post-threads-reply-control')?.value || null,
-        linkedinVisibility: document.getElementById('post-linkedin-visibility')?.value || null,
-        pinterestBoardId: selectedPinterestBoard?.id || null,
-        pinterestBoardName: selectedPinterestBoard?.name || null
+        firstComment: document.getElementById('post-first-comment')?.value.trim() || null
       })
     });
     showToast(isTemplate ? window.i18n.t('toast.templateSaved') : window.i18n.t('toast.draftSaved'), 'ok');

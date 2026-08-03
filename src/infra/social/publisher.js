@@ -10,9 +10,6 @@ const { publicarFacebook } = require('./facebookPublisher')
 const { publicarInstagram, statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
 const { publicarYoutube } = require('./youtubePublisher')
 const { publicarTiktok } = require('./tiktokPublisher')
-const { publicarThreads } = require('./threadsPublisher')
-const { publicarLinkedin } = require('./linkedinPublisher')
-const { publicarPinterest } = require('./pinterestPublisher')
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
@@ -77,9 +74,6 @@ function extrairExternalId(platform, data) {
   // operação de publicação) — não o ID do vídeo em si, que a API não expõe
   // de volta nessa chamada. Serve para rastrear o post via /v2/post/publish/status/fetch/.
   if (platform === 'tiktok') return data?.publish_id || null
-  if (platform === 'threads') return data?.id || null
-  if (platform === 'linkedin') return data?.id || null
-  if (platform === 'pinterest') return data?.id || null
   return null
 }
 
@@ -87,10 +81,7 @@ const PUBLISHERS = {
   facebook: publicarFacebook,
   instagram: publicarInstagram,
   youtube: publicarYoutube,
-  tiktok: publicarTiktok,
-  threads: publicarThreads,
-  linkedin: publicarLinkedin,
-  pinterest: publicarPinterest
+  tiktok: publicarTiktok
 }
 
 // Distingue falha transitória (vale tentar de novo mais tarde: 5xx, rate

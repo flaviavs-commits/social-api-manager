@@ -42,8 +42,8 @@ async function salvarBuffer(filename, buffer, contentType) {
 // Único domínio de onde o servidor tem permissão de baixar mídia enviada
 // pelo cliente (conversão de imagem, probe de vídeo, geração de capa, etc.).
 // Sem essa checagem, media[].url viajava direto do body da requisição até
-// fetch() no servidor (criarPost.js, mediaFetch.js, pinterestPublisher.js) —
-// um usuário autenticado podia apontar para qualquer URL (rede interna,
+// fetch() no servidor (criarPost.js, mediaFetch.js) — um usuário
+// autenticado podia apontar para qualquer URL (rede interna,
 // metadata da nuvem) e ainda ter o conteúdo baixado processado por
 // sharp/ffprobe. Mesma restrição de host já aplicada em GET /media-proxy
 // (server.js) para o caso inverso (proxy de saída).

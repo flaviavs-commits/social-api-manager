@@ -76,7 +76,7 @@ async function processarMidia(media, captions, platforms) {
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment, threadsReplyControl, linkedinVisibility, pinterestBoardId, pinterestBoardName } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -213,7 +213,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const publishNow = body.publishNow === 'true' || body.publishNow === true
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, threadsReplyControl, linkedinVisibility,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel,
     platforms, repeat, items, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform,
     scheduledAtUTC, publishNow
   })
@@ -233,7 +233,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   }
   const platformsSemConta = platforms.filter(p => !contas.some(c => c.platform === p))
   if (platformsSemConta.length) {
-    const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok', threads: 'Threads', linkedin: 'LinkedIn', pinterest: 'Pinterest' }
+    const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }
     const nomes = platformsSemConta.map(p => labels[p] || p).join(', ')
     throw new ValidationError(`Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.`)
   }
@@ -254,8 +254,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   }
 
   // Localização (Facebook/Instagram, only) e primeiro comentário automático
-  // (Facebook/Instagram/YouTube/Threads/LinkedIn — não TikTok/Pinterest, sem
-  // endpoint de comentário na API oficial) — ver publisher.js/scheduler.js.
+  // (Facebook/Instagram/YouTube — não TikTok, sem endpoint de comentário na
+  // API oficial) — ver publisher.js/scheduler.js.
   const temFacebookOuInstagram = platforms.includes('facebook') || platforms.includes('instagram')
 
   const post = await postsRepo.criarPost({
@@ -270,10 +270,6 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     locationId: temFacebookOuInstagram ? (locationId || null) : null,
     locationName: temFacebookOuInstagram ? (locationName || null) : null,
     firstComment: firstComment?.trim() || null,
-    threadsReplyControl: platforms.includes('threads') ? (threadsReplyControl || null) : null,
-    linkedinVisibility: platforms.includes('linkedin') ? (linkedinVisibility || null) : null,
-    pinterestBoardId: platforms.includes('pinterest') ? (pinterestBoardId || null) : null,
-    pinterestBoardName: platforms.includes('pinterest') ? (pinterestBoardName || null) : null,
     accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
   })
 
