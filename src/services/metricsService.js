@@ -227,8 +227,24 @@ async function buscarDemografiaInstagram(userId, isAdmin) {
 }
 
 // Estatísticas atuais de uma conta do TikTok (seguidores, curtidas
-// recebidas no total, número de vídeos). Exige o scope user.info.stats —
-// contas conectadas antes desse scope existir recebem 403 aqui.
+// recebidas no total, número de vídeos). Contas migradas para o Zernio
+// (docs.zernio.com) não têm mais um access_token real da Content Posting
+// API — token.accessToken é o accountId do Zernio — então busca via
+// GET /v1/accounts, que já traz followersCount/likesCount/videoCount
+// prontos (sem precisar de scope user.info.stats próprio). Contas ainda na
+// integração direta (não reconectadas) continuam pela Content Posting API.
+async function metricsStatsAtuaisTiktokZernio(zernioAccountId) {
+  const { accounts } = await zernioClient.listAccounts()
+  const conta = accounts.find(a => a._id === zernioAccountId)
+  if (!conta) throw new Error('Conta TikTok não encontrada no Zernio')
+  const extra = conta.metadata?.profileData?.extraData || {}
+  return {
+    followerCount: conta.followersCount ?? conta.metadata?.profileData?.followersCount ?? null,
+    likesCount: extra.likesCount ?? null,
+    videoCount: extra.videoCount ?? null
+  }
+}
+
 async function metricsStatsAtuaisTiktok(token) {
   const url = 'https://open.tiktokapis.com/v2/user/info/?fields=follower_count,likes_count,video_count'
   const res = await fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } })
@@ -335,12 +351,39 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
   const tokens = await listarContasToken('tiktok', userId, isAdmin)
 
   await Promise.allSettled(tokens.map(async t => {
-    const stats = await metricsStatsAtuaisTiktok({ accessToken: t.accessToken })
+    const stats = t.zernioAccountId
+      ? await metricsStatsAtuaisTiktokZernio(t.zernioAccountId)
+      : await metricsStatsAtuaisTiktok({ accessToken: t.accessToken })
     await contasRepo.registrarSnapshotStatsTiktok(t.contaId, stats)
   }))
 
   const historico = await contasRepo.buscarHistoricoStatsTiktok(userId, isAdmin)
   return Object.fromEntries(historico.map(h => [h.date.toISOString().slice(0, 10), { followerCount: h.followerCount, likesCount: h.likesCount }]))
+}
+
+// Mesma lista de vídeos, mas para contas migradas para o Zernio — via
+// GET /v1/analytics (não paginado como a Content Posting API original;
+// devolve tudo que o Zernio já sincronizou para a conta).
+async function metricsVideosTiktokZernio(zernioAccountId) {
+  const { posts } = await zernioClient.getAnalytics()
+  const videos = []
+  for (const post of posts) {
+    const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && p.accountId === zernioAccountId)
+    if (!plataforma) continue
+    const a = plataforma.analytics || {}
+    videos.push({
+      id: plataforma.platformPostId,
+      title: post.content || '',
+      coverImageUrl: post.thumbnailUrl || null,
+      shareUrl: plataforma.platformPostUrl || null,
+      createTime: post.publishedAt ? Math.floor(new Date(post.publishedAt).getTime() / 1000) : null,
+      viewCount: a.views ?? null,
+      likeCount: a.likes ?? null,
+      commentCount: a.comments ?? null,
+      shareCount: a.shares ?? null
+    })
+  }
+  return { videos, cursor: null, hasMore: false }
 }
 
 // Lista os vídeos publicados na conta do TikTok (mais recentes primeiro),
@@ -379,7 +422,9 @@ async function buscarVideosTiktok(userId, isAdmin) {
 
   const resultados = await Promise.allSettled(
     tokens.map(async t => {
-      const { videos } = await metricsVideosTiktok({ accessToken: t.accessToken })
+      const { videos } = t.zernioAccountId
+        ? await metricsVideosTiktokZernio(t.zernioAccountId)
+        : await metricsVideosTiktok({ accessToken: t.accessToken })
       return videos.map(v => ({ ...v, accountId: t.contaId, accountName: t.accountName }))
     })
   )
