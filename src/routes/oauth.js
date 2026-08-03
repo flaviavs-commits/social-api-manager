@@ -172,12 +172,14 @@ async function syncZernioAccount(platform, userId, accountName) {
   const escolhida = daPlataforma[daPlataforma.length - 1];
   if (!escolhida) throw new Error(`Nenhuma conta do ${ZERNIO_PLATFORM_LABELS[platform] || platform} encontrada no Zernio após a conexão`);
 
-  const nomeFinal = accountName || escolhida.username || escolhida.name || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
+  const nomeFinal = accountName || escolhida.username || escolhida.displayName || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
+  // O campo com a foto de perfil na resposta do Zernio é "profilePicture"
+  // (confirmado em teste real, 2026-08-03 — GET /v1/accounts e /v1/analytics).
   const conta = await contasRepo.criarContaRapida({
     name: nomeFinal,
     platform,
     userId,
-    avatarUrl: escolhida.profilePictureUrl || escolhida.avatarUrl || null,
+    avatarUrl: escolhida.profilePicture || null,
     externalUserId: escolhida._id
   });
 
