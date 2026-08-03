@@ -10069,15 +10069,17 @@ async function aiHandleImageRequestOpenRouter(ctx, userMsg) {
   }
 }
 
-// Fluxo de geração de imagem — verifica chave e gera ou coleta lead
+// Fluxo de geração de imagem.
 //
 // Gerar imagem é independente do modelo de TEXTO selecionado no chat: o
 // usuário pode estar conversando no GPT-OSS 20B, Claude, etc., e ainda assim
 // pedir uma imagem sem precisar trocar de modelo manualmente. Aqui a função
 // escolhe sozinha qual provedor de imagem usar (OpenRouter, se o usuário já
-// tiver chave própria configurada; senão Gemini/Imagen do Google) e nunca
-// mexe em aiSelectedModel — o modelo de texto do chat continua o mesmo antes
-// e depois do pedido de imagem, sem precisar "voltar" porque nunca mudou.
+// tiver chave própria configurada; senão Gemini/Imagen do Google, com a
+// própria chave do usuário OU a chave do servidor como fallback — ver
+// POST /api/ai/image/generate) e nunca mexe em aiSelectedModel — o modelo de
+// texto do chat continua o mesmo antes e depois do pedido de imagem, sem
+// precisar "voltar" porque nunca mudou.
 async function aiHandleImageRequest(ctx, userMsg) {
   const state = aiChat[ctx]
 
@@ -10088,25 +10090,15 @@ async function aiHandleImageRequest(ctx, userMsg) {
     return aiHandleImageRequestOpenRouter(ctx, userMsg)
   }
 
-  aiChatTyping(ctx, true)
-  await new Promise(r => setTimeout(r, 700))
-  aiChatTyping(ctx, false)
-
-  // Verifica se usuário tem chave Google cadastrada
-  const hasKey = await aiCheckUserKey('gemini')
-  if (!hasKey) {
-    // Sem chave — coleta lead
-    state.step = 'image_lead'
-    state.imageDesc = userMsg
-    aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.loveIdeaNeedGoogleImagenAccount'))
-    return
-  }
-
-  // Tem chave — gera a imagem. O Gemini roda em segundo plano (a chamada real
-  // pode levar vários segundos); o indicador de "digitando" fica visível
-  // durante toda a espera, não só um flash inicial, para deixar claro que
-  // ainda está processando.
-  aiChatAddMsg(ctx, 'agent', `🖼️ ${window.i18n.t('aiChat.imageBeingCreatedGemini')}`)
+  // Gemini (chave própria do usuário, se tiver, senão a do servidor — o
+  // backend decide sozinho). Mensagem no chat identifica qual delas está em
+  // uso, para o usuário entender o que está acontecendo enquanto espera —
+  // a chamada real ao Gemini pode levar vários segundos, e o indicador de
+  // "digitando" sozinho não deixava claro o que estava rolando por trás.
+  const hasOwnKey = await aiCheckUserKey('gemini')
+  aiChatAddMsg(ctx, 'agent', hasOwnKey
+    ? `🖼️ ${window.i18n.t('aiChat.imageBeingCreatedGemini')}`
+    : `🖼️ ${window.i18n.t('aiChat.imageBeingCreatedGeminiServerKey')}`)
   aiChatTyping(ctx, true)
   try {
     const data = await apiFetch('/api/ai/image/generate', {
@@ -10128,13 +10120,20 @@ async function aiHandleImageRequest(ctx, userMsg) {
     aiChatSetChips(ctx, [`🎨 ${window.i18n.t('aiChat.createAnotherImage')}`, `➕ ${window.i18n.t('common.createPost')}`])
   } catch (err) {
     aiChatTyping(ctx, false)
-    const msg = err.message || ''
-    if (msg.includes('billing')) {
+    const codigo = err.message || ''
+    // 'sem_chave': nem usuário nem servidor têm chave configurada — único
+    // caso que ainda coleta lead, já que não há como gerar de jeito nenhum.
+    // 'billing'/'quota': a chave existe mas está sem cota/billing habilitado
+    // (ver GEMINI_API_KEY do servidor) — mensagem específica em vez do lead,
+    // já que aqui uma conta própria não resolveria o problema do usuário.
+    if (codigo === 'sem_chave') {
       state.step = 'image_lead'
       state.imageDesc = userMsg
+      aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.loveIdeaNeedGoogleImagenAccount'))
+    } else if (codigo === 'billing' || codigo === 'quota') {
       aiChatAddMsg(ctx, 'agent', window.i18n.t('aiChat.billingRequiredForImages'))
     } else {
-      aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.hmmCouldNotGenerateImageNow')} ${msg || window.i18n.t('common.tryAgainInMoments')} 🙏`)
+      aiChatAddMsg(ctx, 'agent', `${window.i18n.t('aiChat.hmmCouldNotGenerateImageNow')} ${codigo || window.i18n.t('common.tryAgainInMoments')} 🙏`)
     }
   }
 }

@@ -952,8 +952,9 @@
 
       'aiChat.loveIdeaNeedGoogleImagenAccount': 'Adoro a ideia! 🎨 Para criar imagens com IA você precisa de uma conta com acesso ao Imagen do Google.\n\nDeixa seu e-mail aqui que a equipe da **Vitis Souls** entra em contato com as melhores opções e preços para você! 😊',
       'aiChat.imageBeingCreatedGemini': 'Sua imagem está sendo criada pelo Gemini em segundo plano... isso pode levar alguns segundos! 🎨',
+      'aiChat.imageBeingCreatedGeminiServerKey': 'Sua imagem está sendo criada pelo Gemini (chave do sistema) em segundo plano... isso pode levar alguns segundos! 🎨',
       'aiChat.hereIsYourImage': 'Aqui está sua imagem! 🎉\n\nClique nela para abrir em tamanho completo. Quer fazer algum ajuste ou criar outra?',
-      'aiChat.billingRequiredForImages': 'Para gerar imagens é necessário ativar o faturamento na sua conta Google AI Studio. Enquanto isso, posso te conectar com a equipe da Vitis Souls!\n\nDeixa seu e-mail aqui que entramos em contato com as melhores opções para você 😊',
+      'aiChat.billingRequiredForImages': 'A geração de imagens está temporariamente indisponível (limite/faturamento do Gemini). Tenta de novo daqui a pouco — se você tiver sua própria conta do Google AI Studio com faturamento ativo, pode cadastrar a chave nas configurações para gerar sem esperar. 🎨',
       'aiChat.hmmCouldNotGenerateImageNow': 'Hmm, não consegui gerar a imagem agora.',
 
       'aiChat.tonePrefix': 'Tom',
@@ -2035,8 +2036,9 @@
 
       'aiChat.loveIdeaNeedGoogleImagenAccount': 'Love the idea! 🎨 To create AI images you need an account with access to Google Imagen.\n\nLeave your email here and the **Vitis Souls** team will reach out with the best options and pricing for you! 😊',
       'aiChat.imageBeingCreatedGemini': 'Your image is being created by Gemini in the background... this may take a few seconds! 🎨',
+      'aiChat.imageBeingCreatedGeminiServerKey': 'Your image is being created by Gemini (system key) in the background... this may take a few seconds! 🎨',
       'aiChat.hereIsYourImage': "Here's your image! 🎉\n\nClick it to open full size. Want to make an adjustment or create another one?",
-      'aiChat.billingRequiredForImages': 'To generate images you need to enable billing on your Google AI Studio account. In the meantime, I can connect you with the Vitis Souls team!\n\nLeave your email here and we\'ll reach out with the best options for you 😊',
+      'aiChat.billingRequiredForImages': 'Image generation is temporarily unavailable (Gemini quota/billing limit). Try again shortly — if you have your own Google AI Studio account with billing enabled, you can add that key in settings to generate without waiting. 🎨',
       'aiChat.hmmCouldNotGenerateImageNow': "Hmm, I couldn't generate the image right now.",
 
       'aiChat.tonePrefix': 'Tone',

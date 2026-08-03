@@ -1129,17 +1129,25 @@ pool.query(`
   )
 `).catch(() => {})
 
-// POST /api/ai/image/generate — gera imagem via Google Imagen com chave do usuário
+// POST /api/ai/image/generate — gera imagem via Google Imagen. Usa a chave
+// própria do usuário quando cadastrada; sem ela, cai para GEMINI_API_KEY do
+// servidor (mesma chave já usada pelo chat de texto, ver generateWithGemini)
+// em vez de recusar — o chat mostra pro usuário qual chave está em uso.
+// Chamada roda "em segundo plano" da perspectiva do chat (aiHandleImageRequest
+// no frontend): o modelo de TEXTO selecionado pelo usuário não muda, só essa
+// requisição pontual usa o Gemini para a parte de imagem.
 router.post('/image/generate', async (req, res) => {
+  const { descricao } = req.body || {}
+  if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
+
+  const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
+  const usandoChaveServidor = !userKey
+  const key = userKey || process.env.GEMINI_API_KEY
+  if (!key) return res.status(402).json({ erro: 'sem_chave' })
+
   try {
-    const { descricao } = req.body || {}
-    if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
-
-    const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
-    if (!userKey) return res.status(402).json({ erro: 'sem_chave' })
-
     const { GoogleGenAI } = require('@google/genai')
-    const client = new GoogleGenAI({ apiKey: userKey })
+    const client = new GoogleGenAI({ apiKey: key })
     const result = await client.models.generateImages({
       model: 'imagen-4.0-generate-preview-05-20',
       prompt: descricao.trim(),
@@ -1149,12 +1157,14 @@ router.post('/image/generate', async (req, res) => {
     const imgData = result.generatedImages?.[0]?.image?.imageBytes
     if (!imgData) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
 
-    res.json({ image: `data:image/jpeg;base64,${imgData}` })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'gemini', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
+    res.json({ image: `data:image/jpeg;base64,${imgData}`, chaveServidor: usandoChaveServidor })
   } catch (err) {
     console.error('[AI Image]', err.message)
-    if (err.message?.includes('billing')) return res.status(402).json({ erro: 'billing' })
-    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
-    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'gemini', detalhes: `${usandoChaveServidor ? 'chave do servidor' : 'chave do usuário'}: ${err.message}` })
+    if (err.message?.includes('billing')) return res.status(402).json({ erro: 'billing', chaveServidor: usandoChaveServidor })
+    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'quota', chaveServidor: usandoChaveServidor })
+    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.', chaveServidor: usandoChaveServidor })
   }
 })
 
