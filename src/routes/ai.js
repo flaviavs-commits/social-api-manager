@@ -1373,7 +1373,7 @@ router.post('/schedule', async (req, res) => {
         status:            publishNow ? 'processing' : 'scheduled',
       })
 
-      await repo.definirContasDoPost(post.id, contas.map(c => c.id))
+      await repo.definirContasDoPost(post.id, contas)
       const postAccounts = await repo.listarContasDoPost(post.id)
 
       if (!publishNow) {
