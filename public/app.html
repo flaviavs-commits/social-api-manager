@@ -8290,7 +8290,7 @@ async function exportAnalyticsPDF() {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.text('Social Manager', margin, 14);
+    doc.text('Meu Ecoo Midia', margin, 14);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     const today = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
@@ -8421,10 +8421,10 @@ async function exportAnalyticsPDF() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 170);
-    doc.text(`Social Manager — ${window.i18n.t('pdf.relatorioGeradoAutomaticamente')}`, margin, pageH - 10);
+    doc.text(`Meu Ecoo Midia — ${window.i18n.t('pdf.relatorioGeradoAutomaticamente')}`, margin, pageH - 10);
     doc.text(window.i18n.t('pdf.pagina1'), W - margin - 10, pageH - 10);
 
-    doc.save(`social-manager-relatorio-${new Date().toISOString().slice(0,10)}.pdf`);
+    doc.save(`meu-ecoo-midia-relatorio-${new Date().toISOString().slice(0,10)}.pdf`);
     showToast(window.i18n.t('toast.pdfGeradoSucesso'), 'ok');
   } catch (e) {
     showToast(window.i18n.t('toast.erroGerarPdfPrefixo') + (e.message || window.i18n.t('common.verifiqueDados')), 'err');
