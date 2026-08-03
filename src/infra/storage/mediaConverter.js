@@ -16,4 +16,13 @@ async function converterParaJpeg(inputBuffer, { resizeForTiktok = false } = {}) 
   return pipeline.jpeg({ quality: 90 }).toBuffer()
 }
 
-module.exports = { converterParaJpeg }
+// Lê largura/altura de uma imagem sem decodificar o arquivo inteiro (sharp
+// só lê o cabeçalho para metadata()) — usado para validar a proporção
+// aceita pelo Instagram antes de publicar (ver domain/posts/videoRules.js,
+// isAspectRatioValidForInstagram).
+async function lerDimensoesImagem(buffer) {
+  const { width, height } = await sharp(buffer).metadata()
+  return { width: width || null, height: height || null }
+}
+
+module.exports = { converterParaJpeg, lerDimensoesImagem }

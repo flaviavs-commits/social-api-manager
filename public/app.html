@@ -5391,6 +5391,24 @@ async function schedulePost(publishNow = false) {
     return showToast(window.i18n.t('toast.storiesNaoSuportaCarrosselEscolha'), 'err');
   }
 
+  // Bloqueia ANTES de enviar — a Graph API rejeita a mídia fora da faixa de
+  // proporção aceita (feed: 4:5 a 1.91:1; reel/story: 9:16), mas só devolve
+  // esse erro depois do upload completo (ver domain/posts/videoRules.js,
+  // isAspectRatioValidForInstagram, mesma faixa usada aqui). Só checa o
+  // item[0] — carrossel tem proporção por item, validado individualmente
+  // pela própria API na hora de publicar.
+  if (platforms.includes('instagram') && midiaInstagramEnvio.length === 1) {
+    const ratio = await getMediaRatio(midiaInstagramEnvio[0].file);
+    if (ratio) {
+      const formato = igFormat || 'post';
+      const faixa = formato === 'reel' || formato === 'story' ? [0.5625 * 0.98, 0.5625 * 1.02] : [0.8, 1.91];
+      if (ratio < faixa[0] || ratio > faixa[1]) {
+        const faixaLabel = (formato === 'reel' || formato === 'story') ? '9:16 (vertical)' : 'entre 4:5 (vertical) e 1.91:1 (horizontal)';
+        return showToast(`A imagem/vídeo precisa ter proporção ${faixaLabel} para publicar no Instagram como ${formato}.`, 'err');
+      }
+    }
+  }
+
   // Instagram processa a mídia de forma assíncrona antes de publicar — agendar
   // muito em cima da hora não dá folga pro cron confirmar a tempo. Mesma regra
   // validada no backend (src/domain/posts/post.js, INSTAGRAM_MIN_ANTECEDENCIA_MIN).

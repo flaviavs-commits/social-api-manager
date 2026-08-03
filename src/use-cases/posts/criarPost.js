@@ -5,9 +5,9 @@ const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const { publishPost } = require('../../infra/social/publisher')
 const { probeVideo } = require('../../infra/storage/videoProbe')
-const { converterParaJpeg } = require('../../infra/storage/mediaConverter')
+const { converterParaJpeg, lerDimensoesImagem } = require('../../infra/storage/mediaConverter')
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
-const { isShortEligible, isAspectRatioValidForTiktok } = require('../../domain/posts/videoRules')
+const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC, decidirStatusPublicacao } = require('../../domain/posts/post')
 const { ValidationError } = require('../../domain/posts/errors')
 
@@ -18,8 +18,15 @@ const crypto = require('crypto')
 const { pipeline } = require('stream/promises')
 
 // Instagram e TikTok só aceitam imagens em JPEG — converte antes de publicar,
-// em vez de bloquear o post. Para o TikTok, também redimensiona para 9:16.
-async function converterMidiasSeNecessario(files, platforms) {
+// em vez de bloquear o post. Para o TikTok, também redimensiona para 9:16 —
+// isso troca a proporção real da imagem quando Instagram e TikTok são
+// marcados juntos com a MESMA mídia compartilhada, então a validação de
+// proporção do Instagram (isAspectRatioValidForInstagram) precisa das
+// dimensões finais pós-conversão, não do arquivo original enviado.
+// dimensoesPorPath acumula width/height de cada imagem tocada aqui (a
+// resolução real que efetivamente será publicada), lido depois em
+// processarMidia — evita rebaixar (fetch) a URL final de novo só para medir.
+async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
   if (!platforms.includes('instagram') && !platforms.includes('tiktok')) return files
   const resizeForTiktok = platforms.includes('tiktok')
 
@@ -35,8 +42,23 @@ async function converterMidiasSeNecessario(files, platforms) {
     const inputBuffer = Buffer.from(await fetchRes.arrayBuffer())
     const jpegBuffer = await converterParaJpeg(inputBuffer, { resizeForTiktok })
     const url = await salvarBuffer(`${crypto.randomUUID()}.jpg`, jpegBuffer, 'image/jpeg')
+    if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(jpegBuffer).catch(() => null)
     return { ...f, url, mimetype: 'image/jpeg' }
   }))
+}
+
+// Lê width/height de uma imagem que NÃO passou por converterMidiasSeNecessario
+// (já era JPEG e nenhuma rede pediu conversão) — precisa rebaixar a URL, já
+// que não houve buffer intermediário disponível para medir de graça.
+async function lerDimensoesImagemPorUrl(url) {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const buffer = Buffer.from(await res.arrayBuffer())
+    return await lerDimensoesImagem(buffer)
+  } catch {
+    return null
+  }
 }
 
 // Detecta se algum vídeo é elegível como Shorts do YouTube (vertical/quadrado,
@@ -65,14 +87,32 @@ async function probarVideos(files) {
 // montagem dos itens finais) — mesmo pipeline usado para a mídia
 // compartilhada, extraído para ser reaproveitado por rede quando o usuário
 // anexa mídia independente num card (mediaByPlatform). Ver migrations/035.
-async function processarMidia(media, captions, platforms) {
-  const files = await converterMidiasSeNecessario(media, platforms)
+// igFormat: formato escolhido para o Instagram ('post'/'reel'/'story') — só
+// relevante quando 'instagram' está em platforms; decide a faixa de
+// proporção aceita (ver domain/posts/videoRules.js).
+async function processarMidia(media, captions, platforms, igFormat) {
+  const dimensoesPorPath = {}
+  const files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath)
   const probes = await probarVideos(files)
   const items = montarItensMedia(files, captions)
   const mediaType = items[0]?.type || null
   const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
   const shortElegivel = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
-  return { items, mediaType, aspectRatioValidoTiktok, shortElegivel }
+
+  let aspectRatioValidoInstagram = null
+  if (platforms.includes('instagram') && mediaType) {
+    if (mediaType === 'video' && probes[0]) {
+      aspectRatioValidoInstagram = isAspectRatioValidForInstagram(probes[0], igFormat)
+    } else if (mediaType === 'image') {
+      const primeiraImagem = files.find(f => f.mimetype.startsWith('image/'))
+      const dimensoes = primeiraImagem
+        ? (dimensoesPorPath[primeiraImagem.url] || await lerDimensoesImagemPorUrl(primeiraImagem.url))
+        : null
+      if (dimensoes?.width && dimensoes?.height) aspectRatioValidoInstagram = isAspectRatioValidForInstagram(dimensoes, igFormat)
+    }
+  }
+
+  return { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel }
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
@@ -187,7 +227,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
       throw new ValidationError(`URL de mídia inválida em mediaByPlatform.${platform} — envie o arquivo pelo upload padrão.`)
   }
 
-  const { items, mediaType, aspectRatioValidoTiktok, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms)
+  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat)
   const mediaPath = items[0]?.path || null
   const mediaItems = items.length > 1 ? items : null
 
@@ -196,14 +236,16 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // quanto o que é gravado em post_accounts.media_items por conta.
   const platformsComMidiaPropria = Object.keys(mediaByPlatform).filter(p => platforms.includes(p))
   const resultadosPorPlataforma = await Promise.all(
-    platformsComMidiaPropria.map(p => processarMidia(mediaByPlatform[p], captionsByPlatform[p] || [], [p]))
+    platformsComMidiaPropria.map(p => processarMidia(mediaByPlatform[p], captionsByPlatform[p] || [], [p], igFormat))
   )
   const itemsByPlatform = {}
   const aspectRatioValidoTiktokByPlatform = {}
+  const aspectRatioValidoInstagramByPlatform = {}
   const shortElegivelByPlatform = {}
   platformsComMidiaPropria.forEach((p, i) => {
     itemsByPlatform[p] = resultadosPorPlataforma[i].items
     aspectRatioValidoTiktokByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoTiktok
+    aspectRatioValidoInstagramByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoInstagram
     shortElegivelByPlatform[p] = resultadosPorPlataforma[i].shortElegivel
   })
 
@@ -214,7 +256,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   const erro = validarCriacaoPost({
     text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel,
-    platforms, repeat, items, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform,
+    platforms, repeat, items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)

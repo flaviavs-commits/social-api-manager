@@ -43,13 +43,14 @@ const YOUTUBE_FORMATS = ['video', 'short']
 // independente naquele card) ou cai nos itens compartilhados do post — mesmo
 // fallback usado em publisher.js/publicarNaConta e nas demais camadas. Ver
 // migrations/035 (mídia independente por rede).
-function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok }) {
+function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram }) {
   const proprios = itemsByPlatform?.[platform]
-  if (!proprios) return { itemsResolvidos: items, mediaTypeResolvido: mediaType, aspectRatioResolvido: aspectRatioValidoTiktok }
+  if (!proprios) return { itemsResolvidos: items, mediaTypeResolvido: mediaType, aspectRatioResolvido: aspectRatioValidoTiktok, aspectRatioInstagramResolvido: aspectRatioValidoInstagram }
   return {
     itemsResolvidos: proprios,
     mediaTypeResolvido: proprios.length === 1 ? proprios[0].type : (proprios.some(i => i.type === 'video') ? 'video' : 'image'),
-    aspectRatioResolvido: aspectRatioValidoTiktokByPlatform?.[platform] ?? null
+    aspectRatioResolvido: aspectRatioValidoTiktokByPlatform?.[platform] ?? null,
+    aspectRatioInstagramResolvido: aspectRatioValidoInstagramByPlatform?.[platform] ?? null
   }
 }
 
@@ -62,7 +63,7 @@ function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspe
 // de cada rede quando o usuário anexou algo diferente naquele card — nesse
 // caso as regras de "cada rede exige tal mídia" validam contra os itens
 // daquela rede específica, não mais contra a lista global.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, itemsByPlatform, aspectRatioValidoTiktokByPlatform, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, scheduledAtUTC, publishNow }) {
   if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
     return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
 
@@ -113,7 +114,7 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   if (!text?.trim() && !temAlgumaMidia)
     return 'Informe o texto do post ou anexe uma imagem/vídeo'
 
-  const midiaContext = { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok }
+  const midiaContext = { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram }
 
   if (platforms.includes('youtube')) {
     const { itemsResolvidos } = resolverMidiaDaRede('youtube', midiaContext)
@@ -145,12 +146,21 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
     return 'Escolha quem pode ver o vídeo no TikTok antes de publicar.'
 
   if (platforms.includes('instagram')) {
-    const { itemsResolvidos } = resolverMidiaDaRede('instagram', midiaContext)
+    const { itemsResolvidos, aspectRatioInstagramResolvido } = resolverMidiaDaRede('instagram', midiaContext)
     if (!itemsResolvidos.length)
       return 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.'
     // Stories não suporta carrossel na Graph API do Instagram — só 1 item por vez.
     if (igFormat === 'story' && itemsResolvidos.length > 1)
       return 'Stories do Instagram não suportam carrossel. Escolha Post ou Reel, ou remova os itens extras.'
+    // A Graph API rejeita a mídia fora da faixa de proporção aceita (feed:
+    // 4:5 a 1.91:1; reel/story: 9:16) — ver domain/posts/videoRules.js.
+    // Carrossel não é checado aqui (só o item[0], igFormat=post nesse caso
+    // sempre) porque cada item pode ter proporção própria; a Graph API
+    // valida individualmente na hora de publicar.
+    if (itemsResolvidos.length === 1 && aspectRatioInstagramResolvido === false) {
+      const faixaLabel = igFormat === 'reel' || igFormat === 'story' ? '9:16 (vertical)' : 'entre 4:5 (vertical) e 1.91:1 (horizontal)'
+      return `A imagem/vídeo precisa ter proporção ${faixaLabel} para publicar no Instagram${igFormat ? ` como ${igFormat}` : ''}.`
+    }
   }
 
   // O Instagram processa a mídia de forma assíncrona antes de publicar
