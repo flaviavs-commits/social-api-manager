@@ -66,11 +66,14 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
 // TikTok não retorna um ID público utilizável (a Content Posting API
 // devolve só um publish_id interno, assíncrono) — fica sem métricas.
 function extrairExternalId(platform, data) {
-  // Facebook/Instagram/TikTok publicam via Zernio — o objeto post devolvido
-  // usa "_id" (estilo Mongo), não "id". Ver src/infra/social/zernioPublisher.js.
-  if (platform === 'facebook') return data?._id || null
-  if (platform === 'instagram') return data?._id || null
-  if (platform === 'tiktok') return data?._id || null
+  // Facebook/Instagram/TikTok publicam via Zernio — data.platformPostId é o
+  // ID do post NA REDE SOCIAL (extraído por zernioPublisher.js de dentro de
+  // platforms[]), não data._id (que é só o ID do post no Zernio). GET
+  // /v1/analytics indexa métricas por platformPostId — salvar o outro ID
+  // aqui deixaria toda métrica por-post null para sempre.
+  if (platform === 'facebook') return data?.platformPostId || null
+  if (platform === 'instagram') return data?.platformPostId || null
+  if (platform === 'tiktok') return data?.platformPostId || null
   if (platform === 'youtube') return data?.id || null
   return null
 }

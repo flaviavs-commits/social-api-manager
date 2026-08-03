@@ -31,6 +31,18 @@ function montarMediaItems(post) {
   }))
 }
 
+// O post devolvido por POST /v1/posts tem um "_id" próprio (o post no
+// Zernio, que pode agrupar várias plataformas), mas o ID que precisamos
+// para métricas depois (extrairExternalId em publisher.js) é o
+// platformPostId — o ID real do post/vídeo NA REDE SOCIAL, dentro de
+// platforms[]. Confundir os dois faz o post.externalPostId salvo nunca
+// bater com nada em GET /v1/analytics (que indexa por platformPostId),
+// deixando toda métrica por-post null para sempre.
+function extrairDadosDaPlataforma(created, platform) {
+  const entrada = created.platforms?.find(p => p.platform === platform)
+  return { ...created, platformPostId: entrada?.platformPostId || null, platformPostUrl: entrada?.platformPostUrl || null }
+}
+
 async function publicarZernioInstagram(token, post) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
@@ -53,7 +65,7 @@ async function publicarZernioInstagram(token, post) {
     }]
   })
 
-  return created
+  return extrairDadosDaPlataforma(created, 'instagram')
 }
 
 async function publicarZernioFacebook(token, post) {
@@ -71,7 +83,7 @@ async function publicarZernioFacebook(token, post) {
     }]
   })
 
-  return created
+  return extrairDadosDaPlataforma(created, 'facebook')
 }
 
 async function publicarZernioTiktok(token, post) {
@@ -97,7 +109,7 @@ async function publicarZernioTiktok(token, post) {
     platforms: [{ platform: 'tiktok', accountId: token.accessToken, platformSpecificData }]
   })
 
-  return created
+  return extrairDadosDaPlataforma(created, 'tiktok')
 }
 
 module.exports = { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok }
