@@ -12,7 +12,7 @@ function persistMessage(contexto, role, conteudo) {
   apiFetch('/api/ai/chat-messages', { method: 'POST', body: JSON.stringify({ contexto, role, conteudo }) }).catch(() => {})
 }
 
-function AiWidgetPanel({ messages, sending, error, input, onInputChange, onSend, onClose, messagesRef }) {
+function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, error, input, onInputChange, onSend, onClose, messagesRef }) {
   return (
     <section
       role="dialog"
@@ -45,7 +45,10 @@ function AiWidgetPanel({ messages, sending, error, input, onInputChange, onSend,
               message.role === 'user' ? 'ml-auto bg-gold/15 text-zinc-100' : 'bg-surface-soft text-zinc-200'
             }`}
           >
-            {message.text}
+            {message.role === 'agent' && editingIndex === index
+              ? <textarea value={message.text} onChange={event => onChangeMessage(index, event.target.value)} aria-label="Editar resposta da IA" className="w-full rounded border border-subtle bg-app p-2 text-sm text-zinc-100" />
+              : message.text}
+            {message.role === 'agent' && <button type="button" onClick={() => onEdit(editingIndex === index ? null : index)} className="mt-1 block text-[11px] text-gold hover:underline">{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</button>}
           </div>
         ))}
         {sending && <div className="max-w-[85%] rounded-lg bg-surface-soft px-3 py-2 text-sm text-zinc-400">Gerando ideia...</div>}
@@ -77,6 +80,7 @@ export function AiAssistantWidget({ hidden = false }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [editingIndex, setEditingIndex] = useState(null)
   const messagesRef = useRef(null)
 
   useEffect(() => {
@@ -115,8 +119,11 @@ export function AiAssistantWidget({ hidden = false }) {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
       {open && (
-        <AiWidgetPanel
+      <AiWidgetPanel
           messages={messages}
+          editingIndex={editingIndex}
+          onEdit={setEditingIndex}
+          onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))}
           sending={sending}
           error={error}
           input={input}

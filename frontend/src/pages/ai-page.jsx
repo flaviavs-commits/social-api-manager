@@ -7,12 +7,14 @@ export function AiPage() {
   const [posts, setPosts] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [editingIndex, setEditingIndex] = useState(null)
 
   async function generate(event) {
     event.preventDefault(); setLoading(true); setError('')
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
-      setPosts(data.posts || [])
+      setPosts((data.posts || []).map(post => ({ ...post, text: post.text || post.caption || '' })))
+      setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }
 
@@ -28,6 +30,11 @@ export function AiPage() {
   </section>
   {posts.length > 0 && <section className="panel">
     <h2>Sugestões</h2>
-    {posts.map((post, index) => <div className="data-row" key={post.id || index}><span>{post.text || post.caption || JSON.stringify(post)}</span></div>)}
+    {posts.map((post, index) => <div className="data-row" key={post.id || index}>
+      {editingIndex === index
+        ? <textarea className="flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={post.text} onChange={event => setPosts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} aria-label={`Editar sugestão ${index + 1}`} />
+        : <span>{post.text}</span>}
+      <button type="button" className="link-button" onClick={() => setEditingIndex(editingIndex === index ? null : index)}>{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</button>
+    </div>)}
   </section>}</section>
 }
