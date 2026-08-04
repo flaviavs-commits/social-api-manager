@@ -5,11 +5,70 @@ import { apiFetch } from '../../lib/api.js'
 // (montado uma única vez em AppShell) para ficar disponível em toda a
 // aplicação sem interferir no estado ou na navegação de nenhuma tela.
 // Reaproveita os endpoints já usados pela página "Assistente IA"
-// (ver pages/module-page.jsx AiPage): POST /api/ai/generate para gerar
-// sugestões e POST /api/ai/chat-messages para persistir o histórico —
-// nenhuma rota nova foi necessária no backend.
+// (ver pages/ai-page.jsx): POST /api/ai/generate para gerar sugestões e
+// POST /api/ai/chat-messages para persistir o histórico — nenhuma rota
+// nova foi necessária no backend.
 function persistMessage(contexto, role, conteudo) {
   apiFetch('/api/ai/chat-messages', { method: 'POST', body: JSON.stringify({ contexto, role, conteudo }) }).catch(() => {})
+}
+
+function AiWidgetPanel({ messages, sending, error, input, onInputChange, onSend, onClose, messagesRef }) {
+  return (
+    <section
+      role="dialog"
+      aria-label="Assistente de IA"
+      className="flex h-[440px] w-[min(360px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl"
+    >
+      <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/15 text-gold">✨</span>
+          <div>
+            <p className="text-sm font-semibold text-zinc-50">Agente IA</p>
+            <p className="text-[11px] text-zinc-500">Ideias de posts em segundos</p>
+          </div>
+        </div>
+        <button aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">
+          ✕
+        </button>
+      </header>
+
+      <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+        {messages.length === 0 && (
+          <p className="text-sm text-zinc-500">
+            Peça uma ideia de publicação, ex.: "crie um post sobre promoção de fim de ano".
+          </p>
+        )}
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-snug ${
+              message.role === 'user' ? 'ml-auto bg-gold/15 text-zinc-100' : 'bg-surface-soft text-zinc-200'
+            }`}
+          >
+            {message.text}
+          </div>
+        ))}
+        {sending && <div className="max-w-[85%] rounded-lg bg-surface-soft px-3 py-2 text-sm text-zinc-400">Gerando ideia...</div>}
+        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+      </div>
+
+      <form onSubmit={onSend} className="flex items-center gap-2 border-t border-subtle p-3">
+        <input
+          value={input}
+          onChange={onInputChange}
+          placeholder="Digite sua mensagem..."
+          aria-label="Mensagem para o Agente IA"
+          className="flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 outline-none focus:border-gold/50"
+        />
+        <button
+          disabled={sending || !input.trim()}
+          className="rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
+        >
+          Enviar
+        </button>
+      </form>
+    </section>
+  )
 }
 
 export function AiAssistantWidget({ hidden = false }) {
@@ -56,60 +115,16 @@ export function AiAssistantWidget({ hidden = false }) {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
       {open && (
-        <section
-          role="dialog"
-          aria-label="Assistente de IA"
-          className="flex h-[440px] w-[min(360px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl"
-        >
-          <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/15 text-gold">✨</span>
-              <div>
-                <p className="text-sm font-semibold text-zinc-50">Agente IA</p>
-                <p className="text-[11px] text-zinc-500">Ideias de posts em segundos</p>
-              </div>
-            </div>
-            <button aria-label="Fechar assistente" onClick={() => setOpen(false)} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">
-              ✕
-            </button>
-          </header>
-
-          <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-            {messages.length === 0 && (
-              <p className="text-sm text-zinc-500">
-                Peça uma ideia de publicação, ex.: "crie um post sobre promoção de fim de ano".
-              </p>
-            )}
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-snug ${
-                  message.role === 'user' ? 'ml-auto bg-gold/15 text-zinc-100' : 'bg-surface-soft text-zinc-200'
-                }`}
-              >
-                {message.text}
-              </div>
-            ))}
-            {sending && <div className="max-w-[85%] rounded-lg bg-surface-soft px-3 py-2 text-sm text-zinc-400">Gerando ideia...</div>}
-            {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
-          </div>
-
-          <form onSubmit={send} className="flex items-center gap-2 border-t border-subtle p-3">
-            <input
-              value={input}
-              onChange={event => setInput(event.target.value)}
-              placeholder="Digite sua mensagem..."
-              aria-label="Mensagem para o Agente IA"
-              className="flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 outline-none focus:border-gold/50"
-            />
-            <button
-              disabled={sending || !input.trim()}
-              className="rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
-            >
-              Enviar
-            </button>
-          </form>
-        </section>
+        <AiWidgetPanel
+          messages={messages}
+          sending={sending}
+          error={error}
+          input={input}
+          onInputChange={event => setInput(event.target.value)}
+          onSend={send}
+          onClose={() => setOpen(false)}
+          messagesRef={messagesRef}
+        />
       )}
 
       <button

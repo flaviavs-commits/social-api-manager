@@ -2,6 +2,29 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 
+const PLATFORM_BADGE_BG = { instagram: 'bg-[#E1306C]/15', facebook: 'bg-[#1877F2]/15', tiktok: 'bg-zinc-100/10', x: 'bg-zinc-100/10' }
+const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
+
+function CalendarDayPost({ post, onEdit, onRemove }) {
+  const primaryPlatform = platformsOf(post)[0]
+  return (
+    <div className="group rounded-lg border border-subtle bg-surface-soft/60 px-2 py-1.5 text-xs text-zinc-300">
+      <div className="flex items-center gap-2">
+        {primaryPlatform && (
+          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${PLATFORM_BADGE_BG[primaryPlatform] || 'bg-zinc-100/10'}`}>
+            <PlatformIcon platform={primaryPlatform} className="h-3.5 w-3.5" />
+          </span>
+        )}
+        <span className="truncate leading-tight">{post.text || post.title || 'Publicação'}</span>
+      </div>
+      <div className="mt-1 hidden gap-2 group-hover:flex">
+        <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button>
+        <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onRemove}>Excluir</button>
+      </div>
+    </div>
+  )
+}
+
 export function CalendarPage() {
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -37,8 +60,6 @@ export function CalendarPage() {
 
   const days = new Date(year, month, 0).getDate()
   const firstWeekday = new Date(year, month - 1, 1).getDay()
-  const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
-  const platformBadgeBg = { instagram: 'bg-[#E1306C]/15', facebook: 'bg-[#1877F2]/15', tiktok: 'bg-zinc-100/10', x: 'bg-zinc-100/10' }
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
   return (
@@ -79,36 +100,14 @@ export function CalendarPage() {
                 {dayPosts.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-gold" />}
               </div>
               <div className="mt-1.5 flex flex-col gap-1.5">
-                {dayPosts.map(post => {
-                  const postPlatforms = platformsOf(post)
-                  const primaryPlatform = postPlatforms[0]
-                  return (
-                    <div
-                      key={post.id}
-                      className="group rounded-lg border border-subtle bg-surface-soft/60 px-2 py-1.5 text-xs text-zinc-300"
-                    >
-                      <div className="flex items-center gap-2">
-                        {primaryPlatform && (
-                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${platformBadgeBg[primaryPlatform] || 'bg-zinc-100/10'}`}>
-                            <PlatformIcon platform={primaryPlatform} className="h-3.5 w-3.5" />
-                          </span>
-                        )}
-                        <span className="truncate leading-tight">{post.text || post.title || 'Publicação'}</span>
-                      </div>
-                      <div className="mt-1 hidden gap-2 group-hover:flex">
-                        <button
-                          className="text-[11px] font-medium text-gold hover:underline"
-                          onClick={() => { setEditing(post); setDate((post.scheduled_at || post.scheduledAt || '').slice(0, 16)) }}
-                        >
-                          Editar
-                        </button>
-                        <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={() => remove(post)}>
-                          Excluir
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
+                {dayPosts.map(post => (
+                  <CalendarDayPost
+                    key={post.id}
+                    post={post}
+                    onEdit={() => { setEditing(post); setDate((post.scheduled_at || post.scheduledAt || '').slice(0, 16)) }}
+                    onRemove={() => remove(post)}
+                  />
+                ))}
               </div>
             </div>
           )

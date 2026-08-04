@@ -35,107 +35,113 @@ function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   )
 }
 
+function AppSidebar({ page, open, onNavigate, onClose }) {
+  return (
+    <>
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+    >
+      <div className="flex items-center gap-3 border-b border-subtle px-5 py-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-lg shadow-[0_0_18px_rgba(229,184,66,0.35)]">
+          🤖
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-semibold leading-tight text-zinc-50">
+            Meu <span className="text-gold">Ecoo Mídia</span>
+          </p>
+          <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
+        </div>
+      </div>
+
+      <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
+        {navigation.map(([key, label]) => {
+          const active = page === key
+          return (
+            <button
+              key={key}
+              onClick={() => onNavigate(key)}
+              className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                active
+                  ? 'border-gold bg-gold/10 text-gold'
+                  : 'border-transparent text-zinc-400 hover:bg-surface-soft hover:text-zinc-100'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <NavIcon name={key} />
+                {label}
+              </span>
+              {active && (
+                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-500">
+                  Ativo
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      <button
+        onClick={() => { localStorage.removeItem('authToken'); window.location.href = '/login.html' }}
+        className="mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
+      >
+        Sair
+      </button>
+    </aside>
+    {open && <button aria-label="Fechar menu" onClick={onClose} className="fixed inset-0 z-30 bg-black/60 md:hidden" />}
+    </>
+  )
+}
+
+function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost }) {
+  return (
+    <header className="flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onOpenSidebar}
+          aria-label="Abrir menu"
+          className="rounded-lg border border-subtle p-2 text-zinc-400 hover:text-gold md:hidden"
+        >
+          ☰
+        </button>
+        <nav aria-label="Localização atual" className="flex items-center gap-2 text-xl font-semibold text-zinc-50">
+          <span>Meu Ecoo Mídia</span>
+          <span className="text-zinc-600">›</span>
+          <span className="text-gold">{currentLabel}</span>
+        </nav>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button aria-label="Mensagens" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
+        </button>
+        <button aria-label="Notificações" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+        </button>
+        <button
+          onClick={onCreatePost}
+          className="inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
+        >
+          + Criar Novo Post
+        </button>
+        <span className="flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-soft text-xs">👤</span>
+          {user?.name || user?.email || 'Conta'}
+        </span>
+      </div>
+    </header>
+  )
+}
+
 export function AppShell({ page, onPageChange, children, user }) {
   const [open, setOpen] = useState(false)
   const currentLabel = navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
 
   return (
     <div className="flex min-h-screen bg-app text-zinc-100">
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
-      >
-        <div className="flex items-center gap-3 border-b border-subtle px-5 py-5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold to-gold-muted text-lg shadow-[0_0_18px_rgba(229,184,66,0.35)]">
-            🤖
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold leading-tight text-zinc-50">
-              Meu <span className="text-gold">Ecoo Mídia</span>
-            </p>
-            <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
-          </div>
-        </div>
-
-        <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
-          {navigation.map(([key, label]) => {
-            const active = page === key
-            return (
-              <button
-                key={key}
-                onClick={() => { onPageChange(key); setOpen(false) }}
-                className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? 'border-gold bg-gold/10 text-gold'
-                    : 'border-transparent text-zinc-400 hover:bg-surface-soft hover:text-zinc-100'
-                }`}
-              >
-                <span className="flex items-center gap-2.5">
-                  <NavIcon name={key} />
-                  {label}
-                </span>
-                {active && (
-                  <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-500">
-                    Ativo
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        <button
-          onClick={() => { localStorage.removeItem('authToken'); window.location.href = '/login.html' }}
-          className="mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
-        >
-          Sair
-        </button>
-      </aside>
-
-      {open && (
-        <button
-          aria-label="Fechar menu"
-          onClick={() => setOpen(false)}
-          className="fixed inset-0 z-30 bg-black/60 md:hidden"
-        />
-      )}
+      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setOpen(v => !v)}
-              aria-label="Abrir menu"
-              className="rounded-lg border border-subtle p-2 text-zinc-400 hover:text-gold md:hidden"
-            >
-              ☰
-            </button>
-            <nav aria-label="Localização atual" className="flex items-center gap-2 text-xl font-semibold text-zinc-50">
-              <span>Meu Ecoo Mídia</span>
-              <span className="text-zinc-600">›</span>
-              <span className="text-gold">{currentLabel}</span>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button aria-label="Mensagens" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
-            </button>
-            <button aria-label="Notificações" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
-            </button>
-            <button
-              onClick={() => onPageChange('agendador')}
-              className="inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
-            >
-              + Criar Novo Post
-            </button>
-            <span className="flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-soft text-xs">👤</span>
-              {user?.name || user?.email || 'Conta'}
-            </span>
-          </div>
-        </header>
-
+        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} />
         <main className="flex-1">{children}</main>
       </div>
 
