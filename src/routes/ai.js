@@ -633,7 +633,8 @@ router.post('/generate', async (req, res) => {
       let parsedGemini
       try {
         parsedGemini = parseJsonResponse(rawTextGemini)
-      } catch {
+      } catch (parseError) {
+        await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
       }
       return montarResposta(parsedGemini.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
@@ -660,7 +661,8 @@ router.post('/generate', async (req, res) => {
       let parsedOpenai
       try {
         parsedOpenai = parseJsonResponse(rawTextOpenai)
-      } catch {
+      } catch (parseError) {
+        await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
       }
       return montarResposta(parsedOpenai.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
@@ -682,7 +684,8 @@ router.post('/generate', async (req, res) => {
       let parsedOpenrouter
       try {
         parsedOpenrouter = parseJsonResponse(rawTextOpenrouter)
-      } catch {
+      } catch (parseError) {
+        await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
       }
       return montarResposta(parsedOpenrouter.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
@@ -697,7 +700,8 @@ router.post('/generate', async (req, res) => {
     let parsed
     try {
       parsed = parseJsonResponse(rawText)
-    } catch {
+    } catch (parseError) {
+      await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
       return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
     }
 
@@ -788,7 +792,9 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
       `INSERT INTO ai_activity_log (user_id, acao, status, modelo, detalhes) VALUES ($1, $2, $3, $4, $5)`,
       [userId, acao, status, modelo, detalhes ? String(detalhes).slice(0, 2000) : null]
     )
-  } catch { /* melhor esforço — nunca bloqueia a ação real do usuário */ }
+  } catch (err) {
+    console.error('[AI activity log] falha ao registrar:', err.message)
+  }
 }
 
 // Histórico das mensagens trocadas no chat do Agente IA — até aqui vivia só
@@ -823,7 +829,10 @@ router.post('/chat-messages', async (req, res) => {
       [req.user.id, contexto, role, conteudo.slice(0, 8000)]
     )
     res.status(201).json({ ok: true })
-  } catch (err) { serverError(res, err) }
+  } catch (err) {
+    await registrarAtividadeIA({ userId: req.user.id, acao: 'chat-message', status: 'erro', detalhes: err.message })
+    serverError(res, err)
+  }
 })
 
 // GET /api/ai/chat-messages — histórico de conversas do Agente IA. Cada
@@ -1205,7 +1214,15 @@ router.post('/image/generate-openrouter', async (req, res) => {
 
     const message = completion.choices[0]?.message
     const imageUrl = message?.images?.[0]?.image_url?.url
-    if (!imageUrl) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
+    if (!imageUrl) {
+      // O modelo respondeu sem lançar exceção, mas sem imagem — sem este log,
+      // esse caso ficava invisível (nem console.error, nem ai_activity_log),
+      // dificultando saber se é recorrente ou o que o modelo respondeu.
+      const detalhes = `sem imagem na resposta — finish_reason: ${completion.choices[0]?.finish_reason || 'desconhecido'}; texto: ${(message?.content || '(vazio)').slice(0, 300)}`
+      console.error('[AI Image OpenRouter]', detalhes)
+      registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'openrouter', detalhes: usandoChaveServidor ? `chave do servidor: ${detalhes}` : `chave do usuário: ${detalhes}` })
+      return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
+    }
 
     registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'openrouter', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
     res.json({ image: imageUrl, texto: message?.content || '', chaveServidor: usandoChaveServidor })
