@@ -267,7 +267,9 @@ app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 
 app.use('/api', (_req, res) => res.status(404).json({ erro: 'Endpoint não encontrado' }))
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/app.html'))
+  // Todas as rotas de interface devem entrar pelo shell React. O app.html
+  // legado permanece apenas como referência histórica e não é mais servido.
+  res.sendFile(path.join(__dirname, '../public/react/index.html'))
 })
 
 // Error handler global — nunca expõe stack traces ao cliente
