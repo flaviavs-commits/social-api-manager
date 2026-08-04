@@ -868,10 +868,11 @@ router.get('/chat-messages', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
-// GET /api/ai/activity-log — histórico de atividade do Agente IA (só super_admin).
+// GET /api/ai/activity-log — histórico de atividade do Agente IA.
 // Filtros opcionais: ?status=erro|sucesso|fallback|parcial, ?acao=generate|analyze-media|schedule|publish-now,
-// ?userId=<id>. Paginado por limit/offset (padrão 100 mais recentes).
-router.get('/activity-log', requireSuperAdmin, async (req, res) => {
+// ?userId=<id>. Usuários comuns veem apenas seus registros; super_admin pode
+// consultar qualquer usuário. Paginado por limit/offset (padrão 100 mais recentes).
+router.get('/activity-log', async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500)
     const offset = Math.max(parseInt(req.query.offset) || 0, 0)
@@ -880,7 +881,12 @@ router.get('/activity-log', requireSuperAdmin, async (req, res) => {
     const params = []
     if (req.query.status) { params.push(req.query.status); cond.push(`l.status = $${params.length}`) }
     if (req.query.acao)   { params.push(req.query.acao);   cond.push(`l.acao = $${params.length}`) }
-    if (req.query.userId) { params.push(parseInt(req.query.userId)); cond.push(`l.user_id = $${params.length}`) }
+    const requestedUserId = parseInt(req.query.userId)
+    if (isAdminRole(req.user.role)) {
+      if (Number.isInteger(requestedUserId)) { params.push(requestedUserId); cond.push(`l.user_id = $${params.length}`) }
+    } else {
+      params.push(req.user.id); cond.push(`l.user_id = $${params.length}`)
+    }
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : ''
 
     params.push(limit); const limitIdx = params.length
