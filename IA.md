@@ -2,9 +2,9 @@
 
 ## Estado atual (resumo vivo)
 
-Última atualização: [2026-08-03]
+Última atualização: [2026-08-04]
 - Fase: shell React autenticado e dashboard inicial conectados; módulos secundários já possuem rotas visuais e aguardam migração funcional.
-- Estado: interrompido com motivo nesta etapa — dashboard, rascunhos, contas, calendário com ações, analytics, inbox, tokens, IA e agendador React com publicação imediata, mídia, opções principais e validações client-side foram migrados; o agendador (`scheduler-page.jsx`) agora também expõe categoria/formato do YouTube, interações do TikTok (bloquear comentário/duet/stitch) e busca de local do Facebook/Instagram (ver decisão de 2026-08-03 "expor campos opcionais restantes").
+- Estado: CONCLUÍDO — corrigida a ausência de feedback das falhas assíncronas de "Publicar agora" no agendador React. O formulário agora acompanha o evento `post_published` do post criado e exibe sucesso, publicação parcial ou o erro detalhado por plataforma/conta.
 - Próximo passo: NENHUM campo opcional por rede pendente para as 4 plataformas que o backend realmente suporta (`PLATFORMS` em `src/utils/http.js` = facebook, instagram, youtube, tiktok — Threads/LinkedIn/Pinterest citados numa decisão anterior não existem na integração, essa menção estava incorreta). Revisar `calendar-page.jsx`/`module-page.jsx` em busca de outros fluxos específicos por plataforma ainda não migrados é o próximo candidato. Testes manuais autenticados em navegador continuam pendentes — este ambiente não tem acesso a navegador/DB para login real (ver validação abaixo).
 - Validação: `npm run frontend:build` e `npm test` (21 suítes / 305 testes) passaram após expor os campos opcionais restantes do agendador.
 
@@ -32,12 +32,16 @@ Gerenciar publicações e métricas de redes sociais em uma única interface, co
 
 ## Testes importantes
 
+- [2026-08-04] ✅ `npm run test:components` (7 arquivos / 32 testes) e ✅ `npm run frontend:build` — passaram após adicionar o acompanhamento do resultado assíncrono de publicação e os testes do cursor/erro em `publication-events.test.jsx`.
+
 - [2026-07-31] ✅ `npm run frontend:build` — bundle React produzido em `public/react/`.
 - [2026-07-31] ✅ `npm test -- --runInBand` — 21 suítes e 305 testes passaram após impedir o bypass de revisão em `NODE_ENV=test`, desabilitar cache de usuário nos testes e alinhar o issuer TOTP padrão ao contrato existente.
 - [2026-08-03] ✅ `npm run frontend:build` e ✅ `npm test` (21 suítes / 305 testes) — passaram após adicionar `frontend/src/lib/postValidation.js` e as mudanças em `scheduler-page.jsx` (nenhum teste de backend foi afetado; não há suíte de frontend configurada no repositório — `jest.testMatch` só cobre `tests/**/*.test.js` no backend — então a lib nova ficou sem teste automatizado dedicado, coberta só pelo build/typecheck do Vite).
 - [2026-08-03] ⚠️ Não executado: teste manual autenticado no navegador (login real + agendar um post por plataforma). Este ambiente de execução não tem navegador nem acesso ao Postgres configurado em `DATABASE_URL` — só shell. Fica como pendência explícita para quem tiver acesso a um ambiente com navegador e banco.
 
 ## Resumos de decisão
+
+- [2026-08-04] CONTEXTO: testes de POST feitos em outro computador não exibiam falhas de publicação no frontend React. CAUSA: `POST /api/posts` retorna `202 processing` para `publishNow` e conclui a integração social em segundo plano; `scheduler-page.jsx` ignorava o corpo da resposta, limpava o formulário e mostrava sucesso, mas não consumia o evento `post_published` já emitido pelo backend. DECISÃO: reutilizar o polling existente de `/api/logs/events/since/:lastId`; capturar/drenar o cursor antes do POST para não reexibir histórico antigo e acompanhar apenas o ID retornado, apresentando os erros de `results` por plataforma/conta com `role="alert"`. A alteração manual foi escolhida porque não há script de transformação para componentes React e o ajuste é localizado. VALIDAÇÃO: `npm run test:components` (7 arquivos / 32 testes), `npm run frontend:build` e `git diff --check` passaram. Estado: CONCLUÍDO.
 
 - [2026-07-31] CONTEXTO: introduzir React puro e modularização sem interromper o produto existente. ALTERNATIVAS: reescrever o dashboard inteiro ou migrar uma fatia vertical. DECISÃO: migrar a landing pública primeiro, isolando o build e conectando apenas `/` e `/sobre`. VALIDAÇÃO: build Vite e verificação das rotas Express.
 - [2026-07-31] CONTEXTO: conectar o dashboard ao React sem descartar comportamentos legados. ALTERNATIVAS: apagar o `app.html` ou migrar por fatias. DECISÃO: conectar `/app.html` ao shell React, manter o legado no repositório e migrar cada módulo com seus contratos de API. VALIDAÇÃO: build Vite passou; a migração integral fica interrompida nesta etapa para evitar regressão silenciosa.
