@@ -10,6 +10,7 @@ const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
 const { ValidationError } = require('../../domain/posts/errors')
+const { registrarLog } = require('../../repositories/logsRepository')
 
 const path = require('path')
 const os = require('os')
@@ -343,6 +344,19 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   await postsRepo.definirContasDoPost(post.id, contas, itemsByPlatform)
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
+
+  // O histórico é observabilidade: uma falha ao gravá-lo não pode desfazer
+  // nem impedir a criação do post já persistido.
+  try {
+    await registrarLog({
+      type: publishNow ? 'info' : 'ok',
+      message: publishNow ? `Post #${post.id} criado e enviado para publicação` : `Post #${post.id} agendado com sucesso`,
+      platform: null,
+      user_id: userId
+    })
+  } catch (logError) {
+    console.error(`Não foi possível registrar a criação do post #${post.id}:`, logError.message)
+  }
 
   if (!publishNow) return { post: { ...post, warnings }, status: 201 }
 

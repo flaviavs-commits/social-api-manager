@@ -53,7 +53,8 @@ async function processarPost(post) {
       await registrarLog({
         type: 'warn',
         message: `Post #${post.id} falhou por erro transitório — nova tentativa em ${delayMin} min (tentativa ${post.retryCount + 1}/${RETRY_DELAYS_MIN.length})`,
-        platform: null
+        platform: null,
+        user_id: post.userId
       })
       return // não fecha o post como error/published — ainda vai tentar de novo
     } else {
@@ -72,7 +73,8 @@ async function processarPost(post) {
     await registrarLog({
       type: status === 'error' ? 'err' : 'ok',
       message: `Post #${post.id} ${resumo}`,
-      platform: null
+      platform: null,
+      user_id: post.userId
     })
 
     broadcastEvent('post_published', {
@@ -105,7 +107,7 @@ async function processarPost(post) {
     // do erro e a primeira linha do stack para não perder a causa real de
     // falhas que acontecem fora do try/catch por-plataforma do publisher.
     const detalhe = err.message || `${err.name || 'Erro'}: ${(err.stack || '').split('\n')[1]?.trim() || 'sem detalhes'}`
-    await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${detalhe}`, platform: null })
+    await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${detalhe}`, platform: null, user_id: post.userId })
 
     // Envia push de falha
     try {
