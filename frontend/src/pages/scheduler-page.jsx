@@ -65,6 +65,7 @@ export function SchedulerPage() {
   const [saved, setSaved] = useState(false)
   const [publicationStatus, setPublicationStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState('')
   const [workerIssues, setWorkerIssues] = useState([])
   const locationSearchTimer = useRef(null)
   const validationRequest = useRef(0)
@@ -152,24 +153,28 @@ export function SchedulerPage() {
     const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
     const response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
     if (!response.ok) throw new Error(`Falha ao enviar ${file.name}`)
-    return { path: data.uploadUrl.split('?')[0], type: file.type, name: file.name }
+    // O endpoint de criação espera a URL pública do Blob e `mimetype`.
+    // `uploadUrl` contém query params de autorização que não devem ser salvos.
+    return { url: data.uploadUrl.split('?')[0], mimetype: file.type, name: file.name }
   }
 
   async function submit(event) {
-    event.preventDefault(); setError(''); setSaved(false); setPublicationStatus(null)
+    event.preventDefault(); setError(''); setSaved(false); setPublicationStatus(null); setProgress('')
     if (issues.length > 0) { setError(issues[0].message); return }
     setLoading(true)
     try {
       const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
+      setProgress(files.length ? 'Enviando mídias...' : 'Validando agendamento...')
       const media = await uploadWithConcurrency(files, uploadFile, 3)
       const scheduledAt = publishNow ? new Date().toISOString() : date
+      setProgress('Processando e salvando agendamento...')
       const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, firstComment, textByPlatform: JSON.stringify(textByPlatform), locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
       setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setFirstComment(''); setTextByPlatform({}); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true)
       if (publishNow && createdPost?.id) {
         setPublicationStatus({ type: 'processing', message: `Post #${createdPost.id} enviado. Aguardando confirmação das redes sociais...` })
         monitorPublication(createdPost.id, eventCursor)
       }
-    } catch (caught) { setError(caught.message) } finally { setLoading(false) }
+    } catch (caught) { setError(caught.message) } finally { setLoading(false); setProgress('') }
   }
 
   return <section className="page-view"><section className="panel"><p className="eyebrow">PUBLICAÇÃO</p><h2>{publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><form className="draft-form sched-form" onSubmit={submit}>
@@ -211,6 +216,6 @@ export function SchedulerPage() {
     </SchedSection>
 
     {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
-    <button className="action-button" disabled={loading || issues.length > 0}>{loading ? 'Enviando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button>
+    <button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button>
   </form>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }

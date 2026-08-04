@@ -123,6 +123,7 @@ async function processarMidia(media, captions, platforms, igFormat, resizeForTik
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
+  const startedAt = Date.now()
   const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
@@ -344,6 +345,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   await postsRepo.definirContasDoPost(post.id, contas, itemsByPlatform)
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
+  console.info(`[posts] #${post.id} pronto para ${publishNow ? 'publicação' : 'agendamento'} em ${Date.now() - startedAt}ms`)
 
   // O histórico é observabilidade: uma falha ao gravá-lo não pode desfazer
   // nem impedir a criação do post já persistido.

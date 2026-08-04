@@ -239,4 +239,4 @@ function start() {
   verificarSaudePlataformas()
 }
 
-module.exports = { start, processarPendentes, renovarTokensProativamente, verificarSaudePlataformas }
+module.exports = { start, processarPost, processarPendentes, renovarTokensProativamente, verificarSaudePlataformas }
