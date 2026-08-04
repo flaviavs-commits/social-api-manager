@@ -54,6 +54,48 @@ function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspe
   }
 }
 
+function validarLimiteDeTexto(value, maxLength, message) {
+  if (value !== undefined && value !== null && value.length > maxLength)
+    return message
+  return null
+}
+
+function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform }) {
+  const erroTexto = validarLimiteDeTexto(
+    text,
+    MAX_TEXT_LENGTH,
+    `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
+  )
+  if (erroTexto) return erroTexto
+
+  for (const texto of Object.values(textByPlatform || {})) {
+    const erro = validarLimiteDeTexto(
+      texto,
+      MAX_TEXT_LENGTH,
+      `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
+    )
+    if (erro) return erro
+  }
+
+  const erroTitulo = validarLimiteDeTexto(
+    youtubeTitle,
+    MAX_YOUTUBE_TITLE_LENGTH,
+    `O título do vídeo pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
+  )
+  if (erroTitulo) return erroTitulo
+
+  for (const titulo of Object.values(titleByPlatform || {})) {
+    const erro = validarLimiteDeTexto(
+      titulo,
+      MAX_YOUTUBE_TITLE_LENGTH,
+      `O título pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
+    )
+    if (erro) return erro
+  }
+
+  return null
+}
+
 // Valida os campos de criação de um post. Retorna a mensagem de erro (string)
 // ou null se tudo estiver correto — quem chama decide o código HTTP.
 //
@@ -64,25 +106,8 @@ function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspe
 // caso as regras de "cada rede exige tal mídia" validam contra os itens
 // daquela rede específica, não mais contra a lista global.
 function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, scheduledAtUTC, publishNow }) {
-  if (text !== undefined && text !== null && text.length > MAX_TEXT_LENGTH)
-    return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
-
-  if (textByPlatform) {
-    for (const texto of Object.values(textByPlatform)) {
-      if (typeof texto === 'string' && texto.length > MAX_TEXT_LENGTH)
-        return `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
-    }
-  }
-
-  if (youtubeTitle !== undefined && youtubeTitle !== null && youtubeTitle.length > MAX_YOUTUBE_TITLE_LENGTH)
-    return `O título do vídeo pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
-
-  if (titleByPlatform) {
-    for (const titulo of Object.values(titleByPlatform)) {
-      if (typeof titulo === 'string' && titulo.length > MAX_YOUTUBE_TITLE_LENGTH)
-        return `O título pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
-    }
-  }
+  const erroDeTexto = validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform })
+  if (erroDeTexto) return erroDeTexto
 
   if (!YOUTUBE_VISIBILITIES.includes(youtubeVisibility))
     return 'youtubeVisibility inválido. Use public, unlisted ou private.'
