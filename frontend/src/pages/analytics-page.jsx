@@ -1,14 +1,39 @@
-import { useCallback } from 'react'
-import { apiFetch } from '../lib/api.js'
-import { useApiResource } from '../hooks/use-api-resource.js'
+import '../lib/chart-setup.js'
+import { useAnalytics } from '../hooks/use-analytics.js'
+import { AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
+import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
+import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
 
 export function AnalyticsPage() {
-  const load = useCallback(() => apiFetch('/api/posts/analytics'), [])
-  const { value: data, loading, error } = useApiResource(load, null)
-  const values = Object.entries(data || {}).filter(([, value]) => typeof value === 'number')
+  const {
+    data, tiktokVideos, networks, activeNet, activeTab, periodDays,
+    loading, error, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
+  } = useAnalytics()
 
-  return <section className="page-view"><section className="panel">
+  return <section className="page-view">
     <p className="eyebrow">DESEMPENHO</p><h2>Analytics</h2>
-    {error ? <p className="error-message" role="alert">{error}</p> : loading ? <p className="empty-state" aria-live="polite">Carregando métricas...</p> : <div className="metric-grid">{values.length ? values.map(([key, value]) => <article key={key}><span>{key.replaceAll('_', ' ')}</span><strong>{value}</strong></article>) : <p className="empty-state">Ainda não há métricas disponíveis.</p>}</div>}
-  </section></section>
+
+    {error && <p className="error-message" role="alert">{error}</p>}
+    {loading && !error
+      ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
+      : <>
+          <AnalyticsSummary data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
+
+          <div className="analytics-layout">
+            <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={selectNetwork}/>
+            {networks.includes(activeNet) && (
+              <AnalyticsPanel
+                net={activeNet}
+                tab={activeTab}
+                onSelectTab={setActiveTab}
+                data={data}
+                tiktokVideos={tiktokVideos}
+                periodDays={periodDays}
+                onSelectPeriod={setPeriodDays}
+                lastUpdated={lastUpdated}
+              />
+            )}
+          </div>
+        </>}
+  </section>
 }
