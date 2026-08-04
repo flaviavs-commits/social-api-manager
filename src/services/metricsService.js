@@ -46,10 +46,10 @@ async function metricsZernio(token, externalPostId) {
     const plataforma = post.platforms?.find(p => p.platformPostId === externalPostId)
     if (plataforma) {
       const a = plataforma.analytics || {}
-      return { likes: a.likes ?? null, comments: a.comments ?? null, views: a.views ?? null }
+      return { likes: a.likes ?? null, comments: a.comments ?? null, shares: a.shares ?? a.shareCount ?? null, views: a.views ?? null }
     }
   }
-  return { likes: null, comments: null, views: null }
+  return { likes: null, comments: null, shares: null, views: null }
 }
 
 // Tempo médio de visualização (em segundos) de um vídeo específico, via

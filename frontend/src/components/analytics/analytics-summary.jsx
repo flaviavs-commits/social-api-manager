@@ -1,7 +1,7 @@
 import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
-  filterByPeriod, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS,
+  filterByPeriod, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NET_ICONS, NETWORK_ORDER,
 } from '../../lib/analytics-format.js'
 
 function buildTrend(metrics) {
@@ -22,13 +22,18 @@ function buildPlatformCounts(metrics) {
   return Object.entries(porPlataforma)
 }
 
+function sumMetric(metrics, key) {
+  return metrics.reduce((total, item) => total + (Number(item.metrics?.[key]) || 0), 0)
+}
+
 export function AnalyticsSummary({ data, tiktokVideos, periodDays }) {
   const metrics = filterByPeriod(data.metrics, periodDays)
 
   const totalViews = metrics.reduce((acc, m) => acc + (m.metrics?.views || 0), 0)
   const totalLikes = metrics.reduce((acc, m) => acc + (m.metrics?.likes || 0), 0)
   const totalComments = metrics.reduce((acc, m) => acc + (m.metrics?.comments || 0), 0)
-  const totalShares = tiktokVideos.reduce((acc, v) => acc + (v.shareCount || 0), 0)
+  const totalShares = metrics.filter(m => m.platform !== 'tiktok').reduce((acc, m) => acc + (Number(m.metrics?.shares) || 0), 0)
+    + tiktokVideos.reduce((acc, v) => acc + (Number(v.shareCount) || 0), 0)
   const totalEngagement = totalLikes + totalComments + totalShares
   const engagementRate = totalViews > 0 ? (totalEngagement / totalViews * 100) : 0
 
@@ -40,6 +45,18 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays }) {
   const trend = buildTrend(metrics)
   const platformCounts = buildPlatformCounts(metrics)
   const engMax = Math.max(totalLikes, totalComments, totalShares, 1)
+  const platformEngagement = NETWORK_ORDER.map(platform => {
+    const platformMetrics = metrics.filter(item => item.platform === platform)
+    const shares = platform === 'tiktok'
+      ? Math.max(sumMetric(platformMetrics, 'shares'), tiktokVideos.reduce((total, video) => total + (Number(video.shareCount) || 0), 0))
+      : sumMetric(platformMetrics, 'shares')
+    return {
+      platform,
+      likes: sumMetric(platformMetrics, 'likes'),
+      comments: sumMetric(platformMetrics, 'comments'),
+      shares,
+    }
+  }).filter(item => metrics.some(metric => metric.platform === item.platform) || (item.platform === 'tiktok' && tiktokVideos.length))
 
   return <>
     <div className="an-summary-stats">
@@ -84,11 +101,15 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays }) {
       </div>
       <div className="an-summary-section">
         <div className="an-summary-section-title">Tipo de Engajamento</div>
-        <div>
-          <EngagementTypeBar icon="♥" label="Curtidas" value={totalLikes} max={engMax}/>
-          <EngagementTypeBar icon="💬" label="Comentários" value={totalComments} max={engMax}/>
-          <EngagementTypeBar icon="↗" label="Compartilhamentos" value={totalShares} max={engMax}/>
-        </div>
+        {platformEngagement.map(item => {
+          const max = Math.max(item.likes, item.comments, item.shares, 1)
+          return <div key={item.platform} style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 6, fontWeight: 600 }}>{NET_ICONS[item.platform]} {PLAT_LABELS[item.platform]}</div>
+            <EngagementTypeBar icon="♥" label="Curtidas" value={item.likes} max={max}/>
+            <EngagementTypeBar icon="💬" label="Comentários" value={item.comments} max={max}/>
+            <EngagementTypeBar icon="↗" label="Compartilhamentos" value={item.shares} max={max}/>
+          </div>
+        })}
       </div>
     </div>
   </>
