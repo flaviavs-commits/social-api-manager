@@ -10,6 +10,9 @@ const { statusContainerInstagram, finalizarPublicacaoInstagram } = require('./in
 const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('./zernioPublisher')
 const zernioClient = require('./zernioClient')
 const { publicarYoutube } = require('./youtubePublisher')
+const { mapWithConcurrency } = require('../../utils/concurrency')
+
+const PUBLICATION_CONCURRENCY = 4
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
 // Por padrão, restringe ao dono do post. Super admins podem publicar usando
@@ -259,7 +262,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
 async function publishPost(post) {
   const isSuperAdmin = post.userRole === 'super_admin'
   const accounts = post.accounts || []
-  return Promise.all(accounts.map(account => publicarNaConta(account, post, isSuperAdmin)))
+  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, isSuperAdmin), PUBLICATION_CONCURRENCY)
 }
 
 // Verifica, por (post, conta), se o(s) container(s) pendentes do Instagram já

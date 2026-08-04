@@ -7,6 +7,9 @@ const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
 const { verificarSaudePlataformas } = require('./platformHealth')
 const { comentarYoutube } = require('../infra/social/youtubePublisher')
+const { mapWithConcurrency } = require('../utils/concurrency')
+
+const POST_CONCURRENCY = 4
 
 // Retry automático de publicação com falha transitória (5xx/rate limit/rede)
 // — ver src/infra/social/publisher.js (isErroTransitorio) e migrations/036.
@@ -189,7 +192,7 @@ async function processarPendentes() {
     // Posts pendentes são independentes entre si (já reservados atomicamente como
     // 'processing'), então publicá-los em paralelo evita que um post lento (ex:
     // vídeo grande no Instagram) atrase a publicação dos demais que já venceram.
-    await Promise.all(pendentes.map(processarPost))
+    await mapWithConcurrency(pendentes, processarPost, POST_CONCURRENCY)
   } catch (err) {
     await registrarLog({ type: 'err', message: `Erro ao programar post: ${err.message}`, platform: null })
   }

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { buildValidationIssues, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
+import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 
@@ -23,6 +24,19 @@ const youtubeCategories = [
   { id: '27', label: 'Educação' },
   { id: '28', label: 'Ciência e tecnologia' },
 ]
+
+async function uploadWithConcurrency(items, upload, limit) {
+  const results = new Array(items.length)
+  let next = 0
+  async function worker() {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await upload(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
 
 export function SchedulerPage() {
   const [text, setText] = useState('')
@@ -49,7 +63,14 @@ export function SchedulerPage() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [workerIssues, setWorkerIssues] = useState([])
   const locationSearchTimer = useRef(null)
+  const validationRequest = useRef(0)
+  const validationWorker = useMemo(() => createPostValidationWorker(({ requestId, issues }) => {
+    if (requestId === validationRequest.current) setWorkerIssues(issues)
+  }), [])
+
+  useEffect(() => () => validationWorker?.terminate(), [validationWorker])
 
   function toggle(platform) { setSelected(value => value.includes(platform) ? value.filter(item => item !== platform) : [...value, platform]) }
   function selectFiles(event) { setFiles(Array.from(event.target.files || [])) }
@@ -66,7 +87,19 @@ export function SchedulerPage() {
     return () => { cancelado = true }
   }, [files])
 
-  const issues = buildValidationIssues({ text, platforms: selected, files, publishNow, scheduledAt: date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey })
+  const validationInput = {
+    text, platforms: selected, files: files.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type })),
+    publishNow, scheduledAt: date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey
+  }
+  useEffect(() => {
+    const requestId = ++validationRequest.current
+    if (!validationWorker) {
+      setWorkerIssues(buildValidationIssues(validationInput))
+      return
+    }
+    validationWorker.postMessage({ ...validationInput, requestId })
+  }, [validationWorker, text, selected, files, publishNow, date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey])
+  const issues = workerIssues
 
   // Busca de local (Facebook/Instagram) com debounce, espelhando o
   // comportamento do app legado (public/app.html, onLocationSearchInput):
@@ -101,7 +134,7 @@ export function SchedulerPage() {
     if (issues.length > 0) { setError(issues[0].message); return }
     setLoading(true)
     try {
-      const media = await Promise.all(files.map(uploadFile))
+      const media = await uploadWithConcurrency(files, uploadFile, 3)
       const scheduledAt = publishNow ? new Date().toISOString() : date
       await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, firstComment, textByPlatform: JSON.stringify(textByPlatform), locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
       setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setFirstComment(''); setTextByPlatform({}); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true)

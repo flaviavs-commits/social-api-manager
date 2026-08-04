@@ -3,12 +3,12 @@
 // probe de vídeo, publisher) — o controller HTTP só traduz req/res para isto.
 const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
-const { publishPost } = require('../../infra/social/publisher')
+const { processarPost } = require('../../services/scheduler')
 const { probeVideo } = require('../../infra/storage/videoProbe')
 const { converterParaJpeg, lerDimensoesImagem } = require('../../infra/storage/mediaConverter')
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
-const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC, decidirStatusPublicacao } = require('../../domain/posts/post')
+const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
 const { ValidationError } = require('../../domain/posts/errors')
 
 const path = require('path')
@@ -346,13 +346,15 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   if (!publishNow) return { post: { ...post, warnings }, status: 201 }
 
-  const results = await publishPost({ ...post, mediaPath, mediaType, mediaItems, accounts: postAccounts, userId, userRole })
-  const status = decidirStatusPublicacao(results)
-  // success: 'pending' (Instagram aguardando processamento) não é status
-  // final — o post fica em 'processing' até o cron confirmar via finalizarInstagramPendentes().
-  if (status !== 'processing') await postsRepo.atualizarStatusPost(post.id, status)
+  // I/O externo (upload/processamento da rede social) não deve manter a
+  // requisição HTTP aberta. O mesmo pipeline do scheduler conclui status,
+  // logs, retries e notificações em segundo plano.
+  setImmediate(() => {
+    processarPost({ ...post, mediaPath, mediaType, mediaItems, accounts: postAccounts, userId, userRole })
+      .catch(err => console.error(`Erro na publicação assíncrona do post #${post.id}:`, err.message))
+  })
 
-  return { post: { ...post, status, results, warnings }, status: 201 }
+  return { post: { ...post, status: 'processing', warnings }, status: 202 }
 }
 
 module.exports = { criarPost }
