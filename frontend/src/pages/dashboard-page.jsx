@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 
-export function DashboardPage() {
+export function DashboardPage({ onNavigate }) {
   const [data, setData] = useState({ posts: [], accounts: [] })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -25,7 +25,7 @@ export function DashboardPage() {
     <section className="panel">
       <div className="panel-heading">
         <div><p className="eyebrow">ATIVIDADE</p><h2>Publicações recentes</h2></div>
-        <button className="action-button" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'agendador' }))}>Criar publicação</button>
+        <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
       </div>
       {error
         ? <p className="error-message" role="alert">{error}</p>

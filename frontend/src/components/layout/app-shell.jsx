@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
+import { logout } from '../../lib/api.js'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -81,7 +82,7 @@ function AppSidebar({ page, open, onNavigate, onClose }) {
       </nav>
 
       <button
-        onClick={() => { localStorage.removeItem('authToken'); window.location.href = '/login.html' }}
+        onClick={logout}
         className="mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
       >
         Sair

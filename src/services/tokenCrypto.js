@@ -11,6 +11,10 @@ const KEY = process.env.TOKEN_ENCRYPTION_KEY
   ? Buffer.from(process.env.TOKEN_ENCRYPTION_KEY, 'hex')
   : null
 
+if (KEY && KEY.length !== 32) {
+  throw new Error('TOKEN_ENCRYPTION_KEY deve conter exatamente 32 bytes em hexadecimal (64 caracteres)')
+}
+
 // Formato salvo: "enc:v1:<iv>:<authTag>:<ciphertext>" (tudo em hex) — o
 // prefixo "enc:v1:" distingue de tokens antigos em texto puro, permitindo
 // migração gradual sem quebrar nada que já estava no banco antes desta mudança.

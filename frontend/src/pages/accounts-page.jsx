@@ -1,16 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { apiFetch } from '../lib/api.js'
+import { useApiResource } from '../hooks/use-api-resource.js'
 
 export function AccountsPage() {
-  const [accounts, setAccounts] = useState([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  const load = () => { setLoading(true); return apiFetch('/api/accounts').then(data => setAccounts(data.data || [])).catch(e => setError(e.message)).finally(() => setLoading(false)) }
-  useEffect(() => { load() }, [])
+  const load = useCallback(() => apiFetch('/api/accounts').then(data => data.data || []), [])
+  const { value: accounts, loading, error, setError, reload } = useApiResource(load, [])
 
   async function remove(id) {
-    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); load() }
+    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload() }
     catch (e) { setError(e.message) }
   }
 

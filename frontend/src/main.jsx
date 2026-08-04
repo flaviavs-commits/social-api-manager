@@ -14,8 +14,15 @@ import './styles/tailwind.css'
 function App() {
   const [page, setPage] = useState('dashboard')
   const [user, setUser] = useState(null)
-  useEffect(() => { const handler = event => setPage(event.detail); window.addEventListener('navigate', handler); apiFetch('/api/me').then(setUser).catch(() => {}); return () => window.removeEventListener('navigate', handler) }, [])
-  return <AppShell page={page} onPageChange={setPage} user={user}>{page === 'dashboard' ? <DashboardPage /> : <ModulePage type={page} />}</AppShell>
+  useEffect(() => {
+    let active = true
+    apiFetch('/api/me').then(currentUser => { if (active) setUser(currentUser) }).catch(() => {})
+    return () => { active = false }
+  }, [])
+  const navigate = nextPage => setPage(nextPage)
+  return <AppShell page={page} onPageChange={navigate} user={user}>
+    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} />}
+  </AppShell>
 }
 
 const isApp = window.location.pathname === '/app.html' || window.location.pathname.startsWith('/app/')

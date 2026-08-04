@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
+import { useApiResource } from '../hooks/use-api-resource.js'
 
 const PLATFORM_BADGE_BG = { instagram: 'bg-[#E1306C]/15', facebook: 'bg-[#1877F2]/15', tiktok: 'bg-zinc-100/10', x: 'bg-zinc-100/10' }
 const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
@@ -29,15 +30,11 @@ export function CalendarPage() {
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
-  const [posts, setPosts] = useState([])
   const [editing, setEditing] = useState(null)
   const [date, setDate] = useState('')
   const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-
-  const load = () => { setLoading(true); return apiFetch(`/api/posts/calendar?year=${year}&month=${month}`).then(data => setPosts(data.posts || [])).catch(e => setError(e.message)).finally(() => setLoading(false)) }
-  useEffect(() => { load() }, [year, month])
+  const load = useCallback(() => apiFetch(`/api/posts/calendar?year=${year}&month=${month}`).then(data => data.posts || []), [month, year])
+  const { value: posts, loading, error, setError, reload } = useApiResource(load, [])
 
   function shift(delta) {
     const next = new Date(year, month - 1 + delta, 1)
@@ -48,13 +45,13 @@ export function CalendarPage() {
 
   async function remove(post) {
     if (!window.confirm('Excluir esta publicação?')) return
-    try { await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' }); setMessage('Publicação excluída.'); load() }
+    try { await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' }); setMessage('Publicação excluída.'); await reload() }
     catch (e) { setError(e.message) }
   }
 
   async function reschedule(event) {
     event.preventDefault()
-    try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); load() }
+    try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); await reload() }
     catch (e) { setError(e.message) }
   }
 

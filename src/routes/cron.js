@@ -19,22 +19,37 @@ function requireCronSecret(req, res, next) {
 router.use(requireCronSecret)
 
 router.get('/process-posts', async (req, res) => {
-  await scheduler.processarPendentes()
-  res.json({ ok: true })
+  try {
+    await scheduler.processarPendentes()
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Falha no cron process-posts:', err)
+    res.status(500).json({ ok: false, erro: 'Falha ao processar posts pendentes.' })
+  }
 })
 
 // Aproveita o mesmo agendamento de renovação de tokens para também limpar
 // logs/eventos antigos — o plano da Vercel limita o número de cron jobs, e
 // não há motivo para a limpeza ter um horário próprio.
 router.get('/renew-tokens', async (req, res) => {
-  await scheduler.renovarTokensProativamente()
-  const limpeza = await logsRepo.limparAntigos()
-  res.json({ ok: true, limpeza })
+  try {
+    await scheduler.renovarTokensProativamente()
+    const limpeza = await logsRepo.limparAntigos()
+    res.json({ ok: true, limpeza })
+  } catch (err) {
+    console.error('Falha no cron renew-tokens:', err)
+    res.status(500).json({ ok: false, erro: 'Falha ao renovar tokens e limpar logs.' })
+  }
 })
 
 router.get('/health-check', async (req, res) => {
-  await scheduler.verificarSaudePlataformas()
-  res.json({ ok: true })
+  try {
+    await scheduler.verificarSaudePlataformas()
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Falha no cron health-check:', err)
+    res.status(500).json({ ok: false, erro: 'Falha ao verificar plataformas.' })
+  }
 })
 
 module.exports = router

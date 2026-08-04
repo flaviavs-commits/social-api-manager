@@ -28,6 +28,16 @@ const { gerarTokenSessao } = require('./utils/authToken')
 const app = express()
 app.disable('x-powered-by')
 
+// Falhar cedo evita iniciar uma instância que emitiria tokens impossíveis de
+// validar ou armazenaria credenciais sem a proteção esperada.
+if (process.env.NODE_ENV === 'production') {
+  const requiredSecrets = ['AUTH_TOKEN_SECRET', 'TOKEN_ENCRYPTION_KEY']
+  const missingSecrets = requiredSecrets.filter(name => !process.env[name])
+  if (missingSecrets.length) {
+    throw new Error(`Segredos obrigatórios ausentes: ${missingSecrets.join(', ')}`)
+  }
+}
+
 // O app fica atrás do túnel ngrok (HTTPS termina no ngrok, e o tráfego chega
 // ao processo Node como HTTP puro com o header X-Forwarded-Proto/X-Forwarded-For).
 // Sem isso, o Express não confia nesses headers: req.secure fica sempre false
@@ -136,15 +146,21 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
   } catch {
     return res.status(400).end()
   }
-  if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.public.blob.vercel-storage.com')) {
+  const isAllowedBlobHost = parsed.hostname === 'public.blob.vercel-storage.com' || parsed.hostname.endsWith('.public.blob.vercel-storage.com')
+  if (parsed.protocol !== 'https:' || !isAllowedBlobHost) {
     return res.status(403).end()
   }
 
-  const upstream = await fetch(url)
+  const upstream = await fetch(url, { signal: AbortSignal.timeout(15_000) })
   if (!upstream.ok) return res.status(502).end()
+
+  const contentLength = Number(upstream.headers.get('content-length') || 0)
+  const maxMediaBytes = 200 * 1024 * 1024
+  if (contentLength > maxMediaBytes) return res.status(413).end()
 
   res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream')
   const buffer = Buffer.from(await upstream.arrayBuffer())
+  if (buffer.length > maxMediaBytes) return res.status(413).end()
   res.send(buffer)
 })
 

@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { apiFetch } from '../lib/api.js'
+import { useApiResource } from '../hooks/use-api-resource.js'
 
 export function InboxPage() {
-  const [posts, setPosts] = useState([])
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
-  useEffect(() => { setLoading(true); apiFetch('/api/posts/inbox').then(data => setPosts(data.posts || [])).catch(e => setError(e.message)).finally(() => setLoading(false)) }, [])
+  const load = useCallback(() => apiFetch('/api/posts/inbox').then(data => data.posts || []), [])
+  const { value: posts, loading, error } = useApiResource(load, [])
 
   return <section className="page-view"><section className="panel">
     <p className="eyebrow">INTERAÇÕES</p><h2>Inbox</h2>

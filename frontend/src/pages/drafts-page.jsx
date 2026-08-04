@@ -1,25 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
+import { useApiResource } from '../hooks/use-api-resource.js'
 
 export function DraftsPage() {
-  const [drafts, setDrafts] = useState([])
   const [text, setText] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const load = () => { setLoading(true); return apiFetch('/api/drafts').then(data => setDrafts(data.drafts || [])).catch(e => setError(e.message)).finally(() => setLoading(false)) }
-  useEffect(() => { load() }, [])
+  const load = useCallback(() => apiFetch('/api/drafts').then(data => data.drafts || []), [])
+  const { value: drafts, loading, error, setError, reload } = useApiResource(load, [])
 
   async function save(event) {
     event.preventDefault()
     if (!text.trim()) return
-    try { await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Rascunho', text, platforms: [] }) }); setText(''); load() }
+    try { await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Rascunho', text, platforms: [] }) }); setText(''); await reload() }
     catch (e) { setError(e.message) }
   }
 
   async function remove(id) {
-    try { await apiFetch(`/api/drafts/${id}`, { method: 'DELETE' }); load() }
+    try { await apiFetch(`/api/drafts/${id}`, { method: 'DELETE' }); await reload() }
     catch (e) { setError(e.message) }
   }
 
