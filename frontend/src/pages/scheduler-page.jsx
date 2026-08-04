@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api.js'
 import { buildValidationIssues, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
+import { findPublicationResult, latestPublicationEventId } from '../lib/publicationEvents.js'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 
@@ -62,15 +63,40 @@ export function SchedulerPage() {
   const [selectedLocation, setSelectedLocation] = useState(null)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [publicationStatus, setPublicationStatus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [workerIssues, setWorkerIssues] = useState([])
   const locationSearchTimer = useRef(null)
   const validationRequest = useRef(0)
+  const publicationPollTimer = useRef(null)
   const validationWorker = useMemo(() => createPostValidationWorker(({ requestId, issues }) => {
     if (requestId === validationRequest.current) setWorkerIssues(issues)
   }), [])
 
-  useEffect(() => () => validationWorker?.terminate(), [validationWorker])
+  useEffect(() => () => {
+    validationWorker?.terminate()
+    clearTimeout(publicationPollTimer.current)
+  }, [validationWorker])
+
+  function monitorPublication(postId, initialCursor) {
+    let cursor = initialCursor
+    const poll = async () => {
+      try {
+        const { events = [] } = await apiFetch(`/api/logs/events/since/${cursor}`)
+        if (events.length) cursor = Math.max(cursor, ...events.map(event => Number(event.id) || 0))
+        const result = findPublicationResult(events, postId)
+        if (result) {
+          setPublicationStatus(result)
+          return
+        }
+      } catch {
+        // Uma falha pontual de rede não encerra o acompanhamento; o próximo
+        // ciclo tenta novamente sem substituir a mensagem da publicação.
+      }
+      publicationPollTimer.current = setTimeout(poll, 4000)
+    }
+    poll()
+  }
 
   function toggle(platform) { setSelected(value => value.includes(platform) ? value.filter(item => item !== platform) : [...value, platform]) }
   function selectFiles(event) { setFiles(Array.from(event.target.files || [])) }
@@ -130,14 +156,19 @@ export function SchedulerPage() {
   }
 
   async function submit(event) {
-    event.preventDefault(); setError(''); setSaved(false)
+    event.preventDefault(); setError(''); setSaved(false); setPublicationStatus(null)
     if (issues.length > 0) { setError(issues[0].message); return }
     setLoading(true)
     try {
+      const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
       const media = await uploadWithConcurrency(files, uploadFile, 3)
       const scheduledAt = publishNow ? new Date().toISOString() : date
-      await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, firstComment, textByPlatform: JSON.stringify(textByPlatform), locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
+      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, firstComment, textByPlatform: JSON.stringify(textByPlatform), locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
       setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setFirstComment(''); setTextByPlatform({}); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true)
+      if (publishNow && createdPost?.id) {
+        setPublicationStatus({ type: 'processing', message: `Post #${createdPost.id} enviado. Aguardando confirmação das redes sociais...` })
+        monitorPublication(createdPost.id, eventCursor)
+      }
     } catch (caught) { setError(caught.message) } finally { setLoading(false) }
   }
 
@@ -181,5 +212,5 @@ export function SchedulerPage() {
 
     {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <button className="action-button" disabled={loading || issues.length > 0}>{loading ? 'Enviando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button>
-  </form>{saved && <p className="success-message">{publishNow ? 'Publicação enviada.' : 'Publicação agendada.'}</p>}{error && <p className="error-message">{error}</p>}</section></section>
+  </form>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }
