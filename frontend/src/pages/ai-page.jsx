@@ -25,7 +25,7 @@ export function AiPage() {
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }
 
-  return <section className="page-view"><section className="panel">
+  return <section className="page-view ai-page"><section className="panel ai-generator-panel">
     <p className="eyebrow">ASSISTENTE</p><h2>Gerar ideias de posts</h2>
     <form className="draft-form sched-form" onSubmit={generate}>
       <SchedSection number={1} title="Instrução">
@@ -35,7 +35,7 @@ export function AiPage() {
     </form>
     {error && <p className="error-message" role="alert">{error}</p>}
   </section>
-  {posts.length > 0 && <section className="panel">
+  {posts.length > 0 && <section className="panel ai-suggestions-panel">
     <h2>Sugestões</h2>
     {posts.map((post, index) => <div className="data-row" key={post.id || index}>
       {editingIndex === index
@@ -44,7 +44,7 @@ export function AiPage() {
       <button type="button" className="link-button" onClick={() => setEditingIndex(editingIndex === index ? null : index)}>{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</button>
     </div>)}
   </section>}
-  <section className="panel">
+  <section className="panel ai-logs-panel">
     <div className="panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Logs do Agente IA</h2></div><button type="button" className="link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button></div>
     {activityLogs.length ? activityLogs.map(log => <div className="data-row" key={log.id}><span><strong>{log.status}</strong> · {log.acao}{log.modelo ? ` · ${log.modelo}` : ''}<br /><small>{log.detalhes || 'Sem detalhes'} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></span></div>) : <p className="empty-state">Nenhum registro do agente ainda.</p>}
   </section>
