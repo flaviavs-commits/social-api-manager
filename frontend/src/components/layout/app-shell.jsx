@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
 import { apiFetch, logout } from '../../lib/api.js'
 import { ToastProvider } from '../ui/toast.jsx'
@@ -69,7 +69,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
               }`}
             >
               <span className="flex items-center gap-2.5">
-                <NavIcon name={key} />
+                {key === 'ai' ? <img src="/logo_assistente.png" alt="" aria-hidden="true" className="sidebar-ai-icon" /> : <NavIcon name={key} />}
                 <span className="sidebar-nav-label">{label}</span>
               </span>
               {active && (
@@ -125,7 +125,7 @@ function userIsAdmin(user) {
   return user?.role === 'admin' || user?.role === 'super_admin'
 }
 
-function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenCommandPalette, onOpenShortcutHelp }) {
+function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
@@ -161,7 +161,6 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
       </div>
 
       <div className="flex items-center gap-3">
-        <button aria-label="Abrir busca rápida" aria-keyshortcuts="Control+K Meta+K" onClick={onOpenCommandPalette} className="topbar-search-button hidden items-center gap-2 rounded-lg border border-subtle px-3 py-2 text-xs text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span>Buscar módulo</span><kbd>Ctrl K</kbd></button>
         <button type="button" aria-label="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">?</button>
         <button aria-label="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
@@ -201,40 +200,12 @@ function userInitials(user) {
   return label.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase()
 }
 
-function CommandPalette({ open, onClose, onNavigate }) {
-  const [query, setQuery] = useState('')
-  const inputRef = useRef(null)
-  const matches = navigation.filter(([, label]) => label.toLowerCase().includes(query.trim().toLowerCase()))
-
-  useEffect(() => {
-    if (!open) return
-    setQuery('')
-    requestAnimationFrame(() => inputRef.current?.focus())
-  }, [open])
-
-  if (!open) return null
-
-  function choose(page) {
-    onNavigate(page)
-    onClose()
-  }
-
-  return <div className="command-palette-overlay" role="presentation" onMouseDown={onClose}>
-    <section className="command-palette" role="dialog" aria-modal="true" aria-label="Busca rápida" onMouseDown={event => event.stopPropagation()}>
-      <div className="command-palette-input"><span aria-hidden="true">⌕</span><input ref={inputRef} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') onClose(); if (event.key === 'Enter' && matches[0]) choose(matches[0][0]) }} placeholder="Ir para um módulo..." aria-label="Buscar módulo"/><kbd>ESC</kbd></div>
-      <div className="command-palette-list">{matches.length ? matches.map(([key, label]) => <button key={key} type="button" onClick={() => choose(key)}><span><NavIcon name={key} className="h-4 w-4"/>{label}</span><small>Enter</small></button>) : <p>Não encontramos esse módulo.</p>}</div>
-      <p className="command-palette-hint">Use Ctrl/Cmd + K para abrir esta busca a qualquer momento.</p>
-    </section>
-  </div>
-}
-
 function ShortcutHelp({ open, onClose }) {
   if (!open) return null
   return <div className="shortcut-help-overlay" role="presentation" onMouseDown={onClose}>
     <section className="shortcut-help" role="dialog" aria-modal="true" aria-labelledby="shortcut-help-title" onMouseDown={event => event.stopPropagation()}>
       <div className="shortcut-help-heading"><div><p className="eyebrow">NAVEGAÇÃO RÁPIDA</p><h2 id="shortcut-help-title">Atalhos de teclado</h2></div><button type="button" className="link-button" onClick={onClose}>Fechar</button></div>
       <div className="shortcut-help-list">
-        <div><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><p>Abrir busca rápida</p></div>
         <div><kbd>C</kbd><p>Criar uma publicação</p></div>
         <div><kbd>D</kbd><p>Ir para o dashboard</p></div>
         <div><kbd>?</kbd><p>Mostrar estes atalhos</p></div>
@@ -248,7 +219,6 @@ function ShortcutHelp({ open, onClose }) {
 export function AppShell({ page, onPageChange, children, user }) {
   const [open, setOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meu-ecoo:sidebar-collapsed') === '1')
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   const currentLabel = navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
 
@@ -262,14 +232,7 @@ export function AppShell({ page, onPageChange, children, user }) {
 
   useEffect(() => {
     const handleShortcut = event => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setCommandPaletteOpen(true)
-        setShortcutHelpOpen(false)
-        return
-      }
       if (event.key === 'Escape') {
-        setCommandPaletteOpen(false)
         setShortcutHelpOpen(false)
         return
       }
@@ -288,12 +251,11 @@ export function AppShell({ page, onPageChange, children, user }) {
       <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenCommandPalette={() => setCommandPaletteOpen(true)} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} />
+        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} />
         <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
       </div>
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
-      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onNavigate={onPageChange} />
       <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
       <MobileBottomNav page={page} onNavigate={onPageChange} onOpenMenu={() => setOpen(true)} />
     </div></ToastProvider>
