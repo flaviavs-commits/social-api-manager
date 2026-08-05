@@ -29,6 +29,7 @@ export function InboxPage() {
   const load = useCallback(() => apiFetch(`/api/posts/inbox${platform === 'all' ? '' : `?platform=${platform}`}`).then(data => data.posts || []), [platform])
   const { value: posts, loading, error } = useApiResource(load, [])
   const loadUnread = useCallback(() => apiFetch('/api/posts/inbox/unread').then(data => setUnread(data.unread || {})).catch(() => {}), [])
+  const handleConversationClose = useCallback(() => { loadUnread() }, [loadUnread])
 
   useEffect(() => { loadUnread() }, [loadUnread])
   useEffect(() => { localStorage.setItem(INBOX_FILTERS_KEY, JSON.stringify({ platform, status: statusFilter })) }, [platform, statusFilter])
@@ -84,6 +85,6 @@ export function InboxPage() {
         <div className="inbox-item-body"><strong>{post.text || post.title || 'Publicação'}</strong><small>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR') : 'Publicação recente'} · {post.commentCount || 0} comentários</small></div>
         <div className="inbox-item-actions">{count > 0 && <span className="inbox-unread-badge">{count} novo{count > 1 ? 's' : ''}</span>}{count > 0 && <button type="button" className="link-button" onClick={() => markAsRead([post.id])}>Marcar lida</button>}<button type="button" className="action-button" onClick={() => setSelectedPostId(post.id)}>Abrir conversa</button></div>
       </article>
-    })}</div></div><div className="inbox-conversation-pane">{selectedPostId != null ? <CommentsModal embedded postId={selectedPostId} onClose={() => loadUnread()}/> : <div className="inbox-conversation-empty"><span aria-hidden="true">💬</span><strong>Selecione uma publicação</strong><p>Os comentários e as respostas aparecerão aqui.</p></div>}</div></div> : <div className="inbox-empty"><span aria-hidden="true">◎</span><p>{search ? 'Nenhuma publicação corresponde à busca.' : 'Nenhuma interação encontrada.'}</p>{(search || statusFilter !== 'all' || platform !== 'all') && <button className="link-button" onClick={() => { setSearch(''); setPlatform('all'); setStatusFilter('all') }}>Limpar filtros</button>}</div>}
+    })}</div></div><div className="inbox-conversation-pane">{selectedPostId != null ? <CommentsModal embedded postId={selectedPostId} onClose={handleConversationClose}/> : <div className="inbox-conversation-empty"><span aria-hidden="true">💬</span><strong>Selecione uma publicação</strong><p>Os comentários e as respostas aparecerão aqui.</p></div>}</div></div> : <div className="inbox-empty"><span aria-hidden="true">◎</span><p>{search ? 'Nenhuma publicação corresponde à busca.' : 'Nenhuma interação encontrada.'}</p>{(search || statusFilter !== 'all' || platform !== 'all') && <button className="link-button" onClick={() => { setSearch(''); setPlatform('all'); setStatusFilter('all') }}>Limpar filtros</button>}</div>}
   </section></section>
 }
