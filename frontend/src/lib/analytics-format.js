@@ -122,13 +122,16 @@ export function latestOf(obj) {
   return dias.length ? obj[dias.at(-1)] : null
 }
 
-export function detectNetworks({ metrics, instagramFollowers, tiktokStats, youtubeSubscribers, tiktokVideos }) {
+export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokStats = {}, youtubeSubscribers = {}, tiktokVideos = [], accountAnalytics }) {
   const nets = new Set()
   for (const m of metrics) if (m.platform) nets.add(m.platform)
   if (Object.keys(instagramFollowers).length) nets.add('instagram')
   if (Object.keys(tiktokStats).length) nets.add('tiktok')
   if (tiktokVideos.length) nets.add('tiktok')
   if (Object.keys(youtubeSubscribers).length) nets.add('youtube')
+  for (const [platform, accounts] of Object.entries(accountAnalytics?.platforms || {})) {
+    if (Array.isArray(accounts) && accounts.length) nets.add(platform)
+  }
   return NETWORK_ORDER.filter(n => nets.has(n))
 }
 
