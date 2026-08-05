@@ -4,6 +4,57 @@ export const NET_ICONS = { instagram: '📸', facebook: '📘', youtube: '▶️
 export const DEMO_COLORS = ['#d1993e', '#e94f8a', '#34d399', '#fbbf24', '#5b8def', '#f97316', '#a78bfa', '#22d3ee']
 export const GENDER_COLORS = { M: '#5b8def', F: '#e94f8a', U: '#8b8fa3', male: '#5b8def', female: '#e94f8a' }
 export const NETWORK_ORDER = ['instagram', 'facebook', 'youtube', 'tiktok']
+export const ANALYTICS_PERIODS = [7, 30, 90]
+
+export const TAB_HELP = {
+  community: 'Resumo das interações e do desempenho da sua comunidade.',
+  posts: 'Compare as publicações e descubra quais geraram mais resultado.',
+  videos: 'Compare os vídeos publicados e suas principais reações.',
+  growth: 'Acompanhe a evolução da audiência ao longo do tempo.',
+}
+
+const METRIC_LABELS = {
+  views: 'Visualizações',
+  reach: 'Pessoas alcançadas',
+  impressions: 'Impressões',
+  likes: 'Curtidas',
+  comments: 'Comentários',
+  shares: 'Compartilhamentos',
+  saves: 'Salvamentos',
+  page_follows: 'Novos seguidores',
+  followers: 'Seguidores',
+  followerCount: 'Seguidores',
+  likesCount: 'Curtidas acumuladas',
+  subscriberCount: 'Inscritos',
+  subscribersGained: 'Inscritos ganhos',
+  subscribersLost: 'Inscritos perdidos',
+  watchTimeSeconds: 'Tempo médio assistido',
+  averageViewDuration: 'Duração média assistida',
+  averageViewPercentage: 'Percentual médio assistido',
+  estimatedMinutesWatched: 'Minutos assistidos',
+  engagedViews: 'Visualizações engajadas',
+}
+
+export function labelForMetric(name) {
+  if (METRIC_LABELS[name]) return METRIC_LABELS[name]
+  return String(name)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+    .replace(/^page /, 'Página ')
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
+export const METRIC_HELP = {
+  views: 'Quantidade de vezes que o conteúdo foi visualizado.',
+  likes: 'Reações de “curtir” recebidas pelo conteúdo.',
+  comments: 'Comentários deixados pela audiência.',
+  shares: 'Vezes em que o conteúdo foi compartilhado.',
+  saves: 'Vezes em que o conteúdo foi salvo para ver depois.',
+  page_follows: 'Novas pessoas que começaram a seguir a página no período.',
+  followerCount: 'Total atual de seguidores registrado pela rede.',
+  subscriberCount: 'Total atual de inscritos registrado pelo YouTube.',
+  watchTimeSeconds: 'Tempo médio que as pessoas assistiram a cada vídeo.',
+}
 
 export const NET_TABS = {
   instagram: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts Publicados' }, { key: 'growth', label: 'Crescimento' }],
@@ -45,6 +96,17 @@ export function filterByPeriod(data, periodDays) {
     })
   }
   return Object.fromEntries(Object.entries(data).filter(([dia]) => dia >= deStr && dia <= ateStr))
+}
+
+export function filterTikTokVideosByPeriod(videos, periodDays) {
+  const ate = new Date()
+  const de = new Date(ate.getTime() - periodDays * 86400000)
+  return videos.filter(video => {
+    const timestamp = video.createTime ? Number(video.createTime) * 1000 : Date.parse(video.publishedAt || '')
+    if (!Number.isFinite(timestamp)) return false
+    const date = new Date(timestamp)
+    return date >= de && date <= ate
+  })
 }
 
 export function topN(itens, n) {

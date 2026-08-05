@@ -10,8 +10,8 @@ export function AnalyticsDemographics({ net, tab, data }) {
   const country = demo.country || []
   if (!ageGender.length && !country.length) return null
 
-  const ageGenderTitle = net === 'instagram' ? 'Seguidores por Idade e Gênero' : 'Audiência por Idade e Gênero (28d)'
-  const geoTitle = net === 'instagram' ? 'Seguidores por País' : 'Audiência por País (28d)'
+  const ageGenderTitle = net === 'instagram' ? 'Seguidores por idade e gênero' : 'Espectadores por idade e gênero'
+  const geoTitle = net === 'instagram' ? 'Seguidores por país' : 'Espectadores por país'
 
   const faixas = [...new Set(ageGender.map(d => d.age))].sort()
   const generos = [...new Set(ageGender.map(d => d.gender))]
@@ -23,6 +23,7 @@ export function AnalyticsDemographics({ net, tab, data }) {
     <div className="analytics-demo-grid">
       <div className="an-summary-section">
         <div className="an-summary-section-title">{ageGenderTitle}</div>
+        <p className="analytics-section-description">Entenda quem compõe sua audiência.</p>
         <div style={{ position: 'relative', minHeight: 220 }}>
           {ageGender.length
             ? <Bar
@@ -42,6 +43,7 @@ export function AnalyticsDemographics({ net, tab, data }) {
       </div>
       <div className="an-summary-section">
         <div className="an-summary-section-title">{geoTitle}</div>
+        <p className="analytics-section-description">Veja de onde vêm as pessoas que acompanham ou assistem seu conteúdo.</p>
         <div style={{ position: 'relative', minHeight: 220 }}>
           {geoTop.length
             ? <Doughnut
