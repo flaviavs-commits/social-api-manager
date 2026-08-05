@@ -92,16 +92,16 @@ export function CalendarPage({ onNavigate }) {
   const sortedPosts = [...filteredPosts].sort((a, b) => new Date(a.scheduled_at || a.scheduledAt || a.data_agendamento) - new Date(b.scheduled_at || b.scheduledAt || b.data_agendamento))
 
   return (
-    <section className="mx-auto max-w-6xl px-6 py-8">
-      <div className="mb-6 flex items-center justify-between">
+    <section className="page-view calendar-page">
+      <div className="calendar-page-heading mb-6 flex items-center justify-between">
         <div>
           <p className="text-[11px] font-bold tracking-[0.1em] text-gold-muted">PLANEJAMENTO</p>
           <h2 className="text-2xl font-semibold text-zinc-50">{monthNames[month - 1]} de {year}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={goToToday} className="rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Hoje</button>
-          <button onClick={() => shift(-1)} className="rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Anterior</button>
-          <button onClick={() => shift(1)} className="rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Próximo</button>
+          <button onClick={goToToday} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Hoje</button>
+          <button onClick={() => shift(-1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Anterior</button>
+          <button onClick={() => shift(1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Próximo</button>
         </div>
       </div>
 
@@ -154,7 +154,7 @@ export function CalendarPage({ onNavigate }) {
       </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><span className="calendar-list-date">{new Date(post.scheduled_at || post.scheduledAt || post.data_agendamento).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><strong>{post.text || post.title || 'Publicação'}</strong><span className="calendar-list-actions"><button className="link-button" onClick={() => { setEditing(post); setDate((post.scheduled_at || post.scheduledAt || '').slice(0, 16)) }}>Editar</button><button className="link-button" onClick={() => duplicate(post)}>Duplicar</button><button className="link-button danger-link" onClick={() => remove(post)}>Excluir</button></span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
       {editing && (
-        <section className="mt-6 rounded-xl border border-subtle bg-surface p-5">
+        <section className="calendar-edit-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
           <h2 className="mb-3 text-lg font-semibold text-zinc-50">Reagendar publicação</h2>
           <form className="flex flex-wrap items-center gap-3" onSubmit={reschedule}>
             <input
