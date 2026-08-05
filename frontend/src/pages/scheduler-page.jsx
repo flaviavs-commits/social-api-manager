@@ -306,8 +306,9 @@ export function SchedulerPage() {
     <SchedSection number={2} title="Conteúdo">
       <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
       <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
-        <label> Mídias<input type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Selecionar imagens ou vídeos"/><span className="field-help">Imagens e vídeos serão validados antes da publicação.</span></label>
-        <p className="upload-drop-hint">Arraste os arquivos até aqui ou use o seletor acima.</p>
+        <div className="upload-field-heading"><div><p className="eyebrow">MÍDIAS</p><strong>Escolha os arquivos da publicação</strong></div><span aria-hidden="true">▧</span></div>
+        <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>Escolher arquivo</strong><small>Imagem ou vídeo · você pode selecionar mais de um</small></span><input className="upload-picker-input" type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Selecionar imagens ou vídeos"/></label>
+        <p className="upload-drop-hint">ou arraste os arquivos até aqui · PNG, JPG, WEBP, MP4 e MOV</p>
       </div>
       {files.length > 0 && <div className="media-preview-grid" aria-label="Arquivos selecionados">{mediaPreviews.map(item => <article className="media-preview-card" key={item.key}>
         {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <div className="media-video-thumb" aria-label={`Vídeo ${item.file.name}`}><span aria-hidden="true">▶</span></div>}
@@ -338,7 +339,10 @@ export function SchedulerPage() {
     </SchedSection>
 
     <SchedSection number={4} title="Agendamento">
-      <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/> Publicar imediatamente</label>
+      <div className={`publish-now-card${publishNow ? ' is-active' : ''}`}>
+        <div className="publish-now-copy"><span className="publish-now-icon" aria-hidden="true">⚡</span><div><strong>Publicar agora</strong><small>Envie para as redes assim que concluir a publicação.</small></div></div>
+        <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/><span>{publishNow ? 'Ativado' : 'Ativar'}</span></label>
+      </div>
       {!publishNow && <label>Data e hora<input required type="datetime-local" value={date} onChange={event => setDate(event.target.value)}/></label>}
     </SchedSection>
 
