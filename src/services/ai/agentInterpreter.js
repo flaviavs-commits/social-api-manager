@@ -203,12 +203,13 @@ function inferFromContext(message, currentPage, history = []) {
   const previous = lastAgentContext(history)
   const previousAction = previous?.action
   const platform = extractPlatforms(message)[0] || null
-  const isReference = /^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
-    || normalized.split(/\s+/).filter(Boolean).length <= 3
+  const explicitRequest = /^(mostre|mostrar|ver|veja|consultar|consulte|abra|abrir|listar|liste)\b/.test(normalized)
+  const isReference = !explicitRequest && (/^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
+    || normalized.split(/\s+/).filter(Boolean).length <= 3)
   if (!isReference) return null
 
   if (['analytics', 'analytics_insight'].includes(previousAction)) {
-    if (/melhor|recomend|explic|detalh|por que|o que acha|insight|perform/.test(normalized)) {
+    if (/melhor|recomend|explic|detalh|por que|o que acha|insight|perform|resultado|esse|isso/.test(normalized)) {
       return basePlan('analytics_insight', { platform }, 'Vou aprofundar a análise dos seus dados.')
     }
     return basePlan('analytics', { platform }, platform ? `Vou comparar os dados de ${platform} com o restante.` : 'Vou continuar nos seus relatórios.')
@@ -384,6 +385,8 @@ COMO RACIOCINAR:
 - Para pedidos de conteúdo, entenda objetivo, público, formato, tom e rede; use generate_posts quando o usuário quer textos prontos.
 - Para pedidos compostos, responda a parte que puder e indique a próxima etapa mais segura; não execute várias escritas escondidas.
 - Diferencie uma pergunta sobre a palavra "analytics" de uma consulta dos dados reais da conta.
+- Corrija mentalmente erros de digitação, abreviações e variações fonéticas (por exemplo: "analitcs" = analytics, "instagran" = Instagram, "tiktk" = TikTok).
+- Use o histórico recente e o módulo atual para entender pronomes e referências como "esse", "e no outro", "me explica melhor" e "continua".
 - Não diga que fez algo se não houver uma ação executada e um resultado retornado.
 - Faça no máximo uma pergunta de esclarecimento por vez quando isso melhorar muito a resposta.
 

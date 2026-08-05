@@ -70,7 +70,7 @@ const CAPABILITIES = [
   },
   {
     id: 'analytics', label: 'Consultar relatórios', category: 'desempenho', mode: 'read',
-    description: 'Consulta métricas e desempenho das publicações e redes conectadas.', examples: ['como estão minhas métricas?'],
+    description: 'Consulta métricas e desempenho das publicações e redes conectadas.', parameters: ['platform'], examples: ['como estão minhas métricas?'],
   },
   {
     id: 'analytics_insight', label: 'Interpretar métricas', category: 'desempenho', mode: 'read',

@@ -92,14 +92,16 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
     }
     case 'analytics': {
       const data = await buscarAnalytics(ctx)
-      return { message: 'Relatórios carregados.', data, navigation: 'analytics' }
+      const platform = args.platform && PLATFORMS.includes(args.platform) ? args.platform : null
+      return { message: platform ? `Relatórios de ${platform} carregados.` : 'Relatórios carregados.', data: { ...data, focusPlatform: platform }, navigation: 'analytics' }
     }
     case 'analytics_insight': {
       const data = await buscarAnalytics(ctx)
+      const platform = args.platform && PLATFORMS.includes(args.platform) ? args.platform : null
       let insight = ''
       if (typeof generateText === 'function') {
         const prompt = `Você é um estrategista de conteúdo. Analise SOMENTE os dados reais abaixo e responda em português do Brasil.
-Não invente números nem atribua causalidade que os dados não comprovem. Aponte até três observações, até três ações práticas priorizadas e uma pergunta que ajudaria a aprofundar a análise. Se houver pouca amostra, diga isso claramente.
+Não invente números nem atribua causalidade que os dados não comprovem. Aponte até três observações, até três ações práticas priorizadas e uma pergunta que ajudaria a aprofundar a análise. Se houver pouca amostra, diga isso claramente.${platform ? ` Dê prioridade à plataforma ${platform}.` : ''}
 
 DADOS REAIS DO USUÁRIO:
 ${JSON.stringify(data).slice(0, 16000)}

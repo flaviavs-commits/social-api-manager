@@ -48,6 +48,22 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.arguments.platforms).toEqual(['instagram'])
   })
 
+  test('corrige erros comuns de digitação em analytics e plataformas', () => {
+    expect(interpretWithRules('mostre meu analitcs', 'analytics').actionId).toBe('analytics')
+    expect(interpretWithRules('crie um post para o instagran e o tiktk', 'ai').arguments.platforms).toEqual(['instagram', 'tiktok'])
+  })
+
+  test('usa o contexto anterior para entender uma referência curta', () => {
+    const history = [{ role: 'agent', action: 'analytics', content: 'Relatórios carregados.' }]
+
+    const platformPlan = interpretWithRules('e no tiktk?', 'analytics', history)
+    expect(platformPlan.actionId).toBe('analytics')
+    expect(platformPlan.arguments.platform).toBe('tiktok')
+
+    const detailPlan = interpretWithRules('me explica melhor', 'analytics', history)
+    expect(detailPlan.actionId).toBe('analytics_insight')
+  })
+
   test('não aceita ação inventada pelo modelo', () => {
     expect(() => parseModelPlan('{"actionId":"apagar_banco","arguments":{}}')).toThrow(/não existe no catálogo/)
   })
