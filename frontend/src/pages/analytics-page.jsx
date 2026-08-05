@@ -79,10 +79,10 @@ export function AnalyticsPage() {
     </header>
 
     <section className="analytics-report-snapshot" aria-label="Resumo do relatório filtrado">
-      <div><span>Conteúdos no recorte</span><strong>{selectedRows.length}</strong></div>
-      <div><span>Visualizações</span><strong>{fmtNum(selectedViews)}</strong></div>
-      <div><span>Interações</span><strong>{fmtNum(selectedEngagement)}</strong></div>
-      <div><span>Rede analisada</span><strong>{activeNet ? PLAT_LABELS[activeNet] || activeNet : 'Todas'}</strong></div>
+      <div><span>Conteúdos no recorte</span><strong>{loading ? '—' : selectedRows.length}</strong></div>
+      <div><span>Visualizações</span><strong>{loading ? '—' : fmtNum(selectedViews)}</strong></div>
+      <div><span>Interações</span><strong>{loading ? '—' : fmtNum(selectedEngagement)}</strong></div>
+      <div><span>Rede analisada</span><strong>{loading ? '—' : activeNet ? PLAT_LABELS[activeNet] || activeNet : 'Todas'}</strong></div>
     </section>
 
     {error && <p className="error-message" role="alert">{error}</p>}
