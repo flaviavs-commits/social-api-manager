@@ -151,6 +151,11 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     settledCall(() => metricsService.buscarInsightsYoutube(userId, isAdmin, range))
   ])
 
+  const bestTimeResults = await Promise.all(accounts.filter(account => account.providerAccountId).map(account => settledCall(() => zernioClient.getBestTimeToPost({
+    accountId: account.providerAccountId,
+    platform: account.platform
+  }).then(data => ({ ...account, data })))))
+
   const byPlatform = Object.fromEntries([...ZERNIO_PLATFORMS, 'youtube'].map(platform => [
     platform,
     platform === 'youtube' ? (youtubeResult.data?.accounts || []) : accounts.filter(account => account.platform === platform)
@@ -165,11 +170,13 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     platforms: byPlatform,
     dailyMetrics: dailyResults.filter(result => result.data).map(result => result.data),
     contentDecay: decayResults.filter(result => result.data).map(result => result.data),
+    bestTimeToPost: bestTimeResults.filter(result => result.data).map(result => result.data),
     followerStats: followerResult.data || null,
     youtube: youtubeResult.data || null,
     errors: [
       ...dailyResults.filter(result => result.error).map(result => ({ scope: 'daily_metrics', ...result.error })),
       ...decayResults.filter(result => result.error).map(result => ({ scope: 'content_decay', ...result.error })),
+      ...bestTimeResults.filter(result => result.error).map(result => ({ scope: 'best_time', ...result.error })),
       ...(followerResult.error ? [{ scope: 'follower_stats', ...followerResult.error }] : []),
       ...(youtubeResult.error ? [{ scope: 'youtube', ...youtubeResult.error }] : [])
     ]

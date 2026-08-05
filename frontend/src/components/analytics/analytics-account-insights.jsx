@@ -64,7 +64,7 @@ function collectDailyRows(data, net) {
     .filter(item => item.platform === net)
     .flatMap(item => {
       const source = item.data || {}
-      return source.days || source.dailyMetrics || source.values || []
+      return source.dailyData || source.days || source.dailyMetrics || source.values || []
     })
 }
 
@@ -110,6 +110,23 @@ function ProviderDecay({ net, data }) {
       const value = bucket.percentage ?? bucket.percent ?? bucket.engagementPercentage ?? bucket.value
       return <span key={`${label}-${index}`}><strong>{label}</strong> {value == null ? '' : `${Number(value).toFixed(1)}%`}</span>
     })}</div>
+  </div>
+}
+
+function ProviderBestTime({ net, data }) {
+  const slots = (data.accountAnalytics?.bestTimeToPost || [])
+    .filter(item => item.platform === net)
+    .flatMap(item => item.data?.slots || [])
+    .sort((a, b) => Number(b.avg_engagement || 0) - Number(a.avg_engagement || 0))
+    .slice(0, 5)
+  if (!slots.length) return null
+  const days = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+  return <div className="analytics-provider-growth">
+    <div className="analytics-section-title">Melhores horários para publicar (UTC)</div>
+    <div className="analytics-decay-list">{slots.map((slot, index) => <span key={`${slot.day_of_week}-${slot.hour}-${index}`}>
+      <strong>{days[Number(slot.day_of_week)] || `Dia ${slot.day_of_week}`}, {String(slot.hour).padStart(2, '0')}h</strong>{' '}
+      {fmtNum(Number(slot.avg_engagement || 0))} interações médias · {slot.post_count || 0} posts
+    </span>)}</div>
   </div>
 }
 
@@ -185,6 +202,7 @@ export function AnalyticsAccountInsights({ net, data }) {
     <ProviderGrowth net={net} data={data}/>
     <ProviderTimeline net={net} data={data}/>
     <ProviderDecay net={net} data={data}/>
+    <ProviderBestTime net={net} data={data}/>
 
     {unavailable.length > 0 && <details className="analytics-limitations">
       <summary>Métricas não expostas pela API</summary>

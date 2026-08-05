@@ -91,7 +91,7 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
   const youtubeDemographics = ytDemoResult.status === 'fulfilled' ? ytDemoResult.value : null
   const accountAnalytics = accountAnalyticsResult.status === 'fulfilled'
     ? accountAnalyticsResult.value
-    : { dateRange: null, capabilities: {}, platforms: {}, dailyMetrics: [], contentDecay: [], followerStats: null, errors: [{ scope: 'account_analytics', message: 'Não foi possível carregar os relatórios completos.' }] }
+    : { dateRange: null, capabilities: {}, platforms: {}, dailyMetrics: [], contentDecay: [], bestTimeToPost: [], followerStats: null, errors: [{ scope: 'account_analytics', message: 'Não foi possível carregar os relatórios completos.' }] }
 
   return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics, accountAnalytics }
 }

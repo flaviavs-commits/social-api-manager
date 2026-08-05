@@ -135,6 +135,10 @@ async function getContentDecay(query) {
   return zernioFetch('/analytics/content-decay', { query })
 }
 
+async function getBestTimeToPost(query) {
+  return zernioFetch('/analytics/best-time', { query })
+}
+
 async function getPostTimeline(query) {
   return zernioFetch('/analytics/post-timeline', { query })
 }
@@ -182,7 +186,7 @@ async function getFacebookPostReactions(accountId, query) {
 module.exports = {
   ZernioError,
   connectUrl, listAccounts, getAccountHealth, disconnectAccount, listProfiles,
-  createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getPostTimeline,
+  createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
   getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,
   getYoutubeDailyViews, getYoutubeVideoRetention, getYoutubeDemographics,

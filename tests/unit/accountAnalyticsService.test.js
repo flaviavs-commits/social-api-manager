@@ -9,6 +9,7 @@ jest.mock('../../src/infra/social/zernioClient', () => ({
   getTiktokAccountInsights: jest.fn(),
   getDailyMetrics: jest.fn(),
   getContentDecay: jest.fn(),
+  getBestTimeToPost: jest.fn(),
   getFollowerStats: jest.fn()
 }))
 
@@ -36,6 +37,7 @@ describe('accountAnalyticsService', () => {
     })
     zernio.getDailyMetrics.mockResolvedValue({ days: [] })
     zernio.getContentDecay.mockResolvedValue({ buckets: [] })
+    zernio.getBestTimeToPost.mockResolvedValue({ slots: [] })
     zernio.getFollowerStats.mockResolvedValue({ accounts: [], stats: {} })
     metricsService.buscarInsightsYoutube.mockResolvedValue({ accounts: [] })
   })

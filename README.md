@@ -375,7 +375,8 @@ curtidas, comentários, compartilhamentos, salvamentos, cliques e seguidores
 quando expostos), insights de conta, séries temporais, métricas diárias,
 crescimento de seguidores, decadência do conteúdo, demografia e, no YouTube,
 fontes de tráfego, locais de reprodução, status de inscrição, tipos de
-conteúdo e receita quando a conta/permissão disponibilizar esses dados.
+conteúdo, receita e melhores horários para publicar quando a conta/permissão
+disponibilizar esses dados.
 
 As métricas não expostas por cada API são devolvidas explicitamente em
 `accountAnalytics.capabilities.*.unavailable`, e falhas parciais ficam em

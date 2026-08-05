@@ -6,7 +6,7 @@ const AUTO_REFRESH_MS = 30000
 const EMPTY_DATA = {
   series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {},
   youtubeSubscribers: {}, instagramDemographics: null, youtubeDemographics: null,
-  accountAnalytics: { platforms: {}, capabilities: {}, dailyMetrics: [], contentDecay: [], errors: [] },
+  accountAnalytics: { platforms: {}, capabilities: {}, dailyMetrics: [], contentDecay: [], bestTimeToPost: [], errors: [] },
 }
 
 // Espelha o padrão do Analytics legado (public/app.html): dois fetches
