@@ -6,7 +6,6 @@ import { useToast } from '../components/ui/toast.jsx'
 
 const PLATFORM_BADGE_BG = { instagram: 'bg-[#E1306C]/15', facebook: 'bg-[#1877F2]/15', tiktok: 'bg-zinc-100/10', x: 'bg-zinc-100/10' }
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
-const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
 const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
 const postDateValue = post => post.calendarAt || post.calendar_at || post.publishedAt || post.published_at || post.scheduledAt || post.scheduled_at || post.data_agendamento
@@ -28,7 +27,7 @@ function formatPostTime(post) {
   return Number.isNaN(value.getTime()) ? 'Horário não informado' : value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function CalendarDayPost({ post, onEdit, onRemove, onDuplicate }) {
+function CalendarDayPost({ post, onEdit }) {
   const primaryPlatform = platformsOf(post)[0]
   return (
     <article className="calendar-detail-post">
@@ -42,11 +41,7 @@ function CalendarDayPost({ post, onEdit, onRemove, onDuplicate }) {
         <span className="calendar-detail-copy">{post.text || post.title || 'Publicação'}</span>
         <span className={`calendar-detail-status calendar-detail-status-${post.status || 'unknown'}`}>{postStatusLabel[post.status] || post.status || 'Sem status'}</span>
       </div>
-      <div className="calendar-detail-actions">
-        {isScheduled(post) && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button>}
-        <button className="text-[11px] font-medium text-gold hover:underline" onClick={onDuplicate}>Duplicar</button>
-        {isScheduled(post) && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onRemove}>Excluir</button>}
-      </div>
+      {isScheduled(post) && <div className="calendar-detail-actions"><button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button></div>}
     </article>
   )
 }
@@ -88,28 +83,10 @@ export function CalendarPage({ onNavigate }) {
     setMessage('')
   }
 
-  async function remove(post) {
-    if (!window.confirm('Excluir esta publicação?')) return
-    try { await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' }); setSelectedDay(null); setMessage('Publicação excluída.'); await reload(); notify('Publicação excluída.') }
-    catch (e) { setError(e.message); notify(e.message, 'error') }
-  }
-
   async function reschedule(event) {
     event.preventDefault()
     try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); await reload(); notify('Publicação reagendada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
-  }
-
-  function duplicate(post) {
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
-      text: post.text || '',
-      selected: platformsOf(post),
-      publishNow: false,
-      date: '',
-      savedAt: new Date().toISOString()
-    }))
-    notify('Publicação duplicada no editor. Adicione a mídia e escolha um novo horário.')
-    onNavigate?.('agendador')
   }
 
   const days = new Date(year, month, 0).getDate()
@@ -191,7 +168,7 @@ export function CalendarPage({ onNavigate }) {
             </button>
           )
         })}
-      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><strong>{post.text || post.title || 'Publicação'}</strong><span className="calendar-list-actions">{isScheduled(post) && <button className="link-button" onClick={() => openEditor(post)}>Editar</button>}<button className="link-button" onClick={() => duplicate(post)}>Duplicar</button>{isScheduled(post) && <button className="link-button danger-link" onClick={() => remove(post)}>Excluir</button>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><strong>{post.text || post.title || 'Publicação'}</strong><span className="calendar-list-actions">{isScheduled(post) && <button className="link-button" onClick={() => openEditor(post)}>Editar</button>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
       {selectedDay && <div className="modal-overlay calendar-day-modal" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedDay(null) }}>
         <section className="modal-content" role="dialog" aria-modal="true" aria-labelledby="calendar-day-modal-title">
@@ -202,7 +179,7 @@ export function CalendarPage({ onNavigate }) {
             </div>
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
-          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onDuplicate={() => duplicate(post)} onRemove={() => remove(post)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
         </section>
       </div>}
 

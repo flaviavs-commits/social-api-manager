@@ -107,6 +107,16 @@ function extractContent(message) {
   return (match?.[1] || '').replace(/["“”']+$/, '').trim()
 }
 
+function extractImageDescription(message) {
+  const text = String(message || '').trim()
+  const description = text
+    .replace(/^(?:crie|criar|gere|gerar|faça|faca|produza|produzir)\s+/i, '')
+    .replace(/^(?:uma?|a)\s+/i, '')
+    .replace(/^imagem\s*(?:de|do|da|sobre|com|para)?\s*/i, '')
+    .trim()
+  return description || text
+}
+
 function extractScheduledAt(message, now = new Date()) {
   const normalized = normalize(message)
   const hourMatch = normalized.match(/(?:as|às)\s*(\d{1,2})(?:\s*[h:]\s*(\d{1,2}))?/) || normalized.match(/(\d{1,2})\s*h(?:\s*(\d{1,2}))?/)
@@ -253,7 +263,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const missingFields = [postId ? null : 'postId', scheduledAt ? null : 'scheduledAt'].filter(Boolean)
     return { ...basePlan('reschedule_post', { postId, scheduledAt }), missingFields, answer: missingFields.length ? 'Para reagendar, preciso do ID do post e de uma data e horário, por exemplo: amanhã às 10h.' : 'Posso reagendar essa publicação. Confirme para continuar.' }
   }
-  if (/(?:cancel|cancele|excluir|apagar|remover)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+  if (/(?:cancel|cancele)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
     return { ...basePlan('cancel_post', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso cancelar essa publicação. Confirme para continuar.' : 'Informe o ID do post que deseja cancelar.' }
   }
@@ -296,7 +306,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const missingFields = [postId ? null : 'postId', scheduledAt ? null : 'scheduledAt'].filter(Boolean)
     return { ...basePlan('reschedule_post', { postId, scheduledAt }), missingFields, answer: missingFields.length ? 'Para reagendar, preciso do ID do post e de uma data e horário, por exemplo: amanhã às 10h.' : 'Posso reagendar essa publicação. Confirme para continuar.' }
   }
-  if (/(?:cancel|cancele|excluir|apagar|remover)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+  if (/(?:cancel|cancele)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
     return { ...basePlan('cancel_post', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso cancelar essa publicação. Confirme para continuar.' : 'Informe o ID do post que deseja cancelar.' }
   }
@@ -334,6 +344,13 @@ function interpretWithRules(message, currentPage, history = []) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
     return { ...basePlan('mark_comments_seen', { postId, commentIds: [] }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso marcar os comentários desse post como vistos. Confirme para continuar.' : 'Informe o ID do post cujos comentários deseja marcar como vistos.' }
   }
+  const imageIntent = /(?:imagem|image|ilustracao|ilustração|arte|banner|thumbnail|foto)/.test(normalized)
+    && /(?:gerar|gere|criar|crie|fazer|faca|faça|produzir|produza|desenhar|desenhe)/.test(normalized)
+  if (imageIntent) {
+    const description = extractImageDescription(text)
+    return basePlan('create_image', { description, model: 'auto' }, 'Vou criar a imagem e, se necessário, trocar automaticamente de modelo para concluir.')
+  }
+
   const contentIntent = /gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized)
     && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)
   if (!contentIntent && /metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo/.test(normalized)) return basePlan('analytics_insight', {}, 'Vou analisar seus dados e sugerir próximos passos.')
@@ -383,6 +400,7 @@ function buildAgentPrompt({ message, history = [], currentPage = null, pendingPl
 COMO RACIOCINAR:
 - Para estratégia, ideias, explicações, diagnóstico conceitual ou dúvidas gerais, use actionId "conversation" e escreva uma resposta útil, específica e acionável em answer.
 - Para pedidos de conteúdo, entenda objetivo, público, formato, tom e rede; use generate_posts quando o usuário quer textos prontos.
+- Para pedidos de imagem, use create_image. Preserve a descrição visual do usuário e deixe model como "auto" para permitir fallback entre provedores. Nunca responda que a imagem foi criada sem receber uma imagem válida do executor.
 - Para pedidos compostos, responda a parte que puder e indique a próxima etapa mais segura; não execute várias escritas escondidas.
 - Diferencie uma pergunta sobre a palavra "analytics" de uma consulta dos dados reais da conta.
 - Corrija mentalmente erros de digitação, abreviações e variações fonéticas (por exemplo: "analitcs" = analytics, "instagran" = Instagram, "tiktk" = TikTok).

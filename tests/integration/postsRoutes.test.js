@@ -139,21 +139,10 @@ describe('GET /api/posts/calendar', () => {
 // ── DELETE /api/posts/:id ─────────────────────────────────────────────────────
 
 describe('DELETE /api/posts/:id', () => {
-  test('400 id inválido', async () => {
-    const res = await request(app).delete('/api/posts/abc').set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(400)
-  })
-
-  test('404 post não encontrado', async () => {
-    postsRepo.deletarPost.mockResolvedValue(false)
-    const res = await request(app).delete('/api/posts/99').set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(404)
-  })
-
-  test('204 deleta post com sucesso', async () => {
-    postsRepo.deletarPost.mockResolvedValue(true)
+  test('405 não permite excluir publicações pela aplicação', async () => {
     const res = await request(app).delete('/api/posts/1').set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(204)
+    expect(res.status).toBe(405)
+    expect(res.body.erro).toMatch(/não exclui publicações/i)
   })
 })
 

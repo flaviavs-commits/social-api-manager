@@ -24,6 +24,8 @@ router.get('/:id/comments', controller.getComments)
 router.post('/:id/comments/:commentId/reply', controller.postCommentReply)
 
 router.patch('/:id', controller.patchPost)
-router.delete('/:id', controller.deletePost)
+// Publicações não são excluídas pela aplicação. A remoção deve ser feita
+// diretamente na rede social para preservar o histórico e as métricas.
+router.delete('/:id', (_req, res) => res.status(405).json({ erro: 'A aplicação não exclui publicações. Remova o post diretamente na rede social.' }))
 
 module.exports = router
