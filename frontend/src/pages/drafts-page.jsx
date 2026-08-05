@@ -33,7 +33,7 @@ export function DraftsPage({ onNavigate }) {
     onNavigate?.('agendador')
   }
 
-  return <section className="page-view"><section className="panel">
+  return <section className="page-view drafts-page"><section className="panel drafts-editor-panel">
     <p className="eyebrow">EDITOR</p><h2>Novo rascunho</h2>
     <form className="draft-form sched-form" onSubmit={save}>
       <SchedSection number={1} title="Conteúdo">
@@ -42,7 +42,7 @@ export function DraftsPage({ onNavigate }) {
       <button className="action-button">Salvar rascunho</button>
     </form>
   </section>
-  <section className="panel">
+  <section className="panel drafts-list-panel">
     <h2>Rascunhos salvos</h2>
     {error && <p className="error-message" role="alert">{error}</p>}
     {loading ? <LoadingState>Carregando rascunhos...</LoadingState> : drafts.length ? <div className="draft-list">{drafts.map(draft => { const template = Boolean(draft.is_template || draft.isTemplate); return <div className="data-row draft-row" key={draft.id}><span className="draft-row-copy"><strong>{draft.text || draft.title || 'Rascunho sem texto'}</strong><small>{template ? 'Modelo reutilizável' : 'Rascunho em andamento'}</small></span><span className="draft-row-actions"><button className="link-button" onClick={() => useDraft(draft)}>{template ? 'Usar modelo' : 'Continuar'}</button><button className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div> })}</div> : <p className="empty-state">Nenhum rascunho salvo.</p>}
