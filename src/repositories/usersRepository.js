@@ -8,7 +8,7 @@ function normalizarEmail(email) {
   return email.trim().toLowerCase()
 }
 
-const USER_COLS = 'id, email, role, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em'
+const USER_COLS = 'id, email, role, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em, auth_tokens_invalidated_at'
 
 async function buscarPorEmail(email) {
   const { rows: [user] } = await pool.query(
@@ -112,6 +112,35 @@ async function atualizarAvatar(userId, avatarUrl) {
   return user || null
 }
 
+async function buscarPerfil(userId) {
+  const { rows: [user] } = await pool.query(`
+    SELECT id, email, full_name AS "fullName", role, avatar_url AS "avatarUrl",
+           totp_enabled AS "totpEnabled", google_id IS NOT NULL AS "googleConnected",
+           timezone, language, default_platform AS "defaultPlatform",
+           notification_preferences AS "notificationPreferences", criado_em AS "createdAt"
+    FROM users WHERE id = $1 AND ativo = TRUE
+  `, [userId])
+  return user || null
+}
+
+async function atualizarPerfil(userId, { fullName, timezone, language, defaultPlatform, notificationPreferences }) {
+  const { rows: [user] } = await pool.query(`
+    UPDATE users
+    SET full_name = $1, timezone = $2, language = $3, default_platform = $4,
+        notification_preferences = $5::jsonb
+    WHERE id = $6 AND ativo = TRUE
+    RETURNING id, email, full_name AS "fullName", role, avatar_url AS "avatarUrl",
+              totp_enabled AS "totpEnabled", google_id IS NOT NULL AS "googleConnected",
+              timezone, language, default_platform AS "defaultPlatform",
+              notification_preferences AS "notificationPreferences", criado_em AS "createdAt"
+  `, [fullName, timezone, language, defaultPlatform || null, JSON.stringify(notificationPreferences), userId])
+  return user || null
+}
+
+async function invalidarSessoes(userId) {
+  await pool.query(`UPDATE users SET auth_tokens_invalidated_at = NOW() WHERE id = $1`, [userId])
+}
+
 // ── Administração ────────────────────────────────────────────────────────────
 
 async function listarTodos() {
@@ -155,6 +184,6 @@ async function atualizarAtivo(id, ativo) {
 
 module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
-  atualizarAvatar, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
+  atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
   listarTodos, contarAdmins, contarSuperAdmins, atualizarRole, atualizarAtivo
 }

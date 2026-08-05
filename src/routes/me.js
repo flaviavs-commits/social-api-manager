@@ -9,6 +9,58 @@ const totp = require('../services/totp')
 
 const router = Router()
 
+const PROFILE_PLATFORMS = new Set(['instagram', 'facebook', 'youtube', 'tiktok'])
+const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
+
+// GET /api/me/profile — dados editáveis e preferências do usuário.
+router.get('/profile', async (req, res) => {
+  try {
+    const profile = await usersRepo.buscarPerfil(req.user.id)
+    if (!profile) return res.status(404).json({ erro: 'Perfil não encontrado.' })
+    res.json({ ...profile, notificationPreferences: { ...DEFAULT_NOTIFICATIONS, ...(profile.notificationPreferences || {}) } })
+  } catch (e) {
+    serverError(res, e, 'Não foi possível carregar seu perfil agora.')
+  }
+})
+
+// PATCH /api/me/profile — atualiza apenas preferências do próprio usuário.
+router.patch('/profile', async (req, res) => {
+  try {
+    const current = await usersRepo.buscarPerfil(req.user.id)
+    if (!current) return res.status(404).json({ erro: 'Perfil não encontrado.' })
+    const body = req.body || {}
+    const fullName = body.fullName === undefined ? current.fullName : String(body.fullName || '').trim()
+    const timezone = body.timezone === undefined ? current.timezone || 'America/Sao_Paulo' : String(body.timezone || '')
+    const language = body.language === undefined ? current.language || 'pt-BR' : String(body.language || '')
+    const defaultPlatform = body.defaultPlatform === undefined ? current.defaultPlatform : (body.defaultPlatform || null)
+    const notificationPreferences = { ...DEFAULT_NOTIFICATIONS, ...(current.notificationPreferences || {}), ...(body.notificationPreferences || {}) }
+
+    if (fullName.length > 255) return res.status(400).json({ erro: 'O nome pode ter no máximo 255 caracteres.' })
+    if (!/^(UTC|[A-Za-z_]+\/[A-Za-z_]+)$/.test(timezone)) return res.status(400).json({ erro: 'Fuso horário inválido.' })
+    if (!['pt-BR', 'en-US'].includes(language)) return res.status(400).json({ erro: 'Idioma inválido.' })
+    if (defaultPlatform && !PROFILE_PLATFORMS.has(defaultPlatform)) return res.status(400).json({ erro: 'Rede padrão inválida.' })
+    for (const key of Object.keys(DEFAULT_NOTIFICATIONS)) {
+      if (typeof notificationPreferences[key] !== 'boolean') return res.status(400).json({ erro: 'Preferências de notificação inválidas.' })
+    }
+
+    const profile = await usersRepo.atualizarPerfil(req.user.id, { fullName: fullName || null, timezone, language, defaultPlatform, notificationPreferences })
+    addLog('ok', 'Preferências do perfil atualizadas', null, null, req.user.id)
+    res.json({ ...profile, notificationPreferences })
+  } catch (e) {
+    serverError(res, e, 'Não foi possível salvar seu perfil agora.')
+  }
+})
+
+// POST /api/me/logout-all — invalida os tokens emitidos antes deste momento.
+router.post('/logout-all', async (req, res) => {
+  try {
+    await usersRepo.invalidarSessoes(req.user.id)
+    res.json({ ok: true })
+  } catch (e) {
+    serverError(res, e, 'Não foi possível encerrar as outras sessões agora.')
+  }
+})
+
 // POST /api/me/password — usuário logado troca a própria senha.
 // Exige a senha atual para confirmar identidade (impede que alguém com a
 // sessão aberta de outra pessoa troque a senha sem conhecê-la).

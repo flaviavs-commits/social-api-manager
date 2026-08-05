@@ -1,5 +1,5 @@
 const usersRepo = require('../repositories/usersRepository')
-const { verificarTokenSessao } = require('../utils/authToken')
+const { verificarTokenSessaoDetalhado } = require('../utils/authToken')
 
 // Cache de usuário autenticado: evita uma query ao banco por request.
 // TTL de 60 segundos — suficiente para a maioria das navegações, curto
@@ -40,8 +40,12 @@ async function requireAuth(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
 
   let userId = null
+  let tokenInfo = null
   try {
-    if (token) userId = verificarTokenSessao(token)
+    if (token) {
+      tokenInfo = verificarTokenSessaoDetalhado(token)
+      userId = tokenInfo.userId
+    }
   } catch {
     userId = null
   }
@@ -64,6 +68,12 @@ async function requireAuth(req, res, next) {
       if (req.path.startsWith('/api/')) {
         return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' })
       }
+      return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
+    }
+
+    const invalidatedAt = user.auth_tokens_invalidated_at ? new Date(user.auth_tokens_invalidated_at).getTime() : 0
+    if (invalidatedAt && (!tokenInfo?.iat || tokenInfo.iat <= invalidatedAt)) {
+      if (req.path.startsWith('/api/')) return res.status(401).json({ erro: 'Sua sessão foi encerrada. Faça login novamente.' })
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 

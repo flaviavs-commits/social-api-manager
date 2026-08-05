@@ -15,7 +15,7 @@ import './styles/tailwind.css'
 import './styles/auth.css'
 import './styles/admin.css'
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai'])
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil'])
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
@@ -25,6 +25,7 @@ function pageFromLocation(pathname = window.location.pathname) {
 function App() {
   const [page, setPage] = useState(() => pageFromLocation())
   const [user, setUser] = useState(null)
+  const updateUser = patch => setUser(current => ({ ...(current || {}), ...patch }))
   useEffect(() => {
     let active = true
     apiFetch('/api/me').then(currentUser => { if (active) setUser(currentUser) }).catch(() => {})
@@ -41,7 +42,7 @@ function App() {
     setPage(nextPage)
   }
   return <AppShell page={page} onPageChange={navigate} user={user}>
-    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} onNavigate={navigate} user={user} />}
+    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} onNavigate={navigate} user={user} onUserChange={updateUser} />}
   </AppShell>
 }
 

@@ -25,11 +25,15 @@ function verify(token, secret) {
 }
 
 function gerarTokenSessao(userId) {
-  return sign({ userId, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
+  return sign({ userId, iat: Date.now(), exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
 }
 
 function verificarTokenSessao(token) {
   return verify(token, process.env.AUTH_TOKEN_SECRET).userId
+}
+
+function verificarTokenSessaoDetalhado(token) {
+  return verify(token, process.env.AUTH_TOKEN_SECRET)
 }
 
 function gerarTokenPending2fa(userId) {
@@ -66,7 +70,7 @@ function verificarGoogleOAuthState(state) {
 
 module.exports = {
   gerarTokenSessao,
-  verificarTokenSessao,
+  verificarTokenSessao, verificarTokenSessaoDetalhado,
   gerarTokenPending2fa,
   verificarTokenPending2fa,
   gerarTokenAprovacaoAgente,

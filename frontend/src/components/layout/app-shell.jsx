@@ -127,6 +127,7 @@ function userIsAdmin(user) {
 
 function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
 
@@ -186,10 +187,20 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         >
           + Criar Novo Post
         </button>
-        <span className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300">
-          <span className="user-avatar flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-app">{userInitials(user)}</span>
-          {user?.name || user?.email || 'Conta'}
-        </span>
+        <div className="profile-menu-control">
+          <button type="button" className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300" aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen(current => !current)}>
+            <span className="user-avatar flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gold text-xs font-bold text-app">{user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : userInitials(user)}</span>
+            {user?.fullName || user?.name || user?.email || 'Conta'}<span className="profile-menu-chevron" aria-hidden="true">⌄</span>
+          </button>
+          {profileOpen && <div className="profile-menu" role="menu">
+            <div className="profile-menu-heading"><strong>{user?.fullName || user?.name || 'Minha conta'}</strong><small>{user?.email || ''}</small></div>
+            <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Meu perfil</button>
+            <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Preferências</button>
+            <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('seguranca') }}>Segurança</button>
+            <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('atividade') }}>Atividades</button>
+            <button type="button" role="menuitem" className="profile-menu-danger" onClick={logout}>Sair</button>
+          </div>}
+        </div>
       </div>
     </header>
   )
@@ -220,7 +231,7 @@ export function AppShell({ page, onPageChange, children, user }) {
   const [open, setOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meu-ecoo:sidebar-collapsed') === '1')
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
-  const currentLabel = navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
+  const currentLabel = page === 'perfil' ? 'Meu perfil' : navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
 
   function toggleSidebarCollapsed() {
     setSidebarCollapsed(current => {

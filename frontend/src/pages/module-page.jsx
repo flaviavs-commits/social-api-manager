@@ -11,6 +11,7 @@ const TokensPage = lazy(() => import('./tokens-page.jsx').then(module => ({ defa
 const SecurityPage = lazy(() => import('./security-page.jsx').then(module => ({ default: module.SecurityPage })))
 const ActivityPage = lazy(() => import('./activity-page.jsx').then(module => ({ default: module.ActivityPage })))
 const AiPage = lazy(() => import('./ai-page.jsx').then(module => ({ default: module.AiPage })))
+const ProfilePage = lazy(() => import('./profile-page.jsx').then(module => ({ default: module.ProfilePage })))
 
 const PAGES_BY_TYPE = {
   agendador: SchedulerPage,
@@ -23,6 +24,7 @@ const PAGES_BY_TYPE = {
   seguranca: SecurityPage,
   atividade: ActivityPage,
   ai: AiPage,
+  perfil: ProfilePage,
 }
 
 const descriptions = {
@@ -38,9 +40,9 @@ const descriptions = {
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
 }
 
-export function ModulePage({ type, onNavigate, user }) {
+export function ModulePage({ type, onNavigate, user, onUserChange }) {
   const Page = PAGES_BY_TYPE[type]
-  if (Page) return <Suspense fallback={<section className="page-view"><section className="panel"><LoadingState>Carregando módulo...</LoadingState></section></section>}><Page onNavigate={onNavigate} user={user}/></Suspense>
+  if (Page) return <Suspense fallback={<section className="page-view"><section className="panel"><LoadingState>Carregando módulo...</LoadingState></section></section>}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange}/></Suspense>
   const [title, description] = descriptions[type] || ['Módulo', 'Área da aplicação']
   return <section className="page-view"><section className="panel module-placeholder"><p className="eyebrow">MÓDULO REACT</p><h2>{title}</h2><p>{description}</p><span className="status-badge">Migração em andamento</span></section></section>
 }
