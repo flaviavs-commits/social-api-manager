@@ -27,6 +27,19 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.arguments.tone).toBe('profissional')
   })
 
+  test('prioriza analytics quando o pedido consulta métricas das redes conectadas', () => {
+    const plan = interpretWithRules('eu quero o analytics das redes sociais conectadas na aplicação, todas as informações', 'ai')
+
+    expect(plan.actionId).toBe('analytics')
+  })
+
+  test('não confunde analytics citado no conteúdo com consulta de métricas', () => {
+    const plan = interpretWithRules('crie um post sobre analytics para o Instagram', 'ai')
+
+    expect(plan.actionId).toBe('generate_posts')
+    expect(plan.arguments.platforms).toEqual(['instagram'])
+  })
+
   test('não aceita ação inventada pelo modelo', () => {
     expect(() => parseModelPlan('{"actionId":"apagar_banco","arguments":{}}')).toThrow(/não existe no catálogo/)
   })

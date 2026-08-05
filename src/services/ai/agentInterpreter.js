@@ -114,12 +114,14 @@ function interpretWithRules(message, currentPage) {
     return { ...basePlan('list_comments', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar os comentários desse post.' : 'Informe o ID do post para eu carregar os comentários.' }
   }
   if (/inbox|comentarios novos|comentários novos|interacoes|interações/.test(normalized)) return basePlan('list_inbox', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seu inbox.')
-  if (/metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
+  const contentIntent = /gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized)
+    && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)
+  if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
   if (/calendario|calendário|o que tenho agendado|publicacoes.*mes|publicações.*mês/.test(normalized)) return basePlan('calendar', extractMonth(text), 'Vou consultar o calendário desse período.')
   if (/requisit|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
   if (/contas conect|quais contas|listar contas|minhas redes/.test(normalized)) return basePlan('list_accounts', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar suas contas conectadas.')
   if (/agendar|publicar agora|criar publicacao|criar publicação/.test(normalized)) return { ...basePlan('open_scheduler', {}), navigation: 'agendador', answer: 'Abrindo o Criador de Posts. Para publicar, ainda preciso da mídia, das redes e do horário quando forem exigidos.' }
-  if (/gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized) && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)) {
+  if (contentIntent) {
     const platforms = extractPlatforms(text)
     const tone = /profissional|formal/.test(normalized) ? 'profissional' : /motiv/.test(normalized) ? 'motivacional' : /inform/.test(normalized) ? 'informativo' : /humor|engrac|engraç/.test(normalized) ? 'humoristico' : 'casual'
     return basePlan('generate_posts', { instruction: text, platforms: platforms.length ? platforms : ['instagram'], quantity: 1, tone }, 'Vou gerar uma sugestão de conteúdo.')

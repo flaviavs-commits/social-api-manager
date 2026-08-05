@@ -10259,9 +10259,97 @@ async function aiAvancarComExtracao(ctx) {
   // Nada mais para pular automaticamente — segue o fluxo normal a partir daqui.
 }
 
+function aiNormalizeOperationalText(value) {
+  return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function aiIsAnalyticsRequest(userMsg) {
+  const normalized = aiNormalizeOperationalText(userMsg)
+  return /\b(analytics|metricas?|relatorios?|desempenho|resultados?)\b/.test(normalized)
+}
+
+function aiIsOperationalRequest(userMsg) {
+  const normalized = aiNormalizeOperationalText(userMsg)
+  const contentIntent = /\b(gerar|gere|criar|crie|agendar|publicar|publique|postar|escrever|escreva)\b/.test(normalized)
+    && /\b(post|posts|conteudo|publicacao|legenda|caption)\b/.test(normalized)
+  if (contentIntent) return false
+  return /\b(analytics|metricas?|relatorios?|desempenho|resultados?|inbox|rascunhos?|calendario|agenda|contas?\s+conect|redes?\s+sociais?\s+conect|tokens?|requisitos?)\b/.test(normalized)
+}
+
+function aiOperationalSummary(result) {
+  const payload = result?.data || {}
+  const accountAnalytics = payload.accountAnalytics || {}
+  const lines = []
+
+  if (accountAnalytics.dateRange?.since && accountAnalytics.dateRange?.until) {
+    lines.push(`📅 Período consultado: ${accountAnalytics.dateRange.since} a ${accountAnalytics.dateRange.until}`)
+  }
+
+  if (accountAnalytics.platforms && typeof accountAnalytics.platforms === 'object') {
+    const platforms = Object.entries(accountAnalytics.platforms)
+      .map(([platform, accounts]) => `${platform}: ${Array.isArray(accounts) ? accounts.length : 0} conta(s)`)
+    if (platforms.length) lines.push(`🔗 Contas por rede: ${platforms.join(' · ')}`)
+  }
+
+  if (Array.isArray(payload.metrics)) lines.push(`📊 Publicações com métricas: ${payload.metrics.length}`)
+  if (Array.isArray(accountAnalytics.dailyMetrics)) lines.push(`📈 Relatórios diários: ${accountAnalytics.dailyMetrics.length}`)
+  if (Array.isArray(accountAnalytics.bestTimeToPost)) lines.push(`⏰ Melhores horários disponíveis: ${accountAnalytics.bestTimeToPost.length}`)
+  if (Array.isArray(accountAnalytics.contentDecay)) lines.push(`🧭 Relatórios de desempenho do conteúdo: ${accountAnalytics.contentDecay.length}`)
+
+  const errors = Array.isArray(accountAnalytics.errors) ? accountAnalytics.errors : []
+  if (errors.length) lines.push(`⚠️ ${errors.length} relatório(s) retornaram limitações ou falhas parciais; elas estão detalhadas na tela Analytics.`)
+
+  return lines.join('\n')
+}
+
+async function aiHandleOperationalRequest(ctx, userMsg) {
+  const state = aiChat[ctx]
+  state.step = 'ask_plats'
+  aiChatTyping(ctx, true)
+
+  try {
+    let result
+    try {
+      result = await apiFetch('/api/ai/agent', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: userMsg,
+          currentPage: window.currentPageName,
+          history: (state.msgs || []).slice(-6).map(item => ({ role: item.role, content: String(item.html || '') }))
+        })
+      })
+    } catch (error) {
+      // Mantém compatibilidade com instalações que ainda não receberam a
+      // rota do agente operacional, sem perder o pedido de analytics.
+      if (!aiIsAnalyticsRequest(userMsg)) throw error
+      const analytics = await apiFetch('/api/posts/analytics?days=90')
+      result = { message: 'Relatórios carregados.', data: analytics, navigation: 'analytics' }
+    }
+
+    const summary = aiOperationalSummary(result)
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', [result.message || 'Solicitação processada.', summary, result.navigation === 'analytics' ? '✅ Abri o Analytics completo com os detalhes das redes conectadas.' : ''].filter(Boolean).join('\n\n'))
+    aiChatSetChips(ctx, result.navigation === 'analytics' ? ['📊 Atualizar Analytics', '➕ Criar posts'] : [])
+
+    if (typeof result.navigation === 'string' && document.getElementById(`page-${result.navigation}`)) {
+      await new Promise(resolve => setTimeout(resolve, 350))
+      showPage(result.navigation)
+      if (ctx === 'fab') aiFabClose()
+    }
+  } catch (error) {
+    aiChatTyping(ctx, false)
+    aiChatAddMsg(ctx, 'agent', `⚠️ Não consegui consultar agora: ${error?.message || 'tente novamente.'}`)
+  }
+}
+
 async function aiChatProcess(ctx, userMsg) {
   const state = aiChat[ctx]
   const msg = userMsg.trim().toLowerCase()
+
+  if (aiIsOperationalRequest(userMsg)) {
+    await aiHandleOperationalRequest(ctx, userMsg)
+    return
+  }
 
   // Quem escreve tudo de uma vez ("post motivacional pro instagram e tiktok
   // sobre academia, 3 posts") não deveria precisar responder rede/tom/
