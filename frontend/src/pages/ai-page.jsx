@@ -25,7 +25,7 @@ export function AiPage() {
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }
 
-  return <section className="page-view ai-page"><header className="ai-page-intro"><div><p className="eyebrow">ASSISTENTE IA</p><h2>Crie conteúdo com mais agilidade</h2><p>Descreva o que você quer publicar e receba ideias prontas para revisar, adaptar e usar nas suas redes.</p></div><span className="ai-page-intro-badge"><span aria-hidden="true">✦</span> Seu copiloto de conteúdo</span></header><section className="panel ai-generator-panel">
+  return <section className={`page-view ai-page${posts.length ? ' has-results' : ' is-empty'}`}><header className="ai-page-intro"><div><p className="eyebrow">ASSISTENTE IA</p><h2>Crie conteúdo com mais agilidade</h2><p>Descreva o que você quer publicar e receba ideias prontas para revisar, adaptar e usar nas suas redes.</p></div><span className="ai-page-intro-badge"><span aria-hidden="true">✦</span> Seu copiloto de conteúdo</span></header><section className="panel ai-generator-panel">
     <div className="ai-generator-heading"><div><p className="eyebrow">CRIAR CONTEÚDO</p><h2>O que você quer publicar?</h2><p>Quanto mais contexto você informar, mais úteis serão as sugestões.</p></div><span className="ai-generator-icon" aria-hidden="true">✦</span></div>
     <form className="draft-form sched-form" onSubmit={generate}>
       <SchedSection number={1} title="Instrução">
