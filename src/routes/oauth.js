@@ -204,7 +204,7 @@ async function syncZernioAccount(platform, userId, accountName) {
 // Mesmo padrão do Instagram (ver bloco abaixo) — o Zernio processa o OAuth
 // inteiro e devolve o navegador para /meta/zernio-return via o parâmetro
 // redirectUrl. Antes conectava via JS SDK (FB.login), agora usa o mesmo
-// popup+redirect das demais redes — troca refletida em public/app.html
+// popup+redirect das demais redes — troca refletida no editor React
 // (startOAuth, oauthMap.facebook = 'meta').
 
 router.get('/meta', requireAuth, async (req, res) => {

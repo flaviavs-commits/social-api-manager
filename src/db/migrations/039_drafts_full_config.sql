@@ -1,7 +1,7 @@
 -- Rascunhos/templates ficaram desatualizados em relação ao que o Agendador
 -- suporta hoje (formato por rede, opções do TikTok, localização, primeiro
 -- comentário) — sem essas colunas, salvar um rascunho perdia essas
--- configurações ao reaplicar depois. Ver public/app.html (saveDraft/applyDraft)
+-- configurações ao reaplicar depois. Ver os fluxos React de drafts.
 -- e src/routes/drafts.js.
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS ig_format TEXT;
 ALTER TABLE drafts ADD COLUMN IF NOT EXISTS youtube_format TEXT;

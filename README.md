@@ -48,22 +48,19 @@ social-api-manager/
 │   │   ├── tokensRepository.js    # CRUD e renovação de tokens OAuth (filtrado por dono)
 │   │   ├── postsRepository.js     # CRUD de posts agendados (filtrado por dono)
 │   │   └── logsRepository.js      # Histórico de logs + SSE (filtrado por dono)
-│   ├── routes/
-│   │   ├── auth.js                # Login/cadastro/logout, "esqueci minha senha", login Google
-│   │   ├── admin.js                # Gestão de usuários e visão global de contas (admin)
-│   │   ├── oauth.js               # Fluxo OAuth: Meta, Google, TikTok
-│   │   ├── accounts.js            # Endpoints de contas
-│   │   ├── tokens.js              # Endpoints de tokens
-│   │   ├── posts.js               # Endpoints de posts agendados
-│   │   └── logs.js                # Logs + SSE stream em tempo real
+│   ├── http/
+│   │   ├── controllers/           # Controllers HTTP por domínio
+│   │   └── routes/                # Rotas migradas para controllers
+│   ├── routes/                    # Auth, OAuth, administração e recursos restantes
 │   └── services/
 │       ├── scheduler.js           # Cron jobs: publicação automática + renovação de tokens (ativo)
 │       └── mailer.js              # Envio de e-mail de redefinição de senha (Gmail SMTP)
+├── frontend/
+│   ├── src/pages/                 # Landing, autenticação, administração e módulos React
+│   └── src/lib/api.js             # Fronteira HTTP única do frontend
 ├── public/
-│   ├── login.html                 # Tela de login / cadastro / "esqueci minha senha"
-│   ├── reset-password.html        # Tela de redefinição de senha (via link por e-mail)
-│   ├── admin.html                 # Painel de administração (somente para admins)
-│   └── index.html                 # Front-end integrado com a API
+│   ├── react/                     # Bundle gerado pelo Vite
+│   └── *.html                     # Páginas legais e suporte
 ├── docs/
 │   └── app-info.json              # Metadados do app (submissão TikTok)
 ├── .env.example                   # Template de variáveis de ambiente

@@ -36,7 +36,7 @@ function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   )
 }
 
-function AppSidebar({ page, open, onNavigate, onClose }) {
+function AppSidebar({ page, open, onNavigate, onClose, user }) {
   return (
     <>
     <aside
@@ -74,6 +74,13 @@ function AppSidebar({ page, open, onNavigate, onClose }) {
         })}
       </nav>
 
+      {(userIsAdmin(user)) && <a
+        href="/admin.html"
+        className="mx-3 mb-3 rounded-lg border border-subtle px-3 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
+      >
+        Administração
+      </a>}
+
       <button
         onClick={logout}
         className="mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
@@ -84,6 +91,10 @@ function AppSidebar({ page, open, onNavigate, onClose }) {
     {open && <button aria-label="Fechar menu" onClick={onClose} className="fixed inset-0 z-30 bg-black/60 md:hidden" />}
     </>
   )
+}
+
+function userIsAdmin(user) {
+  return user?.role === 'admin' || user?.role === 'super_admin'
 }
 
 function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost }) {
@@ -133,7 +144,7 @@ export function AppShell({ page, onPageChange, children, user }) {
 
   return (
     <div className="flex min-h-screen bg-app text-zinc-100">
-      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} />
+      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} />
 
       <div className="flex min-h-screen flex-1 flex-col">
         <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} />

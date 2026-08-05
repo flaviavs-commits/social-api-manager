@@ -1,7 +1,7 @@
 // Presets de configuração de publicação por rede — guarda só as opções que o
 // usuário reconfigura toda vez (formato do Instagram, visibilidade/categoria
 // do YouTube, privacidade/interações do TikTok), não texto nem mídia. Ver
-// public/app.html (aplicarPresetNaRede) e migrations/038.
+// editor React e migrations/038.
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { PLATFORMS, parseId, serverError } = require('../utils/http')
@@ -50,3 +50,5 @@ router.delete('/:id', async (req, res) => {
 })
 
 module.exports = router
+
+

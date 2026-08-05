@@ -19,8 +19,56 @@ const STATUS_ALIASES = {
   parcial: 'partial', erro: 'error', erros: 'error', cancelado: 'cancelled', cancelados: 'cancelled',
 }
 
+const WORD_ALIASES = {
+  analytics: ['analytics', 'analitics', 'analitcs', 'analitica', 'analiticas', 'analitico', 'analiticos'],
+  instagram: ['instagram', 'instagran', 'instagrem', 'intagram', 'insagram', 'insta', 'ig'],
+  facebook: ['facebook', 'facebok', 'faceboook', 'face'],
+  youtube: ['youtube', 'youtub', 'yutube', 'you tube'],
+  tiktok: ['tiktok', 'tik tok', 'tiktk', 'tictok', 'tikto'],
+  calendario: ['calendario', 'calendarioo', 'calendario', 'agenda'],
+  comentarios: ['comentario', 'comentarios', 'comentarioo', 'comentarioos'],
+  publicacao: ['publicacao', 'publicacoes', 'publicação', 'publicações', 'publcacao', 'publciacao'],
+  metricas: ['metrica', 'metricas', 'metrcas', 'metri cas'],
+  relatorio: ['relatorio', 'relatorios', 'relató rio', 'relatoro'],
+  estrategia: ['estrategia', 'estrategias', 'estratejia'],
+  reagendar: ['reagendar', 'reagende', 'reagend', 'reagendar'],
+  cancelar: ['cancelar', 'cancele', 'cancela'],
+}
+
+const FUZZY_WORDS = Object.keys(WORD_ALIASES)
+
+function editDistance(a, b) {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(
+        current[j - 1] + 1,
+        previous[j] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      )
+    }
+    for (let j = 0; j <= b.length; j++) previous[j] = current[j]
+  }
+  return previous[b.length]
+}
+
+function canonicalWord(token) {
+  const direct = Object.entries(WORD_ALIASES).find(([, aliases]) => aliases.includes(token))
+  if (direct) return direct[0]
+  if (token.length < 6) return token
+  const candidate = FUZZY_WORDS.find(word => editDistance(token, word) <= (word.length >= 8 ? 2 : 1))
+  return candidate || token
+}
+
 function normalize(value) {
-  return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const text = String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/you\s+tube/g, 'youtube').replace(/tik\s+tok/g, 'tiktok')
+  return text.split(/(\s+)/).map(part => {
+    if (/\s+/.test(part)) return part
+    const match = part.match(/^([^a-z0-9]*)([a-z0-9]+)([^a-z0-9]*)$/)
+    return match ? `${match[1]}${canonicalWord(match[2])}${match[3]}` : part
+  }).join('')
 }
 
 function extractPlatforms(text) {
@@ -146,7 +194,45 @@ function completePendingPlan(message, pendingPlan) {
   }
 }
 
-function interpretWithRules(message, currentPage) {
+function lastAgentContext(history = []) {
+  return [...history].reverse().find(item => item?.role === 'agent' && (item.action || item.content)) || null
+}
+
+function inferFromContext(message, currentPage, history = []) {
+  const normalized = normalize(message)
+  const previous = lastAgentContext(history)
+  const previousAction = previous?.action
+  const platform = extractPlatforms(message)[0] || null
+  const isReference = /^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
+    || normalized.split(/\s+/).filter(Boolean).length <= 3
+  if (!isReference) return null
+
+  if (['analytics', 'analytics_insight'].includes(previousAction)) {
+    if (/melhor|recomend|explic|detalh|por que|o que acha|insight|perform/.test(normalized)) {
+      return basePlan('analytics_insight', { platform }, 'Vou aprofundar a análise dos seus dados.')
+    }
+    return basePlan('analytics', { platform }, platform ? `Vou comparar os dados de ${platform} com o restante.` : 'Vou continuar nos seus relatórios.')
+  }
+  if (previousAction === 'list_posts' || previousAction === 'calendar') {
+    return basePlan(previousAction, platform ? { platform } : {}, 'Vou continuar consultando suas publicações.')
+  }
+  if (['list_inbox', 'unread_inbox', 'list_comments'].includes(previousAction)) {
+    return basePlan('list_inbox', { platform }, 'Vou continuar no contexto do inbox.')
+  }
+  if (currentPage === 'analytics') return basePlan('analytics_insight', { platform }, 'Vou interpretar esse ponto dos relatórios.')
+  if (currentPage === 'inbox') return basePlan('list_inbox', { platform }, 'Vou continuar no contexto do inbox.')
+  if (previousAction === 'conversation' || currentPage === 'ai') {
+    return basePlan('conversation', { topic: textWithContext(message, previous) }, 'Vou continuar a partir do que conversamos.')
+  }
+  return null
+}
+
+function textWithContext(message, previous) {
+  const context = previous?.content || previous?.contexto || ''
+  return context ? `Continuação: ${context.slice(0, 500)}\nNova pergunta: ${message}` : message
+}
+
+function interpretWithRules(message, currentPage, history = []) {
   const text = String(message || '').trim()
   const normalized = normalize(text)
   if (!text) return { ...basePlan('show_capabilities'), missingFields: ['message'], answer: 'Digite o que você precisa fazer na aplicação.' }
@@ -154,6 +240,9 @@ function interpretWithRules(message, currentPage) {
   if (/^(ajuda|help|menu|o que (voce|você) consegue|quais (sao|são) suas funcoes|funcoes disponiveis|capacidades)/i.test(normalized)) {
     return basePlan('show_capabilities', {}, 'Estas são as funções que posso executar ou abrir para você.')
   }
+
+  const contextualPlan = inferFromContext(text, currentPage, history)
+  if (contextualPlan) return contextualPlan
 
   // Ações específicas vêm antes da navegação por módulo: frases como
   // "mostre o histórico de métricas" também contêm o alias "analytics".
@@ -181,7 +270,8 @@ function interpretWithRules(message, currentPage) {
   }
 
   const page = Object.keys(PAGE_ALIASES).find(alias => normalized.includes(alias))
-  if (/^(abra|abrir|ir para|va para|mostrar|mostre|acessar|quero ver)/i.test(normalized) && page) {
+  const asksAnalyticsData = page === 'analytics' && /analytics|metricas|relatorio|desempenho/.test(normalized) && /mostrar|mostre|ver|consultar|consulta|dados|como/.test(normalized)
+  if (/^(abra|abrir|ir para|va para|mostrar|mostre|acessar|quero ver)/i.test(normalized) && page && !asksAnalyticsData) {
     const pageId = PAGE_ALIASES[page]
     return { ...basePlan('navigate', { page: pageId }), navigation: pageId, answer: `Abrindo ${APP_PAGES[pageId]}.` }
   }
@@ -338,7 +428,7 @@ function parseModelPlan(rawText) {
 async function interpretAgentMessage({ message, history, currentPage, pendingPlan, generateText }) {
   const completedPlan = completePendingPlan(message, pendingPlan)
   if (completedPlan) return completedPlan
-  const rulePlan = interpretWithRules(message, currentPage)
+  const rulePlan = interpretWithRules(message, currentPage, history)
   if (!['unknown', 'conversation'].includes(rulePlan.actionId) || typeof generateText !== 'function') return rulePlan
   try {
     const raw = await generateText(buildAgentPrompt({ message, history, currentPage, pendingPlan }))

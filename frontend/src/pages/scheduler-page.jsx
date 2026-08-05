@@ -129,7 +129,7 @@ export function SchedulerPage() {
   const issues = workerIssues
 
   // Busca de local (Facebook/Instagram) com debounce, espelhando o
-  // comportamento do app legado (public/app.html, onLocationSearchInput):
+  // comportamento equivalente ao fluxo anterior de busca de localização:
   // só busca com 3+ caracteres e cancela a busca anterior a cada tecla.
   useEffect(() => {
     clearTimeout(locationSearchTimer.current)
@@ -219,3 +219,5 @@ export function SchedulerPage() {
     <button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button>
   </form>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }
+
+

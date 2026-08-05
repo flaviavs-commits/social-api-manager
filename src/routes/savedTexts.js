@@ -1,5 +1,5 @@
 // Biblioteca de textos salvos, reutilizáveis entre posts — botão "textos
-// salvos" no editor (ver public/app.html, btnSavedTexts).
+// salvos" no editor React.
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, serverError } = require('../utils/http')
@@ -47,3 +47,5 @@ router.delete('/:id', async (req, res) => {
 })
 
 module.exports = router
+
+

@@ -9,7 +9,7 @@ const EMPTY_DATA = {
   accountAnalytics: { platforms: {}, capabilities: {}, dailyMetrics: [], contentDecay: [], bestTimeToPost: [], errors: [] },
 }
 
-// Espelha o padrão do Analytics legado (public/app.html): dois fetches
+// Mantém o carregamento de analytics em duas fontes independentes
 // independentes (analytics + tiktok-videos, o 2º sempre roda mesmo se o 1º
 // falhar), auto-refresh a cada 30s enquanto a aba está visível, e troca
 // automática para a primeira rede com dados se a rede ativa ficar sem dados
@@ -87,3 +87,5 @@ export function useAnalytics() {
     setActiveTab, setPeriodDays, selectNetwork, reload: loadAnalytics,
   }
 }
+
+

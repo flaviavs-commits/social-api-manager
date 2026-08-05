@@ -1,5 +1,5 @@
 -- Biblioteca de textos salvos, reutilizáveis entre posts (botão "textos
--- salvos" no editor, ver public/app.html).
+-- salvos" no editor React.
 CREATE TABLE IF NOT EXISTS saved_texts (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
