@@ -52,16 +52,32 @@ async function uploadWithConcurrency(items, upload, limit, onProgress) {
   return results
 }
 
-function PostPreview({ text, selected, files, previews, publishNow, date }) {
+const previewLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+
+function PreviewMedia({ platform, previews }) {
+  if (!previews.length) return <div className={`social-preview-media social-preview-media-${platform} is-empty`}><span aria-hidden="true">＋</span><small>Adicione uma imagem ou vídeo</small></div>
+  const item = previews[0]
+  const media = item.file.type.startsWith('image/') ? <img src={item.url} alt="Prévia da publicação"/> : <div className="social-preview-video"><span aria-hidden="true">▶</span><small>Vídeo selecionado</small></div>
+  return <div className={`social-preview-media social-preview-media-${platform}`}>{media}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>@sua_marca</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
+}
+
+function PostPreview({ text, textByPlatform, selected, files, previews, publishNow, date }) {
+  const availablePlatforms = selected.length ? selected : platforms
+  const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
+  useEffect(() => {
+    if (!availablePlatforms.includes(activePlatform)) setActivePlatform(availablePlatforms[0])
+  }, [activePlatform, availablePlatforms.join(',')])
+  const activeText = textByPlatform?.[activePlatform]?.trim() || text
+  const isYoutube = activePlatform === 'youtube'
+  const isTiktok = activePlatform === 'tiktok'
   return <aside className="post-preview" aria-label="Pré-visualização da publicação">
-    <div className="post-preview-heading"><div><p className="eyebrow">PREVIEW</p><h3>Como ficará</h3></div><span className="post-preview-status">{publishNow ? 'Agora' : date ? 'Agendada' : 'Rascunho'}</span></div>
-    <div className="post-preview-card">
-      <div className="post-preview-account"><span className="post-preview-avatar">ME</span><div><strong>Sua marca</strong><small>{selected.length ? selected.map(item => item[0].toUpperCase() + item.slice(1)).join(' · ') : 'Nenhuma rede selecionada'}</small></div></div>
-      <p className={`post-preview-text${text ? '' : ' is-placeholder'}`}>{text || 'O texto da sua publicação aparecerá aqui.'}</p>
-      {files.length ? <div className="post-preview-media"><div className="post-preview-media-strip">{previews.slice(0, 3).map(item => item.file.type.startsWith('image/') ? <img key={item.key} src={item.url} alt="" /> : <span className="post-preview-video" key={item.key} aria-hidden="true">▶</span>)}</div><span>{files.length} {files.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}</span></div> : <div className="post-preview-media is-empty"><span aria-hidden="true">＋</span>Adicione uma imagem ou vídeo</div>}
-      <div className="post-preview-footer"><span>♡ 0</span><span>💬 0</span><span>↗ 0</span></div>
+    <div className="post-preview-heading"><div><p className="eyebrow">PREVIEW REALISTA</p><h3>Veja em cada rede</h3></div><span className="post-preview-status">{publishNow ? 'Agora' : date ? 'Agendada' : 'Rascunho'}</span></div>
+    <div className="preview-network-tabs" role="tablist" aria-label="Prévia por rede social">{availablePlatforms.map(platform => <button type="button" role="tab" aria-selected={activePlatform === platform} className={`preview-network-tab preview-network-tab-${platform}${activePlatform === platform ? ' is-active' : ''}`} key={platform} onClick={() => setActivePlatform(platform)}><span className="preview-network-tab-icon"><PlatformIcon platform={platform} className="h-4 w-4"/></span>{previewLabels[platform]}</button>)}</div>
+    <div className={`social-preview-card social-preview-card-${activePlatform}`}>
+      <div className="social-preview-account"><span className={`social-preview-avatar social-preview-avatar-${activePlatform}`}><PlatformIcon platform={activePlatform} className="h-4 w-4"/></span><div><strong>sua_marca</strong><small>{previewLabels[activePlatform]} · agora</small></div><span className="social-preview-more" aria-hidden="true">•••</span></div>
+      {isYoutube ? <><PreviewMedia platform={activePlatform} previews={previews}/><div className="social-preview-youtube-copy"><strong>{activeText || 'Título do seu vídeo aparecerá aqui'}</strong><small>Sua marca · 0 visualizações · agora</small></div></> : isTiktok ? <><PreviewMedia platform={activePlatform} previews={previews}/><p className={`social-preview-caption${activeText ? '' : ' is-placeholder'}`}>{activeText || 'A legenda do seu vídeo aparecerá aqui.'}</p></> : <><p className={`social-preview-caption${activeText ? '' : ' is-placeholder'}`}>{activeText || 'O texto da sua publicação aparecerá aqui.'}</p><PreviewMedia platform={activePlatform} previews={previews}/><div className="social-preview-actions"><span>♡</span><span>◯</span><span>↗</span><small>{files.length ? `${files.length} mídia${files.length > 1 ? 's' : ''}` : 'Sem mídia'}</small></div></>}
     </div>
-    <p className="post-preview-hint">O visual final pode variar de acordo com cada rede social.</p>
+    <p className="post-preview-hint">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta.</p>
   </aside>
 }
 
@@ -348,5 +364,5 @@ export function SchedulerPage() {
 
     {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !text.trim()}>Salvar como modelo</button></div>
-  </form><PostPreview text={text} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
+  </form><PostPreview text={text} textByPlatform={textByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }
