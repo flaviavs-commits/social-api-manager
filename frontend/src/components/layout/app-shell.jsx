@@ -42,7 +42,7 @@ function AppSidebar({ page, open, onNavigate, onClose }) {
     <aside
       className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
     >
-      <a href="/" aria-label="Meu Ecoo Mídia - início" className="group flex flex-col gap-2 border-b border-subtle px-5 py-5">
+      <a href="/" aria-label="Meu Ecoo Mídia - início" className="group flex flex-col items-center gap-2 border-b border-subtle px-5 py-5 text-center">
         <img src="/logo.svg" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
         <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
       </a>

@@ -64,7 +64,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .sidebar { display: flex; flex-direction: column; width: var(--sidebar-w); flex-shrink: 0; background: linear-gradient(165deg, var(--surface) 0%, var(--bg) 130%); border-right: 1px solid var(--border); height: 100vh; position: sticky; top: 0; overflow-y: auto; overflow-x: hidden; z-index: 200; }
 .main { flex: 1; padding: calc(2rem + var(--topbar-h)) 2.25rem 2rem; max-width: 1140px; margin: 0 auto; width: 100%; min-width: 0; }
 
-.logo { position: relative; padding: 1.35rem 1.25rem 1.15rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.logo { position: relative; padding: 1.35rem 1.25rem 1.15rem; border-bottom: 1px solid var(--border); white-space: nowrap; display: flex; flex-direction: column; align-items: center; text-align: center; }
 /* Glow decorativo dourado no canto — ecoa o degradê da marca e sangra suavemente
    até o início da navegação, sem clip para não cortar o efeito nem competir com
    o conteúdo (a navegação vem depois no DOM e desenha por cima). */
