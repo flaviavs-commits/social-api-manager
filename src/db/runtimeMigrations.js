@@ -90,6 +90,7 @@ async function runMigrations() {
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_disable_stitch BOOLEAN'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ'),
+    bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS error_message TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_id TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT'),

@@ -304,14 +304,16 @@ process.on('uncaughtException', (err) => {
 
 if (require.main === module) {
   const PORT = process.env.PORT || 3000
-  runMigrations().catch(err => console.error('Migration error:', err))
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
-    console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
-    scheduler.start()
-  })
+  runMigrations()
+    .catch(err => console.error('Migration error:', err))
+    .finally(() => {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
+        console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
+        scheduler.start()
+      })
+    })
 }
 
 module.exports = app
-
 
