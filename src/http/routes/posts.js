@@ -6,6 +6,7 @@ const router = Router()
 router.post('/upload-url', controller.postUploadUrl)
 
 router.get('/inbox/unread', controller.getInboxUnread)
+router.post('/inbox/seen', controller.postInboxSeen)
 router.post('/:id/comments/seen', controller.postCommentSeen)
 router.get('/inbox', controller.getInbox)
 

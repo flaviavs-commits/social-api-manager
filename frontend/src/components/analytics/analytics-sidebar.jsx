@@ -1,23 +1,35 @@
-import { NET_ICONS, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { NETWORK_ORDER, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { PlatformIcon } from '../ui/platform-icon.jsx'
 
 export function AnalyticsSidebar({ networks, activeNet, onSelect }) {
+  const availableNetworks = new Set(networks)
   return (
     <nav className="analytics-sidebar" aria-label="Redes sociais">
       <div className="analytics-sidebar-label">Escolha uma rede</div>
       <p className="analytics-sidebar-help">Comece pela rede que deseja entender.</p>
-      {networks.length
-        ? networks.map(net => (
+      {NETWORK_ORDER.map(net => {
+          const available = availableNetworks.has(net)
+          return (
             <button
               key={net}
               type="button"
-              className={`analytics-net-item${net === activeNet ? ' active' : ''}`}
+              disabled={!available}
+              className={`analytics-net-item${net === activeNet ? ' active' : ''}${available ? '' : ' unavailable'}`}
               aria-pressed={net === activeNet}
-              onClick={() => onSelect(net)}
+              aria-label={`${PLAT_LABELS[net]}${available ? '' : ' — sem conexão'}`}
+              onClick={() => available && onSelect(net)}
             >
-              {NET_ICONS[net]} {PLAT_LABELS[net]}
+              <span className="analytics-net-item-content">
+                <span className={`analytics-net-item-icon analytics-net-item-icon-${net}`} aria-hidden="true">
+                  <PlatformIcon platform={net} className="h-4 w-4" />
+                </span>
+                <span>{PLAT_LABELS[net]}</span>
+              </span>
+              {net === activeNet && <span className="analytics-net-item-check" aria-hidden="true">✓</span>}
+              {!available && <span className="analytics-net-item-status">Sem conexão</span>}
             </button>
-          ))
-        : <p className="empty-state" style={{ fontSize: 12, padding: 8 }}>Nenhuma rede com dados.</p>}
+          )
+        })}
     </nav>
   )
 }

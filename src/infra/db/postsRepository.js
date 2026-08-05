@@ -64,7 +64,7 @@ async function listarPosts({ status, userId, isAdmin } = {}) {
   const { rows } = await pool.query(`
     SELECT
       id, text, platforms,
-      scheduled_at AS "scheduledAt", repeat, status, criado_em, user_id AS "userId",
+      scheduled_at AS "scheduledAt", repeat, status, error_message AS "errorMessage", retry_count AS "retryCount", next_retry_at AS "nextRetryAt", criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort",
       account_id AS "accountId",

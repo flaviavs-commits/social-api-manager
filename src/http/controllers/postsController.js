@@ -4,7 +4,7 @@ const { parseId, serverError, isAdminRole } = require('../../utils/http')
 const { ValidationError } = require('../../domain/posts/errors')
 
 const { gerarUploadUrl } = require('../../use-cases/posts/gerarUploadUrl')
-const { listarInbox, contarNaoLidos, marcarComentariosVistos, listarComentarios, responderComentario } = require('../../use-cases/posts/inbox')
+const { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, responderComentario } = require('../../use-cases/posts/inbox')
 const { listarPosts, listarPostsCalendario } = require('../../use-cases/posts/listarPosts')
 const { buscarAnalytics, buscarMetricsHistory } = require('../../use-cases/posts/buscarAnalytics')
 const { listarTiktokVideos } = require('../../use-cases/posts/listarTiktokVideos')
@@ -43,6 +43,15 @@ async function postCommentSeen(req, res) {
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
     await marcarComentariosVistos({ userId: req.user.id, postId: id, commentIds: req.body.commentIds || [] })
     res.status(204).send()
+  } catch (e) {
+    serverError(res, e)
+  }
+}
+
+async function postInboxSeen(req, res) {
+  try {
+    const count = await marcarVariosComentariosVistos({ ...ctx(req), postIds: req.body?.postIds || [] })
+    res.json({ count })
   } catch (e) {
     serverError(res, e)
   }
@@ -213,7 +222,7 @@ async function deletePost(req, res) {
 }
 
 module.exports = {
-  postUploadUrl, getInboxUnread, postCommentSeen, getInbox, getCalendar, getPosts,
+  postUploadUrl, getInboxUnread, postCommentSeen, postInboxSeen, getInbox, getCalendar, getPosts,
   getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
   postCommentReply, patchPost, deletePost
 }

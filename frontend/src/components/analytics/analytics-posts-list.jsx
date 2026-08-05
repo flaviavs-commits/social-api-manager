@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum } from '../../lib/analytics-format.js'
 import { CommentsModal } from './comments-modal.jsx'
-
-const PLAT_ICON = { instagram: '📸', facebook: '📘', youtube: '▶️', tiktok: '🎵', twitter: '🐦' }
+import { PlatformIcon } from '../ui/platform-icon.jsx'
 
 function TiktokPostsList({ tiktokVideos }) {
   if (!tiktokVideos.length) return <p className="empty-state">Nenhum vídeo publicado.</p>
@@ -12,7 +11,7 @@ function TiktokPostsList({ tiktokVideos }) {
         <a key={v.shareUrl} href={v.shareUrl} target="_blank" rel="noopener noreferrer" className="analytics-post-item">
           {v.coverImageUrl
             ? <img className="analytics-post-thumb" src={v.coverImageUrl} alt=""/>
-            : <div className="analytics-post-thumb analytics-post-thumb-fallback">🎵</div>}
+            : <div className="analytics-post-thumb analytics-post-thumb-fallback"><PlatformIcon platform="tiktok" className="h-5 w-5" /></div>}
           <div className="analytics-post-body">
             <div className="analytics-post-date">{new Date(v.createTime * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>
             <div className="analytics-post-text">{v.title ? (v.title.length > 70 ? v.title.slice(0, 70) + '…' : v.title) : <span className="empty-state">Sem título</span>}</div>
@@ -64,7 +63,9 @@ function NetworkPostsList({ net, metrics, onOpenComments }) {
           <div className="analytics-post-platforms">
             {post.plataformas.map((pl, j) => (
               <div key={j} className="analytics-post-plat-row">
-                <span>{PLAT_ICON[pl.platform] || ''}</span>
+                <span className={`analytics-post-platform-icon analytics-post-platform-icon-${pl.platform}`} aria-label={pl.platform}>
+                  <PlatformIcon platform={pl.platform} className="h-3.5 w-3.5" />
+                </span>
                 {pl.metrics
                   ? <>
                       {pl.metrics.views != null && <span title="Visualizações">👁 {fmtNum(pl.metrics.views)}</span>}

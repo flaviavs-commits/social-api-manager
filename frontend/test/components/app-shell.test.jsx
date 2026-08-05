@@ -33,4 +33,17 @@ describe('AppShell', () => {
     rerender(<AppShell page="dashboard" onPageChange={() => {}}>x</AppShell>)
     expect(screen.getByText('Conta')).toBeInTheDocument()
   })
+
+  it('supports desktop shortcuts for creating a post and opening help', () => {
+    const onPageChange = vi.fn()
+    render(<AppShell page="dashboard" onPageChange={onPageChange}>x</AppShell>)
+
+    fireEvent.keyDown(window, { key: 'c' })
+    expect(onPageChange).toHaveBeenCalledWith('agendador')
+
+    fireEvent.keyDown(window, { key: '?' })
+    expect(screen.getByRole('dialog', { name: 'Atalhos de teclado' })).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Atalhos de teclado' })).not.toBeInTheDocument()
+  })
 })

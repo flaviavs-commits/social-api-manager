@@ -1,11 +1,16 @@
-import { SchedulerPage } from './scheduler-page.jsx'
-import { CalendarPage } from './calendar-page.jsx'
-import { DraftsPage } from './drafts-page.jsx'
-import { AccountsPage } from './accounts-page.jsx'
-import { AnalyticsPage } from './analytics-page.jsx'
-import { InboxPage } from './inbox-page.jsx'
-import { TokensPage } from './tokens-page.jsx'
-import { AiPage } from './ai-page.jsx'
+import { lazy, Suspense } from 'react'
+import { LoadingState } from '../components/ui/loading-state.jsx'
+
+const SchedulerPage = lazy(() => import('./scheduler-page.jsx').then(module => ({ default: module.SchedulerPage })))
+const CalendarPage = lazy(() => import('./calendar-page.jsx').then(module => ({ default: module.CalendarPage })))
+const DraftsPage = lazy(() => import('./drafts-page.jsx').then(module => ({ default: module.DraftsPage })))
+const AccountsPage = lazy(() => import('./accounts-page.jsx').then(module => ({ default: module.AccountsPage })))
+const AnalyticsPage = lazy(() => import('./analytics-page.jsx').then(module => ({ default: module.AnalyticsPage })))
+const InboxPage = lazy(() => import('./inbox-page.jsx').then(module => ({ default: module.InboxPage })))
+const TokensPage = lazy(() => import('./tokens-page.jsx').then(module => ({ default: module.TokensPage })))
+const SecurityPage = lazy(() => import('./security-page.jsx').then(module => ({ default: module.SecurityPage })))
+const ActivityPage = lazy(() => import('./activity-page.jsx').then(module => ({ default: module.ActivityPage })))
+const AiPage = lazy(() => import('./ai-page.jsx').then(module => ({ default: module.AiPage })))
 
 const PAGES_BY_TYPE = {
   agendador: SchedulerPage,
@@ -15,6 +20,8 @@ const PAGES_BY_TYPE = {
   analytics: AnalyticsPage,
   inbox: InboxPage,
   tokens: TokensPage,
+  seguranca: SecurityPage,
+  atividade: ActivityPage,
   ai: AiPage,
 }
 
@@ -26,12 +33,14 @@ const descriptions = {
   inbox: ['Inbox', 'Gerencie comentários e interações em um só lugar.'],
   integracoes: ['Contas conectadas', 'Conecte e gerencie suas redes sociais.'],
   tokens: ['Tokens', 'Gerencie tokens de acesso e integrações.'],
+  seguranca: ['Segurança', 'Proteja sua conta e gerencie a autenticação em 2 fatores.'],
+  atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
 }
 
-export function ModulePage({ type }) {
+export function ModulePage({ type, onNavigate, user }) {
   const Page = PAGES_BY_TYPE[type]
-  if (Page) return <Page/>
+  if (Page) return <Suspense fallback={<section className="page-view"><section className="panel"><LoadingState>Carregando módulo...</LoadingState></section></section>}><Page onNavigate={onNavigate} user={user}/></Suspense>
   const [title, description] = descriptions[type] || ['Módulo', 'Área da aplicação']
   return <section className="page-view"><section className="panel module-placeholder"><p className="eyebrow">MÓDULO REACT</p><h2>{title}</h2><p>{description}</p><span className="status-badge">Migração em andamento</span></section></section>
 }

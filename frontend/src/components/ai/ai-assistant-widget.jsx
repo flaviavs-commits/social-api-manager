@@ -28,6 +28,12 @@ function summarizeData(data) {
   return ''
 }
 
+function RobotAvatar({ size = 'small' }) {
+  return <span className={`ai-robot-avatar ai-robot-avatar--${size}`} aria-hidden="true">
+    <img src="/logo.png" alt="" />
+  </span>
+}
+
 function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChangeMessage }) {
   const summary = summarizeData(message.data)
   return (
@@ -46,7 +52,7 @@ function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sendin
   return (
     <section role="dialog" aria-label="Assistente de IA" className="flex h-[520px] w-[min(390px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl">
       <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
-        <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/15 text-gold">✨</span><div><p className="text-sm font-semibold text-zinc-50">Agente IA</p><p className="text-[11px] text-zinc-500">Entendo os módulos e ações da aplicação</p></div></div>
+        <div className="flex items-center gap-2"><RobotAvatar /><div><p className="text-sm font-semibold text-zinc-50">Agente IA</p><p className="text-[11px] text-zinc-500">Entendo os módulos e ações da aplicação</p></div></div>
         <button aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
       </header>
       <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
@@ -121,6 +127,6 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
 
   return <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
     {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} />}
-    <button onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente de IA' : 'Abrir assistente de IA'} aria-expanded={open} className="flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : '✨'}</button>
+    <button onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente de IA' : 'Abrir assistente de IA'} aria-expanded={open} className="ai-assistant-toggle flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : <RobotAvatar size="large" />}</button>
   </div>
 }

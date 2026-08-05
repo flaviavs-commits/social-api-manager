@@ -3,6 +3,11 @@ import { apiFetch } from '../lib/api.js'
 import { detectNetworks } from '../lib/analytics-format.js'
 
 const AUTO_REFRESH_MS = 30000
+const ANALYTICS_FILTERS_KEY = 'meu-ecoo:analytics-filters'
+
+function readAnalyticsFilters() {
+  try { return JSON.parse(localStorage.getItem(ANALYTICS_FILTERS_KEY) || '{}') } catch { return {} }
+}
 const EMPTY_DATA = {
   series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {},
   youtubeSubscribers: {}, instagramDemographics: null, youtubeDemographics: null,
@@ -14,12 +19,13 @@ const EMPTY_DATA = {
 // falhar), auto-refresh a cada 30s enquanto a aba está visível, e troca
 // automática para a primeira rede com dados se a rede ativa ficar sem dados
 // depois de um refresh.
-export function useAnalytics() {
+export function useAnalytics({ comparePeriod = false } = {}) {
+  const savedFilters = readAnalyticsFilters()
   const [data, setData] = useState(EMPTY_DATA)
   const [tiktokVideos, setTiktokVideos] = useState([])
-  const [activeNet, setActiveNet] = useState('instagram')
-  const [activeTab, setActiveTab] = useState('community')
-  const [periodDays, setPeriodDays] = useState(7)
+  const [activeNet, setActiveNet] = useState(savedFilters.activeNet || 'instagram')
+  const [activeTab, setActiveTab] = useState(savedFilters.activeTab || 'community')
+  const [periodDays, setPeriodDays] = useState(savedFilters.periodDays || 7)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -27,6 +33,10 @@ export function useAnalytics() {
   const tiktokVideosRef = useRef(tiktokVideos)
   activeNetRef.current = activeNet
   tiktokVideosRef.current = tiktokVideos
+
+  useEffect(() => {
+    localStorage.setItem(ANALYTICS_FILTERS_KEY, JSON.stringify({ activeNet, activeTab, periodDays }))
+  }, [activeNet, activeTab, periodDays])
 
   const loadTiktokVideos = useCallback(async () => {
     try {
@@ -39,7 +49,8 @@ export function useAnalytics() {
 
   const loadAnalytics = useCallback(async () => {
     try {
-      const result = await apiFetch(`/api/posts/analytics?days=${periodDays}`)
+      const queryDays = Math.min(90, periodDays * (comparePeriod ? 2 : 1))
+      const result = await apiFetch(`/api/posts/analytics?days=${queryDays}`)
       const next = {
         series: result.series || {},
         metrics: result.metrics || [],
@@ -63,7 +74,7 @@ export function useAnalytics() {
       setLoading(false)
     }
     loadTiktokVideos()
-  }, [loadTiktokVideos, periodDays])
+  }, [loadTiktokVideos, periodDays, comparePeriod])
 
   useEffect(() => {
     loadAnalytics()
@@ -72,7 +83,7 @@ export function useAnalytics() {
     }, AUTO_REFRESH_MS)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodDays])
+  }, [periodDays, comparePeriod])
 
   const networks = detectNetworks({ ...data, tiktokVideos })
 
@@ -87,5 +98,3 @@ export function useAnalytics() {
     setActiveTab, setPeriodDays, selectNetwork, reload: loadAnalytics,
   }
 }
-
-

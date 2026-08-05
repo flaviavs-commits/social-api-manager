@@ -15,17 +15,33 @@ import './styles/tailwind.css'
 import './styles/auth.css'
 import './styles/admin.css'
 
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai'])
+
+function pageFromLocation(pathname = window.location.pathname) {
+  const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
+  return APP_PAGES.has(segment) ? segment : 'dashboard'
+}
+
 function App() {
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState(() => pageFromLocation())
   const [user, setUser] = useState(null)
   useEffect(() => {
     let active = true
     apiFetch('/api/me').then(currentUser => { if (active) setUser(currentUser) }).catch(() => {})
     return () => { active = false }
   }, [])
-  const navigate = nextPage => setPage(nextPage)
+  useEffect(() => {
+    const onPopState = () => setPage(pageFromLocation())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+  const navigate = nextPage => {
+    if (!APP_PAGES.has(nextPage) || nextPage === page) return
+    window.history.pushState({}, '', `/app/${nextPage}`)
+    setPage(nextPage)
+  }
   return <AppShell page={page} onPageChange={navigate} user={user}>
-    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} />}
+    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} onNavigate={navigate} user={user} />}
   </AppShell>
 }
 

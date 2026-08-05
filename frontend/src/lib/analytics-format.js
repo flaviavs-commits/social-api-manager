@@ -83,10 +83,16 @@ export function formatDiaBR(iso) {
 }
 
 export function filterByPeriod(data, periodDays) {
+  return filterByPeriodOffset(data, periodDays, 0)
+}
+
+export function filterByPeriodOffset(data, periodDays, offsetDays = 0) {
   const ate = new Date()
-  const de = new Date(ate.getTime() - periodDays * 86400000)
+  const offset = offsetDays * periodDays * 86400000
+  const de = new Date(ate.getTime() - (periodDays * 86400000 + offset))
+  const ateOffset = new Date(ate.getTime() - offset)
   const deStr = de.toISOString().slice(0, 10)
-  const ateStr = ate.toISOString().slice(0, 10)
+  const ateStr = ateOffset.toISOString().slice(0, 10)
 
   if (Array.isArray(data)) {
     return data.filter(item => {
@@ -99,13 +105,19 @@ export function filterByPeriod(data, periodDays) {
 }
 
 export function filterTikTokVideosByPeriod(videos, periodDays) {
+  return filterTikTokVideosByPeriodOffset(videos, periodDays, 0)
+}
+
+export function filterTikTokVideosByPeriodOffset(videos, periodDays, offsetDays = 0) {
   const ate = new Date()
-  const de = new Date(ate.getTime() - periodDays * 86400000)
+  const offset = offsetDays * periodDays * 86400000
+  const de = new Date(ate.getTime() - (periodDays * 86400000 + offset))
+  const ateOffset = new Date(ate.getTime() - offset)
   return videos.filter(video => {
     const timestamp = video.createTime ? Number(video.createTime) * 1000 : Date.parse(video.publishedAt || '')
     if (!Number.isFinite(timestamp)) return false
     const date = new Date(timestamp)
-    return date >= de && date <= ate
+    return date >= de && date <= ateOffset
   })
 }
 

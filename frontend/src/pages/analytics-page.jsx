@@ -1,54 +1,126 @@
 import '../lib/chart-setup.js'
+import { useState } from 'react'
 import { useAnalytics } from '../hooks/use-analytics.js'
 import { AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
 import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
 import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
+import { filterByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
+import { useToast } from '../components/ui/toast.jsx'
+
+function csvValue(value) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`
+}
+
+function reportRows(data, periodDays, activeNet) {
+  return filterByPeriod(data.metrics, periodDays).filter(item => !activeNet || item.platform === activeNet)
+}
+
+function htmlValue(value) {
+  return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
+}
 
 export function AnalyticsPage() {
+  const [comparePeriod, setComparePeriod] = useState(false)
   const {
     data, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
-  } = useAnalytics()
+  } = useAnalytics({ comparePeriod })
+  const notify = useToast()
+  const selectedRows = reportRows(data, periodDays, activeNet)
+  const selectedViews = selectedRows.reduce((total, item) => total + Number(item.metrics?.views || 0), 0)
+  const selectedEngagement = selectedRows.reduce((total, item) => total + Number(item.metrics?.likes || 0) + Number(item.metrics?.comments || 0) + Number(item.metrics?.shares || 0), 0)
+
+  function exportReport() {
+    const rows = reportRows(data, periodDays, activeNet)
+    const header = ['Data', 'Rede', 'Publicação', 'Visualizações', 'Curtidas', 'Comentários', 'Compartilhamentos', 'Salvamentos']
+    const lines = rows.map(item => [
+      item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('pt-BR') : '',
+      PLAT_LABELS[item.platform] || item.platform,
+      item.text || item.youtubeTitle || '',
+      item.metrics?.views || 0,
+      item.metrics?.likes || 0,
+      item.metrics?.comments || 0,
+      item.metrics?.shares || 0,
+      item.metrics?.saves || 0,
+    ].map(csvValue).join(';'))
+    const csv = `\uFEFF${[header.map(csvValue).join(';'), ...lines].join('\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `relatorio-${activeNet || 'todas-as-redes'}-${periodDays}dias.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function printReport() {
+    const rows = reportRows(data, periodDays, activeNet)
+    const totals = rows.reduce((total, item) => ({
+      views: total.views + Number(item.metrics?.views || 0),
+      likes: total.likes + Number(item.metrics?.likes || 0),
+      comments: total.comments + Number(item.metrics?.comments || 0),
+      shares: total.shares + Number(item.metrics?.shares || 0),
+    }), { views: 0, likes: 0, comments: 0, shares: 0 })
+    const target = window.open('', '_blank', 'width=1000,height=800')
+    if (!target) { notify('Permita pop-ups para gerar o relatório imprimível.', 'error'); return }
+    const title = `Relatório ${activeNet ? PLAT_LABELS[activeNet] || activeNet : 'todas as redes'}`
+    const tableRows = rows.map(item => `<tr><td>${htmlValue(item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('pt-BR') : '')}</td><td>${htmlValue(PLAT_LABELS[item.platform] || item.platform)}</td><td>${htmlValue(item.text || item.youtubeTitle || 'Publicação')}</td><td>${item.metrics?.views || 0}</td><td>${item.metrics?.likes || 0}</td><td>${item.metrics?.comments || 0}</td><td>${item.metrics?.shares || 0}</td></tr>`).join('')
+    target.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${htmlValue(title)}</title><style>body{font-family:Arial,sans-serif;color:#20242c;margin:36px}h1{margin:0 0 6px;font-size:24px}p{color:#616875;margin:0 0 22px}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}.card{padding:12px;background:#f2f4f7;border-radius:8px}.card strong{display:block;font-size:20px}.card span{font-size:11px;color:#616875}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:8px;border-bottom:1px solid #dfe3e8;text-align:left}th{background:#f2f4f7}@media print{body{margin:18px}.card{background:#f2f4f7}}</style></head><body><h1>${htmlValue(title)}</h1><p>Período: últimos ${periodDays} dias · Gerado em ${htmlValue(new Date().toLocaleString('pt-BR'))}</p><div class="summary"><div class="card"><strong>${totals.views}</strong><span>Visualizações</span></div><div class="card"><strong>${totals.likes}</strong><span>Curtidas</span></div><div class="card"><strong>${totals.comments}</strong><span>Comentários</span></div><div class="card"><strong>${totals.shares}</strong><span>Compartilhamentos</span></div></div><table><thead><tr><th>Data</th><th>Rede</th><th>Publicação</th><th>Visualizações</th><th>Curtidas</th><th>Comentários</th><th>Compartilhamentos</th></tr></thead><tbody>${tableRows || '<tr><td colspan="7">Nenhum dado encontrado no período.</td></tr>'}</tbody></table></body></html>`)
+    target.document.close()
+    target.focus()
+    setTimeout(() => { target.print() }, 250)
+  }
 
   return <section className="page-view analytics-page">
     <header className="analytics-page-intro">
       <p className="eyebrow">DESEMPENHO</p>
       <h2>Entenda o desempenho das suas redes</h2>
       <p>Veja o que chamou atenção, quais publicações performaram melhor e como sua audiência está evoluindo.</p>
+      <div className="analytics-page-intro-actions"><div className="analytics-export-actions"><button type="button" className="secondary-button" onClick={exportReport} disabled={loading || !networks.length}>Exportar CSV</button><button type="button" className="secondary-button" onClick={printReport} disabled={loading || !networks.length}>Imprimir / PDF</button></div><span className="analytics-export-context">Dados do período e da rede selecionados · suas escolhas ficam salvas neste dispositivo</span></div>
     </header>
 
-    {error && <p className="error-message" role="alert">{error}</p>}
-    {loading && !error
-      ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
-      : !networks.length && !error
-        ? <section className="analytics-empty-state" aria-labelledby="analytics-empty-title">
-            <span className="analytics-empty-icon" aria-hidden="true">📊</span>
-            <h3 id="analytics-empty-title">Ainda não há métricas para mostrar</h3>
-            <p>Conecte uma rede social e publique conteúdo para começar a acompanhar visualizações, interações e crescimento.</p>
-            <p className="analytics-empty-note">Quando houver dados, você poderá comparar cada rede e período nesta tela.</p>
-          </section>
-      : <>
-          <AnalyticsSummary
-            data={data}
-            tiktokVideos={tiktokVideos}
-            periodDays={periodDays}
-            onSelectPeriod={setPeriodDays}
-          />
+    <section className="analytics-report-snapshot" aria-label="Resumo do relatório filtrado">
+      <div><span>Conteúdos no recorte</span><strong>{selectedRows.length}</strong></div>
+      <div><span>Visualizações</span><strong>{fmtNum(selectedViews)}</strong></div>
+      <div><span>Interações</span><strong>{fmtNum(selectedEngagement)}</strong></div>
+      <div><span>Rede analisada</span><strong>{activeNet ? PLAT_LABELS[activeNet] || activeNet : 'Todas'}</strong></div>
+    </section>
 
-          <div className="analytics-layout">
-            <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={selectNetwork}/>
-            {networks.includes(activeNet) && (
-              <AnalyticsPanel
-                net={activeNet}
-                tab={activeTab}
-                onSelectTab={setActiveTab}
-                data={data}
-                tiktokVideos={tiktokVideos}
-                periodDays={periodDays}
-                lastUpdated={lastUpdated}
-              />
-            )}
-          </div>
-        </>}
+    {error && <p className="error-message" role="alert">{error}</p>}
+    {loading && !error && <p className="empty-state" aria-live="polite">Carregando métricas...</p>}
+    {!loading && networks.length > 0 && <AnalyticsSummary
+      data={data}
+      tiktokVideos={tiktokVideos}
+      periodDays={periodDays}
+      onSelectPeriod={days => { setPeriodDays(days); if (days > 30) setComparePeriod(false) }}
+      comparePeriod={comparePeriod}
+      onToggleCompare={setComparePeriod}
+    />}
+    {!loading && !networks.length && <section className="analytics-empty-state" aria-labelledby="analytics-empty-title">
+      <span className="analytics-empty-icon" aria-hidden="true">📊</span>
+      <h3 id="analytics-empty-title">Ainda não há métricas para mostrar</h3>
+      <p>Conecte uma rede social e publique conteúdo para começar a acompanhar visualizações, interações e crescimento.</p>
+      <p className="analytics-empty-note">As plataformas aparecem ao lado mesmo antes da primeira conexão.</p>
+    </section>}
+
+    <div className="analytics-layout">
+      <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={selectNetwork}/>
+      {loading
+        ? <section className="analytics-no-network-panel"><span className="analytics-empty-icon" aria-hidden="true">…</span><h3>Carregando redes</h3><p>Verificando conexões e métricas disponíveis.</p></section>
+        : networks.includes(activeNet)
+          ? <AnalyticsPanel
+              net={activeNet}
+              tab={activeTab}
+              onSelectTab={setActiveTab}
+              data={data}
+              tiktokVideos={tiktokVideos}
+              periodDays={periodDays}
+              lastUpdated={lastUpdated}
+            />
+          : <section className="analytics-no-network-panel" aria-labelledby="analytics-no-network-title">
+              <span className="analytics-empty-icon" aria-hidden="true">◎</span>
+              <h3 id="analytics-no-network-title">Nenhuma rede conectada</h3>
+              <p>As logos acima mostram as plataformas disponíveis. Conecte uma conta para liberar os relatórios desta rede.</p>
+            </section>}
+    </div>
   </section>
 }

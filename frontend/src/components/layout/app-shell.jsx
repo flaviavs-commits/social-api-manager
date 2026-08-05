@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
-import { logout } from '../../lib/api.js'
+import { apiFetch, logout } from '../../lib/api.js'
+import { ToastProvider } from '../ui/toast.jsx'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -11,6 +12,8 @@ const icons = {
   inbox: 'M3 5h18l-1.5 12a2 2 0 0 1-2 1.8H6.5a2 2 0 0 1-2-1.8L3 5Zm0 0 2.5 7h13L21 5M9.5 12h5',
   integracoes: 'M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm-7 9a7 7 0 0 1 14 0',
   tokens: 'M15 7a4 4 0 1 1-4 4H4v2h2v3h3v-3h2.06A4 4 0 0 0 15 7Zm0-2a6 6 0 1 1-5.92 7H7v3H4v-3H2v-4h7.08A6 6 0 0 1 15 5Z',
+  seguranca: 'M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6l8-3Zm0 5v4m0 4h.01',
+  atividade: 'M4 5h16M4 12h16M4 19h10',
   ai: 'M12 2l1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6L12 2Zm7 12 .8 2.6L22.4 17.4 19.8 18.2 19 20.8 18.2 18.2 15.6 17.4 18.2 16.6 19 14Z'
 }
 
@@ -23,6 +26,8 @@ const navigation = [
   ['inbox', 'Inbox'],
   ['integracoes', 'Contas'],
   ['tokens', 'Tokens'],
+  ['seguranca', 'Segurança'],
+  ['atividade', 'Atividades'],
   ['ai', 'Assistente IA']
 ]
 
@@ -36,16 +41,17 @@ function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   )
 }
 
-function AppSidebar({ page, open, onNavigate, onClose, user }) {
+function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggleCollapsed }) {
   return (
     <>
     <aside
-      className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      className={`app-sidebar sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}${collapsed ? ' is-collapsed' : ''}`}
     >
       <a href="/" aria-label="Meu Ecoo Mídia - início" className="group flex flex-col items-center gap-2 border-b border-subtle px-5 py-5 text-center">
         <img src="/logo.svg" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
-        <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
+        <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
       </a>
+      <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={collapsed ? 'Expandir menu' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
 
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
         {navigation.map(([key, label]) => {
@@ -54,6 +60,8 @@ function AppSidebar({ page, open, onNavigate, onClose, user }) {
             <button
               key={key}
               onClick={() => onNavigate(key)}
+              title={collapsed ? label : undefined}
+              aria-current={active ? 'page' : undefined}
               className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
                   ? 'border-gold bg-gold/10 text-gold'
@@ -62,10 +70,10 @@ function AppSidebar({ page, open, onNavigate, onClose, user }) {
             >
               <span className="flex items-center gap-2.5">
                 <NavIcon name={key} />
-                {label}
+                <span className="sidebar-nav-label">{label}</span>
               </span>
               {active && (
-                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-500">
+                <span className="sidebar-active-label rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-500">
                   Ativo
                 </span>
               )}
@@ -74,8 +82,14 @@ function AppSidebar({ page, open, onNavigate, onClose, user }) {
         })}
       </nav>
 
+      <div className="sidebar-legal-links mx-3 mb-3 border-t border-subtle pt-3">
+        <a href="/privacy-policy" className="block rounded px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:text-gold">Política de Privacidade</a>
+        <a href="/terms-of-service" className="block rounded px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:text-gold">Termos de Serviço</a>
+      </div>
+
       {(userIsAdmin(user)) && <a
         href="/admin.html"
+        title="Administração"
         className="mx-3 mb-3 rounded-lg border border-subtle px-3 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
       >
         Administração
@@ -83,7 +97,8 @@ function AppSidebar({ page, open, onNavigate, onClose, user }) {
 
       <button
         onClick={logout}
-        className="mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
+        title="Sair"
+        className="sidebar-logout mx-3 mb-5 rounded-lg border border-subtle px-3 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
       >
         Sair
       </button>
@@ -93,13 +108,45 @@ function AppSidebar({ page, open, onNavigate, onClose, user }) {
   )
 }
 
+function MobileBottomNav({ page, onNavigate, onOpenMenu }) {
+  const items = [
+    ['dashboard', 'Início'],
+    ['agendador', 'Criar'],
+    ['calendario', 'Agenda'],
+    ['inbox', 'Inbox'],
+  ]
+  return <nav className="mobile-bottom-nav md:hidden" aria-label="Ações principais">
+    {items.map(([key, label]) => <button key={key} type="button" className={page === key ? 'is-active' : ''} aria-current={page === key ? 'page' : undefined} onClick={() => onNavigate(key)}><NavIcon name={key} className="h-5 w-5"/><span>{label}</span></button>)}
+    <button type="button" onClick={onOpenMenu}><span className="mobile-more-icon" aria-hidden="true">•••</span><span>Mais</span></button>
+  </nav>
+}
+
 function userIsAdmin(user) {
   return user?.role === 'admin' || user?.role === 'super_admin'
 }
 
-function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost }) {
+function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenCommandPalette, onOpenShortcutHelp }) {
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
+
+  async function toggleNotifications() {
+    const nextOpen = !notificationsOpen
+    setNotificationsOpen(nextOpen)
+    if (!nextOpen || notifications.length) return
+    setNotificationsLoading(true)
+    try {
+      const result = await apiFetch('/api/logs?limit=5')
+      setNotifications((result.logs || []).filter(item => item.type !== 'ok').slice(0, 5))
+    } catch {
+      setNotifications([])
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
+
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
+    <header className="app-topbar-modern flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenSidebar}
@@ -108,29 +155,43 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost }) {
         >
           ☰
         </button>
-        <nav aria-label="Localização atual" className="flex items-center gap-2 text-xl font-semibold text-zinc-50">
+        <nav aria-label="Localização atual" className="flex min-w-0 items-center gap-2 text-xl font-semibold text-zinc-50">
           <img src="/favicon.svg" alt="" className="hidden h-6 w-6 sm:block" />
-          <span className="hidden text-zinc-400 sm:inline">Meu Ecoo Mídia</span>
-          <span className="text-zinc-600">›</span>
-          <span className="text-gold">{currentLabel}</span>
+          <span className="hidden text-sm font-medium text-zinc-500 sm:inline">Meu Ecoo Mídia</span>
+          <span className="text-zinc-600" aria-hidden="true">/</span>
+          <span className="truncate text-base text-gold sm:text-lg">{currentLabel}</span>
         </nav>
       </div>
 
       <div className="flex items-center gap-3">
-        <button aria-label="Mensagens" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+        <button aria-label="Abrir busca rápida" aria-keyshortcuts="Control+K Meta+K" onClick={onOpenCommandPalette} className="topbar-search-button hidden items-center gap-2 rounded-lg border border-subtle px-3 py-2 text-xs text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span>Buscar módulo</span><kbd>Ctrl K</kbd></button>
+        <button type="button" aria-label="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">?</button>
+        <button aria-label="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
         </button>
-        <button aria-label="Notificações" className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
-        </button>
+        <div className="notification-control">
+          <button aria-label="Abrir notificações" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+            {notifications.length > 0 && <span className="notification-dot" aria-label={`${notifications.length} notificações`} />}
+          </button>
+          {notificationsOpen && <div className="notification-popover" role="dialog" aria-label="Notificações recentes">
+            <div className="notification-popover-heading"><strong>Notificações</strong><span>Recentes</span></div>
+            {notificationsLoading
+              ? <p className="notification-empty">Carregando atualizações...</p>
+              : notifications.length
+                ? <div className="notification-list">{notifications.map(item => <div className="notification-item" key={item.id}><span className={`notification-mark notification-mark-${item.type || 'ok'}`} aria-hidden="true">{item.type === 'err' ? '!' : '✓'}</span><div><p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</small></div></div>)}</div>
+                : <p className="notification-empty">Nenhuma atualização recente.</p>}
+            <button type="button" className="notification-see-all" onClick={() => { setNotificationsOpen(false); onNavigate('atividade') }}>Ver histórico completo</button>
+          </div>}
+        </div>
         <button
           onClick={onCreatePost}
-          className="inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
+          className="create-post-button inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
         >
           + Criar Novo Post
         </button>
-        <span className="flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-soft text-xs">👤</span>
+        <span className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300">
+          <span className="user-avatar flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-app">{userInitials(user)}</span>
           {user?.name || user?.email || 'Conta'}
         </span>
       </div>
@@ -138,20 +199,106 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost }) {
   )
 }
 
+function userInitials(user) {
+  const label = user?.name || user?.email || 'C'
+  return label.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function CommandPalette({ open, onClose, onNavigate }) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef(null)
+  const matches = navigation.filter(([, label]) => label.toLowerCase().includes(query.trim().toLowerCase()))
+
+  useEffect(() => {
+    if (!open) return
+    setQuery('')
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [open])
+
+  if (!open) return null
+
+  function choose(page) {
+    onNavigate(page)
+    onClose()
+  }
+
+  return <div className="command-palette-overlay" role="presentation" onMouseDown={onClose}>
+    <section className="command-palette" role="dialog" aria-modal="true" aria-label="Busca rápida" onMouseDown={event => event.stopPropagation()}>
+      <div className="command-palette-input"><span aria-hidden="true">⌕</span><input ref={inputRef} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') onClose(); if (event.key === 'Enter' && matches[0]) choose(matches[0][0]) }} placeholder="Ir para um módulo..." aria-label="Buscar módulo"/><kbd>ESC</kbd></div>
+      <div className="command-palette-list">{matches.length ? matches.map(([key, label]) => <button key={key} type="button" onClick={() => choose(key)}><span><NavIcon name={key} className="h-4 w-4"/>{label}</span><small>Enter</small></button>) : <p>Não encontramos esse módulo.</p>}</div>
+      <p className="command-palette-hint">Use Ctrl/Cmd + K para abrir esta busca a qualquer momento.</p>
+    </section>
+  </div>
+}
+
+function ShortcutHelp({ open, onClose }) {
+  if (!open) return null
+  return <div className="shortcut-help-overlay" role="presentation" onMouseDown={onClose}>
+    <section className="shortcut-help" role="dialog" aria-modal="true" aria-labelledby="shortcut-help-title" onMouseDown={event => event.stopPropagation()}>
+      <div className="shortcut-help-heading"><div><p className="eyebrow">NAVEGAÇÃO RÁPIDA</p><h2 id="shortcut-help-title">Atalhos de teclado</h2></div><button type="button" className="link-button" onClick={onClose}>Fechar</button></div>
+      <div className="shortcut-help-list">
+        <div><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><p>Abrir busca rápida</p></div>
+        <div><kbd>C</kbd><p>Criar uma publicação</p></div>
+        <div><kbd>D</kbd><p>Ir para o dashboard</p></div>
+        <div><kbd>?</kbd><p>Mostrar estes atalhos</p></div>
+        <div><kbd>Esc</kbd><p>Fechar janela aberta</p></div>
+      </div>
+      <p className="shortcut-help-note">Os atalhos de uma tecla ficam pausados enquanto você digita em um campo.</p>
+    </section>
+  </div>
+}
+
 export function AppShell({ page, onPageChange, children, user }) {
   const [open, setOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meu-ecoo:sidebar-collapsed') === '1')
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   const currentLabel = navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
 
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed(current => {
+      const next = !current
+      localStorage.setItem('meu-ecoo:sidebar-collapsed', next ? '1' : '0')
+      return next
+    })
+  }
+
+  useEffect(() => {
+    const handleShortcut = event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
+        setShortcutHelpOpen(false)
+        return
+      }
+      if (event.key === 'Escape') {
+        setCommandPaletteOpen(false)
+        setShortcutHelpOpen(false)
+        return
+      }
+      const tagName = event.target?.tagName?.toLowerCase()
+      if (['input', 'textarea', 'select'].includes(tagName) || event.target?.isContentEditable) return
+      if (event.key.toLowerCase() === 'c') { event.preventDefault(); onPageChange('agendador') }
+      if (event.key.toLowerCase() === 'd') { event.preventDefault(); onPageChange('dashboard') }
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) { event.preventDefault(); setShortcutHelpOpen(true) }
+    }
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [onPageChange])
+
   return (
-    <div className="flex min-h-screen bg-app text-zinc-100">
-      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} />
+    <ToastProvider><div className="app-shell-modern flex min-h-screen bg-app text-zinc-100">
+      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} />
-        <main className="flex-1">{children}</main>
+        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenCommandPalette={() => setCommandPaletteOpen(true)} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} />
+        <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
       </div>
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
-    </div>
+      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} onNavigate={onPageChange} />
+      <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
+      <MobileBottomNav page={page} onNavigate={onPageChange} onOpenMenu={() => setOpen(true)} />
+    </div></ToastProvider>
   )
 }

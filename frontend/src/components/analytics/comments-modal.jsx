@@ -52,7 +52,7 @@ function CommentRow({ comment, postId, onReplied }) {
   )
 }
 
-export function CommentsModal({ postId, onClose }) {
+export function CommentsModal({ postId, onClose, embedded = false }) {
   const [comments, setComments] = useState([])
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -62,17 +62,25 @@ export function CommentsModal({ postId, onClose }) {
     setLoading(true)
     setError('')
     apiFetch(`/api/posts/${postId}/comments`)
-      .then(result => { setComments(result.comments || []); setPost(result.post || null) })
+      .then(result => {
+        const nextComments = result.comments || []
+        setComments(nextComments)
+        setPost(result.post || null)
+        if (nextComments.length) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
+      })
       .catch(caught => setError(caught.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [postId])
+  useEffect(() => {
+    load()
+    const closeWithEscape = event => { if (event.key === 'Escape') onClose() }
+    document.addEventListener('keydown', closeWithEscape)
+    return () => document.removeEventListener('keydown', closeWithEscape)
+  }, [postId, onClose])
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-header"><h3>Comentários</h3><button type="button" className="link-button" onClick={onClose}>✕</button></div>
+  const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={e => e.stopPropagation()}>
+        <div className="modal-header"><div><h3>Comentários</h3>{post?.text && <p className="comments-conversation-title">{post.text}</p>}</div>{!embedded && <button type="button" className="link-button" onClick={onClose}>✕</button>}</div>
         <PostPreview post={post}/>
         {error && <p className="error-message" style={{ textAlign: 'center', padding: '1.5rem' }}>{error}</p>}
         {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando...</p>}
@@ -81,6 +89,6 @@ export function CommentsModal({ postId, onClose }) {
           {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} onReplied={load}/>)}
         </div>}
       </div>
-    </div>
-  )
+
+  return embedded ? <section className="comments-embedded-panel" aria-label="Conversa da publicação">{content}</section> : <div className="modal-overlay" onClick={onClose}>{content}</div>
 }

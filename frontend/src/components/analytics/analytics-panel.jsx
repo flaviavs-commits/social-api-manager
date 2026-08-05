@@ -1,4 +1,5 @@
-import { NET_TABS, NET_ICONS, PLAT_LABELS, TAB_HELP } from '../../lib/analytics-format.js'
+import { NET_TABS, PLAT_LABELS, TAB_HELP } from '../../lib/analytics-format.js'
+import { PlatformIcon } from '../ui/platform-icon.jsx'
 import { AnalyticsCards } from './analytics-cards.jsx'
 import { AnalyticsChart } from './analytics-chart.jsx'
 import { AnalyticsDemographics } from './analytics-demographics.jsx'
@@ -20,7 +21,9 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
     <div className="analytics-panel">
       <div className="analytics-panel-heading">
         <div className="analytics-network-heading">
-          <span className="analytics-network-icon" aria-hidden="true">{NET_ICONS[net]}</span>
+          <span className={`analytics-network-icon analytics-network-icon-${net}`} aria-hidden="true">
+            <PlatformIcon platform={net} className="h-5 w-5" />
+          </span>
           <div>
             <h3>{PLAT_LABELS[net]}</h3>
             <p>{tabDescription}</p>

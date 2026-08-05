@@ -63,6 +63,18 @@ async function marcarComentariosVistos({ userId, postId, commentIds }) {
   )
 }
 
+async function marcarVariosComentariosVistos({ userId, postIds, isAdmin }) {
+  const ids = [...new Set((postIds || []).map(Number).filter(Number.isInteger))]
+  if (!ids.length) return 0
+  const posts = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
+  const elegiveis = posts.filter(post => ids.includes(Number(post.id)) && post.externalPostId && commentsService.PLATAFORMAS_COM_COMENTARIOS.includes(post.externalPlatform))
+  const results = await Promise.allSettled(elegiveis.map(async post => {
+    const { comments = [] } = await commentsService.listarComentariosPost(post)
+    await marcarComentariosVistos({ userId, postId: post.id, commentIds: comments.map(comment => comment.id) })
+  }))
+  return results.filter(result => result.status === 'fulfilled').length
+}
+
 // GET /api/posts/:id/comments
 async function listarComentarios({ id, userId, isAdmin }) {
   const post = await postsRepo.buscarPostPorId(id, userId, isAdmin)
@@ -85,4 +97,4 @@ async function responderComentario({ id, userId, isAdmin, commentId, text }) {
   return commentsService.responderComentario(post, commentId, text)
 }
 
-module.exports = { listarInbox, contarNaoLidos, marcarComentariosVistos, listarComentarios, responderComentario }
+module.exports = { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, responderComentario }
