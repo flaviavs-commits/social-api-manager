@@ -9,6 +9,24 @@ Usuários com papel de **administrador** ou **administrador principal**
 (`super_admin`) têm acesso a todos os dados do sistema e a um painel de
 gestão de usuários.
 
+## Agente IA operacional
+
+O botão flutuante **Agente IA** fica disponível nos módulos React e entende
+pedidos em linguagem natural relacionados à aplicação. Ele pode abrir módulos,
+gerar conteúdo, consultar publicações, calendário, rascunhos, relatórios,
+inbox, contas, tokens e requisitos de publicação.
+
+Consultas são executadas diretamente com o isolamento do usuário autenticado.
+Operações que alteram dados — como salvar ou excluir rascunhos, desconectar
+contas, renovar tokens e responder comentários — sempre exibem uma confirmação
+antes da execução. A lista de capacidades é disponibilizada por
+`GET /api/ai/agent/capabilities`; a interpretação e execução usam
+`POST /api/ai/agent`.
+
+Pedidos que dependem de autorização OAuth, upload de mídia ou preenchimento de
+campos avançados são encaminhados ao módulo correspondente, pois ainda exigem
+interação explícita do usuário.
+
 ## Estrutura do projeto
 
 ```
