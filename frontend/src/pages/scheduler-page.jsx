@@ -326,7 +326,19 @@ export function SchedulerPage() {
   return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
 
     <SchedSection number={1} title="Plataformas">
-      <div className="platform-options">{platforms.map(platform => <label className={`platform-option platform-option-${platform}`} key={platform}><input type="checkbox" checked={selected.includes(platform)} onChange={() => toggle(platform)}/><span className="platform-option-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-6 w-6"/></span><span className="platform-option-name">{platform[0].toUpperCase() + platform.slice(1)}</span><span className="platform-option-hint">{selected.includes(platform) ? 'Selecionada' : 'Selecionar'}</span></label>)}</div>
+      <div className="platform-options">{platforms.map(platform => {
+        const connectedAccount = connectedAccounts.find(account => account.platform === platform)
+        const accountLabel = connectedAccount?.handle || connectedAccount?.name
+        const isSelected = selected.includes(platform)
+        return <label className={`platform-option platform-option-${platform}`} key={platform}>
+          <input type="checkbox" checked={isSelected} onChange={() => toggle(platform)} aria-label={`${isSelected ? 'Desmarcar' : 'Selecionar'} ${platform}`}/>
+          <span className="platform-option-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-6 w-6"/></span>
+          <span className="platform-option-name">{platform[0].toUpperCase() + platform.slice(1)}</span>
+          <span className="platform-option-hint">{isSelected ? 'Selecionada' : 'Selecionar'}</span>
+          <span className="platform-option-account">{accountLabel ? (accountLabel.startsWith('@') ? accountLabel : `@${accountLabel}`) : 'Nenhuma conta conectada'}</span>
+          <span className="platform-option-check" aria-hidden="true">{isSelected ? '✓' : ''}</span>
+        </label>
+      })}</div>
     </SchedSection>
 
     <SchedSection number={2} title="Conteúdo">
