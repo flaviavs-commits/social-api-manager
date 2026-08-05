@@ -42,16 +42,9 @@ function AppSidebar({ page, open, onNavigate, onClose }) {
     <aside
       className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
     >
-      <a href="/" aria-label="Meu Ecoo Mídia - início" className="group flex items-center gap-3 border-b border-subtle px-5 py-5">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold/20 to-gold-muted/10 shadow-[0_0_18px_rgba(229,184,66,0.22)] ring-1 ring-gold/30">
-          <img src="/favicon.svg" alt="" className="h-8 w-8" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold leading-tight text-zinc-50">
-            Meu <span className="text-gold">Ecoo Mídia</span>
-          </p>
-          <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
-        </div>
+      <a href="/" aria-label="Meu Ecoo Mídia - início" className="group flex flex-col gap-2 border-b border-subtle px-5 py-5">
+        <img src="/logo.svg" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
+        <p className="truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
       </a>
 
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
