@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { filterByPeriod, fmtNum } from '../../lib/analytics-format.js'
+import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum } from '../../lib/analytics-format.js'
 import { CommentsModal } from './comments-modal.jsx'
 
 const PLAT_ICON = { instagram: '📸', facebook: '📘', youtube: '▶️', tiktok: '🎵', twitter: '🐦' }
@@ -9,7 +9,7 @@ function TiktokPostsList({ tiktokVideos }) {
   return (
     <div className="analytics-posts-list">
       {tiktokVideos.map(v => (
-        <a key={v.shareUrl} href={v.shareUrl} target="_blank" rel="noopener" className="analytics-post-item">
+        <a key={v.shareUrl} href={v.shareUrl} target="_blank" rel="noopener noreferrer" className="analytics-post-item">
           {v.coverImageUrl
             ? <img className="analytics-post-thumb" src={v.coverImageUrl} alt=""/>
             : <div className="analytics-post-thumb analytics-post-thumb-fallback">🎵</div>}
@@ -18,10 +18,10 @@ function TiktokPostsList({ tiktokVideos }) {
             <div className="analytics-post-text">{v.title ? (v.title.length > 70 ? v.title.slice(0, 70) + '…' : v.title) : <span className="empty-state">Sem título</span>}</div>
           </div>
           <div className="analytics-post-metrics">
-            <span>👁 {fmtNum(v.viewCount)}</span>
-            <span>❤ {fmtNum(v.likeCount)}</span>
-            <span>💬 {fmtNum(v.commentCount)}</span>
-            <span>🔁 {fmtNum(v.shareCount)}</span>
+            <span title="Visualizações">👁 {fmtNum(v.viewCount)}</span>
+            <span title="Curtidas">❤ {fmtNum(v.likeCount)}</span>
+            <span title="Comentários">💬 {fmtNum(v.commentCount)}</span>
+            <span title="Compartilhamentos">🔁 {fmtNum(v.shareCount)}</span>
           </div>
         </a>
       ))}
@@ -67,9 +67,12 @@ function NetworkPostsList({ net, metrics, onOpenComments }) {
                 <span>{PLAT_ICON[pl.platform] || ''}</span>
                 {pl.metrics
                   ? <>
-                      {pl.metrics.views != null && <span>👁 {fmtNum(pl.metrics.views)}</span>}
-                      {pl.metrics.likes != null && <span>❤ {fmtNum(pl.metrics.likes)}</span>}
-                      {pl.metrics.comments != null && <span>💬 {fmtNum(pl.metrics.comments)}</span>}
+                      {pl.metrics.views != null && <span title="Visualizações">👁 {fmtNum(pl.metrics.views)}</span>}
+                      {pl.metrics.likes != null && <span title="Curtidas">❤ {fmtNum(pl.metrics.likes)}</span>}
+                      {pl.metrics.comments != null && <span title="Comentários">💬 {fmtNum(pl.metrics.comments)}</span>}
+                      {pl.metrics.shares != null && <span>↗ {fmtNum(pl.metrics.shares)}</span>}
+                      {pl.metrics.saves != null && <span>🔖 {fmtNum(pl.metrics.saves)}</span>}
+                      {pl.metrics.reactionBreakdown && <span title={Object.entries(pl.metrics.reactionBreakdown).map(([type, value]) => `${type}: ${value}`).join(', ')}>😀 Reações</span>}
                     </>
                   : <span className="empty-state">Sem métricas</span>}
                 {pl.platform === 'instagram' && pl.postId && (
@@ -88,7 +91,7 @@ export function AnalyticsPostsList({ net, tab, data, tiktokVideos, periodDays })
   const [commentsPostId, setCommentsPostId] = useState(null)
   if (tab !== 'posts' && tab !== 'videos') return null
 
-  if (net === 'tiktok') return <TiktokPostsList tiktokVideos={tiktokVideos}/>
+  if (net === 'tiktok') return <TiktokPostsList tiktokVideos={filterTikTokVideosByPeriod(tiktokVideos, periodDays)}/>
 
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
   return <>

@@ -6,6 +6,7 @@ const AUTO_REFRESH_MS = 30000
 const EMPTY_DATA = {
   series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {},
   youtubeSubscribers: {}, instagramDemographics: null, youtubeDemographics: null,
+  accountAnalytics: { platforms: {}, capabilities: {}, dailyMetrics: [], contentDecay: [], errors: [] },
 }
 
 // Espelha o padrão do Analytics legado (public/app.html): dois fetches
@@ -23,7 +24,9 @@ export function useAnalytics() {
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const activeNetRef = useRef(activeNet)
+  const tiktokVideosRef = useRef(tiktokVideos)
   activeNetRef.current = activeNet
+  tiktokVideosRef.current = tiktokVideos
 
   const loadTiktokVideos = useCallback(async () => {
     try {
@@ -36,7 +39,7 @@ export function useAnalytics() {
 
   const loadAnalytics = useCallback(async () => {
     try {
-      const result = await apiFetch('/api/posts/analytics')
+      const result = await apiFetch(`/api/posts/analytics?days=${periodDays}`)
       const next = {
         series: result.series || {},
         metrics: result.metrics || [],
@@ -45,11 +48,12 @@ export function useAnalytics() {
         youtubeSubscribers: result.youtubeSubscribers || {},
         instagramDemographics: result.instagramDemographics || null,
         youtubeDemographics: result.youtubeDemographics || null,
+        accountAnalytics: result.accountAnalytics || EMPTY_DATA.accountAnalytics,
       }
       setData(next)
       setError('')
 
-      const nets = detectNetworks({ ...next, tiktokVideos })
+      const nets = detectNetworks({ ...next, tiktokVideos: tiktokVideosRef.current })
       if (nets.length && !nets.includes(activeNetRef.current)) setActiveNet(nets[0])
 
       setLastUpdated(new Date())
@@ -59,7 +63,7 @@ export function useAnalytics() {
       setLoading(false)
     }
     loadTiktokVideos()
-  }, [loadTiktokVideos, tiktokVideos])
+  }, [loadTiktokVideos, periodDays])
 
   useEffect(() => {
     loadAnalytics()
@@ -68,7 +72,7 @@ export function useAnalytics() {
     }, AUTO_REFRESH_MS)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [periodDays])
 
   const networks = detectNetworks({ ...data, tiktokVideos })
 
