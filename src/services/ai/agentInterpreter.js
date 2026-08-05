@@ -98,6 +98,54 @@ function basePlan(actionId, args = {}, answer = '') {
   }
 }
 
+function isLikelyFieldReply(message) {
+  const normalized = normalize(message)
+  if (/^(abra|abrir|mostre|mostrar|quero ver|crie|criar|gere|gerar|cancele|cancelar|exclua|excluir|salve|salvar|consulte|consultar|responda|reagende|reagendar)\b/.test(normalized)) return false
+  return true
+}
+
+function completePendingPlan(message, pendingPlan) {
+  if (!pendingPlan || !getCapability(pendingPlan.actionId) || !Array.isArray(pendingPlan.missingFields) || !pendingPlan.missingFields.length) return null
+  if (!isLikelyFieldReply(message)) return null
+
+  const text = String(message || '').trim()
+  const args = { ...(pendingPlan.arguments || {}) }
+  const numbers = [...text.matchAll(/#?(\d+)/g)].map(match => Number(match[1])).filter(Number.isInteger)
+  for (const field of pendingPlan.missingFields) {
+    if (field === 'postId' || field === 'id' || field === 'accountId') {
+      const value = numbers.shift()
+      if (value) args[field] = value
+    } else if (field === 'commentId') {
+      const value = numbers.shift()
+      if (value) args[field] = value
+    } else if (field === 'scheduledAt') {
+      const value = extractScheduledAt(text)
+      if (value) args[field] = value
+    } else if (['text', 'body', 'content'].includes(field) && text) {
+      args[field] = text
+    } else if (field === 'platforms') {
+      const platforms = extractPlatforms(text)
+      if (platforms.length) args[field] = platforms
+    }
+  }
+
+  const missingFields = pendingPlan.missingFields.filter(field => {
+    const value = args[field]
+    return value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
+  })
+  const capability = getCapability(pendingPlan.actionId)
+  return {
+    ...pendingPlan,
+    arguments: args,
+    missingFields,
+    requiresConfirmation: Boolean(capability.confirmation),
+    source: 'conversation',
+    answer: missingFields.length
+      ? `Ainda preciso de: ${missingFields.join(', ')}.`
+      : capability.confirmation ? 'Agora tenho os dados necessários. Confirme para continuar.' : 'Agora tenho os dados necessários e vou continuar.',
+  }
+}
+
 function interpretWithRules(message, currentPage) {
   const text = String(message || '').trim()
   const normalized = normalize(text)
@@ -197,6 +245,7 @@ function interpretWithRules(message, currentPage) {
   }
   const contentIntent = /gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized)
     && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)
+  if (!contentIntent && /metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo/.test(normalized)) return basePlan('analytics_insight', {}, 'Vou analisar seus dados e sugerir próximos passos.')
   if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
   if (/calendario|calendário|o que tenho agendado|publicacoes.*mes|publicações.*mês/.test(normalized)) return basePlan('calendar', extractMonth(text), 'Vou consultar o calendário desse período.')
   if (/requisit|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
@@ -232,11 +281,21 @@ function interpretWithRules(message, currentPage) {
     return basePlan('list_posts', { status: status ? STATUS_ALIASES[status] : null }, 'Vou consultar suas publicações.')
   }
 
-  return { ...basePlan('show_capabilities'), actionId: 'unknown', confidence: 0, answer: `Não identifiquei uma ação específica${currentPage ? ` no módulo ${APP_PAGES[currentPage] || currentPage}` : ''}. Posso mostrar as funções disponíveis ou você pode descrever o resultado que deseja.` }
+  const openQuestion = /\?|\b(?:como|qual|quais|por que|porque|me ajude|estrategia|estratégia|sugestao|sugestão|ideias|o que devo|vale a pena|melhor forma|analise|análise|planeje|planejamento)\b/.test(normalized)
+  if (openQuestion) return basePlan('conversation', { topic: text }, 'Vou analisar seu pedido e responder com uma orientação prática.')
+  return { ...basePlan('show_capabilities'), actionId: 'unknown', confidence: 0, answer: `Não identifiquei uma ação específica${currentPage ? ` no módulo ${APP_PAGES[currentPage] || currentPage}` : ''}. Posso conversar sobre estratégia, conteúdo e redes sociais, ou executar uma ação da aplicação.` }
 }
 
-function buildAgentPrompt({ message, history = [], currentPage = null }) {
-  return `Você é o agente operacional do Social API Manager. Interprete o pedido em português e escolha UMA ação do catálogo. Você nunca deve inventar uma ação, ID, conta, comentário ou resultado. Se faltarem dados, preencha missingFields e não execute a ação. Ações de escrita exigem confirmação.
+function buildAgentPrompt({ message, history = [], currentPage = null, pendingPlan = null }) {
+  return `Você é o agente inteligente do Social API Manager. Converse em português do Brasil com clareza, naturalidade e iniciativa. Você pode executar UMA ação da aplicação OU responder uma pergunta aberta. Nunca invente dados da conta, métricas, posts, contas conectadas, IDs ou resultados: quando o usuário pedir dados reais, escolha a ação de consulta adequada. Se faltarem dados para uma ação, preencha missingFields e não execute. Ações de escrita exigem confirmação.
+
+COMO RACIOCINAR:
+- Para estratégia, ideias, explicações, diagnóstico conceitual ou dúvidas gerais, use actionId "conversation" e escreva uma resposta útil, específica e acionável em answer.
+- Para pedidos de conteúdo, entenda objetivo, público, formato, tom e rede; use generate_posts quando o usuário quer textos prontos.
+- Para pedidos compostos, responda a parte que puder e indique a próxima etapa mais segura; não execute várias escritas escondidas.
+- Diferencie uma pergunta sobre a palavra "analytics" de uma consulta dos dados reais da conta.
+- Não diga que fez algo se não houver uma ação executada e um resultado retornado.
+- Faça no máximo uma pergunta de esclarecimento por vez quando isso melhorar muito a resposta.
 
 CATÁLOGO:
 ${JSON.stringify(getCatalogForPrompt())}
@@ -247,12 +306,14 @@ ${JSON.stringify(APP_PAGES)}
 MÓDULO ATUAL: ${currentPage || 'desconhecido'}
 HISTÓRICO RECENTE:
 ${JSON.stringify(history.slice(-6))}
+PLANO PENDENTE DE PREENCHIMENTO:
+${JSON.stringify(pendingPlan)}
 
 PEDIDO DO USUÁRIO:
 ${message}
 
 Responda APENAS JSON válido neste formato:
-{"actionId":"id_do_catalogo","arguments":{},"answer":"resposta curta","missingFields":[],"navigation":null,"confidence":0.0}`
+{"actionId":"id_do_catalogo","arguments":{},"answer":"resposta completa em português","missingFields":[],"navigation":null,"confidence":0.0}`
 }
 
 function parseModelPlan(rawText) {
@@ -265,7 +326,7 @@ function parseModelPlan(rawText) {
   return {
     actionId: capability.id,
     arguments: parsed.arguments && typeof parsed.arguments === 'object' ? parsed.arguments : {},
-    answer: typeof parsed.answer === 'string' ? parsed.answer.slice(0, 1000) : capability.description,
+    answer: typeof parsed.answer === 'string' ? parsed.answer.slice(0, 4000) : capability.description,
     confidence: Math.min(Math.max(Number(parsed.confidence) || 0, 0), 1),
     missingFields,
     requiresConfirmation: Boolean(capability.confirmation),
@@ -274,11 +335,13 @@ function parseModelPlan(rawText) {
   }
 }
 
-async function interpretAgentMessage({ message, history, currentPage, generateText }) {
+async function interpretAgentMessage({ message, history, currentPage, pendingPlan, generateText }) {
+  const completedPlan = completePendingPlan(message, pendingPlan)
+  if (completedPlan) return completedPlan
   const rulePlan = interpretWithRules(message, currentPage)
-  if (rulePlan.actionId !== 'unknown' || typeof generateText !== 'function') return rulePlan
+  if (!['unknown', 'conversation'].includes(rulePlan.actionId) || typeof generateText !== 'function') return rulePlan
   try {
-    const raw = await generateText(buildAgentPrompt({ message, history, currentPage }))
+    const raw = await generateText(buildAgentPrompt({ message, history, currentPage, pendingPlan }))
     if (!raw) return rulePlan
     return parseModelPlan(raw)
   } catch {
@@ -286,4 +349,4 @@ async function interpretAgentMessage({ message, history, currentPage, generateTe
   }
 }
 
-module.exports = { buildAgentPrompt, interpretAgentMessage, interpretWithRules, parseModelPlan, extractPlatforms }
+module.exports = { buildAgentPrompt, interpretAgentMessage, interpretWithRules, parseModelPlan, extractPlatforms, completePendingPlan }

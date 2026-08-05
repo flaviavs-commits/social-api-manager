@@ -1,5 +1,7 @@
 const {
   interpretWithRules,
+  interpretAgentMessage,
+  completePendingPlan,
   parseModelPlan,
 } = require('../../src/services/ai/agentInterpreter')
 
@@ -33,6 +35,12 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.actionId).toBe('analytics')
   })
 
+  test('transforma pedido de análise em insight estratégico', () => {
+    const plan = interpretWithRules('analise minhas métricas e diga o que devo melhorar', 'analytics')
+
+    expect(plan.actionId).toBe('analytics_insight')
+  })
+
   test('não confunde analytics citado no conteúdo com consulta de métricas', () => {
     const plan = interpretWithRules('crie um post sobre analytics para o Instagram', 'ai')
 
@@ -48,7 +56,7 @@ describe('agente operacional — interpretação de pedidos', () => {
     const plan = interpretWithRules('faça algo incrível para mim', 'dashboard')
 
     expect(plan.actionId).toBe('unknown')
-    expect(plan.answer).toMatch(/funções disponíveis/i)
+    expect(plan.answer).toMatch(/funções disponíveis|conversar/i)
   })
 
   test('interpreta reagendamento com data relativa e exige confirmação', () => {
@@ -74,5 +82,40 @@ describe('agente operacional — interpretação de pedidos', () => {
     const plan = interpretWithRules('salve este texto para usar depois: bom dia, comunidade', 'ai')
     expect(plan.actionId).toBe('save_text')
     expect(plan.arguments.body).toBe('bom dia, comunidade')
+  })
+
+  test('permite conversa estratégica e usa a resposta do modelo', async () => {
+    const plan = interpretWithRules('como posso crescer no Instagram sem gastar com anúncios?', 'ai')
+    expect(plan.actionId).toBe('conversation')
+
+    const result = await interpretAgentMessage({
+      message: 'como posso crescer no Instagram sem gastar com anúncios?',
+      currentPage: 'ai',
+      generateText: async prompt => {
+        expect(prompt).toMatch(/estratégia|estrategia/i)
+        return JSON.stringify({
+          actionId: 'conversation',
+          arguments: { topic: 'crescimento orgânico' },
+          answer: 'Comece definindo um público específico e publique séries de conteúdo úteis.',
+          confidence: 0.94,
+        })
+      },
+    })
+
+    expect(result.actionId).toBe('conversation')
+    expect(result.answer).toMatch(/público específico/)
+  })
+
+  test('preenche um plano pendente a partir da resposta seguinte', () => {
+    const plan = completePendingPlan('42 amanhã às 10h', {
+      actionId: 'reschedule_post',
+      arguments: { postId: null, scheduledAt: null },
+      missingFields: ['postId', 'scheduledAt'],
+      requiresConfirmation: true,
+    })
+
+    expect(plan.missingFields).toEqual([])
+    expect(plan.arguments.postId).toBe(42)
+    expect(new Date(plan.arguments.scheduledAt).getHours()).toBe(10)
   })
 })

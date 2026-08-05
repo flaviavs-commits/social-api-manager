@@ -16,6 +16,10 @@ const CAPABILITIES = [
     description: 'Explica tudo o que o agente pode fazer na aplicação.', examples: ['o que você consegue fazer?', 'me mostre as funções'],
   },
   {
+    id: 'conversation', label: 'Conversar e orientar', category: 'inteligência', mode: 'read',
+    description: 'Responde perguntas abertas, explica conceitos, cria estratégias e ajuda a decidir o próximo passo sem inventar dados da conta.', parameters: ['topic', 'response'], examples: ['me ajude a montar uma estratégia para crescer no Instagram', 'qual conteúdo combina com meu nicho?'],
+  },
+  {
     id: 'navigate', label: 'Abrir módulo', category: 'navegação', mode: 'read',
     description: 'Abre qualquer módulo da aplicação.', parameters: ['page'], examples: ['abra o calendário', 'quero ver meus tokens'],
   },
@@ -67,6 +71,10 @@ const CAPABILITIES = [
   {
     id: 'analytics', label: 'Consultar relatórios', category: 'desempenho', mode: 'read',
     description: 'Consulta métricas e desempenho das publicações e redes conectadas.', examples: ['como estão minhas métricas?'],
+  },
+  {
+    id: 'analytics_insight', label: 'Interpretar métricas', category: 'desempenho', mode: 'read',
+    description: 'Analisa os dados reais de desempenho e sugere próximos passos de conteúdo.', examples: ['analise minhas métricas e diga o que melhorar', 'qual rede está performando melhor?'],
   },
   {
     id: 'list_inbox', label: 'Consultar inbox', category: 'relacionamento', mode: 'read',

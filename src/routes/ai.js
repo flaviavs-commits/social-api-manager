@@ -802,7 +802,7 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
 }
 
 // Histórico das mensagens trocadas no chat do Agente IA — até aqui vivia só
-// em memória do navegador (aiChat.fab/page.msgs, public/app.html) e se
+// em memória do navegador (widget e página React) e se
 // perdia a cada reload. Persistido para que admin/super_admin consigam
 // acompanhar as conversas dos usuários (ex.: suporte, diagnóstico).
 pool.query(`
@@ -1396,6 +1396,31 @@ async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
   return null
 }
 
+// Geração inteligente para o agente: usa o modelo de linguagem quando
+// disponível e preserva o gerador local como fallback sem chave/quota.
+async function gerarPostsParaAgente({ instruction, platforms, quantity, tone }, userId, modelo = 'local') {
+  const plataformas = platforms.length ? platforms : ['instagram']
+  const qtd = Math.min(Math.max(Number(quantity) || 1, 1), 5)
+  const fallback = () => gerarPostsLocal(instruction, plataformas, qtd, tone)
+  try {
+    const rawText = await gerarTextoParaAgente(buildPrompt(instruction, plataformas, qtd, tone, 'pt-BR'), userId, modelo)
+    if (!rawText) return fallback()
+    const parsed = parseJsonResponse(rawText)
+    const posts = Array.isArray(parsed.posts) ? parsed.posts.slice(0, qtd).map(post => {
+      const { post: ajustado } = ajustarPostParaPlataformas(
+        { texto: post.texto || '', titulo: post.titulo || '' },
+        plataformas,
+        null
+      )
+      return { ...post, texto: ajustado.texto, titulo: ajustado.titulo, plataformas }
+    }) : []
+    return posts.length ? { posts, modelo, llm: true } : fallback()
+  } catch (err) {
+    console.error('[AI agent generate]', err.message)
+    return fallback()
+  }
+}
+
 // POST /api/ai/agent — interpreta uma solicitação em linguagem natural e
 // executa somente uma ação registrada no catálogo. Leituras são imediatas;
 // escritas devolvem um approvalToken e só executam quando o usuário confirma.
@@ -1405,6 +1430,7 @@ router.post('/agent', async (req, res) => {
     const approvalToken = typeof req.body?.approvalToken === 'string' ? req.body.approvalToken : null
     const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : []
     const currentPage = typeof req.body?.currentPage === 'string' ? req.body.currentPage : null
+    const pendingPlan = req.body?.pendingPlan && typeof req.body.pendingPlan === 'object' ? req.body.pendingPlan : null
 
     if (!message && !approvalToken) return res.status(400).json({ erro: 'Digite uma solicitação.' })
     if (message.length > 4000) return res.status(400).json({ erro: 'A solicitação é muito longa (máximo 4000 caracteres).' })
@@ -1431,6 +1457,7 @@ router.post('/agent', async (req, res) => {
         message,
         history,
         currentPage,
+        pendingPlan,
         generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
       })
     }
@@ -1457,9 +1484,10 @@ router.post('/agent', async (req, res) => {
 
     const result = await executeAgentAction({
       actionId: plan.actionId,
-      arguments: plan.arguments,
+      arguments: plan.actionId === 'conversation' ? { ...plan.arguments, response: plan.answer } : plan.arguments,
       user: req.user,
-      generatePosts: ({ instruction, platforms, quantity, tone }) => gerarPostsLocal(instruction, platforms, quantity, tone),
+      generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
+      generatePosts: args => gerarPostsParaAgente(args, req.user.id, req.body?.modelo || 'local'),
     })
     await registrarAtividadeIA({ userId: req.user.id, acao: `agent:${plan.actionId}`, status: 'sucesso', modelo: plan.source, detalhes: result.message })
     res.json({ ...result, plan, requiresConfirmation: false })

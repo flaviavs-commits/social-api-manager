@@ -18,6 +18,7 @@ function summarizeData(data) {
   if (data.memories) return data.memories.slice(0, 8).map(item => `• Memória #${item.id}: ${item.conteudo}`).join('\n')
   if (data.logs) return data.logs.slice(0, 8).map(item => `• ${item.platform || 'sistema'}: ${item.message}`).join('\n')
   if (data.videos) return data.videos.slice(0, 8).map(item => `• ${item.title || item.description || item.id || 'Vídeo do TikTok'}: ${item.viewCount ?? item.view_count ?? 0} visualizações`).join('\n')
+  if (data.insight) return data.insight
   if (data.unread) return Object.entries(data.unread).map(([postId, count]) => `• Post #${postId}: ${count} não lido(s)`).join('\n')
   if (data.status) return Object.entries(data.status).map(([platform, status]) => `• ${platform}: ${status}`).join('\n')
   if (data.post) return `• Post #${data.post.id}: ${data.post.text || 'sem texto'} (${data.post.status || 'sem status'})`
@@ -69,6 +70,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [editingIndex, setEditingIndex] = useState(null)
+  const [pendingPlan, setPendingPlan] = useState(null)
   const messagesRef = useRef(null)
 
   useEffect(() => {
@@ -89,9 +91,16 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     if (!text || sending) return
     setInput(''); setError(''); setMessages(value => [...value, { role: 'user', text }]); persistMessage('fab', 'user', text); setSending(true)
     try {
-      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ message: text, currentPage, history: messages.slice(-6).map(({ role, text: content }) => ({ role, content })) }) })
+      const history = messages.slice(-6).map(({ role, text: content, plan, data }) => ({
+        role,
+        content,
+        action: plan?.actionId || null,
+        contexto: summarizeData(data).slice(0, 1500),
+      }))
+      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ message: text, currentPage, history, pendingPlan }) })
       const reply = data.message || 'Solicitação processada.'
-      setMessages(value => [...value, { role: 'agent', text: reply, data: data.data, confirmationToken: data.confirmationToken || null }])
+      setMessages(value => [...value, { role: 'agent', text: reply, data: data.data, plan: data.plan || null, confirmationToken: data.confirmationToken || null }])
+      setPendingPlan(data.requiresInput ? data.plan : null)
       persistMessage('fab', 'agent', reply)
       if (data.navigation && onNavigate) onNavigate(data.navigation)
     } catch (caught) { setError(caught.message) } finally { setSending(false) }
@@ -104,6 +113,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
       const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ approvalToken: token }) })
       const reply = data.message || 'Ação concluída.'
       setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text: `${message.text}\n${reply}`, data: data.data, confirmationToken: null } : message))
+      setPendingPlan(null)
       persistMessage('fab', 'agent', reply)
       if (data.navigation && onNavigate) onNavigate(data.navigation)
     } catch (caught) { setError(caught.message) } finally { setSending(false) }

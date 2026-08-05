@@ -24,18 +24,20 @@ function textPreview(value, length = 100) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, length)
 }
 
-async function executeAgentAction({ actionId, arguments: args = {}, user, generatePosts }) {
+async function executeAgentAction({ actionId, arguments: args = {}, user, generatePosts, generateText }) {
   const ctx = context(user)
   switch (actionId) {
     case 'show_capabilities':
       return { message: 'Posso consultar dados, gerar conteúdo, abrir módulos e executar ações confirmadas.', data: { capabilities: getPublicCapabilities() } }
+    case 'conversation':
+      return { message: String(args.response || args.answer || 'Posso ajudar com estratégia, conteúdo e uso da aplicação.'), data: { conversational: true }, navigation: 'ai' }
     case 'navigate':
     case 'connect_account':
     case 'open_scheduler':
       return { message: 'Módulo aberto.', data: {}, navigation: args.page || (actionId === 'connect_account' ? 'integracoes' : 'agendador') }
     case 'generate_posts': {
       if (typeof generatePosts !== 'function') throw Object.assign(new Error('Gerador de conteúdo indisponível.'), { status: 503 })
-      const result = generatePosts({
+      const result = await generatePosts({
         instruction: String(args.instruction || '').trim(), platforms: (Array.isArray(args.platforms) ? args.platforms : []).filter(platform => PLATFORMS.includes(platform)),
         quantity: Math.min(Math.max(Number(args.quantity) || 1, 1), 5), tone: String(args.tone || 'casual'),
       })
@@ -91,6 +93,25 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
     case 'analytics': {
       const data = await buscarAnalytics(ctx)
       return { message: 'Relatórios carregados.', data, navigation: 'analytics' }
+    }
+    case 'analytics_insight': {
+      const data = await buscarAnalytics(ctx)
+      let insight = ''
+      if (typeof generateText === 'function') {
+        const prompt = `Você é um estrategista de conteúdo. Analise SOMENTE os dados reais abaixo e responda em português do Brasil.
+Não invente números nem atribua causalidade que os dados não comprovem. Aponte até três observações, até três ações práticas priorizadas e uma pergunta que ajudaria a aprofundar a análise. Se houver pouca amostra, diga isso claramente.
+
+DADOS REAIS DO USUÁRIO:
+${JSON.stringify(data).slice(0, 16000)}
+
+Responda em texto simples, com títulos curtos e bullets. Não use JSON.`
+        insight = String(await generateText(prompt) || '').trim().slice(0, 4000)
+      }
+      return {
+        message: insight || 'Carreguei os dados. Para receber recomendações personalizadas, habilite um modelo de IA disponível.',
+        data: { ...data, insight: insight || null },
+        navigation: 'analytics',
+      }
     }
     case 'list_drafts': {
       const { rows } = await pool.query('SELECT id, title, text, platforms, criado_em FROM drafts WHERE user_id=$1 ORDER BY criado_em DESC LIMIT 100', [user.id])
