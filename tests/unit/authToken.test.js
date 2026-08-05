@@ -8,6 +8,8 @@ const {
   verificarTokenPending2fa,
   gerarGoogleOAuthState,
   verificarGoogleOAuthState,
+  gerarTokenAprovacaoAgente,
+  verificarTokenAprovacaoAgente,
 } = require('../../src/utils/authToken')
 
 describe('gerarTokenSessao / verificarTokenSessao', () => {
@@ -62,5 +64,21 @@ describe('gerarGoogleOAuthState / verificarGoogleOAuthState', () => {
   test('state adulterado lança erro', () => {
     const state = gerarGoogleOAuthState({})
     expect(() => verificarGoogleOAuthState(state + 'X')).toThrow()
+  })
+})
+
+describe('gerarTokenAprovacaoAgente / verificarTokenAprovacaoAgente', () => {
+  test('aprovação válida preserva ação e argumentos para o mesmo usuário', () => {
+    const token = gerarTokenAprovacaoAgente(42, 'create_draft', { text: 'conteúdo' })
+    const payload = verificarTokenAprovacaoAgente(token, 42)
+
+    expect(payload.action).toBe('create_draft')
+    expect(payload.args).toEqual({ text: 'conteúdo' })
+  })
+
+  test('aprovação de outro usuário é rejeitada', () => {
+    const token = gerarTokenAprovacaoAgente(42, 'delete_draft', { id: 3 })
+
+    expect(() => verificarTokenAprovacaoAgente(token, 7)).toThrow('Aprovação inválida')
   })
 })

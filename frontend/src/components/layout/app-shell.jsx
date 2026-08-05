@@ -146,7 +146,7 @@ export function AppShell({ page, onPageChange, children, user }) {
         <main className="flex-1">{children}</main>
       </div>
 
-      <AiAssistantWidget hidden={page === 'ai'} />
+      <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
     </div>
   )
 }

@@ -3,6 +3,10 @@ const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
+const { getCapability, getPublicCapabilities } = require('../services/ai/agentCatalog')
+const { interpretAgentMessage } = require('../services/ai/agentInterpreter')
+const { executeAgentAction } = require('../services/ai/agentExecutor')
+const { gerarTokenAprovacaoAgente, verificarTokenAprovacaoAgente } = require('../utils/authToken')
 
 const router = Router()
 
@@ -1355,6 +1359,116 @@ router.get('/models', (req, res) => {
       { id: 'claude-sonnet',     name: 'Claude Sonnet 5',        provider: 'Anthropic', available: false },
     ]
   })
+})
+
+// GET /api/ai/agent/capabilities — catálogo público das ações que o agente
+// conhece. O catálogo é a fonte de verdade compartilhada pelo interpretador,
+// pelo executor e pela interface, evitando que a IA prometa funções inexistentes.
+router.get('/agent/capabilities', (_req, res) => {
+  res.json({ capabilities: getPublicCapabilities() })
+})
+
+async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
+  const modeloReal = modelo === 'local' ? 'gemini' : modelo
+  const userKey = await getUserApiKey(pool, userId, modeloReal)
+
+  if (GEMINI_MODEL_IDS[modeloReal]) {
+    if (!userKey && !process.env.GEMINI_API_KEY) return null
+    const usados = await demoUsosHoje(userId)
+    if (!userKey && usados >= DEMO_LIMITE_DIA) return null
+    const raw = await generateWithGemini(prompt, userKey, modeloReal)
+    if (!userKey) await registrarUsoDemo(userId)
+    return raw
+  }
+  if (OPENAI_MODEL_IDS[modeloReal]) {
+    if (!userKey && !process.env.OPENAI_API_KEY) return null
+    const raw = await generateWithOpenAI(prompt, userKey, modeloReal)
+    if (!userKey) await registrarUsoDemo(userId)
+    return raw
+  }
+  if (OPENROUTER_MODEL_IDS[modeloReal]) {
+    if (!userKey && !process.env.OPENROUTER_API_KEY) return null
+    const raw = await generateWithOpenRouter(prompt, userKey, modeloReal)
+    if (!userKey) await registrarUsoDemo(userId)
+    return raw
+  }
+  if (CLAUDE_MODEL_IDS[modeloReal] && userKey) return generateWithClaude(prompt, userKey, modeloReal)
+  return null
+}
+
+// POST /api/ai/agent — interpreta uma solicitação em linguagem natural e
+// executa somente uma ação registrada no catálogo. Leituras são imediatas;
+// escritas devolvem um approvalToken e só executam quando o usuário confirma.
+router.post('/agent', async (req, res) => {
+  try {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+    const approvalToken = typeof req.body?.approvalToken === 'string' ? req.body.approvalToken : null
+    const history = Array.isArray(req.body?.history) ? req.body.history.slice(-6) : []
+    const currentPage = typeof req.body?.currentPage === 'string' ? req.body.currentPage : null
+
+    if (!message && !approvalToken) return res.status(400).json({ erro: 'Digite uma solicitação.' })
+    if (message.length > 4000) return res.status(400).json({ erro: 'A solicitação é muito longa (máximo 4000 caracteres).' })
+
+    let plan
+    if (approvalToken) {
+      let approval
+      try { approval = verificarTokenAprovacaoAgente(approvalToken, req.user.id) }
+      catch { return res.status(400).json({ erro: 'A confirmação expirou. Envie o pedido novamente.' }) }
+      const capability = getCapability(approval.action)
+      if (!capability?.confirmation) return res.status(400).json({ erro: 'Ação de confirmação inválida.' })
+      plan = {
+        actionId: approval.action,
+        arguments: approval.args || {},
+        answer: '',
+        confidence: 1,
+        missingFields: [],
+        requiresConfirmation: true,
+        navigation: null,
+        source: 'confirmation',
+      }
+    } else {
+      plan = await interpretAgentMessage({
+        message,
+        history,
+        currentPage,
+        generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
+      })
+    }
+
+    if (plan.actionId === 'unknown') {
+      return res.json({
+        message: plan.answer,
+        plan,
+        data: { capabilities: getPublicCapabilities() },
+        requiresConfirmation: false,
+      })
+    }
+    if (plan.missingFields?.length) {
+      return res.json({ message: plan.answer, plan, requiresInput: true, requiresConfirmation: false })
+    }
+    if (plan.requiresConfirmation && !approvalToken) {
+      return res.json({
+        message: plan.answer || 'Essa ação altera dados ou publica uma interação. Confirme para continuar.',
+        plan,
+        requiresConfirmation: true,
+        confirmationToken: gerarTokenAprovacaoAgente(req.user.id, plan.actionId, plan.arguments),
+      })
+    }
+
+    const result = await executeAgentAction({
+      actionId: plan.actionId,
+      arguments: plan.arguments,
+      user: req.user,
+      generatePosts: ({ instruction, platforms, quantity, tone }) => gerarPostsLocal(instruction, platforms, quantity, tone),
+    })
+    await registrarAtividadeIA({ userId: req.user.id, acao: `agent:${plan.actionId}`, status: 'sucesso', modelo: plan.source, detalhes: result.message })
+    res.json({ ...result, plan, requiresConfirmation: false })
+  } catch (err) {
+    await registrarAtividadeIA({ userId: req.user.id, acao: 'agent', status: 'erro', modelo: 'agent', detalhes: err.message })
+    if ([400, 404, 409, 422].includes(Number(err.status))) return res.status(Number(err.status)).json({ erro: err.message })
+    console.error('[AI agent]', err.message)
+    serverError(res, err, 'Não foi possível processar a solicitação do agente')
+  }
 })
 
 // POST /api/ai/schedule

@@ -25,9 +25,9 @@ describe('AiAssistantWidget', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('sends a message, shows the reply, and persists both turns without blocking on the persist call', async () => {
+  it('sends a message to the operational agent, shows the reply, and persists both turns', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
-      if (path === '/api/ai/generate') return Promise.resolve({ posts: [{ text: 'Ideia gerada pela IA' }] })
+      if (path === '/api/ai/agent') return Promise.resolve({ message: 'Ideia gerada pela IA' })
       if (path === '/api/ai/chat-messages') return Promise.resolve({ ok: true })
       return Promise.reject(new Error(`unexpected call to ${path}`))
     })
@@ -44,9 +44,9 @@ describe('AiAssistantWidget', () => {
     expect(chatMessageCalls).toHaveLength(2)
   })
 
-  it('shows an error message if generation fails, without crashing the widget', async () => {
+  it('shows an error message if the agent fails, without crashing the widget', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/ai/generate') return Promise.reject(new Error('Falha ao gerar sugestão'))
+      if (path === '/api/ai/agent') return Promise.reject(new Error('Falha ao interpretar pedido'))
       return Promise.resolve({ ok: true })
     })
 
@@ -55,7 +55,7 @@ describe('AiAssistantWidget', () => {
     fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'oi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao gerar sugestão'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao interpretar pedido'))
   })
 
   it('does not submit an empty or whitespace-only message', () => {

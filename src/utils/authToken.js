@@ -40,6 +40,22 @@ function verificarTokenPending2fa(token) {
   return verify(token, process.env.AUTH_TOKEN_SECRET).userId
 }
 
+function gerarTokenAprovacaoAgente(userId, action, args) {
+  return sign({
+    purpose: 'ai-agent-approval',
+    userId,
+    action,
+    args,
+    exp: Date.now() + 5 * 60 * 1000,
+  }, process.env.AUTH_TOKEN_SECRET)
+}
+
+function verificarTokenAprovacaoAgente(token, userId) {
+  const payload = verify(token, process.env.AUTH_TOKEN_SECRET)
+  if (payload.purpose !== 'ai-agent-approval' || payload.userId !== userId) throw new Error('Aprovação inválida')
+  return payload
+}
+
 function gerarGoogleOAuthState(extra = {}) {
   return sign({ ...extra, nonce: crypto.randomBytes(16).toString('hex'), exp: Date.now() + 10 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
 }
@@ -53,6 +69,8 @@ module.exports = {
   verificarTokenSessao,
   gerarTokenPending2fa,
   verificarTokenPending2fa,
+  gerarTokenAprovacaoAgente,
+  verificarTokenAprovacaoAgente,
   gerarGoogleOAuthState,
   verificarGoogleOAuthState
 }
