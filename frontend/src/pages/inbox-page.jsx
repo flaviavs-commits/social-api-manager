@@ -7,6 +7,12 @@ import { LoadingState } from '../components/ui/loading-state.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
+const inboxPlatforms = [
+  { id: 'all', label: 'Todas as redes' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'facebook', label: 'Facebook' },
+  { id: 'youtube', label: 'YouTube' },
+]
 
 function readInboxFilters() {
   try { return JSON.parse(localStorage.getItem(INBOX_FILTERS_KEY) || '{}') } catch { return {} }
@@ -66,7 +72,8 @@ export function InboxPage() {
   return <section className="page-view inbox-page"><section className="panel inbox-panel">
     <div className="inbox-heading"><div><p className="eyebrow">INTERAÇÕES</p><h2>Inbox</h2><p>Organize comentários e responda sua comunidade sem sair do painel.</p></div>{totalUnread > 0 && <span className="inbox-unread-total">{totalUnread} não lido{totalUnread > 1 ? 's' : ''}</span>}</div>
     {error && <p className="error-message" role="alert">{error}</p>}
-    <div className="inbox-toolbar"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar publicação..." aria-label="Buscar publicação no Inbox"/><select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Filtrar por rede"><option value="all">Todas as redes</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="youtube">YouTube</option></select><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filtrar status de leitura"><option value="all">Todos os status</option><option value="unread">Não lidos</option><option value="read">Já lidos</option></select></div>
+    <div className="inbox-platform-filter" role="group" aria-label="Escolher rede social"><span className="inbox-platform-filter-label">Ver interações de</span>{inboxPlatforms.map(item => <button type="button" className={`inbox-platform-filter-card${platform === item.id ? ' is-active' : ''} inbox-platform-filter-${item.id}`} key={item.id} onClick={() => setPlatform(item.id)} aria-pressed={platform === item.id}>{item.id === 'all' ? <span className="inbox-platform-filter-icon" aria-hidden="true">◎</span> : <span className="inbox-platform-filter-icon" aria-hidden="true"><PlatformIcon platform={item.id} className="h-6 w-6"/></span>}<span><strong>{item.label}</strong><small>{platform === item.id ? 'Selecionada' : 'Selecionar'}</small></span></button>)}</div>
+    <div className="inbox-toolbar"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar publicação..." aria-label="Buscar publicação no Inbox"/><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filtrar status de leitura"><option value="all">Todos os status</option><option value="unread">Não lidos</option><option value="read">Já lidos</option></select></div>
     {visiblePosts.length > 0 && <div className="inbox-bulk-toolbar"><label><input type="checkbox" checked={visiblePosts.length > 0 && visiblePosts.every(post => selectedPostIds.includes(post.id))} onChange={toggleAllVisible}/> Selecionar visíveis</label>{selectedPostIds.length > 0 && <><span>{selectedPostIds.length} selecionada{selectedPostIds.length > 1 ? 's' : ''}</span><button type="button" className="link-button" onClick={() => markAsRead()}>Marcar como lidas</button></>}</div>}
     {loading ? <LoadingState>Carregando interações...</LoadingState> : visiblePosts.length ? <div className="inbox-workspace"><div className="inbox-list-pane"><div className="inbox-list">{visiblePosts.map(post => {
       const count = Number(unread[post.id] || 0)
