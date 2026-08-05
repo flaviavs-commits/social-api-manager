@@ -119,15 +119,72 @@ async function getPost(postId) {
   return zernioFetch(`/posts/${postId}`)
 }
 
-// GET /v1/analytics não aceita filtro por post/conta via query (testado em
-// 2026-08-03: ?postId= e ?accountId= são ignorados, sempre devolve a lista
-// inteira) — busca tudo e filtra no nosso lado.
-async function getAnalytics() {
-  return zernioFetch('/analytics')
+// Relatórios de analytics são mantidos como métodos explícitos para que a
+// camada de serviço não conheça paths nem detalhes de autenticação do Zernio.
+// O parâmetro query é opcional para preservar o contrato usado pelo fluxo
+// legado de reconciliação.
+async function getAnalytics(query) {
+  return zernioFetch('/analytics', { query })
+}
+
+async function getDailyMetrics(query) {
+  return zernioFetch('/analytics/daily-metrics', { query })
+}
+
+async function getContentDecay(query) {
+  return zernioFetch('/analytics/content-decay', { query })
+}
+
+async function getPostTimeline(query) {
+  return zernioFetch('/analytics/post-timeline', { query })
+}
+
+async function getFollowerStats(query) {
+  return zernioFetch('/accounts/follower-stats', { query })
+}
+
+async function getFacebookPageInsights(query) {
+  return zernioFetch('/analytics/facebook/page-insights', { query })
+}
+
+async function getInstagramAccountInsights(query) {
+  return zernioFetch('/analytics/instagram/account-insights', { query })
+}
+
+async function getInstagramDemographics(query) {
+  return zernioFetch('/analytics/instagram/demographics', { query })
+}
+
+async function getTiktokAccountInsights(query) {
+  return zernioFetch('/analytics/tiktok/account-insights', { query })
+}
+
+async function getYoutubeChannelInsights(query) {
+  return zernioFetch('/analytics/youtube/channel-insights', { query })
+}
+
+async function getYoutubeDailyViews(query) {
+  return zernioFetch('/analytics/youtube/daily-views', { query })
+}
+
+async function getYoutubeVideoRetention(query) {
+  return zernioFetch('/analytics/youtube/video-retention', { query })
+}
+
+async function getYoutubeDemographics(query) {
+  return zernioFetch('/analytics/youtube/demographics', { query })
+}
+
+async function getFacebookPostReactions(accountId, query) {
+  return zernioFetch(`/accounts/${encodeURIComponent(accountId)}/facebook-post-reactions`, { query })
 }
 
 module.exports = {
   ZernioError,
   connectUrl, listAccounts, getAccountHealth, disconnectAccount, listProfiles,
-  createPost, getPost, getAnalytics
+  createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getPostTimeline,
+  getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
+  getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,
+  getYoutubeDailyViews, getYoutubeVideoRetention, getYoutubeDemographics,
+  getFacebookPostReactions
 }

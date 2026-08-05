@@ -30,7 +30,8 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
     SELECT
       t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
-      t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.external_user_id AS "externalUserId"
+      t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.external_user_id AS "externalUserId",
+      c.zernio_account_id AS "zernioAccountId"
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
     WHERE ${conds.join(' AND ')}

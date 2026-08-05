@@ -86,7 +86,11 @@ async function getPosts(req, res) {
 
 async function getAnalytics(req, res) {
   try {
-    const data = await buscarAnalytics(ctx(req))
+    const days = req.query.days === undefined ? 30 : Number(req.query.days)
+    if (!Number.isInteger(days) || days < 1 || days > 90)
+      return res.status(400).json({ erro: 'days deve ser um inteiro entre 1 e 90' })
+
+    const data = await buscarAnalytics({ ...ctx(req), days })
     res.json(data)
   } catch (e) {
     serverError(res, e)
@@ -129,9 +133,11 @@ async function getMetricsHistory(req, res) {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
 
-    const history = await buscarMetricsHistory({ id, ...ctx(req) })
-    if (history === null) return res.status(404).json({ erro: 'Post não encontrado' })
-    res.json({ history })
+    const result = await buscarMetricsHistory({ id, ...ctx(req) })
+    if (result === null) return res.status(404).json({ erro: 'Post não encontrado' })
+    // Mantém `history` como array para clientes existentes e acrescenta a
+    // linha do tempo do provedor sem quebrar o contrato anterior.
+    res.json(Array.isArray(result) ? { history: result } : result)
   } catch (e) {
     serverError(res, e)
   }

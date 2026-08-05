@@ -29,7 +29,17 @@ jest.mock('../../src/services/metricsService', () => ({
   buscarMetricasPost: jest.fn(),
   buscarSeriesSeguidoresInstagram: jest.fn().mockResolvedValue({}),
   buscarSeriesStatsTiktok: jest.fn().mockResolvedValue({}),
+  buscarSeriesInscritosYoutube: jest.fn().mockResolvedValue({}),
+  buscarDemografiaInstagram: jest.fn().mockResolvedValue(null),
+  buscarDemografiaYoutube: jest.fn().mockResolvedValue(null),
+  buscarHistoricoPostZernio: jest.fn().mockResolvedValue([]),
   buscarVideosTiktok: jest.fn().mockResolvedValue([]),
+}))
+jest.mock('../../src/services/accountAnalyticsService', () => ({
+  buscarAnalyticsContas: jest.fn().mockResolvedValue({
+    dateRange: null, capabilities: {}, platforms: {}, dailyMetrics: [],
+    contentDecay: [], followerStats: null, errors: []
+  })
 }))
 jest.mock('../../src/services/instagramReconcileService', () => ({
   reconciliarPostsInstagram: jest.fn().mockResolvedValue(undefined),
@@ -39,6 +49,7 @@ jest.mock('../../src/infra/social/publisher', () => ({ publishPost: jest.fn() })
 const usersRepo = require('../../src/repositories/usersRepository')
 const postsRepo = require('../../src/infra/db/postsRepository')
 const commentsService = require('../../src/services/commentsService')
+const accountAnalyticsService = require('../../src/services/accountAnalyticsService')
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
@@ -82,6 +93,25 @@ describe('GET /api/posts', () => {
     postsRepo.listarPosts.mockResolvedValue([])
     const res = await request(app).get('/api/posts?status=scheduled').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
+  })
+})
+
+describe('GET /api/posts/analytics', () => {
+  test('400 quando o período excede o limite da API de insights', async () => {
+    const res = await request(app).get('/api/posts/analytics?days=91').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(400)
+    expect(accountAnalyticsService.buscarAnalyticsContas).not.toHaveBeenCalled()
+  })
+
+  test('200 preserva o contrato legado e inclui analytics completos', async () => {
+    const res = await request(app).get('/api/posts/analytics?days=30').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(expect.objectContaining({
+      series: expect.any(Object),
+      metrics: expect.any(Array),
+      accountAnalytics: expect.any(Object)
+    }))
+    expect(accountAnalyticsService.buscarAnalyticsContas).toHaveBeenCalledWith(expect.objectContaining({ days: 30 }))
   })
 })
 

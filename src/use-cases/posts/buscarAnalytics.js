@@ -1,5 +1,6 @@
 const postsRepo = require('../../infra/db/postsRepository')
 const metricsService = require('../../services/metricsService')
+const accountAnalyticsService = require('../../services/accountAnalyticsService')
 const instagramReconcileService = require('../../services/instagramReconcileService')
 
 // Métricas reais só existem para publicações com external_post_id, ou seja,
@@ -10,7 +11,7 @@ const instagramReconcileService = require('../../services/instagramReconcileServ
 // API externa por rede em contas com muito histórico.
 const MAX_PUBLICACOES_COM_METRICAS = 30
 
-async function buscarAnalytics({ userId, userRole, isAdmin }) {
+async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
   // Tenta recuperar o ID externo de posts antigos do Instagram (publicados
   // antes de existir essa coluna), casando com os posts reais da conta por
   // data/texto. Roda antes de listar para que esses posts já apareçam com
@@ -75,26 +76,35 @@ async function buscarAnalytics({ userId, userRole, isAdmin }) {
 
   // Saldo de seguidores e alcance do Instagram + TikTok + YouTube em paralelo
   // — métricas de conta, não de post. Falha silenciosa por plataforma.
-  const [igResult, ttResult, ytResult, igDemoResult, ytDemoResult] = await Promise.allSettled([
+  const [igResult, ttResult, ytResult, igDemoResult, ytDemoResult, accountAnalyticsResult] = await Promise.allSettled([
     metricsService.buscarSeriesSeguidoresInstagram(userId, isAdmin),
     metricsService.buscarSeriesStatsTiktok(userId, isAdmin),
     metricsService.buscarSeriesInscritosYoutube(userId, isAdmin),
     metricsService.buscarDemografiaInstagram(userId, isAdmin),
     metricsService.buscarDemografiaYoutube(userId, isAdmin),
+    accountAnalyticsService.buscarAnalyticsContas({ userId, isAdmin, days }),
   ])
   const instagramFollowers = igResult.status === 'fulfilled' ? igResult.value : {}
   const tiktokStats = ttResult.status === 'fulfilled' ? ttResult.value : {}
   const youtubeSubscribers = ytResult.status === 'fulfilled' ? ytResult.value : {}
   const instagramDemographics = igDemoResult.status === 'fulfilled' ? igDemoResult.value : null
   const youtubeDemographics = ytDemoResult.status === 'fulfilled' ? ytDemoResult.value : null
+  const accountAnalytics = accountAnalyticsResult.status === 'fulfilled'
+    ? accountAnalyticsResult.value
+    : { dateRange: null, capabilities: {}, platforms: {}, dailyMetrics: [], contentDecay: [], followerStats: null, errors: [{ scope: 'account_analytics', message: 'Não foi possível carregar os relatórios completos.' }] }
 
-  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics }
+  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics, accountAnalytics }
 }
 
 async function buscarMetricsHistory({ id, userId, isAdmin }) {
   const post = await postsRepo.buscarPostPorId(id, userId, isAdmin)
   if (!post) return null
-  return postsRepo.buscarHistoricoMetricas(id)
+  const [history, publications] = await Promise.all([
+    postsRepo.buscarHistoricoMetricas(id),
+    postsRepo.listarPublicacoesDosPosts([id])
+  ])
+  const providerTimelines = await metricsService.buscarHistoricoPostZernio(publications, userId, isAdmin)
+  return { history, providerTimelines }
 }
 
 module.exports = { buscarAnalytics, buscarMetricsHistory }

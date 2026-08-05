@@ -2,6 +2,7 @@ const { buscarContaToken, listarContasToken } = require('../infra/social/publish
 const contasRepo = require('../repositories/contasRepository')
 const tokensRepo = require('../repositories/tokensRepository')
 const zernioClient = require('../infra/social/zernioClient')
+const { normalizePostAnalytics } = require('../domain/analytics/normalizeAnalytics')
 
 // Access tokens do Google (YouTube) expiram em ~1h. Se o token estiver
 // expirado (ou prestes a expirar) na hora de buscar métricas, a Data API e a
@@ -35,21 +36,27 @@ async function fetchComTimeout(url, opts = {}) {
 }
 
 // Facebook/Instagram/TikTok publicam via Zernio agora — as métricas também
-// vêm de lá. GET /v1/analytics não aceita filtro por post via query
-// (testado em 2026-08-03), então busca a lista inteira e acha o post pelo
-// platformPostId (external_post_id salvo em post_publications). Ineficiente
-// em volume alto, mas aceitável no volume atual do app; revisar se o Zernio
-// expuser um filtro server-side no futuro.
+// vêm de lá. O endpoint aceita postId/accountId, então a consulta é limitada
+// ao conteúdo solicitado e não precisa carregar o catálogo inteiro.
 async function metricsZernio(token, externalPostId) {
-  const { posts } = await zernioClient.getAnalytics()
-  for (const post of posts) {
-    const plataforma = post.platforms?.find(p => p.platformPostId === externalPostId)
-    if (plataforma) {
-      const a = plataforma.analytics || {}
-      return { likes: a.likes ?? null, comments: a.comments ?? null, shares: a.shares ?? a.shareCount ?? null, views: a.views ?? null }
+  const result = await zernioClient.getAnalytics({
+    postId: externalPostId,
+    ...(token.zernioAccountId ? { accountId: token.zernioAccountId } : {})
+  })
+  const metrics = normalizePostAnalytics(result, externalPostId)
+
+  const resultPlatforms = result?.post?.platforms || result?.platforms || []
+  const resultPlatform = result?.platform || resultPlatforms.find(item => item.platformPostId === externalPostId)?.platform
+  if (token.zernioAccountId && resultPlatform === 'facebook') {
+    try {
+      const reactions = await zernioClient.getFacebookPostReactions(token.zernioAccountId, { postId: externalPostId })
+      metrics.reactionBreakdown = reactions.breakdown || {}
+      metrics.reactionTotal = reactions.total ?? null
+    } catch {
+      // Reações por tipo são opcionais; as métricas agregadas continuam.
     }
   }
-  return { likes: null, comments: null, shares: null, views: null }
+  return metrics
 }
 
 // Tempo médio de visualização (em segundos) de um vídeo específico, via
@@ -72,24 +79,67 @@ async function metricsYoutubeWatchTime(token, videoId) {
   }
 }
 
+// Relatório completo de um vídeo. O Data API continua sendo a fonte dos
+// contadores instantâneos; o Analytics API complementa com watch time,
+// retenção, compartilhamentos e conversão em inscritos. Cada campo é
+// best-effort porque alguns canais não têm dados suficientes ou monetização.
+async function metricsYoutubeVideoAnalytics(token, videoId) {
+  const metrics = [
+    'views', 'engagedViews', 'likes', 'comments', 'shares', 'dislikes',
+    'estimatedMinutesWatched', 'averageViewDuration', 'averageViewPercentage',
+    'subscribersGained', 'subscribersLost'
+  ]
+  try {
+    const params = new URLSearchParams({
+      ids: 'channel==MINE',
+      startDate: '2005-01-01',
+      endDate: new Date().toISOString().slice(0, 10),
+      metrics: metrics.join(','),
+      filters: `video==${videoId}`
+    })
+    const res = await fetchComTimeout(`https://youtubeanalytics.googleapis.com/v2/reports?${params}`, {
+      headers: { Authorization: `Bearer ${token.accessToken}` }
+    })
+    const data = await res.json()
+    if (!res.ok || !data.rows?.[0]) return { watchTimeSeconds: await metricsYoutubeWatchTime(token, videoId) }
+    const headers = data.columnHeaders || []
+    const values = Object.fromEntries(headers.map((header, index) => [header.name, data.rows[0][index]]))
+    return {
+      views: Number(values.views) || null,
+      engagedViews: Number(values.engagedViews) || null,
+      likes: Number(values.likes) || null,
+      comments: Number(values.comments) || null,
+      shares: Number(values.shares) || null,
+      dislikes: Number(values.dislikes) || null,
+      estimatedMinutesWatched: Number(values.estimatedMinutesWatched) || null,
+      watchTimeSeconds: values.averageViewDuration == null ? null : Number(values.averageViewDuration),
+      averageViewPercentage: values.averageViewPercentage == null ? null : Number(values.averageViewPercentage),
+      subscribersGained: Number(values.subscribersGained) || null,
+      subscribersLost: Number(values.subscribersLost) || null
+    }
+  } catch {
+    return { watchTimeSeconds: await metricsYoutubeWatchTime(token, videoId) }
+  }
+}
+
 async function metricsYoutube(token, externalPostId) {
   const url = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(externalPostId)}`
 
   // Estatísticas básicas (Data API) e tempo médio de visualização (Analytics API)
   // são chamadas a APIs distintas e independentes — busca em paralelo.
-  const [res, watchTimeSeconds] = await Promise.all([
+  const [res, advancedMetrics] = await Promise.all([
     fetchComTimeout(url, { headers: { Authorization: `Bearer ${token.accessToken}` } }),
-    metricsYoutubeWatchTime(token, externalPostId)
+    metricsYoutubeVideoAnalytics(token, externalPostId)
   ])
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
   const stats = data.items?.[0]?.statistics
-  if (!stats) return { likes: null, comments: null, views: null, watchTimeSeconds }
+  if (!stats) return { likes: null, comments: null, views: null, ...advancedMetrics }
   return {
     likes: Number(stats.likeCount) || 0,
     comments: Number(stats.commentCount) || 0,
     views: Number(stats.viewCount) || 0,
-    watchTimeSeconds
+    ...advancedMetrics
   }
 }
 
@@ -283,6 +333,101 @@ async function metricsInscritosAtuaisYoutube(token) {
   return stats?.subscriberCount != null ? Number(stats.subscriberCount) : null
 }
 
+async function youtubeReport(token, { metrics, dimensions, filters, since, until }) {
+  const params = new URLSearchParams({
+    ids: 'channel==MINE',
+    startDate: since,
+    endDate: until,
+    metrics: metrics.join(',')
+  })
+  if (dimensions) params.set('dimensions', dimensions)
+  if (filters) params.set('filters', filters)
+
+  const res = await fetchComTimeout(`https://youtubeanalytics.googleapis.com/v2/reports?${params}`, {
+    headers: { Authorization: `Bearer ${token.accessToken}` }
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `YouTube Analytics respondeu ${res.status}`)
+  return data
+}
+
+function reportRows(data) {
+  const headers = data?.columnHeaders || []
+  return (data?.rows || []).map(row => Object.fromEntries(headers.map((header, index) => [header.name, row[index]])))
+}
+
+function reportMetricMap(data, dateDimension = null) {
+  const headers = data?.columnHeaders || []
+  const metricNames = headers.filter(header => header.columnType === 'METRIC').map(header => header.name)
+  const rows = reportRows(data)
+  return Object.fromEntries(metricNames.map(name => {
+    const values = dateDimension
+      ? rows.map(row => ({ date: row[dateDimension], value: Number(row[name]) || 0 })).filter(item => item.date)
+      : []
+    const total = rows.reduce((sum, row) => sum + (Number(row[name]) || 0), 0)
+    return [name, { total, values }]
+  }))
+}
+
+// O YouTube Analytics API permite consultar várias famílias de relatório
+// usando a mesma credencial. Relatórios opcionais falham isoladamente para
+// que falta de monetização/dados demográficos não esconda os números básicos.
+async function buscarInsightsYoutube(userId, isAdmin, { since, until }) {
+  const tokens = await listarContasToken('youtube', userId, isAdmin)
+  const accounts = await Promise.all(tokens.map(async token => {
+    const base = {
+      localAccountId: token.contaId,
+      accountName: token.accountName || token.handle || null,
+      platform: 'youtube',
+      dateRange: { since, until },
+      metrics: {},
+      reports: {},
+      errors: []
+    }
+
+    const reports = {
+      daily: { metrics: ['views', 'engagedViews', 'likes', 'comments', 'shares', 'dislikes', 'estimatedMinutesWatched', 'averageViewDuration', 'averageViewPercentage', 'subscribersGained', 'subscribersLost'], dimensions: 'day', dateDimension: 'day' },
+      demographics: { metrics: ['viewerPercentage'], dimensions: 'ageGroup,gender' },
+      countries: { metrics: ['views', 'viewerPercentage'], dimensions: 'country' },
+      trafficSources: { metrics: ['views', 'estimatedMinutesWatched'], dimensions: 'insightTrafficSourceType' },
+      playbackLocations: { metrics: ['views', 'estimatedMinutesWatched'], dimensions: 'insightPlaybackLocationType' },
+      subscribedStatus: { metrics: ['views', 'estimatedMinutesWatched'], dimensions: 'subscribedStatus' },
+      contentTypes: { metrics: ['views', 'estimatedMinutesWatched'], dimensions: 'creatorContentType' },
+      revenue: { metrics: ['estimatedRevenue', 'grossRevenue', 'estimatedAdRevenue', 'monetizedPlaybacks', 'cpm', 'playbackBasedCpm'] }
+    }
+
+    await Promise.all(Object.entries(reports).map(async ([name, config]) => {
+      try {
+        const result = await youtubeReport(token, { ...config, since, until })
+        base.reports[name] = { headers: result.columnHeaders || [], rows: reportRows(result) }
+        const metricMap = reportMetricMap(result, config.dateDimension)
+        if (name === 'daily') base.metrics = metricMap
+        else if (Object.keys(metricMap).length) base.reports[name].metrics = metricMap
+      } catch (error) {
+        base.errors.push({ scope: name, message: error.message })
+      }
+    }))
+
+    return base
+  }))
+
+  return {
+    dateRange: { since, until },
+    capabilities: {
+      available: [
+        'views', 'engagedViews', 'likes', 'comments', 'shares', 'dislikes',
+        'estimatedMinutesWatched', 'averageViewDuration', 'averageViewPercentage',
+        'subscribersGained', 'subscribersLost', 'viewerPercentage',
+        'trafficSources', 'playbackLocations', 'subscribedStatus', 'contentTypes',
+        'estimatedRevenue', 'grossRevenue', 'estimatedAdRevenue', 'monetizedPlaybacks',
+        'cpm', 'playbackBasedCpm'
+      ],
+      unavailable: ['impressions', 'impressionsClickThroughRate']
+    },
+    accounts
+  }
+}
+
 // Demografia dos últimos 28 dias de audiência do canal (viewerPercentage) —
 // a Analytics API não expõe demografia de INSCRITOS, só de espectadores dos
 // vídeos, então isto é "quem assistiu", não "quem seguiu" (mesma limitação
@@ -379,8 +524,9 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
 }
 
 // Mesma lista de vídeos, mas para contas migradas para o Zernio — via
-// GET /v1/analytics (não paginado como a Content Posting API original;
-// devolve tudo que o Zernio já sincronizou para a conta).
+// GET /v1/analytics, devolvendo o catálogo que o Zernio já sincronizou para
+// a conta. O filtro local continua necessário porque a tela exibe várias
+// contas e a API pode retornar posts de mais de uma publicação.
 async function metricsVideosTiktokZernio(zernioAccountId) {
   const { posts } = await zernioClient.getAnalytics()
   const videos = []
@@ -452,7 +598,28 @@ async function buscarVideosTiktok(userId, isAdmin) {
     .sort((a, b) => b.createTime - a.createTime)
 }
 
+// Histórico fornecido pelo provedor para a tela de detalhe do post. O
+// snapshot local continua sendo retornado junto, pois cobre posts antigos e
+// redes que não usam Zernio.
+async function buscarHistoricoPostZernio(publications, userId, isAdmin) {
+  const results = await Promise.allSettled(publications.map(async publication => {
+    if (!['facebook', 'instagram', 'tiktok'].includes(publication.platform)) return null
+    const token = await buscarContaToken(publication.platform, userId, isAdmin, publication.accountId)
+    if (!token?.zernioAccountId) return null
+    const timeline = await zernioClient.getPostTimeline({
+      postId: publication.externalPostId
+    })
+    return {
+      platform: publication.platform,
+      externalPostId: publication.externalPostId,
+      accountId: publication.accountId,
+      timeline
+    }
+  }))
+  return results.filter(result => result.status === 'fulfilled' && result.value).map(result => result.value)
+}
+
 module.exports = {
   buscarMetricasPost, buscarSeriesSeguidoresInstagram, buscarSeriesStatsTiktok, buscarVideosTiktok, buscarSeriesInscritosYoutube,
-  buscarDemografiaInstagram, buscarDemografiaYoutube, PLATAFORMAS_COM_METRICAS
+  buscarDemografiaInstagram, buscarDemografiaYoutube, buscarInsightsYoutube, buscarHistoricoPostZernio, PLATAFORMAS_COM_METRICAS
 }
