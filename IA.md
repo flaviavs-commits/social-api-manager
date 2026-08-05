@@ -3,10 +3,10 @@
 ## Estado atual (resumo vivo)
 
 Última atualização: [2026-08-05]
-- Fase: shell React autenticado e dashboard inicial conectados; o agente operacional agora conhece os módulos e ações principais da aplicação.
-- Estado: CONCLUÍDO — substituído o chat que gerava somente uma legenda de Instagram por um agente com catálogo de capacidades, interpretação em linguagem natural, consultas isoladas por usuário e confirmação para ações mutáveis.
-- Próximo passo sugerido: teste manual autenticado no navegador para validar pedidos reais, OAuth, upload e preenchimento do agendador; esses fluxos continuam protegidos como encaminhamentos para interação explícita do usuário.
-- Validação: `npm run test:components` (7 arquivos / 32 testes), `npm run frontend:build` e `npm test` (23 suítes / 311 testes) passaram.
+- Fase: shell React autenticado, dashboard e analytics de contas conectados.
+- Estado: CONCLUÍDO — agente IA operacional e expansão completa do analytics implementados; a tela agora agrega métricas de post e de conta por rede, séries, demografia, crescimento, decadência do conteúdo, relatórios do YouTube e limitações explícitas das APIs.
+- Próximo passo sugerido: teste manual autenticado no navegador com contas reais e Zernio Analytics add-on/permissões do YouTube; as APIs reais podem devolver falhas parciais por escopo, janela de dados ou ausência de volume.
+- Validação: `npm test -- --runInBand` (25 suítes / 320 testes), `npm run frontend:build` e `git diff --check` passaram.
 
 ## Objetivo do projeto
 
@@ -42,6 +42,7 @@ Gerenciar publicações e métricas de redes sociais em uma única interface, co
 ## Resumos de decisão
 
 - [2026-08-04] CONTEXTO: testes de POST feitos em outro computador não exibiam falhas de publicação no frontend React. CAUSA: `POST /api/posts` retorna `202 processing` para `publishNow` e conclui a integração social em segundo plano; `scheduler-page.jsx` ignorava o corpo da resposta, limpava o formulário e mostrava sucesso, mas não consumia o evento `post_published` já emitido pelo backend. DECISÃO: reutilizar o polling existente de `/api/logs/events/since/:lastId`; capturar/drenar o cursor antes do POST para não reexibir histórico antigo e acompanhar apenas o ID retornado, apresentando os erros de `results` por plataforma/conta com `role="alert"`. A alteração manual foi escolhida porque não há script de transformação para componentes React e o ajuste é localizado. VALIDAÇÃO: `npm run test:components` (7 arquivos / 32 testes), `npm run frontend:build` e `git diff --check` passaram. Estado: CONCLUÍDO.
+- [2026-08-05] CONTEXTO: o analytics anterior cobria apenas parte das métricas agregadas e alguns snapshots locais. DECISÃO: centralizar o contrato em `src/domain/analytics/analyticsCatalog.js`, normalizar respostas heterogêneas em `normalizeAnalytics.js`, consultar os endpoints oficiais disponíveis do Zernio para Facebook/Instagram/TikTok e a YouTube Analytics API para relatórios diários, demografia, fontes, reprodução, inscrição, tipos de conteúdo e receita; preservar o legado e acrescentar `accountAnalytics` na rota `GET /api/posts/analytics?days=1..90`. O frontend exibe métricas, séries, dimensões, métricas diárias, crescimento, decadência e limitações não expostas. Falhas são isoladas por relatório/rede e não interrompem o restante. Estado: CONCLUÍDO.
 
 - [2026-07-31] CONTEXTO: introduzir React puro e modularização sem interromper o produto existente. ALTERNATIVAS: reescrever o dashboard inteiro ou migrar uma fatia vertical. DECISÃO: migrar a landing pública primeiro, isolando o build e conectando apenas `/` e `/sobre`. VALIDAÇÃO: build Vite e verificação das rotas Express.
 - [2026-07-31] CONTEXTO: conectar o dashboard ao React sem descartar comportamentos legados. ALTERNATIVAS: apagar o `app.html` ou migrar por fatias. DECISÃO: conectar `/app.html` ao shell React, manter o legado no repositório e migrar cada módulo com seus contratos de API. VALIDAÇÃO: build Vite passou; a migração integral fica interrompida nesta etapa para evitar regressão silenciosa.

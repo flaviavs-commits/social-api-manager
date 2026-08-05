@@ -366,6 +366,25 @@ para a conta Instagram Business vinculada à página:
 | POST | `/api/posts` | Agendar novo post |
 | DELETE | `/api/posts/:id` | Cancelar post agendado |
 
+#### Analytics
+
+`GET /api/posts/analytics?days=30` aceita de 1 a 90 dias e retorna tanto o
+resumo legado quanto `accountAnalytics`, organizado por rede e conta. O
+relatório inclui métricas de publicação (impressões, alcance, visualizações,
+curtidas, comentários, compartilhamentos, salvamentos, cliques e seguidores
+quando expostos), insights de conta, séries temporais, métricas diárias,
+crescimento de seguidores, decadência do conteúdo, demografia e, no YouTube,
+fontes de tráfego, locais de reprodução, status de inscrição, tipos de
+conteúdo e receita quando a conta/permissão disponibilizar esses dados.
+
+As métricas não expostas por cada API são devolvidas explicitamente em
+`accountAnalytics.capabilities.*.unavailable`, e falhas parciais ficam em
+`accountAnalytics.errors` ou no `errors` da conta; uma falha em uma rede não
+remove os dados das demais.
+
+`GET /api/posts/:id/metrics-history` mantém o histórico local e acrescenta
+`providerTimelines` quando o provedor oferece a linha do tempo do post.
+
 ### OAuth
 | Método | Rota | Descrição |
 |--------|------|-----------|
