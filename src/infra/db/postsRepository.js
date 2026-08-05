@@ -398,7 +398,12 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
   const inicio = new Date(Date.UTC(year, month - 1, 1))
   const fim    = new Date(Date.UTC(year, month, 1))
 
-  const conds  = [`scheduled_at >= $1`, `scheduled_at < $2`, `status <> 'cancelled'`]
+  // O calendário usa o horário efetivo: posts publicados agora entram pelo
+  // published_at; os que ainda aguardam publicação entram pelo scheduled_at.
+  // Assim o mesmo post aparece uma única vez no dia e horário em que de fato
+  // foi publicado/agendado.
+  const calendarDate = `COALESCE(published_at, scheduled_at)`
+  const conds  = [`${calendarDate} >= $1`, `${calendarDate} < $2`, `status <> 'cancelled'`]
   const params = [inicio.toISOString(), fim.toISOString()]
 
   if (!isAdmin) {
@@ -411,6 +416,7 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
       id, text, platforms, status, repeat,
       scheduled_at  AS "scheduledAt",
       published_at  AS "publishedAt",
+      ${calendarDate} AS "calendarAt",
       media_path    AS "mediaPath",
       media_type    AS "mediaType",
       media_items   AS "mediaItems",
@@ -419,7 +425,7 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
       user_id       AS "userId"
     FROM posts
     WHERE ${conds.join(' AND ')}
-    ORDER BY scheduled_at ASC
+    ORDER BY ${calendarDate} ASC
   `, params)
   return rows
 }
