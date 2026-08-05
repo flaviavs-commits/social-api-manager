@@ -50,4 +50,29 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.actionId).toBe('unknown')
     expect(plan.answer).toMatch(/funções disponíveis/i)
   })
+
+  test('interpreta reagendamento com data relativa e exige confirmação', () => {
+    const plan = interpretWithRules('reagende o post 42 para amanhã às 10h', 'calendario')
+
+    expect(plan.actionId).toBe('reschedule_post')
+    expect(plan.arguments.postId).toBe(42)
+    expect(new Date(plan.arguments.scheduledAt).getHours()).toBe(10)
+    expect(new Date(plan.arguments.scheduledAt).getMinutes()).toBe(0)
+    expect(plan.requiresConfirmation).toBe(true)
+  })
+
+  test('prioriza histórico de métricas em vez de navegação para analytics', () => {
+    const plan = interpretWithRules('mostre o histórico de métricas do post 42', 'ai')
+
+    expect(plan.actionId).toBe('metrics_history')
+    expect(plan.arguments.postId).toBe(42)
+  })
+
+  test('interpreta ações de inbox e textos salvos', () => {
+    expect(interpretWithRules('marque os comentários do post 42 como vistos', 'inbox').actionId).toBe('mark_comments_seen')
+    expect(interpretWithRules('tenho comentários não lidos?', 'inbox').actionId).toBe('unread_inbox')
+    const plan = interpretWithRules('salve este texto para usar depois: bom dia, comunidade', 'ai')
+    expect(plan.actionId).toBe('save_text')
+    expect(plan.arguments.body).toBe('bom dia, comunidade')
+  })
 })

@@ -51,6 +51,39 @@ function extractDraftText(message) {
   return (match?.[1] || message).trim()
 }
 
+function extractContent(message) {
+  const text = String(message)
+  const colon = text.match(/:\s*([\s\S]+)$/)
+  if (colon) return colon[1].replace(/["“”']+$/, '').trim()
+  const match = text.match(/(?:dizendo|com o texto|que|para lembrar(?: que)?)\s*[:\-]?\s*([\s\S]+)$/i)
+  return (match?.[1] || '').replace(/["“”']+$/, '').trim()
+}
+
+function extractScheduledAt(message, now = new Date()) {
+  const normalized = normalize(message)
+  const hourMatch = normalized.match(/(?:as|às)\s*(\d{1,2})(?:\s*[h:]\s*(\d{1,2}))?/) || normalized.match(/(\d{1,2})\s*h(?:\s*(\d{1,2}))?/)
+  if (!hourMatch) return null
+  const hour = Number(hourMatch[1])
+  const minute = Number(hourMatch[2] || 0)
+  if (hour > 23 || minute > 59) return null
+
+  const dateMatch = normalized.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](20\d{2}))?\b/)
+  let date
+  if (dateMatch) {
+    const day = Number(dateMatch[1])
+    const month = Number(dateMatch[2]) - 1
+    const year = Number(dateMatch[3] || now.getFullYear())
+    date = new Date(year, month, day)
+  } else {
+    date = new Date(now)
+    if (/depois de amanha/.test(normalized)) date.setDate(date.getDate() + 2)
+    else if (/amanha/.test(normalized)) date.setDate(date.getDate() + 1)
+    else if (!/hoje/.test(normalized)) return null
+  }
+  date.setHours(hour, minute, 0, 0)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
 function basePlan(actionId, args = {}, answer = '') {
   const capability = getCapability(actionId)
   return {
@@ -74,6 +107,31 @@ function interpretWithRules(message, currentPage) {
     return basePlan('show_capabilities', {}, 'Estas são as funções que posso executar ou abrir para você.')
   }
 
+  // Ações específicas vêm antes da navegação por módulo: frases como
+  // "mostre o histórico de métricas" também contêm o alias "analytics".
+  if (/reagend|mude.*horario|alter.*horario|troque.*horario/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    const scheduledAt = extractScheduledAt(text)
+    const missingFields = [postId ? null : 'postId', scheduledAt ? null : 'scheduledAt'].filter(Boolean)
+    return { ...basePlan('reschedule_post', { postId, scheduledAt }), missingFields, answer: missingFields.length ? 'Para reagendar, preciso do ID do post e de uma data e horário, por exemplo: amanhã às 10h.' : 'Posso reagendar essa publicação. Confirme para continuar.' }
+  }
+  if (/(?:cancel|cancele|excluir|apagar|remover)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('cancel_post', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso cancelar essa publicação. Confirme para continuar.' : 'Informe o ID do post que deseja cancelar.' }
+  }
+  if (/(?:marcar|marque)/.test(normalized) && /coment/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('mark_comments_seen', { postId, commentIds: [] }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso marcar os comentários desse post como vistos. Confirme para continuar.' : 'Informe o ID do post cujos comentários deseja marcar como vistos.' }
+  }
+  if (/historico|histórico|evolucao|evolução/.test(normalized) && /metric|post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('metrics_history', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar o histórico de métricas desse post.' : 'Informe o ID do post para consultar o histórico.' }
+  }
+  if (/(?:detalhe|informacoes|informações|dados)\b/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('post_details', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar os detalhes dessa publicação.' : 'Informe o ID do post para eu mostrar os detalhes.' }
+  }
+
   const page = Object.keys(PAGE_ALIASES).find(alias => normalized.includes(alias))
   if (/^(abra|abrir|ir para|va para|mostrar|mostre|acessar|quero ver)/i.test(normalized) && page) {
     const pageId = PAGE_ALIASES[page]
@@ -92,6 +150,24 @@ function interpretWithRules(message, currentPage) {
   if (/token|credencial/.test(normalized) && /expir|valid|status|listar|mostrar|quais/.test(normalized)) {
     const status = Object.keys(STATUS_ALIASES).find(alias => normalized.includes(alias))
     return basePlan('list_tokens', { platform: extractPlatforms(text)[0] || null, status: status ? STATUS_ALIASES[status] : null }, 'Vou consultar o estado dos seus tokens.')
+  }
+  if (/reagend|mude.*horario|alter.*horario|troque.*horario/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    const scheduledAt = extractScheduledAt(text)
+    const missingFields = [postId ? null : 'postId', scheduledAt ? null : 'scheduledAt'].filter(Boolean)
+    return { ...basePlan('reschedule_post', { postId, scheduledAt }), missingFields, answer: missingFields.length ? 'Para reagendar, preciso do ID do post e de uma data e horário, por exemplo: amanhã às 10h.' : 'Posso reagendar essa publicação. Confirme para continuar.' }
+  }
+  if (/(?:cancel|cancele|excluir|apagar|remover)/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('cancel_post', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso cancelar essa publicação. Confirme para continuar.' : 'Informe o ID do post que deseja cancelar.' }
+  }
+  if (/historico|histórico|evolucao|evolução/.test(normalized) && /metric|post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('metrics_history', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar o histórico de métricas desse post.' : 'Informe o ID do post para consultar o histórico.' }
+  }
+  if (/(?:detalhe|informacoes|informações|dados)\b/.test(normalized) && /post|publicacao|publicação/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('post_details', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar os detalhes dessa publicação.' : 'Informe o ID do post para eu mostrar os detalhes.' }
   }
   if (/rascunho/.test(normalized) && /excluir|apagar|remover|deletar/.test(normalized)) {
     const id = extractId(text, ['rascunho', 'draft'])
@@ -114,12 +190,37 @@ function interpretWithRules(message, currentPage) {
     return { ...basePlan('list_comments', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar os comentários desse post.' : 'Informe o ID do post para eu carregar os comentários.' }
   }
   if (/inbox|comentarios novos|comentários novos|interacoes|interações/.test(normalized)) return basePlan('list_inbox', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seu inbox.')
+  if (/(?:nao lido|não lido|nao vistos|não vistos|novos comentarios|novos comentários)/.test(normalized)) return basePlan('unread_inbox', {}, 'Vou verificar seus comentários não lidos.')
+  if (/(?:marcar|marque)/.test(normalized) && /coment/.test(normalized)) {
+    const postId = extractId(text, ['post', 'publicacao', 'publicação'])
+    return { ...basePlan('mark_comments_seen', { postId, commentIds: [] }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso marcar os comentários desse post como vistos. Confirme para continuar.' : 'Informe o ID do post cujos comentários deseja marcar como vistos.' }
+  }
   const contentIntent = /gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized)
     && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)
   if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
   if (/calendario|calendário|o que tenho agendado|publicacoes.*mes|publicações.*mês/.test(normalized)) return basePlan('calendar', extractMonth(text), 'Vou consultar o calendário desse período.')
   if (/requisit|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
   if (/contas conect|quais contas|listar contas|minhas redes/.test(normalized)) return basePlan('list_accounts', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar suas contas conectadas.')
+  if (/painel|dashboard|resumo.*conta|quantas contas/.test(normalized)) return basePlan('dashboard_summary', {}, 'Vou consultar o resumo do seu painel.')
+  if (/(?:video|vídeo)s?.*tiktok|tiktok.*(?:video|vídeo)s?/.test(normalized) && /listar|mostrar|ver|meus|quais/.test(normalized)) return basePlan('tiktok_videos', {}, 'Vou consultar seus vídeos do TikTok.')
+  if (/opcoes|opções|creator|criador/.test(normalized) && /tiktok/.test(normalized)) return basePlan('tiktok_creator_info', {}, 'Vou consultar as opções disponíveis no TikTok.')
+  if (/texto[s]? salvo|textos reutilizaveis|textos reutilizáveis/.test(normalized) && /listar|mostrar|quais|meus|ver/.test(normalized)) return basePlan('list_saved_texts', {}, 'Vou consultar seus textos salvos.')
+  if (/(?:salvar|salve|guardar|guarde).*(?:texto|frase)/.test(normalized)) {
+    const body = extractContent(text)
+    return { ...basePlan('save_text', { title: 'Texto salvo', body }), missingFields: body ? [] : ['body'], answer: body ? 'Posso salvar esse texto para reutilização. Confirme para continuar.' : 'Envie o texto que deseja salvar.' }
+  }
+  if (/(?:excluir|apagar|remover|deletar).*(?:texto salvo|texto reutilizavel|texto reutilizável)/.test(normalized)) {
+    const id = extractId(text, ['texto salvo', 'texto'])
+    return { ...basePlan('delete_saved_text', { id }), missingFields: id ? [] : ['id'], answer: id ? 'Posso excluir esse texto salvo. Confirme para continuar.' : 'Informe o ID do texto salvo.' }
+  }
+  if (/preset|predefin|configuracoes salvas|configurações salvas/.test(normalized) && /listar|mostrar|quais|meus|ver/.test(normalized)) return basePlan('list_presets', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seus presets.')
+  if (/(?:saude|saúde|disponibilidade).*(?:rede|plataforma|instagram|facebook|youtube|tiktok)/.test(normalized) || /(?:redes|plataformas).*funcionando/.test(normalized) || /status das plataformas/.test(normalized)) return basePlan('platform_health', {}, 'Vou consultar a saúde das plataformas.')
+  if (/(?:logs|historico de atividades|histórico de atividades|ultimos erros|últimos erros)/.test(normalized)) return basePlan('list_logs', { limit: 50 }, 'Vou consultar as atividades recentes.')
+  if (/(?:lembra|memoria|memória|preferencia|preferência).*(?:mim|minhas|sobre)/.test(normalized)) return basePlan('list_memories', {}, 'Vou consultar o que está salvo na memória da IA.')
+  if (/(?:lembre|lembrar|salve na memoria|salve na memória)/.test(normalized)) {
+    const content = extractContent(text)
+    return { ...basePlan('save_memory', { content, type: 'nota', model: 'gemini' }), missingFields: content ? [] : ['content'], answer: content ? 'Posso guardar essa informação na memória. Confirme para continuar.' : 'Diga qual informação devo guardar.' }
+  }
   if (/agendar|publicar agora|criar publicacao|criar publicação/.test(normalized)) return { ...basePlan('open_scheduler', {}), navigation: 'agendador', answer: 'Abrindo o Criador de Posts. Para publicar, ainda preciso da mídia, das redes e do horário quando forem exigidos.' }
   if (contentIntent) {
     const platforms = extractPlatforms(text)

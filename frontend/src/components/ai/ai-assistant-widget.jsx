@@ -13,6 +13,15 @@ function summarizeData(data) {
   if (data.accounts) return data.accounts.map(account => `• Conta #${account.id}: ${account.name || account.handle || account.platform}`).join('\n')
   if (data.tokens) return data.tokens.map(token => `• ${token.account_name || token.accountName || token.platform}: ${token.status || 'sem status'}`).join('\n')
   if (data.requirements) return Object.entries(data.requirements).map(([platform, requirement]) => `• ${platform}: mídia ${requirement.media}; ${requirement.observação}`).join('\n')
+  if (data.savedTexts) return data.savedTexts.slice(0, 8).map(item => `• Texto #${item.id}: ${item.title || item.body || 'sem título'}`).join('\n')
+  if (data.presets) return data.presets.slice(0, 8).map(item => `• Preset #${item.id}: ${item.name} (${item.platform})`).join('\n')
+  if (data.memories) return data.memories.slice(0, 8).map(item => `• Memória #${item.id}: ${item.conteudo}`).join('\n')
+  if (data.logs) return data.logs.slice(0, 8).map(item => `• ${item.platform || 'sistema'}: ${item.message}`).join('\n')
+  if (data.videos) return data.videos.slice(0, 8).map(item => `• ${item.title || item.description || item.id || 'Vídeo do TikTok'}: ${item.viewCount ?? item.view_count ?? 0} visualizações`).join('\n')
+  if (data.unread) return Object.entries(data.unread).map(([postId, count]) => `• Post #${postId}: ${count} não lido(s)`).join('\n')
+  if (data.status) return Object.entries(data.status).map(([platform, status]) => `• ${platform}: ${status}`).join('\n')
+  if (data.post) return `• Post #${data.post.id}: ${data.post.text || 'sem texto'} (${data.post.status || 'sem status'})`
+  if (data.history) return data.history.slice(0, 8).map(item => `• ${item.platform || 'rede'}: ${item.likes ?? 0} curtidas, ${item.comments ?? 0} comentários, ${item.views ?? 0} visualizações`).join('\n')
   if (data.reply) return `Resposta: ${data.reply.text || data.reply.message || 'publicada'}`
   if (data.summary) return Object.entries(data.summary).map(([key, value]) => `• ${key}: ${value}`).join('\n')
   return ''
