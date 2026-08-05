@@ -15,9 +15,11 @@ describe('AppShell', () => {
     expect(onPageChange).toHaveBeenCalledWith('rascunhos')
   })
 
-  it('shows the current page name as breadcrumb in the header', () => {
+  it('shows only the current page name in the header', () => {
     render(<AppShell page="tokens" onPageChange={() => {}}>conteúdo</AppShell>)
-    expect(screen.getByRole('navigation', { name: 'Localização atual' })).toHaveTextContent('Tokens')
+    const currentPage = screen.getByRole('navigation', { name: 'Página atual' })
+    expect(currentPage).toHaveTextContent('Tokens')
+    expect(currentPage).not.toHaveTextContent('Meu Ecoo Mídia')
   })
 
   it('"+ Criar Novo Post" navigates to the scheduler page', () => {

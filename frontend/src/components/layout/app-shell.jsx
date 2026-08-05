@@ -155,10 +155,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         >
           ☰
         </button>
-        <nav aria-label="Localização atual" className="flex min-w-0 items-center gap-2 text-xl font-semibold text-zinc-50">
-          <img src="/favicon.svg" alt="" className="hidden h-6 w-6 sm:block" />
-          <span className="hidden text-sm font-medium text-zinc-500 sm:inline">Meu Ecoo Mídia</span>
-          <span className="text-zinc-600" aria-hidden="true">/</span>
+        <nav aria-label="Página atual" className="flex min-w-0 items-center text-xl font-semibold text-zinc-50">
           <span className="truncate text-base text-gold sm:text-lg">{currentLabel}</span>
         </nav>
       </div>
