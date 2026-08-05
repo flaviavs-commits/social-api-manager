@@ -46,6 +46,7 @@ async function definirContasDoPost(postId, contas, mediaItemsByPlatform = {}) {
 async function listarContasDoPost(postId) {
   const { rows } = await pool.query(`
     SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle,
+           c.avatar_url AS "avatarUrl",
            pa.media_items AS "mediaItems"
     FROM post_accounts pa
     JOIN contas c ON c.id = pa.account_id
@@ -100,7 +101,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts
@@ -166,7 +167,7 @@ async function reservarPostsPendentes() {
       r.location_id AS "locationId", r.location_name AS "locationName", r.first_comment AS "firstComment",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'mediaItems', pa.media_items))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts

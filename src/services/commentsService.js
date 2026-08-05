@@ -5,9 +5,10 @@ const { buscarContaToken } = require('../infra/social/publisher')
 // leitura de comentários de terceiros — fica de fora por agora.
 const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube']
 
-// Só Instagram tem permissão (pages_manage_engagement faltando no Facebook,
-// YouTube exige moderação manual) para responder comentários por API.
-const PLATAFORMAS_COM_RESPOSTA = ['instagram']
+// Instagram e YouTube permitem responder por API com os escopos já pedidos na
+// conexão. Facebook depende do pages_manage_engagement, que não está presente
+// em todas as conexões atuais.
+const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'youtube']
 
 const COMMENTS_FETCH_TIMEOUT_MS = 4000
 
@@ -91,6 +92,17 @@ async function responderComentarioInstagram(token, commentId, text) {
   return data
 }
 
+async function responderComentarioYoutube(token, commentId, text) {
+  const res = await fetchComTimeout('https://www.googleapis.com/youtube/v3/comments?part=snippet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.accessToken}` },
+    body: JSON.stringify({ snippet: { parentId: commentId, textOriginal: text } })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
+  return data
+}
+
 // Mídia real do post direto da rede social — usado como preview no modal de
 // comentários porque o arquivo local enviado no upload (public/uploads) é
 // efêmero e pode não existir mais no disco (ex: depois de um redeploy),
@@ -117,7 +129,7 @@ const LISTERS = {
   facebook: listarComentariosFacebook,
   youtube: listarComentariosYoutube
 }
-const REPLIERS = { instagram: responderComentarioInstagram }
+const REPLIERS = { instagram: responderComentarioInstagram, youtube: responderComentarioYoutube }
 const MIDIA_FETCHERS = { instagram: buscarMidiaInstagram }
 
 async function buscarTokenPost(post) {
@@ -167,4 +179,4 @@ async function responderComentario(post, commentId, text) {
   return REPLIERS[post.externalPlatform](token, commentId, text)
 }
 
-module.exports = { listarComentariosPost, responderComentario, buscarMidiaPost, PLATAFORMAS_COM_COMENTARIOS }
+module.exports = { listarComentariosPost, responderComentario, buscarMidiaPost, PLATAFORMAS_COM_COMENTARIOS, PLATAFORMAS_COM_RESPOSTA }

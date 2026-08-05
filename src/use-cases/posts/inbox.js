@@ -82,12 +82,25 @@ async function listarComentarios({ id, userId, isAdmin }) {
 
   const { comments } = await commentsService.listarComentariosPost(post)
   const midiaRemota = await commentsService.buscarMidiaPost(post)
+  const platform = post.externalPlatform || post.platforms?.[0] || 'instagram'
+  const account = (post.accounts || []).find(item => item.platform === platform) || (post.accounts || [])[0] || {}
+  const text = post.textByPlatform?.[platform] || post.text || ''
+  const preview = {
+    id: post.id,
+    platform,
+    handle: account.handle || '',
+    avatarUrl: account.avatarUrl || null,
+    publishedAt: post.publishedAt || post.scheduledAt || null,
+    youtubeTitle: post.titleByPlatform?.youtube || post.youtubeTitle || '',
+    replySupported: (commentsService.PLATAFORMAS_COM_RESPOSTA || ['instagram']).includes(platform),
+    text
+  }
 
   return {
     comments,
     post: midiaRemota
-      ? { text: midiaRemota.caption || post.text, mediaItems: midiaRemota.itens }
-      : { text: post.text, mediaPath: post.mediaPath, mediaType: post.mediaType, mediaItems: post.mediaItems }
+      ? { ...preview, text: midiaRemota.caption || text, mediaItems: midiaRemota.itens }
+      : { ...preview, mediaPath: post.mediaPath, mediaType: post.mediaType, mediaItems: account.mediaItems || post.mediaItems }
   }
 }
 
