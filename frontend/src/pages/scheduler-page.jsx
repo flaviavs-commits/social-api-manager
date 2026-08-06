@@ -125,6 +125,11 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
+    const requestedPlatforms = [...new Set(selected.filter(platform => platforms.includes(platform)))]
+    if (!requestedPlatforms.length || requestedPlatforms.length > 4) {
+      setAnalysisError('Selecione entre 1 e 4 redes sociais antes de gerar a descrição.')
+      return
+    }
     setBusy(true)
     setAnalysisError('')
     setSuccessMessage('')
@@ -133,7 +138,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       const media = await buildMediaAnalysisPayload(file)
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
-        body: JSON.stringify({ ...media, plataformas: selected, contexto, melhorar: Boolean(contexto.trim()), modelo: MEDIA_AI_MODEL }),
+        body: JSON.stringify({ ...media, plataformas: requestedPlatforms, contexto, melhorar: Boolean(contexto.trim()), modelo: MEDIA_AI_MODEL }),
       })
       return { key: mediaFileKey(file), fileName: file.name, mediaType: media.mediaKind, previewUrl: previews.find(item => item.key === mediaFileKey(file))?.url, ...response }
     }))
@@ -147,11 +152,17 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     }
     if (successful.length) {
       const firstResult = successful[0]
-      const suggestion = selected
+      const suggestions = requestedPlatforms
         .map(platform => firstResult.sugestoes?.find(item => item.plataforma === platform))
-        .find(Boolean) || firstResult.sugestoes?.[0]
-      if (suggestion) onApply(suggestion, { silent: true })
-      setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} no campo do post.`)
+        .filter(Boolean)
+      const missingPlatforms = requestedPlatforms.filter(platform => !suggestions.some(suggestion => suggestion.plataforma === platform))
+      if (missingPlatforms.length) {
+        setAnalysisError(`A IA não retornou uma sugestão para: ${missingPlatforms.join(', ')}. Tente novamente.`)
+      } else {
+        const suggestion = suggestions.find(item => item.plataforma === requestedPlatforms[0]) || suggestions[0]
+        onApply(suggestion, { silent: true })
+        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} para ${suggestions.length} rede(s) selecionada(s).`)
+      }
     }
     setBusy(false)
   }

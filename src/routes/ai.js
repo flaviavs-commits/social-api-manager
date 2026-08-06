@@ -9,6 +9,20 @@ const { executeAgentAction } = require('../services/ai/agentExecutor')
 const { gerarTokenAprovacaoAgente, verificarTokenAprovacaoAgente } = require('../utils/authToken')
 
 const router = Router()
+const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
+
+function normalizarPlataformasSelecionadas(value) {
+  return Array.from(new Set((Array.isArray(value) ? value : [])
+    .map(platform => String(platform || '').trim().toLowerCase())
+    .filter(Boolean)))
+}
+
+function validarPlataformasSelecionadas(raw, plataformas) {
+  if (!Array.isArray(raw) || plataformas.length < 1 || plataformas.length > 4) return 'Selecione entre 1 e 4 redes sociais.'
+  const invalidas = plataformas.filter(platform => !SUPPORTED_PLATFORMS.includes(platform))
+  if (invalidas.length) return `Rede(s) social(is) inválida(s): ${invalidas.join(', ')}.`
+  return null
+}
 
 // Dicas de estilo para o prompt do LLM. O limite de 90 do TikTok também é
 // aplicado no pós-processamento por ajustarPostParaPlataformas().
@@ -43,7 +57,8 @@ Tarefa: Crie ${qtd} post(s) para redes sociais com base na instrução abaixo.
 INSTRUÇÃO DO USUÁRIO:
 ${instrucao.trim()}
 
-PLATAFORMAS ALVO:
+PLATAFORMAS SELECIONADAS — gere exatamente uma sugestão para cada uma e não inclua nenhuma rede não selecionada:
+${plataformas.join(', ')}
 ${platHints}
 
 ${toneHint}
@@ -623,10 +638,12 @@ router.get('/demo-status', async (req, res) => {
 // POST /api/ai/generate
 router.post('/generate', async (req, res) => {
   try {
-    const { instrucao, plataformas, quantidade, tom, idioma, modelo = 'gemini' } = req.body
+    const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo = 'gemini' } = req.body
+    const plataformas = normalizarPlataformasSelecionadas(plataformasRaw)
 
     if (!instrucao || !instrucao.trim()) return res.status(400).json({ erro: 'Instrução é obrigatória' })
-    if (!plataformas || !plataformas.length) return res.status(400).json({ erro: 'Selecione ao menos uma plataforma' })
+    const erroPlataformas = validarPlataformasSelecionadas(plataformasRaw, plataformas)
+    if (erroPlataformas) return res.status(400).json({ erro: erroPlataformas })
 
     const qtd    = Math.min(Math.max(parseInt(quantidade) || 3, 1), 10)
     const horariosSugeridos = calcularHorarios(qtd, plataformas)
@@ -1219,8 +1236,10 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
   const normalizarHashtags = value => Array.from(new Set((Array.isArray(value) ? value : [])
     .map(tag => String(tag || '').trim().replace(/^#+/, '').replace(/\s+/g, ''))
     .filter(Boolean)))
-  return (parsed.sugestoes || []).map(s => {
-    const plataforma = plataformas.includes(s.plataforma) ? s.plataforma : plataformas[0]
+  return (parsed.sugestoes || [])
+    .filter(s => plataformas.includes(s?.plataforma))
+    .map(s => {
+    const plataforma = s.plataforma
     const { post: ajustado } = ajustarPostParaPlataformas(
       { texto: s.texto || '', titulo: s.titulo || '' },
       [plataforma],
@@ -1251,7 +1270,7 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
       hashtagsNicho: plataforma === 'tiktok' ? [] : hashtags.filter(tag => hashtagsNicho.includes(tag)),
       observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
     }
-  })
+    })
 }
 
 // POST /api/ai/analyze-media — analisa imagem/vídeo e sugere texto para redes
@@ -1260,8 +1279,11 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, plataformas: plataformasRaw, contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
+    const plataformas = normalizarPlataformasSelecionadas(plataformasRaw)
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
+    const erroPlataformas = validarPlataformasSelecionadas(plataformasRaw, plataformas)
+    if (erroPlataformas) return res.status(400).json({ erro: erroPlataformas })
     if (modelo === 'local') return res.status(422).json({ erro: 'O Assistente Rápido não analisa imagens. O agendador usa o OpenRouter para interpretar a mídia.' })
 
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
@@ -1277,7 +1299,8 @@ Não responda com uma descrição técnica da imagem. Escreva o texto de publica
 
 Data de referência: ${dataAtual}
 
-Plataformas alvo: ${platDesc}${contextoHint}
+Plataformas selecionadas — gere EXATAMENTE uma sugestão para cada rede abaixo e não gere nenhuma outra: ${plataformas.join(', ')}
+${platDesc}${contextoHint}
 
 Para cada plataforma, forneça:
 - Um texto de post otimizado para aquela rede
@@ -1315,6 +1338,10 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     // (90 caracteres para o TikTok), em vez do limite genérico mais permissivo.
     const mediaType = isVideo ? 'video' : 'image'
     const sugestoes = formatarSugestoesMedia(parsed, plataformas, mediaType)
+    const plataformasSemSugestao = plataformas.filter(platform => !sugestoes.some(suggestion => suggestion.plataforma === platform && suggestion.texto?.trim()))
+    if (plataformasSemSugestao.length) {
+      return res.status(502).json({ erro: `A IA não retornou uma sugestão válida para: ${plataformasSemSugestao.join(', ')}. Tente gerar novamente.`, plataformas: plataformasSemSugestao })
+    }
     registrarAtividadeIA({
       userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
       detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : 'imagem'} · plataformas: ${plataformas.join(',')}`,
@@ -1322,6 +1349,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     res.json({
       descricao_midia: parsed.descricao_midia || '',
       sugestoes,
+      plataformas,
       modelo,
     })
   } catch (err) {
