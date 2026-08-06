@@ -1328,7 +1328,9 @@ router.post('/analyze-media', async (req, res) => {
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
 
     const dataAtual = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())
-    const prompt = `Você é um especialista em marketing digital e social media. Analise esta mídia e crie sugestões de posts para redes sociais.
+    const prompt = `Você é um especialista em marketing digital e social media. Analise a mídia e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
+
+Não responda com uma descrição técnica da imagem. Escreva o texto de publicação pronto para o público, relacionado ao que aparece na mídia e ao contexto informado. Se já existir texto no campo do post, melhore e complete esse texto em vez de ignorá-lo.
 
 Data de referência: ${dataAtual}
 

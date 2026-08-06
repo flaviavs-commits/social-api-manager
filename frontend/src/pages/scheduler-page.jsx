@@ -121,24 +121,22 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
         : `${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
     }
     if (successful.length) {
-      // O agendador usa um único texto principal para todas as redes
-      // selecionadas. A primeira sugestão compatível preenche esse campo.
       const firstResult = successful[0]
-      const suggestion = selected.map(platform => firstResult.sugestoes?.find(item => item.plataforma === platform)).find(Boolean) || firstResult.sugestoes?.[0]
-      if (suggestion) onApply(suggestion, { silent: true })
-      setSuccessMessage('Descrição inserida diretamente no campo de texto do post.')
+      const suggestions = selected.map(platform => firstResult.sugestoes?.find(item => item.plataforma === platform)).filter(Boolean)
+      if (suggestions.length) suggestions.forEach(suggestion => onApply(suggestion, { silent: true }))
+      setSuccessMessage(`Descrição inserida diretamente no campo do post para ${suggestions.length || 1} rede(s).`)
     }
     setBusy(false)
   }
 
-  return <section className="media-ai-assistant" aria-label="Sugestões de texto com inteligência artificial">
-    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Gere o texto a partir da sua mídia</strong><small>A IA analisa visualmente a imagem ou o vídeo e insere a descrição diretamente no campo de texto do post.</small></div><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando imagem...' : '✦ Gerar sugestão'}</button></div>
-    {!files.length && <p className="media-ai-help">Adicione uma imagem ou vídeo para liberar a análise.</p>}
-    {!selected.length && <p className="media-ai-help">Selecione pelo menos uma rede social na etapa anterior.</p>}
-    {files.length > 6 && <p className="media-ai-help">As primeiras 6 mídias serão analisadas por vez para manter o processamento rápido.</p>}
-    {analysisError && <p className="media-ai-error" role="alert">{analysisError}</p>}
-    {successMessage && <p className="media-ai-success" role="status">✓ {successMessage}</p>}
-  </section>
+  return <div className="media-ai-inline" aria-label="Gerar descrição do post com inteligência artificial">
+    <button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando mídia...' : '✦ Gerar descrição do post'}</button>
+    {!files.length && <small className="media-ai-help">Adicione uma imagem ou vídeo para gerar a descrição.</small>}
+    {!selected.length && <small className="media-ai-help">Selecione ao menos uma rede social.</small>}
+    {files.length > 6 && <small className="media-ai-help">Serão analisadas as primeiras 6 mídias.</small>}
+    {analysisError && <small className="media-ai-error" role="alert">{analysisError}</small>}
+    {successMessage && <small className="media-ai-success" role="status">✓ {successMessage}</small>}
+  </div>
 }
 
 // Categorias da YouTube Data API v3 — espelha src/domain/posts/post.js
@@ -357,7 +355,8 @@ export function SchedulerPage() {
   function applyMediaSuggestion(suggestion, options = {}) {
     const tags = uniqueAiTags(suggestion)
     const composedText = [suggestion.texto?.trim(), tags.length ? tags.map(tag => `#${tag}`).join(' ') : ''].filter(Boolean).join('\n\n')
-    setText(composedText)
+    setTextByPlatform(current => ({ ...current, [suggestion.plataforma]: composedText }))
+    if (suggestion.plataforma === selected[0]) setText(composedText)
     if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
     if (!options.silent) notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
   }
@@ -485,8 +484,7 @@ export function SchedulerPage() {
         <div className="media-preview-info"><strong title={item.file.name}>{item.file.name}</strong><small>{formatFileSize(item.file.size)}</small></div>
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}</div>}
-      <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
-      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
+      <label><span className="post-text-label"><span>Descrição do post</span><MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/></span><textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva a descrição do post ou gere com IA..." aria-label="Descrição do post" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>A descrição gerada será inserida aqui e adaptada para cada rede.</span><span>{text.length}/5000</span></span></label>
     </SchedSection>
 
     <SchedSection number={3} title="Configurações por rede">
