@@ -29,6 +29,14 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.arguments.tone).toBe('profissional')
   })
 
+  test('identifica pedido de imagem e deixa o modelo em fallback automático', () => {
+    const plan = interpretWithRules('crie uma imagem de uma cafeteria aconchegante ao pôr do sol', 'ai')
+
+    expect(plan.actionId).toBe('create_image')
+    expect(plan.arguments.description).toContain('cafeteria aconchegante')
+    expect(plan.arguments.model).toBe('auto')
+  })
+
   test('prioriza analytics quando o pedido consulta métricas das redes conectadas', () => {
     const plan = interpretWithRules('eu quero o analytics das redes sociais conectadas na aplicação, todas as informações', 'ai')
 

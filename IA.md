@@ -12,6 +12,20 @@
 
 Gerenciar publicações e métricas de redes sociais em uma única interface, com autenticação e integrações oficiais de cada plataforma.
 
+## Regras desejadas para a IA
+
+- Entender pedidos naturais, abreviações e erros de digitação sem exigir que o usuário conheça o nome interno da função.
+- Antes de afirmar que concluiu uma ação, confirmar que o backend devolveu um resultado válido; nunca simular publicação, imagem, métrica ou conta.
+- Ao criar conteúdo, adaptar texto, título, hashtags, tom e tamanho para cada rede escolhida e sempre recomendar revisão antes de publicar.
+- Ao criar uma imagem, preservar a descrição visual, tentar o modelo preferido e trocar automaticamente para outro provedor configurado se houver erro, quota, billing ou resposta sem imagem.
+- Oferecer ao usuário um seletor de modelos (Assistente Rápido, Gemini, GPT, OpenRouter e Claude), salvar a preferência e mostrar qual modelo foi utilizado; manter o fallback automático para imagens.
+- Validar a saída da geração de imagem antes de mostrá-la. Só informar sucesso quando houver uma URL ou data URL de imagem válida e informar qual modelo acabou sendo usado.
+- Se todos os provedores falharem, explicar o problema de forma curta, registrar o diagnóstico e oferecer a ação mais útil (tentar novamente, configurar uma chave ou abrir o módulo apropriado).
+- Não publicar, excluir, desconectar, responder comentários ou alterar dados sem confirmação explícita quando a ação for destrutiva ou externa.
+- Não inventar dados de analytics: separar claramente dados reais da conta, estimativas e recomendações gerais.
+- Fazer uma pergunta por vez quando faltar informação essencial e aproveitar a resposta seguinte para completar o plano pendente.
+- Em pedidos compostos, executar uma única ação por vez e explicar a próxima etapa, evitando alterações escondidas.
+
 ## Stack & dependências
 
 - [2026-07-31] Backend: Node.js + Express.

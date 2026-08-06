@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
+import { AiModelPicker } from './ai-model-picker.jsx'
 
 function persistMessage(contexto, role, conteudo) {
   apiFetch('/api/ai/chat-messages', { method: 'POST', body: JSON.stringify({ contexto, role, conteudo }) }).catch(() => {})
@@ -7,6 +8,7 @@ function persistMessage(contexto, role, conteudo) {
 
 function summarizeData(data) {
   if (!data) return ''
+  if (data.image) return `Imagem gerada pelo modelo ${data.modelo || 'disponível'}${data.fallback ? ' após fallback automático' : ''}.`
   if (data.capabilities) return data.capabilities.map(item => `• ${item.label}: ${item.description}`).join('\n')
   if (data.posts) return data.posts.slice(0, 8).map(post => `• #${post.id || '—'} ${post.text || post.title || post.texto || 'Publicação sem texto'} (${post.status || 'sem status'})`).join('\n')
   if (data.drafts) return data.drafts.slice(0, 8).map(draft => `• Rascunho #${draft.id}: ${draft.text || draft.title || 'sem texto'}`).join('\n')
@@ -36,11 +38,13 @@ function RobotAvatar({ size = 'small' }) {
 
 function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChangeMessage }) {
   const summary = summarizeData(message.data)
+  const image = message.data?.image
   return (
     <div className={`max-w-[90%] rounded-lg px-3 py-2 text-sm leading-snug ${message.role === 'user' ? 'ml-auto bg-gold/15 text-zinc-100' : 'bg-surface-soft text-zinc-200'}`}>
       {message.role === 'agent' && editingIndex === index
         ? <textarea value={message.text} onChange={event => onChangeMessage(index, event.target.value)} aria-label="Editar resposta da IA" className="w-full rounded border border-subtle bg-app p-2 text-sm text-zinc-100" />
         : <span className="whitespace-pre-line">{message.text}</span>}
+      {image && <img src={image} alt="Imagem criada pela IA" className="mt-2 max-h-72 w-full rounded-lg object-contain" />}
       {summary && <pre className="mt-2 whitespace-pre-wrap border-t border-subtle pt-2 text-xs text-zinc-400">{summary}</pre>}
       {message.role === 'agent' && <button type="button" onClick={() => onEdit(editingIndex === index ? null : index)} className="mt-1 block text-[11px] text-gold hover:underline">{editingIndex === index ? 'Concluir edição' : 'Editar resposta'}</button>}
       {message.confirmationToken && <button type="button" onClick={() => onConfirm(message.confirmationToken, index)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Confirmar ação</button>}
@@ -48,13 +52,14 @@ function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChang
   )
 }
 
-function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, error, input, onInputChange, onSend, onConfirm, onClose, messagesRef }) {
+function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, error, input, onInputChange, onSend, onConfirm, onClose, messagesRef, modelo, onModeloChange }) {
   return (
     <section role="dialog" aria-label="Assistente de IA" className="flex h-[520px] w-[min(390px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl">
       <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
         <div className="flex items-center gap-2"><RobotAvatar /><div><p className="text-sm font-semibold text-zinc-50">Agente IA</p><p className="text-[11px] text-zinc-500">Entendo os módulos e ações da aplicação</p></div></div>
         <button aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
       </header>
+      <div className="border-b border-subtle px-4 py-2"><AiModelPicker value={modelo} onChange={onModeloChange} compact /></div>
       <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {messages.length === 0 && <p className="text-sm text-zinc-500">Peça para consultar seus posts, abrir um módulo, gerar conteúdo ou executar uma ação confirmada.</p>}
         {messages.map((message, index) => <AgentMessage key={index} message={message} index={index} editingIndex={editingIndex} onEdit={onEdit} onChangeMessage={onChangeMessage} onConfirm={onConfirm} />)}
@@ -77,6 +82,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
   const [error, setError] = useState('')
   const [editingIndex, setEditingIndex] = useState(null)
   const [pendingPlan, setPendingPlan] = useState(null)
+  const [modelo, setModelo] = useState('local')
   const messagesRef = useRef(null)
 
   useEffect(() => {
@@ -103,7 +109,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
         action: plan?.actionId || null,
         contexto: summarizeData(data).slice(0, 1500),
       }))
-      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ message: text, currentPage, history, pendingPlan }) })
+      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ message: text, currentPage, history, pendingPlan, modelo }) })
       const reply = data.message || 'Solicitação processada.'
       setMessages(value => [...value, { role: 'agent', text: reply, data: data.data, plan: data.plan || null, confirmationToken: data.confirmationToken || null }])
       setPendingPlan(data.requiresInput ? data.plan : null)
@@ -116,7 +122,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     if (sending) return
     setError(''); setSending(true)
     try {
-      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ approvalToken: token }) })
+      const data = await apiFetch('/api/ai/agent', { method: 'POST', body: JSON.stringify({ approvalToken: token, modelo }) })
       const reply = data.message || 'Ação concluída.'
       setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text: `${message.text}\n${reply}`, data: data.data, confirmationToken: null } : message))
       setPendingPlan(null)
@@ -126,7 +132,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
   }
 
   return <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
-    {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} />}
+    {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} modelo={modelo} onModeloChange={setModelo} />}
     <button onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente de IA' : 'Abrir assistente de IA'} aria-expanded={open} className="ai-assistant-toggle flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : <RobotAvatar size="large" />}</button>
   </div>
 }

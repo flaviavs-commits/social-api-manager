@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
+import { AiModelPicker } from '../components/ai/ai-model-picker.jsx'
 
 export function AiPage() {
   const [instruction, setInstruction] = useState('')
@@ -9,6 +10,7 @@ export function AiPage() {
   const [loading, setLoading] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [activityLogs, setActivityLogs] = useState([])
+  const [modelo, setModelo] = useState('local')
 
   useEffect(() => {
     apiFetch('/api/ai/activity-log?limit=20')
@@ -19,7 +21,7 @@ export function AiPage() {
   async function generate(event) {
     event.preventDefault(); setLoading(true); setError('')
     try {
-      const data = await apiFetch('/api/ai/generate', { method: 'POST', body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
+      const data = await apiFetch('/api/ai/generate', { method: 'POST', body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
       setPosts((data.posts || []).map(post => ({ ...post, text: post.text || post.caption || '' })))
       setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
@@ -31,6 +33,7 @@ export function AiPage() {
       <SchedSection number={1} title="Instrução">
         <textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Inclua tema, público, objetivo, tom de voz ou rede social.</span>
       </SchedSection>
+      <AiModelPicker value={modelo} onChange={setModelo} />
       <button className="action-button ai-generate-button" disabled={loading}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
     </form>
     {error && <p className="error-message" role="alert">{error}</p>}

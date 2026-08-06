@@ -156,18 +156,109 @@ const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
 // usuário no OpenRouter, mesmo padrão já usado para o Imagen/Gemini.
 const OPENROUTER_IMAGE_MODEL = 'google/gemini-3.1-flash-lite-image'
 
-// Analisa uma imagem/vídeo respeitando o modelo escolhido pelo usuário no
-// seletor — cada provedor recebe a mídia no formato nativo do seu SDK.
-// Vídeo (sem mediaBase64) não tem suporte a mídia nativa em nenhum provedor
-// aqui; o prompt já avisa isso e pede sugestão baseada só no contexto.
+function imageError(message, status = 502, code = 'image_provider_error') {
+  return Object.assign(new Error(message), { status, code })
+}
+
+async function generateImageWithGemini(descricao, key) {
+  const { GoogleGenAI } = require('@google/genai')
+  const client = new GoogleGenAI({ apiKey: key })
+  const result = await client.models.generateContent({
+    model: GEMINI_IMAGE_MODEL,
+    contents: descricao,
+  })
+  const parts = result.candidates?.[0]?.content?.parts || []
+  const imgPart = parts.find(part => part.inlineData?.data)
+  if (!imgPart?.inlineData?.data) throw imageError('O Gemini respondeu sem uma imagem válida.')
+  const mimeType = imgPart.inlineData.mimeType || 'image/png'
+  return { image: `data:${mimeType};base64,${imgPart.inlineData.data}` }
+}
+
+async function generateImageWithOpenRouter(descricao, key) {
+  const OpenAI = require('openai')
+  const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
+  const completion = await client.chat.completions.create({
+    model: OPENROUTER_IMAGE_MODEL,
+    modalities: ['image', 'text'],
+    messages: [{ role: 'user', content: descricao }],
+  })
+  const message = completion.choices[0]?.message
+  const image = message?.images?.[0]?.image_url?.url
+  if (!image) throw imageError('O OpenRouter respondeu sem uma imagem válida.')
+  return { image, texto: message?.content || '' }
+}
+
+function imageProviderOrder(preferredModel, providers) {
+  const preferred = String(preferredModel || 'auto').toLowerCase()
+  const preferredProvider = preferred.includes('openrouter') ? 'openrouter' : preferred.includes('gemini') ? 'gemini' : null
+  const ordered = preferredProvider
+    ? [preferredProvider, ...providers.filter(provider => provider !== preferredProvider)]
+    : providers
+  return [...new Set(ordered)].filter(provider => providers.includes(provider))
+}
+
+// A geração é deliberadamente tolerante a falhas: uma quota esgotada, billing
+// bloqueado ou resposta vazia em um provedor não chega ao usuário enquanto
+// existir outro provedor configurado. O modelo efetivamente usado é devolvido
+// na resposta para manter a operação transparente.
+async function generateImageResilient({ descricao, userId, preferredModel = 'auto' }) {
+  const [geminiUserKey, openrouterUserKey] = await Promise.all([
+    getUserApiKey(pool, userId, 'gemini'),
+    getUserApiKey(pool, userId, 'openrouter'),
+  ])
+  const credentials = {
+    gemini: { key: geminiUserKey || process.env.GEMINI_API_KEY, userKey: geminiUserKey },
+    openrouter: { key: openrouterUserKey || process.env.OPENROUTER_API_KEY, userKey: openrouterUserKey },
+  }
+  const providers = Object.keys(credentials).filter(provider => credentials[provider].key)
+  if (!providers.length) throw imageError('Nenhum provedor de imagens está configurado.', 402, 'sem_chave')
+
+  const tentados = []
+  const erros = []
+  for (const provider of imageProviderOrder(preferredModel, providers)) {
+    const credential = credentials[provider]
+    tentados.push(provider)
+    try {
+      const result = provider === 'gemini'
+        ? await generateImageWithGemini(descricao, credential.key)
+        : await generateImageWithOpenRouter(descricao, credential.key)
+      const modelo = provider === 'gemini' ? GEMINI_IMAGE_MODEL : OPENROUTER_IMAGE_MODEL
+      return {
+        ...result,
+        modelo,
+        modelosTentados: tentados,
+        fallback: tentados.length > 1,
+        chaveServidor: !credential.userKey,
+      }
+    } catch (error) {
+      erros.push(`${provider}: ${error.message}`)
+      console.error(`[AI Image ${provider}]`, error.message)
+    }
+  }
+
+  const failure = imageError('Não foi possível gerar a imagem com os modelos disponíveis. Tente novamente em instantes.', 502)
+  failure.details = erros.join(' | ')
+  failure.modelosTentados = tentados
+  throw failure
+}
+
+// Analisa uma imagem ou um frame representativo de vídeo respeitando o modelo
+// escolhido pelo usuário no seletor — cada provedor recebe a mídia no formato
+// nativo do seu SDK. O navegador envia um frame comprimido para vídeo; quando
+// ele não está disponível, o modelo ainda consegue gerar uma sugestão usando o
+// contexto textual informado.
 async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo }) {
-  if (isVideo) {
+  if (isVideo && !mediaBase64) {
     const promptVideo = `${prompt}\n\n(Nota: o usuário enviou um vídeo. Crie sugestões com base no contexto disponível.)`
     if (OPENAI_MODEL_IDS[modelo])          return generateWithOpenAI(promptVideo, userKey, modelo)
     if (OPENROUTER_MODEL_IDS[modelo])      return generateWithOpenRouter(promptVideo, userKey, modelo)
     if (CLAUDE_MODEL_IDS[modelo])          return generateWithClaude(promptVideo, userKey, modelo)
     return generateWithGemini(promptVideo, userKey, modelo)
   }
+
+  const promptForModel = isVideo
+    ? `${prompt}\n\n(Nota: esta é uma sugestão para um vídeo. A imagem recebida é um frame representativo; considere também a linguagem audiovisual, o ritmo e uma chamada para assistir até o final.)`
+    : prompt
 
   if (OPENAI_MODEL_IDS[modelo]) {
     const key = userKey || process.env.OPENAI_API_KEY
@@ -180,7 +271,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
       messages: [{
         role: 'user',
         content: [
-          { type: 'text', text: prompt },
+          { type: 'text', text: promptForModel },
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
         ],
       }],
@@ -199,7 +290,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
       messages: [{
         role: 'user',
         content: [
-          { type: 'text', text: prompt },
+          { type: 'text', text: promptForModel },
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
         ],
       }],
@@ -219,7 +310,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType, data: mediaBase64 } },
-          { type: 'text', text: prompt },
+          { type: 'text', text: promptForModel },
         ],
       }],
     })
@@ -240,7 +331,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
     model: geminiModel,
     contents: [
       { inlineData: { mimeType, data: mediaBase64 } },
-      { text: prompt },
+      { text: promptForModel },
     ],
   })
   return result.text
@@ -1148,100 +1239,39 @@ pool.query(`
   )
 `).catch(() => {})
 
-// POST /api/ai/image/generate — gera imagem via Gemini multimodal ("Nano
-// Banana", modelo gemini-2.5-flash-image). O Imagen dedicado (client.models.
-// generateImages, método predict) foi descontinuado pelo Google para novas
-// contas ("This model ... is no longer available to new users", testado em
-// 2026-08-03) — a geração de imagem hoje passa pelo mesmo generateContent
-// usado para texto, só que o modelo devolve a imagem como um inlineData
-// dentro dos parts da resposta, em vez de texto.
-// Usa a chave própria do usuário quando cadastrada; sem ela, cai para
-// GEMINI_API_KEY do servidor (mesma chave já usada pelo chat de texto, ver
-// generateWithGemini) em vez de recusar — o chat mostra pro usuário qual
-// chave está em uso. Chamada roda "em segundo plano" da perspectiva do chat
-// (aiHandleImageRequest no frontend): o modelo de TEXTO selecionado pelo
-// usuário não muda, só essa requisição pontual usa o Gemini para a imagem.
+// Modelo dedicado usado pelo gerador multimodal do Gemini.
 const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image'
 
-router.post('/image/generate', async (req, res) => {
+async function generateImageEndpoint(req, res) {
   const { descricao } = req.body || {}
   if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
 
-  const userKey = await getUserApiKey(pool, req.user.id, 'gemini')
-  const usandoChaveServidor = !userKey
-  const key = userKey || process.env.GEMINI_API_KEY
-  if (!key) return res.status(402).json({ erro: 'sem_chave' })
-
   try {
-    const { GoogleGenAI } = require('@google/genai')
-    const client = new GoogleGenAI({ apiKey: key })
-    const result = await client.models.generateContent({
-      model: GEMINI_IMAGE_MODEL,
-      contents: descricao.trim(),
+    const result = await generateImageResilient({
+      descricao: descricao.trim(),
+      userId: req.user.id,
+      preferredModel: req.body?.modelo || 'auto',
     })
-
-    const parts = result.candidates?.[0]?.content?.parts || []
-    const imgPart = parts.find(p => p.inlineData)
-    const imgData = imgPart?.inlineData?.data
-    const mimeType = imgPart?.inlineData?.mimeType || 'image/png'
-    if (!imgData) return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
-
-    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'gemini', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
-    res.json({ image: `data:${mimeType};base64,${imgData}`, chaveServidor: usandoChaveServidor })
+    await registrarAtividadeIA({
+      userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: result.modelo,
+      detalhes: `${result.fallback ? 'fallback automático · ' : ''}${result.chaveServidor ? 'chave do servidor' : 'chave do usuário'} · tentados: ${result.modelosTentados.join(', ')}`,
+    })
+    res.json(result)
   } catch (err) {
     console.error('[AI Image]', err.message)
-    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'gemini', detalhes: `${usandoChaveServidor ? 'chave do servidor' : 'chave do usuário'}: ${err.message}` })
-    if (err.message?.includes('billing')) return res.status(402).json({ erro: 'billing', chaveServidor: usandoChaveServidor })
-    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'quota', chaveServidor: usandoChaveServidor })
-    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.', chaveServidor: usandoChaveServidor })
+    await registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'auto', detalhes: err.details || err.message })
+    return res.status(err.status || 502).json({ erro: err.code === 'sem_chave' ? 'sem_chave' : err.message, modelosTentados: err.modelosTentados || [] })
   }
-})
+}
 
-// POST /api/ai/image/generate-openrouter — gera TEXTO e IMAGEM juntos, na
-// mesma chamada, via modelo multimodal do OpenRouter (Nano Banana 2 Lite).
-// Usa a chave própria do usuário quando cadastrada; sem ela, cai para
-// OPENROUTER_API_KEY do servidor — mesmo padrão de fallback já usado em
-// /image/generate (Gemini). Confirmado por teste real (2026-08-03): a
-// chave do servidor gera imagem de verdade com esse modelo, sem o bloqueio
-// de billing que afeta o Gemini/Imagen hoje.
+router.post('/image/generate', generateImageEndpoint)
+
+// Compatibilidade com clientes que ainda escolhem explicitamente OpenRouter.
+// Se esse provedor falhar, o roteador tenta Gemini automaticamente.
 router.post('/image/generate-openrouter', async (req, res) => {
-  try {
-    const { descricao } = req.body || {}
-    if (!descricao?.trim()) return res.status(400).json({ erro: 'Descrição é obrigatória' })
-
-    const userKey = await getUserApiKey(pool, req.user.id, 'openrouter')
-    const usandoChaveServidor = !userKey
-    const key = userKey || process.env.OPENROUTER_API_KEY
-    if (!key) return res.status(402).json({ erro: 'sem_chave' })
-
-    const OpenAI = require('openai')
-    const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
-    const completion = await client.chat.completions.create({
-      model: OPENROUTER_IMAGE_MODEL,
-      modalities: ['image', 'text'],
-      messages: [{ role: 'user', content: descricao.trim() }],
-    })
-
-    const message = completion.choices[0]?.message
-    const imageUrl = message?.images?.[0]?.image_url?.url
-    if (!imageUrl) {
-      // O modelo respondeu sem lançar exceção, mas sem imagem — sem este log,
-      // esse caso ficava invisível (nem console.error, nem ai_activity_log),
-      // dificultando saber se é recorrente ou o que o modelo respondeu.
-      const detalhes = `sem imagem na resposta — finish_reason: ${completion.choices[0]?.finish_reason || 'desconhecido'}; texto: ${(message?.content || '(vazio)').slice(0, 300)}`
-      console.error('[AI Image OpenRouter]', detalhes)
-      registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'openrouter', detalhes: usandoChaveServidor ? `chave do servidor: ${detalhes}` : `chave do usuário: ${detalhes}` })
-      return res.status(500).json({ erro: 'Imagem não gerada. Tente novamente.' })
-    }
-
-    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'sucesso', modelo: 'openrouter', detalhes: usandoChaveServidor ? 'chave do servidor' : 'chave do usuário' })
-    res.json({ image: imageUrl, texto: message?.content || '', chaveServidor: usandoChaveServidor })
-  } catch (err) {
-    console.error('[AI Image OpenRouter]', err.message)
-    registrarAtividadeIA({ userId: req.user.id, acao: 'image-generate', status: 'erro', modelo: 'openrouter', detalhes: err.message })
-    if (err.message?.includes('quota') || err.message?.includes('429')) return res.status(429).json({ erro: 'Limite de geração de imagens atingido. Tente novamente mais tarde.' })
-    return res.status(500).json({ erro: err.message || 'Erro ao gerar imagem.' })
-  }
+  const body = { ...req.body, modelo: 'openrouter' }
+  req.body = body
+  return generateImageEndpoint(req, res)
 })
 
 // POST /api/ai/image/lead — salva lead de usuário interessado em geração de imagem
@@ -1263,7 +1293,7 @@ router.post('/image/lead', async (req, res) => {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
 
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
@@ -1271,14 +1301,21 @@ router.post('/analyze-media', async (req, res) => {
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
 
-    const prompt = `Você é um especialista em marketing digital. Analise esta mídia e crie sugestões de posts para redes sociais.
+    const dataAtual = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())
+    const prompt = `Você é um especialista em marketing digital e social media. Analise esta mídia e crie sugestões de posts para redes sociais.
+
+Data de referência: ${dataAtual}
 
 Plataformas alvo: ${platDesc}${contextoHint}
 
 Para cada plataforma, forneça:
 - Um texto de post otimizado para aquela rede
-- Hashtags relevantes (array de strings sem #)
+- Hashtags relevantes e específicas para a mídia (array de strings sem #)
+- Hashtags com potencial de descoberta neste momento, usando somente tendências que você realmente conheça; não invente volumes, rankings ou dados de popularidade
+- Hashtags de nicho, mais precisas e menos genéricas
 - Um título (só para YouTube)
+
+Adapte de verdade o texto e a seleção de hashtags para cada plataforma. Não copie a mesma legenda entre redes. Para vídeo, crie uma chamada que combine com o conteúdo audiovisual. Evite hashtags banidas, genéricas demais ou que não tenham relação com a mídia.
 
 Responda APENAS com JSON válido, sem texto antes ou depois:
 {
@@ -1288,12 +1325,15 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
       "plataforma": "instagram",
       "texto": "...",
       "hashtags": ["hashtag1", "hashtag2"],
+      "hashtagsEmAlta": ["hashtagpotencialmenteatual1"],
+      "hashtagsNicho": ["hashtagdenicho1"],
+      "observacaoTendencias": "Explique em uma frase que as hashtags são sugestões e devem ser conferidas antes da publicação.",
       "titulo": ""
     }
   ]
 }`
 
-    const isVideo = !mediaBase64
+    const isVideo = mediaKind === 'video' || !mediaBase64
     const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
 
     let parsed
@@ -1310,7 +1350,22 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
         [s.plataforma],
         mediaType
       )
-      return { ...s, texto: ajustado.texto, titulo: ajustado.titulo }
+      const normalizarHashtags = value => Array.from(new Set((Array.isArray(value) ? value : [])
+        .map(tag => String(tag || '').trim().replace(/^#+/, '').replace(/\s+/g, ''))
+        .filter(Boolean)))
+      const hashtags = normalizarHashtags(s.hashtags)
+      const hashtagsEmAlta = normalizarHashtags(s.hashtagsEmAlta || s.hashtags_em_alta)
+      const hashtagsNicho = normalizarHashtags(s.hashtagsNicho || s.hashtags_nicho)
+      return {
+        ...s,
+        plataforma: s.plataforma || plataformas[0],
+        texto: ajustado.texto,
+        titulo: ajustado.titulo,
+        hashtags,
+        hashtagsEmAlta,
+        hashtagsNicho,
+        observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
+      }
     })
     registrarAtividadeIA({
       userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
@@ -1488,6 +1543,11 @@ router.post('/agent', async (req, res) => {
       user: req.user,
       generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
       generatePosts: args => gerarPostsParaAgente(args, req.user.id, req.body?.modelo || 'local'),
+      generateImage: args => generateImageResilient({
+        descricao: args.description,
+        userId: req.user.id,
+        preferredModel: args.model && args.model !== 'auto' ? args.model : req.body?.modeloImagem || 'auto',
+      }),
     })
     await registrarAtividadeIA({ userId: req.user.id, acao: `agent:${plan.actionId}`, status: 'sucesso', modelo: plan.source, detalhes: result.message })
     res.json({ ...result, plan, requiresConfirmation: false })

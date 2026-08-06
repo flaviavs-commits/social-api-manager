@@ -17,6 +17,128 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`
 }
 
+const aiPlatformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+
+function canvasToAnalysisData(canvas) {
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.72)
+  return { mediaBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' }
+}
+
+function compressImageForAnalysis(file) {
+  return new Promise((resolve, reject) => {
+    const sourceUrl = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      try {
+        const maxDimension = 1024
+        const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height)
+        resolve({ ...canvasToAnalysisData(canvas), mediaKind: 'image' })
+      } catch (error) { reject(error) } finally { URL.revokeObjectURL(sourceUrl) }
+    }
+    image.onerror = () => { URL.revokeObjectURL(sourceUrl); reject(new Error(`Não foi possível ler ${file.name}.`)) }
+    image.src = sourceUrl
+  })
+}
+
+function captureVideoFrameForAnalysis(file) {
+  return new Promise((resolve, reject) => {
+    const sourceUrl = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    let finished = false
+    const cleanup = () => { URL.revokeObjectURL(sourceUrl); video.removeAttribute('src'); video.load() }
+    const fail = error => { if (!finished) { finished = true; cleanup(); reject(error) } }
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      try { video.currentTime = Number.isFinite(video.duration) ? Math.min(Math.max(video.duration / 2, 0), 3) : 0 } catch { fail(new Error(`Não foi possível preparar ${file.name}.`)) }
+    }
+    video.onseeked = () => {
+      if (finished) return
+      try {
+        const maxDimension = 1024
+        const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+        finished = true
+        resolve({ ...canvasToAnalysisData(canvas), mediaKind: 'video' })
+        cleanup()
+      } catch { fail(new Error(`Não foi possível capturar um frame de ${file.name}.`)) }
+    }
+    video.onerror = () => fail(new Error(`Não foi possível ler ${file.name}.`))
+    video.src = sourceUrl
+    video.load()
+  })
+}
+
+async function buildMediaAnalysisPayload(file) {
+  return file.type.startsWith('video/') ? captureVideoFrameForAnalysis(file) : compressImageForAnalysis(file)
+}
+
+function cleanAiTag(tag) {
+  return String(tag || '').trim().replace(/^#+/, '').replace(/\s+/g, '')
+}
+
+function uniqueAiTags(suggestion) {
+  return Array.from(new Set([
+    ...(suggestion.hashtagsEmAlta || []),
+    ...(suggestion.hashtagsNicho || []),
+    ...(suggestion.hashtags || []),
+  ].map(cleanAiTag).filter(Boolean)))
+}
+
+function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
+  const [busy, setBusy] = useState(false)
+  const [results, setResults] = useState([])
+  const [analysisError, setAnalysisError] = useState('')
+
+  async function analyzeMedia() {
+    if (!files.length || !selected.length) return
+    setBusy(true)
+    setAnalysisError('')
+    setResults([])
+    const targets = files.slice(0, 6)
+    const settled = await Promise.allSettled(targets.map(async file => {
+      const media = await buildMediaAnalysisPayload(file)
+      const response = await apiFetch('/api/ai/analyze-media', {
+        method: 'POST',
+        body: JSON.stringify({ ...media, plataformas: selected, contexto, modelo: 'gemini' }),
+      })
+      return { key: mediaFileKey(file), fileName: file.name, mediaType: media.mediaKind, previewUrl: previews.find(item => item.key === mediaFileKey(file))?.url, ...response }
+    }))
+    const successful = settled.filter(item => item.status === 'fulfilled').map(item => item.value)
+    const failures = settled.filter(item => item.status === 'rejected')
+    setResults(successful)
+    if (failures.length) setAnalysisError(`${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
+    if (!successful.length && failures.length) setAnalysisError(failures[0].reason?.message || 'Não foi possível analisar as mídias.')
+    setBusy(false)
+  }
+
+  return <section className="media-ai-assistant" aria-label="Sugestões de texto com inteligência artificial">
+    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Crie legendas a partir da sua mídia</strong><small>A IA analisa cada imagem ou vídeo e adapta a legenda, o título e as hashtags para cada rede.</small></div><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando mídias...' : '✦ Gerar sugestões com IA'}</button></div>
+    {!files.length && <p className="media-ai-help">Adicione uma imagem ou vídeo para liberar a análise.</p>}
+    {!selected.length && <p className="media-ai-help">Selecione pelo menos uma rede social na etapa anterior.</p>}
+    {files.length > 6 && <p className="media-ai-help">As primeiras 6 mídias serão analisadas por vez para manter o processamento rápido.</p>}
+    {analysisError && <p className="media-ai-error" role="alert">{analysisError}</p>}
+    {results.length > 0 && <div className="media-ai-results">{results.map(result => <article className="media-ai-result" key={result.key}>
+      <div className="media-ai-result-heading">{result.previewUrl ? (result.mediaType === 'video' ? <video src={result.previewUrl} muted playsInline preload="metadata" aria-label={`Prévia de ${result.fileName}`}/> : <img src={result.previewUrl} alt={`Prévia de ${result.fileName}`}/>) : <span className={`media-ai-type media-ai-type-${result.mediaType}`}>{result.mediaType === 'video' ? '▶ Vídeo' : '▧ Imagem'}</span>}<div className="media-ai-result-file"><strong title={result.fileName}>{result.fileName}</strong>{result.descricao_midia && <small>{result.descricao_midia}</small>}</div></div>
+      <div className="media-ai-platform-results">{(result.sugestoes || []).map(suggestion => <div className={`media-ai-platform-result media-ai-platform-result-${suggestion.plataforma}`} key={suggestion.plataforma}>
+        <div className="media-ai-platform-heading"><span className="media-ai-platform-icon"><PlatformIcon platform={suggestion.plataforma} className="h-4 w-4"/></span><strong>{aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}</strong></div>
+        {suggestion.titulo && <p className="media-ai-title"><span>Título sugerido</span>{suggestion.titulo}</p>}
+        <p className="media-ai-copy">{suggestion.texto || 'A IA não retornou uma legenda para esta rede.'}</p>
+        {uniqueAiTags(suggestion).length > 0 && <div className="media-ai-tags"><span>Hashtags sugeridas</span><div>{uniqueAiTags(suggestion).map(tag => <em key={tag}>#{tag}</em>)}</div></div>}
+        <div className="media-ai-result-footer"><small>{suggestion.observacaoTendencias || 'Hashtags sugeridas pela IA com base no tema, no formato e na rede. Confira antes de publicar.'}</small><button type="button" className="secondary-button" onClick={() => onApply(suggestion)}>Aplicar nesta rede</button></div>
+      </div>)}</div>
+    </article>)}</div>}
+  </section>
+}
+
 // Categorias da YouTube Data API v3 — espelha src/domain/posts/post.js
 // (YOUTUBE_CATEGORIES), fonte da verdade no backend.
 const youtubeCategories = [
@@ -231,6 +353,14 @@ export function SchedulerPage() {
   function selectFiles(event) { addFiles(event.target.files); event.target.value = '' }
   function dropFiles(event) { event.preventDefault(); addFiles(event.dataTransfer.files) }
   function removeFile(key) { setFiles(current => current.filter(file => mediaFileKey(file) !== key)) }
+  function applyMediaSuggestion(suggestion) {
+    const tags = uniqueAiTags(suggestion)
+    const composedText = [suggestion.texto?.trim(), tags.length ? tags.map(tag => `#${tag}`).join(' ') : ''].filter(Boolean).join('\n\n')
+    setTextByPlatform(current => ({ ...current, [suggestion.plataforma]: composedText }))
+    if (selected.length === 1) setText(composedText)
+    if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
+    notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
+  }
 
   // Lê metadados (largura/altura) dos vídeos selecionados para checar a
   // proporção exigida pelo TikTok antes do upload — ver postValidation.js.
@@ -342,8 +472,7 @@ export function SchedulerPage() {
       })}</div>
     </SchedSection>
 
-    <SchedSection number={2} title="Conteúdo">
-      <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
+    <SchedSection number={2} title="Mídia e conteúdo">
       <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
         <div className="upload-field-heading"><div><p className="eyebrow">MÍDIAS</p><strong>Escolha os arquivos da publicação</strong></div><span aria-hidden="true">▧</span></div>
         <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>Escolher arquivo</strong><small>Imagem ou vídeo · você pode selecionar mais de um</small></span><input className="upload-picker-input" type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Selecionar imagens ou vídeos"/></label>
@@ -354,6 +483,8 @@ export function SchedulerPage() {
         <div className="media-preview-info"><strong title={item.file.name}>{item.file.name}</strong><small>{formatFileSize(item.file.size)}</small></div>
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}</div>}
+      <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
+      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
       {selected.length > 1 && <div className="advanced-options" style={{ marginTop: 12 }}>{selected.map(platform => <label key={platform}>Texto para {platform} (opcional)<textarea value={textByPlatform[platform] || ''} onChange={event => setTextByPlatform(value => ({ ...value, [platform]: event.target.value }))} maxLength={5000}/></label>)}</div>}
     </SchedSection>
 

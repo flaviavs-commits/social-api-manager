@@ -29,6 +29,11 @@ const CAPABILITIES = [
     parameters: ['instruction', 'platforms', 'quantity', 'tone'], examples: ['crie um post profissional sobre promoção no Instagram'],
   },
   {
+    id: 'create_image', label: 'Criar imagem', category: 'conteúdo', mode: 'read',
+    description: 'Gera uma imagem a partir de uma descrição e troca automaticamente de modelo quando o primeiro provedor falha.',
+    parameters: ['description', 'model'], examples: ['crie uma imagem de uma cafeteria aconchegante ao pôr do sol'],
+  },
+  {
     id: 'list_posts', label: 'Listar publicações', category: 'publicações', mode: 'read',
     description: 'Consulta publicações do usuário por status.', parameters: ['status'], examples: ['quais posts estão agendados?'],
   },

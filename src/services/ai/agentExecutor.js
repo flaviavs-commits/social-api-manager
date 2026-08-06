@@ -24,7 +24,7 @@ function textPreview(value, length = 100) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, length)
 }
 
-async function executeAgentAction({ actionId, arguments: args = {}, user, generatePosts, generateText }) {
+async function executeAgentAction({ actionId, arguments: args = {}, user, generatePosts, generateImage, generateText }) {
   const ctx = context(user)
   switch (actionId) {
     case 'show_capabilities':
@@ -42,6 +42,17 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
         quantity: Math.min(Math.max(Number(args.quantity) || 1, 1), 5), tone: String(args.tone || 'casual'),
       })
       return { message: 'Conteúdo gerado. Revise o texto antes de publicar.', data: result, navigation: 'ai' }
+    }
+    case 'create_image': {
+      if (typeof generateImage !== 'function') throw Object.assign(new Error('Gerador de imagens indisponível.'), { status: 503 })
+      const description = String(args.description || '').trim()
+      if (!description) throw Object.assign(new Error('Descreva a imagem que deseja criar.'), { status: 400 })
+      const result = await generateImage({
+        description: description.slice(0, 4000),
+        model: String(args.model || 'auto'),
+      })
+      if (!result?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
+      return { message: `Imagem criada com ${result.modelo || 'um modelo disponível'}.`, data: result, navigation: 'ai' }
     }
     case 'list_posts': {
       const status = args.status || undefined
