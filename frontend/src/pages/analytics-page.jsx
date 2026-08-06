@@ -6,6 +6,7 @@ import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
 import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
 import { filterByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { AnalyticsAccountProfiles } from '../components/analytics/analytics-account-profiles.jsx'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -22,7 +23,7 @@ function htmlValue(value) {
 export function AnalyticsPage() {
   const [comparePeriod, setComparePeriod] = useState(false)
   const {
-    data, tiktokVideos, networks, activeNet, activeTab, periodDays,
+    data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
   } = useAnalytics({ comparePeriod })
   const notify = useToast()
@@ -87,6 +88,7 @@ export function AnalyticsPage() {
 
     {error && <p className="error-message" role="alert">{error}</p>}
     {loading && !error && <p className="empty-state" aria-live="polite">Carregando métricas...</p>}
+    {!loading && accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} onSelectNetwork={selectNetwork}/>}
     {!loading && networks.length > 0 && <AnalyticsSummary
       data={data}
       tiktokVideos={tiktokVideos}

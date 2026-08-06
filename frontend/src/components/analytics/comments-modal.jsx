@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
@@ -108,26 +108,34 @@ export function CommentsModal({ postId, onClose, embedded = false }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  function load() {
-    setLoading(true)
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true)
     setError('')
     apiFetch(`/api/posts/${postId}/comments`)
       .then(result => {
         const nextComments = result.comments || []
         setComments(nextComments)
         setPost(result.post || null)
+        setError(result.error || '')
         if (nextComments.length) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
       })
       .catch(caught => setError(caught.message))
-      .finally(() => setLoading(false))
-  }
+      .finally(() => { if (!silent) setLoading(false) })
+  }, [postId])
 
   useEffect(() => {
     load()
+    const refresh = () => load(true)
+    const timer = window.setInterval(refresh, 15000)
+    window.addEventListener('focus', refresh)
     const closeWithEscape = event => { if (event.key === 'Escape') onClose() }
     document.addEventListener('keydown', closeWithEscape)
-    return () => document.removeEventListener('keydown', closeWithEscape)
-  }, [postId, onClose])
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('keydown', closeWithEscape)
+    }
+  }, [load, onClose])
 
   const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
     <div className="modal-header comments-header">

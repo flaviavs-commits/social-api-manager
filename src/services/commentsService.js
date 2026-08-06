@@ -1,4 +1,6 @@
 const { buscarContaToken } = require('../infra/social/publisher')
+const tokensRepo = require('../repositories/tokensRepository')
+const zernioClient = require('../infra/social/zernioClient')
 
 // Redes onde já é possível listar comentários reais com o escopo OAuth que
 // a conexão atual já solicita. TikTok (Content Posting API) não expõe
@@ -27,8 +29,21 @@ async function fetchComTimeout(url, opts = {}) {
 // quando o token atual não tem acesso a ele (ex: conta reconectada, post de
 // antes da conexão atual). Traduz para uma mensagem amigável, em vez de expor
 // o texto técnico cru da API ao usuário.
+function traduzirErroOAuth(error, rede) {
+  const message = error?.message || ''
+  if (/invalid oauth access token|cannot parse access token|oauth access token/i.test(message)) {
+    return `A conexão do ${rede} expirou ou foi revogada. Reconecte essa conta em Integrações para carregar os comentários.`
+  }
+  if (/unsupported get request|does not exist|cannot be loaded|missing permissions/i.test(message)) {
+    return 'Não foi possível carregar os comentários: o post pode ter sido removido na rede social, ou esta conta não tem mais acesso a ele. Tente reconectar a conta.'
+  }
+  return null
+}
+
 function traduzirErroMeta(data, status, rede) {
   const erro = data?.error
+  const oauthMessage = traduzirErroOAuth(erro, rede)
+  if (oauthMessage) return oauthMessage
   if (erro?.code === 100 || /does not exist|cannot be loaded|missing permissions/i.test(erro?.message || '')) {
     return 'Não foi possível carregar os comentários: o post pode ter sido removido na rede social, ou esta conta não tem mais acesso a ele. Tente reconectar a conta.'
   }
@@ -92,6 +107,22 @@ async function responderComentarioInstagram(token, commentId, text) {
   return data
 }
 
+async function listarComentariosZernio(token, externalPostId) {
+  const data = await zernioClient.getPostComments(externalPostId, {
+    accountId: token.zernioAccountId,
+    limit: 100
+  })
+
+  return (data.comments || []).map(c => ({
+    // O Zernio usa `id` para o identificador que deve ser enviado ao endpoint
+    // de resposta e também expõe `cid` em algumas plataformas.
+    id: c.id || c.cid,
+    author: c.from?.username || c.from?.name || 'desconhecido',
+    text: c.message || c.text || '',
+    createdAt: c.createdTime || c.created_at || null
+  }))
+}
+
 async function responderComentarioYoutube(token, commentId, text) {
   const res = await fetchComTimeout('https://www.googleapis.com/youtube/v3/comments?part=snippet', {
     method: 'POST',
@@ -101,6 +132,14 @@ async function responderComentarioYoutube(token, commentId, text) {
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
   return data
+}
+
+async function responderComentarioZernio(token, postId, commentId, text) {
+  return zernioClient.replyToComment(postId, {
+    accountId: token.zernioAccountId,
+    commentId,
+    message: text
+  })
 }
 
 // Mídia real do post direto da rede social — usado como preview no modal de
@@ -139,8 +178,14 @@ async function buscarTokenPost(post) {
   if (!post.externalPostId) throw new Error('Este post não tem um ID externo salvo (publicado antes desta funcionalidade)')
 
   const isSuperAdmin = post.userRole === 'super_admin'
-  const token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
+  let token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
   if (!token) throw new Error('Conta não está mais conectada')
+
+  const expiraEmBreve = token.expiresAt && new Date(token.expiresAt).getTime() - Date.now() < 2 * 60 * 1000
+  if (!token.zernioAccountId && (token.status !== 'valid' || expiraEmBreve)) {
+    const renewal = await tokensRepo.renovarToken(token.token_id, post.userId, isSuperAdmin)
+    if (renewal?.success) token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId) || token
+  }
   return token
 }
 
@@ -150,8 +195,18 @@ async function buscarTokenPost(post) {
 // o chamador (rota) decide como exibir o erro, em vez de esconder como null.
 async function listarComentariosPost(post) {
   const token = await buscarTokenPost(post)
-  const comments = await LISTERS[post.externalPlatform](token, post.externalPostId)
-  return { comments }
+  try {
+    if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) {
+      const comments = await listarComentariosZernio(token, post.externalPostId)
+      return { comments, replySupported: true }
+    }
+    const comments = await LISTERS[post.externalPlatform](token, post.externalPostId)
+    return { comments, replySupported: PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform) }
+  } catch (error) {
+    const oauthMessage = traduzirErroOAuth(error, post.externalPlatform)
+    if (oauthMessage) throw new Error(oauthMessage)
+    throw error
+  }
 }
 
 // Busca a mídia real do post na rede social, para exibir no preview do
@@ -161,6 +216,8 @@ async function listarComentariosPost(post) {
 async function buscarMidiaPost(post) {
   try {
     const token = await buscarTokenPost(post)
+    // O identificador salvo para contas Zernio não é um token da Meta.
+    if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) return null
     return await MIDIA_FETCHERS[post.externalPlatform](token, post.externalPostId)
   } catch {
     return null
@@ -168,15 +225,25 @@ async function buscarMidiaPost(post) {
 }
 
 async function responderComentario(post, commentId, text) {
-  if (!PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform)) {
-    throw new Error(`Responder comentários ainda não disponível para ${post.externalPlatform}`)
-  }
-
   const isSuperAdmin = post.userRole === 'super_admin'
   const token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
   if (!token) throw new Error('Conta não está mais conectada')
 
-  return REPLIERS[post.externalPlatform](token, commentId, text)
+  try {
+    if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) {
+      return await responderComentarioZernio(token, post.externalPostId, commentId, text)
+    }
+
+    if (!PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform)) {
+      throw new Error(`Responder comentários ainda não disponível para ${post.externalPlatform}`)
+    }
+
+    return await REPLIERS[post.externalPlatform](token, commentId, text)
+  } catch (error) {
+    const oauthMessage = traduzirErroOAuth(error, post.externalPlatform)
+    if (oauthMessage) throw new Error(oauthMessage)
+    throw error
+  }
 }
 
 module.exports = { listarComentariosPost, responderComentario, buscarMidiaPost, PLATAFORMAS_COM_COMENTARIOS, PLATAFORMAS_COM_RESPOSTA }

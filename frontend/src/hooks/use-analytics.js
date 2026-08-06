@@ -22,6 +22,7 @@ const EMPTY_DATA = {
 export function useAnalytics({ comparePeriod = false } = {}) {
   const savedFilters = readAnalyticsFilters()
   const [data, setData] = useState(EMPTY_DATA)
+  const [accounts, setAccounts] = useState([])
   const [tiktokVideos, setTiktokVideos] = useState([])
   const [activeNet, setActiveNet] = useState(savedFilters.activeNet || 'instagram')
   const [activeTab, setActiveTab] = useState(savedFilters.activeTab || 'community')
@@ -44,6 +45,15 @@ export function useAnalytics({ comparePeriod = false } = {}) {
       setTiktokVideos(videos || [])
     } catch {
       setTiktokVideos([])
+    }
+  }, [])
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      const result = await apiFetch('/api/accounts')
+      setAccounts(result.data || [])
+    } catch {
+      setAccounts([])
     }
   }, [])
 
@@ -78,12 +88,13 @@ export function useAnalytics({ comparePeriod = false } = {}) {
 
   useEffect(() => {
     loadAnalytics()
+    loadAccounts()
     const timer = setInterval(() => {
       if (document.visibilityState !== 'hidden') loadAnalytics()
     }, AUTO_REFRESH_MS)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodDays, comparePeriod])
+  }, [periodDays, comparePeriod, loadAccounts])
 
   const networks = detectNetworks({ ...data, tiktokVideos })
 
@@ -93,7 +104,7 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   }
 
   return {
-    data, tiktokVideos, networks, activeNet, activeTab, periodDays,
+    data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, lastUpdated,
     setActiveTab, setPeriodDays, selectNetwork, reload: loadAnalytics,
   }

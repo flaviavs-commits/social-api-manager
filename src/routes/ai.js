@@ -825,59 +825,9 @@ router.post('/generate', async (req, res) => {
 // ── API Keys do usuário por modelo ───────────────────────────────────────────
 const pool = require('../db/pool')
 
-// Garante que a tabela existe (cria na primeira execução)
-pool.query(`
-  CREATE TABLE IF NOT EXISTS user_ai_keys (
-    id        SERIAL PRIMARY KEY,
-    user_id   INTEGER NOT NULL,
-    modelo    TEXT NOT NULL,
-    api_key   TEXT NOT NULL,
-    last_four TEXT,
-    status    TEXT NOT NULL DEFAULT 'valid',
-    criado_em TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, modelo)
-  )
-`).then(() => pool.query(`
-  ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_four TEXT
-`)).then(() => pool.query(`
-  ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'valid'
-`)).catch(() => {})
-
-pool.query(`
-  CREATE TABLE IF NOT EXISTS user_ai_prefs (
-    user_id         INTEGER PRIMARY KEY,
-    preferred_model TEXT NOT NULL,
-    atualizado_em   TIMESTAMPTZ DEFAULT NOW()
-  )
-`).catch(() => {})
-
-// Contagem de uso do demo grátis (modelo "local") por usuário/dia — usada para
-// limitar o custo da chave do servidor. Ver DEMO_LIMITE_DIA / demoUsosHoje().
-pool.query(`
-  CREATE TABLE IF NOT EXISTS ai_demo_usage (
-    user_id INTEGER NOT NULL,
-    dia     DATE NOT NULL,
-    usos    INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, dia)
-  )
-`).catch(() => {})
-
-// Histórico de atividade do Agente IA — visível só para super_admin, criado
-// para diagnosticar erros (limite de requisições, chave inválida, falha do
-// LLM) sem depender de acessar logs do Railway. Tabela dedicada (em vez de
-// reaproveitar "logs") porque a regra de visibilidade aqui é fixa (só
-// super_admin vê tudo, sem a lógica de "dono da conta" que "logs" usa).
-pool.query(`
-  CREATE TABLE IF NOT EXISTS ai_activity_log (
-    id        SERIAL PRIMARY KEY,
-    user_id   INTEGER,
-    acao      TEXT NOT NULL,
-    status    TEXT NOT NULL,
-    modelo    TEXT,
-    detalhes  TEXT,
-    criado_em TIMESTAMPTZ DEFAULT NOW()
-  )
-`).catch(() => {})
+// O schema da IA é criado pelas migrations/runtimeMigrations. Nenhuma query
+// deve ser executada durante o import deste módulo: isso permite health checks,
+// testes e ambientes serverless sem conexão implícita com o PostgreSQL.
 
 // Grava uma linha no histórico de atividade do Agente IA. Nunca lança —
 // falha ao registrar não deve derrubar a ação real do usuário (gerar post,
@@ -897,18 +847,6 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
 // em memória do navegador (widget e página React) e se
 // perdia a cada reload. Persistido para que admin/super_admin consigam
 // acompanhar as conversas dos usuários (ex.: suporte, diagnóstico).
-pool.query(`
-  CREATE TABLE IF NOT EXISTS ai_chat_messages (
-    id        SERIAL PRIMARY KEY,
-    user_id   INTEGER NOT NULL,
-    contexto  TEXT NOT NULL,
-    role      TEXT NOT NULL,
-    conteudo  TEXT NOT NULL,
-    criado_em TIMESTAMPTZ DEFAULT NOW()
-  )
-`).catch(() => {})
-pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user ON ai_chat_messages (user_id, criado_em DESC)`).catch(() => {})
-
 // POST /api/ai/chat-messages — grava uma mensagem do chat (chamado pelo
 // frontend a cada mensagem enviada/recebida). Nunca lança para o cliente
 // além do essencial — perder uma mensagem do histórico não deve travar a
@@ -1229,17 +1167,6 @@ Se não houver nada relevante, retorne: {"memories": []}`
   } catch (err) { serverError(res, err) }
 })
 
-// Garante tabela de leads de imagem
-pool.query(`
-  CREATE TABLE IF NOT EXISTS ai_image_leads (
-    id        SERIAL PRIMARY KEY,
-    user_id   INTEGER,
-    email     TEXT NOT NULL,
-    descricao TEXT,
-    criado_em TIMESTAMPTZ DEFAULT NOW()
-  )
-`).catch(() => {})
-
 // Modelo dedicado usado pelo gerador multimodal do Gemini.
 const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image'
 
@@ -1385,8 +1312,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 
     // Diferente de /generate, aqui já se sabe o tipo real da mídia (imagem ou
     // vídeo) — então aplica o limite exato da plataforma de cada sugestão
-    // (ex: TikTok foto = 90 chars, TikTok vídeo = 2200), em vez do limite
-    // genérico mais permissivo.
+    // (90 caracteres para o TikTok), em vez do limite genérico mais permissivo.
     const mediaType = isVideo ? 'video' : 'image'
     const sugestoes = formatarSugestoesMedia(parsed, plataformas, mediaType)
     registrarAtividadeIA({

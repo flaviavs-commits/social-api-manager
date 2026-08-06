@@ -80,11 +80,10 @@ async function listarComentarios({ id, userId, isAdmin }) {
   const post = await postsRepo.buscarPostPorId(id, userId, isAdmin)
   if (!post) return null
 
-  const { comments } = await commentsService.listarComentariosPost(post)
-  const midiaRemota = await commentsService.buscarMidiaPost(post)
   const platform = post.externalPlatform || post.platforms?.[0] || 'instagram'
   const account = (post.accounts || []).find(item => item.platform === platform) || (post.accounts || [])[0] || {}
   const text = post.textByPlatform?.[platform] || post.text || ''
+  const replyPlatforms = commentsService.PLATAFORMAS_COM_RESPOSTA || ['instagram']
   const preview = {
     id: post.id,
     platform,
@@ -92,15 +91,29 @@ async function listarComentarios({ id, userId, isAdmin }) {
     avatarUrl: account.avatarUrl || null,
     publishedAt: post.publishedAt || post.scheduledAt || null,
     youtubeTitle: post.titleByPlatform?.youtube || post.youtubeTitle || '',
-    replySupported: (commentsService.PLATAFORMAS_COM_RESPOSTA || ['instagram']).includes(platform),
+    replySupported: replyPlatforms.includes(platform),
     text
   }
 
+  let comments = []
+  let replySupported = preview.replySupported
+  let commentsError = null
+  try {
+    const result = await commentsService.listarComentariosPost(post)
+    comments = result.comments || []
+    replySupported = result.replySupported ?? replySupported
+  } catch (error) {
+    commentsError = error.message
+  }
+
+  const midiaRemota = await commentsService.buscarMidiaPost(post)
+
   return {
     comments,
+    error: commentsError,
     post: midiaRemota
-      ? { ...preview, text: midiaRemota.caption || text, mediaItems: midiaRemota.itens }
-      : { ...preview, mediaPath: post.mediaPath, mediaType: post.mediaType, mediaItems: account.mediaItems || post.mediaItems }
+      ? { ...preview, replySupported, text: midiaRemota.caption || text, mediaItems: midiaRemota.itens }
+      : { ...preview, replySupported, mediaPath: post.mediaPath, mediaType: post.mediaType, mediaItems: account.mediaItems || post.mediaItems }
   }
 }
 

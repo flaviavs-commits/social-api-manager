@@ -25,19 +25,17 @@ const { runMigrations } = require('./db/runtimeMigrations')
 const { getStatusMap } = require('./services/platformHealth')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
 const { gerarTokenSessao } = require('./utils/authToken')
+const { readEnv, assertProductionSecrets } = require('./config/env')
+const asyncHandler = require('./http/asyncHandler')
+const { errorHandler } = require('./http/errorHandler')
 
 const app = express()
 app.disable('x-powered-by')
+const config = readEnv()
 
 // Falhar cedo evita iniciar uma instância que emitiria tokens impossíveis de
 // validar ou armazenaria credenciais sem a proteção esperada.
-if (process.env.NODE_ENV === 'production') {
-  const requiredSecrets = ['AUTH_TOKEN_SECRET', 'TOKEN_ENCRYPTION_KEY']
-  const missingSecrets = requiredSecrets.filter(name => !process.env[name])
-  if (missingSecrets.length) {
-    throw new Error(`Segredos obrigatórios ausentes: ${missingSecrets.join(', ')}`)
-  }
-}
+assertProductionSecrets()
 
 // O app fica atrás do túnel ngrok (HTTPS termina no ngrok, e o tráfego chega
 // ao processo Node como HTTP puro com o header X-Forwarded-Proto/X-Forwarded-For).
@@ -46,14 +44,13 @@ if (process.env.NODE_ENV === 'production') {
 // requisição inteira por ver X-Forwarded-For sem confiar nele
 // (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). trust proxy = 1 confia no primeiro
 // proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
-app.set('trust proxy', 1)
+app.set('trust proxy', config.trustProxy)
 
 // Frontend (Vercel) e backend (Railway) são domínios diferentes — a
 // autenticação viaja via Bearer token, não cookie, então não precisa de
 // credentials:true aqui (sem cookies envolvidos na requisição cross-origin).
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean)
 app.use(cors({
-  origin: allowedOrigins.length ? allowedOrigins : true,
+  origin: config.allowedOrigins.length ? config.allowedOrigins : true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400
@@ -243,6 +240,10 @@ app.get('/api/review-token', (req, res) => {
   return res.status(404).json({ erro: 'não disponível' })
 })
 
+// Endpoint técnico, independente de autenticação, usado por Railway/Vercel
+// e por monitores externos para validar que o processo HTTP está de pé.
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 'social-api-manager' }))
+
 app.use(requireAuth)
 
 app.get('/api/me', (req, res) => {
@@ -262,14 +263,10 @@ app.use('/api/platform-presets', platformPresetsRoutes)
 app.use('/api/push',     pushRoutes)
 app.use('/api/ai',       aiRoutes)
 
-app.get('/api/platform-health', async (req, res) => {
+app.get('/api/platform-health', asyncHandler(async (req, res) => {
   const { getStatusMap } = require('./services/platformHealth')
   res.json({ platforms: await getStatusMap() })
-})
-
-// Endpoint técnico, independente de autenticação, usado por Railway/Vercel
-// e por monitores externos para validar que o processo HTTP está de pé.
-app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 'social-api-manager' }))
+}))
 
 // A API nunca deve devolver HTML para uma rota inexistente.
 app.use('/api', (_req, res) => res.status(404).json({ erro: 'Endpoint não encontrado' }))
@@ -279,14 +276,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/react/index.html'))
 })
 
-// Error handler global — nunca expõe stack traces ao cliente
-app.use((err, req, res, next) => {
-  console.error(err)
-  if (res.headersSent) return next(err)
-  const status = err.status || err.statusCode || 500
-  if (status >= 500) return res.status(500).json({ erro: 'Erro interno do servidor' })
-  res.status(status).json({ erro: err.message || 'Requisição inválida' })
-})
+// Error handler global — nunca expõe stack traces ao cliente.
+app.use(errorHandler)
 
 // Em serverless (Vercel) não há app.listen() — o api/index.js importa "app"
 // direto e a plataforma cuida de invocar a função por requisição. Local
@@ -303,7 +294,7 @@ process.on('uncaughtException', (err) => {
 })
 
 if (require.main === module) {
-  const PORT = process.env.PORT || 3000
+  const PORT = config.port
   runMigrations()
     .catch(err => console.error('Migration error:', err))
     .finally(() => {
@@ -316,4 +307,3 @@ if (require.main === module) {
 }
 
 module.exports = app
-

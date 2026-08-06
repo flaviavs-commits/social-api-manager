@@ -39,3 +39,17 @@ monolíticos anteriores não fazem parte do runtime.
 
 Domínio não deve importar Express, PostgreSQL ou componentes React. O front
 não deve importar módulos de `src/`; sua única fronteira é a API HTTP.
+
+## Convenções atuais
+
+- Configuração de ambiente passa por `src/config/env.js`; módulos não devem
+  executar migrations ou abrir conexões no momento do `require`.
+- Integrações HTTP usam `src/infra/http/requestJson.js`, que centraliza
+  timeout, retry de 429/5xx e erros estruturados.
+- Erros de domínio carregam status HTTP; o `errorHandler` global traduz erros
+  sem expor stack trace ou credenciais.
+- Schemas de banco ficam em `src/db/migrations/` e as compatibilizações
+  idempotentes de deploy ficam em `runtimeMigrations.js`.
+- Testes backend usam Jest (`test:unit`, `test:integration`, `test:coverage`) e
+  testes de componentes usam Vitest (`test:components`). `test:all` executa
+  ambos.

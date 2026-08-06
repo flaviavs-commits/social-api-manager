@@ -76,6 +76,22 @@ async function ensurePostPublications() {
   `)
 }
 
+async function ensureAiTables() {
+  await Promise.all([
+    bestEffort(`CREATE TABLE IF NOT EXISTS user_ai_keys (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, modelo TEXT NOT NULL, api_key TEXT NOT NULL, last_four TEXT, status TEXT NOT NULL DEFAULT 'valid', criado_em TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id, modelo))`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS user_ai_prefs (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, preferred_model TEXT NOT NULL, atualizado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_demo_usage (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, dia DATE NOT NULL, usos INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, dia))`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_activity_log (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, acao TEXT NOT NULL, status TEXT NOT NULL, modelo TEXT, detalhes TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_chat_messages (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, contexto TEXT NOT NULL, role TEXT NOT NULL, conteudo TEXT NOT NULL, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_image_leads (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, email TEXT NOT NULL, descricao TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`)
+  ])
+  await Promise.all([
+    bestEffort('ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_four TEXT'),
+    bestEffort("ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'valid'"),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user ON ai_chat_messages (user_id, criado_em DESC)')
+  ])
+}
+
 async function runMigrations() {
   await Promise.all([
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB'),
@@ -112,6 +128,7 @@ async function runMigrations() {
     ensurePostAccounts(),
     ensurePostPublications(),
     ensureMetricHistory(),
+    ensureAiTables(),
     bestEffort(`
       CREATE TABLE IF NOT EXISTS drafts (
         id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

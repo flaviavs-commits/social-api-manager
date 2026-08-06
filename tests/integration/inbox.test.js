@@ -15,6 +15,7 @@ jest.mock('../../src/infra/db/postsRepository', () => ({
 }))
 jest.mock('../../src/services/commentsService', () => ({
   PLATAFORMAS_COM_COMENTARIOS: ['instagram', 'facebook', 'youtube'],
+  PLATAFORMAS_COM_RESPOSTA: ['instagram', 'youtube'],
   listarComentariosPost: jest.fn(),
   buscarMidiaPost: jest.fn(),
   responderComentario: jest.fn(),
@@ -128,6 +129,24 @@ describe('GET /api/posts/inbox/unread', () => {
     expect(res.status).toBe(200)
     expect(res.body.unread[10]).toBeUndefined() // falhou, sem contar
     expect(res.body.unread[20]).toBe(1)          // ok
+  })
+})
+
+describe('GET /api/posts/:id/comments', () => {
+  test('mantém o preview publicado quando o OAuth está inválido', async () => {
+    postsRepo.buscarPostPorId.mockResolvedValue({
+      ...POST_INSTAGRAM,
+      accounts: [{ platform: 'instagram', handle: 'minhaconta', avatarUrl: null }]
+    })
+    commentsService.listarComentariosPost.mockRejectedValue(new Error('A conexão do instagram expirou ou foi revogada.'))
+    commentsService.buscarMidiaPost.mockResolvedValue(null)
+
+    const res = await request(app).get('/api/posts/10/comments').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.comments).toEqual([])
+    expect(res.body.error).toContain('expirou')
+    expect(res.body.post.text).toBe('Post de teste')
   })
 })
 

@@ -7,6 +7,7 @@
 // doc pública: às vezes só { error }, às vezes { error, type, code } — nunca
 // confiar em type/code estarem presentes, só error é garantido.
 const ZERNIO_BASE_URL = 'https://zernio.com/api/v1'
+const { HttpClientError, requestJson } = require('../http/requestJson')
 
 class ZernioError extends Error {
   constructor(message, { status, code, type, details } = {}) {
@@ -30,59 +31,25 @@ function apiKey() {
 // presente (documentado pelo Zernio nos headers de rate limit).
 async function zernioFetch(path, { method = 'GET', body, query, retries = 2, delayMs = 600 } = {}) {
   const url = new URL(ZERNIO_BASE_URL + path)
-  if (query) {
-    for (const [k, v] of Object.entries(query)) {
-      if (v !== undefined && v !== null) url.searchParams.set(k, v)
-    }
-  }
-
-  let lastErr
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    let res
-    try {
-      res = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${apiKey()}`,
-          'Content-Type': 'application/json'
-        },
-        body: body ? JSON.stringify(body) : undefined
-      })
-    } catch (err) {
-      lastErr = err
-      if (attempt < retries) { await new Promise(r => setTimeout(r, delayMs * (attempt + 1))); continue }
-      throw err
-    }
-
-    const contentType = res.headers.get('content-type') || ''
-    // Algumas rotas documentadas como API (ex.: /webhooks) na prática
-    // devolvem o HTML do dashboard do Zernio em vez de JSON — trata como
-    // erro claro em vez de tentar parsear HTML como JSON.
-    if (!contentType.includes('application/json')) {
-      throw new ZernioError(`Resposta inesperada do Zernio (content-type: ${contentType || 'desconhecido'}) — endpoint pode não existir via API`, { status: res.status })
-    }
-
-    const data = await res.json().catch(() => null)
-
-    if (res.status === 429 && attempt < retries) {
-      const retryAfter = Number(res.headers.get('retry-after')) || (delayMs * (attempt + 1) / 1000)
-      await new Promise(r => setTimeout(r, retryAfter * 1000))
-      continue
-    }
-    if (res.status >= 500 && attempt < retries) {
-      await new Promise(r => setTimeout(r, delayMs * (attempt + 1)))
-      continue
-    }
-
-    if (!res.ok) {
-      throw new ZernioError(data?.error || `Zernio respondeu ${res.status}`, {
-        status: res.status, code: data?.code, type: data?.type, details: data?.details
+  try {
+    return await requestJson(url, {
+      method,
+      query,
+      body,
+      headers: { Authorization: `Bearer ${apiKey()}` },
+      retries,
+      retryDelayMs: delayMs
+    })
+  } catch (error) {
+    if (error instanceof ZernioError) throw error
+    if (error instanceof HttpClientError) {
+      throw new ZernioError(error.message, {
+        status: error.status,
+        details: error.data
       })
     }
-
-    return data
+    throw error
   }
-  throw lastErr
 }
 
 // Devolve a URL de autorização OAuth para o usuário conectar uma conta —
@@ -117,6 +84,17 @@ async function createPost(body) {
 
 async function getPost(postId) {
   return zernioFetch(`/posts/${postId}`)
+}
+
+// Inbox de comentários do Zernio. Facebook/Instagram conectados via Zernio
+// não entregam um access token da Meta para a nossa aplicação; o Zernio é quem
+// autentica na rede social e exige o accountId da conta conectada.
+async function getPostComments(postId, query) {
+  return zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}`, { query })
+}
+
+async function replyToComment(postId, body) {
+  return zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}`, { method: 'POST', body })
 }
 
 // Relatórios de analytics são mantidos como métodos explícitos para que a
@@ -187,6 +165,7 @@ module.exports = {
   ZernioError,
   connectUrl, listAccounts, getAccountHealth, disconnectAccount, listProfiles,
   createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
+  getPostComments, replyToComment,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
   getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,
   getYoutubeDailyViews, getYoutubeVideoRetention, getYoutubeDemographics,
