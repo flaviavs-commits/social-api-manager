@@ -216,7 +216,10 @@ function montarItensMedia(files, captions) {
 // usuário. Fixa -03:00 explicitamente para não depender do timezone do processo Node.
 function normalizarScheduledAtBR(scheduledAt) {
   if (!scheduledAt) return scheduledAt
-  const semTimezone = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(scheduledAt) && !/[Z+-]\d{2}:?\d{2}$/.test(scheduledAt)
+  // O `Z` isolado também é um timezone válido (UTC). Sem esse caso, um
+  // ISO enviado por `new Date().toISOString()` recebe `:00-03:00` no final e
+  // vira uma data inválida, impedindo o fluxo de "Publicar agora".
+  const semTimezone = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(scheduledAt) && !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(scheduledAt)
   return semTimezone ? `${scheduledAt}:00-03:00` : scheduledAt
 }
 

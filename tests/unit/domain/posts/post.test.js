@@ -1,4 +1,4 @@
-const { validarCriacaoPost, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH, YOUTUBE_CATEGORY_IDS } = require('../../../../src/domain/posts/post')
+const { validarCriacaoPost, normalizarScheduledAtBR, scheduledAtParaUTC, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH, YOUTUBE_CATEGORY_IDS } = require('../../../../src/domain/posts/post')
 
 function baseArgs(overrides = {}) {
   return {
@@ -46,6 +46,27 @@ describe('validarCriacaoPost — antecedência mínima do Instagram', () => {
     const noLimite = new Date(Date.now() + 21 * 60000).toISOString().replace('Z', '')
     const erro = validarCriacaoPost(baseArgs({ scheduledAtUTC: noLimite }))
     expect(erro).toBeNull()
+  })
+})
+
+describe('normalizarScheduledAtBR', () => {
+  test('preserva ISO UTC enviado por publicar agora', () => {
+    const iso = '2026-08-06T12:13:44.778Z'
+    const normalizado = normalizarScheduledAtBR(iso)
+    expect(normalizado).toBe(iso)
+    expect(() => scheduledAtParaUTC(normalizado)).not.toThrow()
+    expect(Number.isNaN(new Date(normalizado).getTime())).toBe(false)
+  })
+
+  test('adiciona o fuso de Brasília ao valor do datetime-local', () => {
+    const normalizado = normalizarScheduledAtBR('2026-08-06T09:13')
+    expect(normalizado).toBe('2026-08-06T09:13:00-03:00')
+    expect(Number.isNaN(new Date(normalizado).getTime())).toBe(false)
+  })
+
+  test('preserva offsets explícitos', () => {
+    const iso = '2026-08-06T12:13:44+00:00'
+    expect(normalizarScheduledAtBR(iso)).toBe(iso)
   })
 })
 
