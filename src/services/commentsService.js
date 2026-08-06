@@ -7,10 +7,10 @@ const zernioClient = require('../infra/social/zernioClient')
 // leitura de comentários de terceiros — fica de fora por agora.
 const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube']
 
-// Instagram e YouTube permitem responder por API com os escopos já pedidos na
-// conexão. Facebook depende do pages_manage_engagement, que não está presente
-// em todas as conexões atuais.
-const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'youtube']
+// Todas as redes que entram no Inbox têm um caminho de resposta. Quando a
+// conta foi conectada pelo Zernio usamos o endpoint unificado dele; contas
+// legadas continuam usando a API oficial da própria rede.
+const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'facebook', 'youtube']
 
 const COMMENTS_FETCH_TIMEOUT_MS = 4000
 
@@ -103,7 +103,18 @@ async function responderComentarioInstagram(token, commentId, text) {
     body: new URLSearchParams({ message: text, access_token: token.accessToken })
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `Instagram respondeu ${res.status}`)
+  if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Instagram'))
+  return data
+}
+
+async function responderComentarioFacebook(token, commentId, text) {
+  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(commentId)}/comments`
+  const res = await fetchComTimeout(url, {
+    method: 'POST',
+    body: new URLSearchParams({ message: text, access_token: token.accessToken })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Facebook'))
   return data
 }
 
@@ -130,7 +141,7 @@ async function responderComentarioYoutube(token, commentId, text) {
     body: JSON.stringify({ snippet: { parentId: commentId, textOriginal: text } })
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
+  if (!res.ok) throw new Error(traduzirErroOAuth(data?.error, 'YouTube') || data?.error?.message || `YouTube respondeu ${res.status}`)
   return data
 }
 
@@ -168,7 +179,7 @@ const LISTERS = {
   facebook: listarComentariosFacebook,
   youtube: listarComentariosYoutube
 }
-const REPLIERS = { instagram: responderComentarioInstagram, youtube: responderComentarioYoutube }
+const REPLIERS = { instagram: responderComentarioInstagram, facebook: responderComentarioFacebook, youtube: responderComentarioYoutube }
 const MIDIA_FETCHERS = { instagram: buscarMidiaInstagram }
 
 async function buscarTokenPost(post) {
@@ -225,9 +236,7 @@ async function buscarMidiaPost(post) {
 }
 
 async function responderComentario(post, commentId, text) {
-  const isSuperAdmin = post.userRole === 'super_admin'
-  const token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
-  if (!token) throw new Error('Conta não está mais conectada')
+  const token = await buscarTokenPost(post)
 
   try {
     if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) {
