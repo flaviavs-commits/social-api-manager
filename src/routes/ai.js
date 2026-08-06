@@ -7,6 +7,8 @@ const { getCapability, getPublicCapabilities } = require('../services/ai/agentCa
 const { interpretAgentMessage } = require('../services/ai/agentInterpreter')
 const { executeAgentAction } = require('../services/ai/agentExecutor')
 const { gerarTokenAprovacaoAgente, verificarTokenAprovacaoAgente } = require('../utils/authToken')
+const { buscarAnalytics } = require('../use-cases/posts/buscarAnalytics')
+const { buildAnalyticsInsights } = require('../services/ai/analyticsInsights')
 
 const router = Router()
 const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
@@ -1230,6 +1232,18 @@ router.post('/image/lead', async (req, res) => {
     )
     res.json({ ok: true })
   } catch (err) { serverError(res, err) }
+})
+
+// GET /api/ai/analytics-insights — interpreta os dados reais do Analytics
+// para o Assistente IA, sem inventar benchmarks ou métricas ausentes.
+router.get('/analytics-insights', async (req, res) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90)
+    const data = await buscarAnalytics({ userId: req.user.id, userRole: req.user.role, isAdmin: isAdminRole(req.user.role), days })
+    res.json({ insights: buildAnalyticsInsights(data, days) })
+  } catch (err) {
+    serverError(res, err)
+  }
 })
 
 function formatarSugestoesMedia(parsed, plataformas, mediaType) {
