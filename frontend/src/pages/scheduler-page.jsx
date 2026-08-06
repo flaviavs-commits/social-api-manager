@@ -419,9 +419,11 @@ export function SchedulerPage() {
     const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
     const response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
     if (!response.ok) throw new Error(`Falha ao enviar ${file.name}`)
-    // O endpoint de criação espera a URL pública do Blob e `mimetype`.
-    // `uploadUrl` contém query params de autorização que não devem ser salvos.
-    return { url: data.uploadUrl.split('?')[0], mimetype: file.type, name: file.name }
+    const uploaded = await response.json().catch(() => null)
+    // A URL usada no PUT é temporária; o corpo da resposta contém a URL
+    // pública final que deve ser salva no post.
+    if (!uploaded?.url) throw new Error(`O upload de ${file.name} não retornou uma URL pública válida.`)
+    return { url: uploaded.url, mimetype: file.type, name: file.name }
   }
 
   async function submit(event) {
