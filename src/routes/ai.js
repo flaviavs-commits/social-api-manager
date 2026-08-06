@@ -1311,6 +1311,7 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
         [plataforma],
         mediaType
       ).post.texto
+      : ajustado.texto
     return {
       ...s,
       plataforma,
