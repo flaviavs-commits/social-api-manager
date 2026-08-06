@@ -13,8 +13,9 @@ const FALLBACK_MODELS = [
   { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: false },
   { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'Anthropic', available: false },
 ]
+const VISION_MODELS = new Set(['gemini', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-lite', 'openai', 'openai-4o', 'openrouter', 'claude', 'claude-sonnet'])
 
-export function AiModelPicker({ value, onChange, compact = false }) {
+export function AiModelPicker({ value, onChange, compact = false, visionOnly = false }) {
   const [models, setModels] = useState(FALLBACK_MODELS)
   const [loading, setLoading] = useState(true)
 
@@ -27,7 +28,7 @@ export function AiModelPicker({ value, onChange, compact = false }) {
       if (!active) return
       if (Array.isArray(modelData.models) && modelData.models.length) setModels(modelData.models)
       const preferred = preferenceData.preferred_model
-      if (preferred && typeof onChange === 'function') onChange(preferred)
+      if (preferred && (!visionOnly || VISION_MODELS.has(preferred)) && typeof onChange === 'function') onChange(preferred)
     }).catch(() => {}).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [onChange])
@@ -42,10 +43,13 @@ export function AiModelPicker({ value, onChange, compact = false }) {
     }
   }
 
+  const visibleModels = visionOnly ? models.filter(model => VISION_MODELS.has(model.id)) : models
+  const selectedValue = visibleModels.some(model => model.id === value) ? value : (visibleModels[0]?.id || value || 'local')
+
   return <label className={`ai-model-picker${compact ? ' ai-model-picker-compact' : ''}`}>
     <span>{compact ? 'Modelo' : 'Escolha o modelo de IA'}</span>
-    <select value={value || 'local'} onChange={changeModel} disabled={loading} aria-label="Modelo de IA">
-      {models.map(model => <option key={model.id} value={model.id}>
+    <select value={selectedValue} onChange={changeModel} disabled={loading} aria-label="Modelo de IA">
+      {visibleModels.map(model => <option key={model.id} value={model.id}>
         {model.name} · {model.provider}{model.available ? '' : ' · configure sua chave'}
       </option>)}
     </select>

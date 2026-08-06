@@ -108,14 +108,14 @@ function uniqueAiTags(suggestion) {
 
 function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onModeloChange, onApply }) {
   const [busy, setBusy] = useState(false)
-  const [results, setResults] = useState([])
   const [analysisError, setAnalysisError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
     setBusy(true)
     setAnalysisError('')
-    setResults([])
+    setSuccessMessage('')
     const targets = files.slice(0, 6)
     const settled = await Promise.allSettled(targets.map(async file => {
       const media = await buildMediaAnalysisPayload(file)
@@ -127,34 +127,32 @@ function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onMod
     }))
     const successful = settled.filter(item => item.status === 'fulfilled').map(item => item.value)
     const failures = settled.filter(item => item.status === 'rejected')
-    setResults(successful)
     if (failures.length) {
       const firstMessage = failures[0].reason?.message || ''
       setAnalysisError(firstMessage.includes('limite') || firstMessage.includes('429')
         ? `O modelo ${aiModelLabels[modelo] || modelo} atingiu o limite. Troque o modelo no seletor e tente novamente.`
         : `${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
     }
-    if (!successful.length && failures.length) setAnalysisError(failures[0].reason?.message || 'Não foi possível analisar as mídias.')
+    if (successful.length) {
+      // O campo de texto aceita uma legenda por publicação. Quando há várias
+      // mídias, usa a primeira como referência e aplica uma versão diferente
+      // para cada rede selecionada diretamente nos campos do agendador.
+      const firstResult = successful[0]
+      const applied = selected.map(platform => firstResult.sugestoes?.find(suggestion => suggestion.plataforma === platform)).filter(Boolean)
+      applied.forEach(suggestion => onApply(suggestion, { silent: true }))
+      const usedModel = firstResult.modelo || modelo
+      setSuccessMessage(`Sugestão inserida no campo de texto para ${applied.length} rede(s). Modelo usado: ${aiModelLabels[usedModel] || usedModel}.`)
+    }
     setBusy(false)
   }
 
   return <section className="media-ai-assistant" aria-label="Sugestões de texto com inteligência artificial">
-    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Crie legendas a partir da sua mídia</strong><small>A IA analisa cada imagem ou vídeo e adapta a legenda, o título e as hashtags para cada rede.</small></div><div className="media-ai-controls"><AiModelPicker value={modelo} onChange={onModeloChange} compact/><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando mídias...' : '✦ Gerar sugestões com IA'}</button></div></div>
+    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Gere o texto a partir da sua mídia</strong><small>A IA analisa visualmente a imagem ou o vídeo e insere a sugestão diretamente no campo de texto do post.</small></div><div className="media-ai-controls"><AiModelPicker value={modelo} onChange={onModeloChange} compact visionOnly/><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando imagem...' : '✦ Gerar sugestão'}</button></div></div>
     {!files.length && <p className="media-ai-help">Adicione uma imagem ou vídeo para liberar a análise.</p>}
     {!selected.length && <p className="media-ai-help">Selecione pelo menos uma rede social na etapa anterior.</p>}
     {files.length > 6 && <p className="media-ai-help">As primeiras 6 mídias serão analisadas por vez para manter o processamento rápido.</p>}
     {analysisError && <p className="media-ai-error" role="alert">{analysisError}</p>}
-    {results.length > 0 && <div className="media-ai-results">{results.map(result => <article className="media-ai-result" key={result.key}>
-      <div className="media-ai-result-heading">{result.previewUrl ? (result.mediaType === 'video' ? <video src={result.previewUrl} muted playsInline preload="metadata" aria-label={`Prévia de ${result.fileName}`}/> : <img src={result.previewUrl} alt={`Prévia de ${result.fileName}`}/>) : <span className={`media-ai-type media-ai-type-${result.mediaType}`}>{result.mediaType === 'video' ? '▶ Vídeo' : '▧ Imagem'}</span>}<div className="media-ai-result-file"><strong title={result.fileName}>{result.fileName}</strong>{result.descricao_midia && <small>{result.descricao_midia}</small>}</div><span className={`media-ai-used-model${result.fallback ? ' is-fallback' : ''}`}>Modelo: {aiModelLabels[result.modelo] || result.modelo || aiModelLabels[modelo]}</span></div>
-      {result.aviso && <p className="media-ai-notice">ⓘ {result.aviso}</p>}
-      <div className="media-ai-platform-results">{(result.sugestoes || []).map(suggestion => <div className={`media-ai-platform-result media-ai-platform-result-${suggestion.plataforma}`} key={suggestion.plataforma}>
-        <div className="media-ai-platform-heading"><span className="media-ai-platform-icon"><PlatformIcon platform={suggestion.plataforma} className="h-4 w-4"/></span><strong>{aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}</strong></div>
-        {suggestion.titulo && <p className="media-ai-title"><span>Título sugerido</span>{suggestion.titulo}</p>}
-        <p className="media-ai-copy">{suggestion.texto || 'A IA não retornou uma legenda para esta rede.'}</p>
-        {uniqueAiTags(suggestion).length > 0 && <div className="media-ai-tags"><span>Hashtags sugeridas</span><div>{uniqueAiTags(suggestion).map(tag => <em key={tag}>#{tag}</em>)}</div></div>}
-        <div className="media-ai-result-footer"><small>{suggestion.observacaoTendencias || 'Hashtags sugeridas pela IA com base no tema, no formato e na rede. Confira antes de publicar.'}</small><button type="button" className="secondary-button" onClick={() => onApply(suggestion)}>Aplicar nesta rede</button></div>
-      </div>)}</div>
-    </article>)}</div>}
+    {successMessage && <p className="media-ai-success" role="status">✓ {successMessage}</p>}
   </section>
 }
 
@@ -252,7 +250,7 @@ export function SchedulerPage() {
   const [youtubeFormat, setYoutubeFormat] = useState('')
   const [firstComment, setFirstComment] = useState('')
   const [textByPlatform, setTextByPlatform] = useState({})
-  const [modelo, setModelo] = useState('local')
+  const [modelo, setModelo] = useState('gemini')
   const [locationQuery, setLocationQuery] = useState('')
   const [locationResults, setLocationResults] = useState([])
   const [selectedLocation, setSelectedLocation] = useState(null)
@@ -376,13 +374,13 @@ export function SchedulerPage() {
   function selectFiles(event) { addFiles(event.target.files); event.target.value = '' }
   function dropFiles(event) { event.preventDefault(); addFiles(event.dataTransfer.files) }
   function removeFile(key) { setFiles(current => current.filter(file => mediaFileKey(file) !== key)) }
-  function applyMediaSuggestion(suggestion) {
+  function applyMediaSuggestion(suggestion, options = {}) {
     const tags = uniqueAiTags(suggestion)
     const composedText = [suggestion.texto?.trim(), tags.length ? tags.map(tag => `#${tag}`).join(' ') : ''].filter(Boolean).join('\n\n')
     setTextByPlatform(current => ({ ...current, [suggestion.plataforma]: composedText }))
-    if (selected.length === 1) setText(composedText)
+    if (selected.length === 1 || selected[0] === suggestion.plataforma) setText(composedText)
     if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
-    notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
+    if (!options.silent) notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
   }
 
   // Lê metadados (largura/altura) dos vídeos selecionados para checar a
