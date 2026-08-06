@@ -1320,9 +1320,9 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', modelo = 'openrouter' } = req.body || {}
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
-    if (modelo === 'local') return res.status(422).json({ erro: 'Para analisar visualmente a imagem ou o vídeo, escolha um modelo com visão no seletor.' })
+    if (modelo === 'local') return res.status(422).json({ erro: 'O Assistente Rápido não analisa imagens. O agendador usa o OpenRouter para interpretar a mídia.' })
 
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
@@ -1382,7 +1382,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     })
   } catch (err) {
     const msg = err.message || ''
-    registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: req.body?.modelo || 'gemini', detalhes: msg })
+    registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: req.body?.modelo || 'openrouter', detalhes: msg })
     if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Troque o modelo ou tente novamente em instantes.' })
     console.error('[AI analyze-media]', msg)
     serverError(res, err)

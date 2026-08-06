@@ -6,7 +6,6 @@ import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
-import { AiModelPicker } from '../components/ai/ai-model-picker.jsx'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
@@ -19,19 +18,7 @@ function formatFileSize(bytes) {
 }
 
 const aiPlatformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
-const aiModelLabels = {
-  local: 'Assistente Rápido',
-  gemini: 'Gemini 2.0 Flash',
-  'gemini-2.5-flash': 'Gemini 2.5 Flash',
-  'gemini-2.5-pro': 'Gemini 2.5 Pro',
-  'gemini-2.5-lite': 'Gemini Flash-Lite',
-  openai: 'GPT-4o Mini',
-  'openai-4o': 'GPT-4o',
-  openrouter: 'GPT-OSS 20B',
-  claude: 'Claude Haiku',
-  'claude-sonnet': 'Claude Sonnet',
-}
-
+const MEDIA_AI_MODEL = 'openrouter'
 function canvasToAnalysisData(canvas) {
   const dataUrl = canvas.toDataURL('image/jpeg', 0.72)
   return { mediaBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' }
@@ -106,7 +93,7 @@ function uniqueAiTags(suggestion) {
   ].map(cleanAiTag).filter(Boolean)))
 }
 
-function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onModeloChange, onApply }) {
+function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   const [busy, setBusy] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -121,7 +108,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onMod
       const media = await buildMediaAnalysisPayload(file)
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
-        body: JSON.stringify({ ...media, plataformas: selected, contexto, modelo }),
+        body: JSON.stringify({ ...media, plataformas: selected, contexto, modelo: MEDIA_AI_MODEL }),
       })
       return { key: mediaFileKey(file), fileName: file.name, mediaType: media.mediaKind, previewUrl: previews.find(item => item.key === mediaFileKey(file))?.url, ...response }
     }))
@@ -130,24 +117,22 @@ function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onMod
     if (failures.length) {
       const firstMessage = failures[0].reason?.message || ''
       setAnalysisError(firstMessage.includes('limite') || firstMessage.includes('429')
-        ? `O modelo ${aiModelLabels[modelo] || modelo} atingiu o limite. Troque o modelo no seletor e tente novamente.`
+        ? 'O OpenRouter atingiu o limite de requisições. Tente novamente em instantes.'
         : `${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
     }
     if (successful.length) {
-      // O campo de texto aceita uma legenda por publicação. Quando há várias
-      // mídias, usa a primeira como referência e aplica uma versão diferente
-      // para cada rede selecionada diretamente nos campos do agendador.
+      // O agendador usa um único texto principal para todas as redes
+      // selecionadas. A primeira sugestão compatível preenche esse campo.
       const firstResult = successful[0]
-      const applied = selected.map(platform => firstResult.sugestoes?.find(suggestion => suggestion.plataforma === platform)).filter(Boolean)
-      applied.forEach(suggestion => onApply(suggestion, { silent: true }))
-      const usedModel = firstResult.modelo || modelo
-      setSuccessMessage(`Sugestão inserida no campo de texto para ${applied.length} rede(s). Modelo usado: ${aiModelLabels[usedModel] || usedModel}.`)
+      const suggestion = selected.map(platform => firstResult.sugestoes?.find(item => item.plataforma === platform)).find(Boolean) || firstResult.sugestoes?.[0]
+      if (suggestion) onApply(suggestion, { silent: true })
+      setSuccessMessage('Descrição inserida diretamente no campo de texto do post.')
     }
     setBusy(false)
   }
 
   return <section className="media-ai-assistant" aria-label="Sugestões de texto com inteligência artificial">
-    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Gere o texto a partir da sua mídia</strong><small>A IA analisa visualmente a imagem ou o vídeo e insere a sugestão diretamente no campo de texto do post.</small></div><div className="media-ai-controls"><AiModelPicker value={modelo} onChange={onModeloChange} compact visionOnly/><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando imagem...' : '✦ Gerar sugestão'}</button></div></div>
+    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Gere o texto a partir da sua mídia</strong><small>A IA analisa visualmente a imagem ou o vídeo e insere a descrição diretamente no campo de texto do post.</small></div><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando imagem...' : '✦ Gerar sugestão'}</button></div>
     {!files.length && <p className="media-ai-help">Adicione uma imagem ou vídeo para liberar a análise.</p>}
     {!selected.length && <p className="media-ai-help">Selecione pelo menos uma rede social na etapa anterior.</p>}
     {files.length > 6 && <p className="media-ai-help">As primeiras 6 mídias serão analisadas por vez para manter o processamento rápido.</p>}
@@ -203,13 +188,13 @@ function PreviewMedia({ platform, previews, igFormat, accountHandle }) {
   return <div className={`social-preview-media social-preview-media-${platform}${platform === 'instagram' && ['reel', 'story'].includes(igFormat) ? ' is-vertical' : ''}`}>{media}{platform === 'instagram' && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} mídias em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}</div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
 }
 
-function PostPreview({ text, textByPlatform, selected, files, previews, publishNow, date, youtubeTitle, igFormat, accounts }) {
+function PostPreview({ text, selected, files, previews, publishNow, date, youtubeTitle, igFormat, accounts }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   useEffect(() => {
     if (!availablePlatforms.includes(activePlatform)) setActivePlatform(availablePlatforms[0])
   }, [activePlatform, availablePlatforms.join(',')])
-  const activeText = textByPlatform?.[activePlatform]?.trim() || text
+  const activeText = text
   const isYoutube = activePlatform === 'youtube'
   const isTiktok = activePlatform === 'tiktok'
   const isFacebook = activePlatform === 'facebook'
@@ -248,9 +233,6 @@ export function SchedulerPage() {
   const [tiktokDisableStitch, setTiktokDisableStitch] = useState(false)
   const [youtubeCategoryId, setYoutubeCategoryId] = useState('')
   const [youtubeFormat, setYoutubeFormat] = useState('')
-  const [firstComment, setFirstComment] = useState('')
-  const [textByPlatform, setTextByPlatform] = useState({})
-  const [modelo, setModelo] = useState('gemini')
   const [locationQuery, setLocationQuery] = useState('')
   const [locationResults, setLocationResults] = useState([])
   const [selectedLocation, setSelectedLocation] = useState(null)
@@ -294,8 +276,6 @@ export function SchedulerPage() {
         setYoutubeMadeForKids(savedDraft.youtubeMadeForKids || '')
         setIgFormat(savedDraft.igFormat || 'post')
         setTiktokPrivacyLevel(savedDraft.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE')
-        setFirstComment(savedDraft.firstComment || '')
-        setTextByPlatform(savedDraft.textByPlatform || {})
         setDraftSavedAt(savedDraft.savedAt ? new Date(savedDraft.savedAt) : null)
       }
     } catch {
@@ -308,22 +288,22 @@ export function SchedulerPage() {
   useEffect(() => {
     if (!draftReady) return undefined
     const timer = setTimeout(() => {
-      const hasContent = text.trim() || firstComment.trim() || youtubeTitle.trim() || files.length
+      const hasContent = text.trim() || youtubeTitle.trim() || files.length
       if (!hasContent) {
         localStorage.removeItem(AUTOSAVE_KEY)
         setDraftSavedAt(null)
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, firstComment, textByPlatform, savedAt: savedAt.toISOString() }))
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)
-  }, [draftReady, text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, firstComment, textByPlatform, files.length])
+  }, [draftReady, text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, files.length])
 
   useEffect(() => {
     if (!draftReady) return undefined
-    const hasContent = text.trim() || firstComment.trim() || youtubeTitle.trim() || files.length
+    const hasContent = text.trim() || youtubeTitle.trim() || files.length
     if (!hasContent) return undefined
     const timer = setTimeout(async () => {
       try {
@@ -339,7 +319,7 @@ export function SchedulerPage() {
       }
     }, 1800)
     return () => clearTimeout(timer)
-  }, [draftReady, text, selected, firstComment, youtubeTitle, files.length])
+  }, [draftReady, text, selected, youtubeTitle, files.length])
 
   function monitorPublication(postId, initialCursor) {
     let cursor = initialCursor
@@ -377,8 +357,7 @@ export function SchedulerPage() {
   function applyMediaSuggestion(suggestion, options = {}) {
     const tags = uniqueAiTags(suggestion)
     const composedText = [suggestion.texto?.trim(), tags.length ? tags.map(tag => `#${tag}`).join(' ') : ''].filter(Boolean).join('\n\n')
-    setTextByPlatform(current => ({ ...current, [suggestion.plataforma]: composedText }))
-    if (selected.length === 1 || selected[0] === suggestion.plataforma) setText(composedText)
+    setText(composedText)
     if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
     if (!options.silent) notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
   }
@@ -455,9 +434,9 @@ export function SchedulerPage() {
       const media = await uploadWithConcurrency(files, uploadFile, 3, (completed, total) => setProgress(`Enviando mídias (${completed}/${total})...`))
       const scheduledAt = publishNow ? new Date().toISOString() : date
       setProgress('Processando e salvando agendamento...')
-      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, firstComment, textByPlatform: JSON.stringify(textByPlatform), locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
+      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
       if (serverDraftId.current) { apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'DELETE' }).catch(() => {}); serverDraftId.current = null }
-      setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setFirstComment(''); setTextByPlatform({}); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+      setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
       if (publishNow && createdPost?.id) {
         setPublicationStatus({ type: 'processing', message: `Post #${createdPost.id} enviado. Aguardando confirmação das redes sociais...` })
         monitorPublication(createdPost.id, eventCursor)
@@ -468,7 +447,7 @@ export function SchedulerPage() {
   async function saveAsTemplate() {
     if (!text.trim()) { notify('Escreva algum conteúdo antes de salvar um modelo.', 'error'); return }
     try {
-      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', text, platforms: selected, isTemplate: true, firstComment, textByPlatform }) })
+      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', text, platforms: selected, isTemplate: true }) })
       notify('Modelo salvo nos seus rascunhos.')
     } catch (caught) {
       notify(caught.message, 'error')
@@ -505,8 +484,7 @@ export function SchedulerPage() {
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}</div>}
       <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
-      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} modelo={modelo} onModeloChange={setModelo} onApply={applyMediaSuggestion}/>
-      {selected.length > 1 && <div className="advanced-options" style={{ marginTop: 12 }}>{selected.map(platform => <label key={platform}>Texto para {platform} (opcional)<textarea value={textByPlatform[platform] || ''} onChange={event => setTextByPlatform(value => ({ ...value, [platform]: event.target.value }))} maxLength={5000}/></label>)}</div>}
+      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
     </SchedSection>
 
     <SchedSection number={3} title="Configurações por rede">
@@ -524,7 +502,6 @@ export function SchedulerPage() {
           <fieldset className="checkbox-group"><legend>Interações do TikTok</legend><div className="checkbox-row"><label><input type="checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)}/> Bloquear comentários</label><label><input type="checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)}/> Bloquear duet</label><label><input type="checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)}/> Bloquear stitch</label></div></fieldset>
         </>}
         {(selected.includes('facebook') || selected.includes('instagram')) && <label className="location-field">Local (Facebook/Instagram)<input value={locationQuery} onChange={event => setLocationQuery(event.target.value)} placeholder="Buscar local (ex: Av. Paulista, São Paulo)" autoComplete="off"/>{locationResults.length > 0 && <ul className="location-results">{locationResults.map(location => <li key={location.id}><button type="button" onClick={() => chooseLocation(location)}>{location.name}</button></li>)}</ul>}{selectedLocation && <p className="location-selected">{selectedLocation.name} <button type="button" onClick={() => setSelectedLocation(null)}>✕</button></p>}</label>}
-        <label>Primeiro comentário<textarea value={firstComment} onChange={event => setFirstComment(event.target.value)} maxLength={2000}/></label>
         {selected.length === 0 && <p className="empty-state">Escolha ao menos uma rede acima para ver as opções específicas dela.</p>}
       </div>
     </SchedSection>
@@ -539,5 +516,5 @@ export function SchedulerPage() {
 
     {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !text.trim()}>Salvar como modelo</button></div>
-  </form><PostPreview text={text} textByPlatform={textByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} accounts={connectedAccounts}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
+  </form><PostPreview text={text} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} accounts={connectedAccounts}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }
