@@ -17,11 +17,15 @@ const router = Router()
 // risca; a garantia real de que o texto cabe é aplicada depois, em
 // ajustarPostParaPlataformas() dentro de montarResposta().
 const PLATFORM_HINTS = {
-  instagram: 'Instagram: máximo 2200 caracteres, use hashtags relevantes (5-10), emojis são bem-vindos, tom visual e engajante.',
-  facebook:  'Facebook: máximo 63206 caracteres, texto mais longo e descritivo é aceito, pode incluir chamada para ação, menos hashtags (1-3).',
-  youtube:   'YouTube: forneça um título chamativo (máximo 100 caracteres) e descrição otimizada para SEO (200-400 palavras com palavras-chave). Sem hashtags excessivos.',
+  instagram: 'Instagram: máximo 2200 caracteres, use até 5 hashtags específicas, emojis são bem-vindos, tom visual e engajante.',
+  facebook:  'Facebook: máximo 63206 caracteres, texto mais longo e descritivo é aceito, use 1-2 hashtags realmente relevantes.',
+  youtube:   'YouTube: forneça um título chamativo (máximo 100 caracteres) e descrição otimizada para SEO (200-400 palavras com palavras-chave). Use no máximo 3 hashtags.',
   tiktok:    'TikTok: texto curto e direto (idealmente até 150 caracteres para melhor engajamento, limite técnico real é maior), use 3-5 hashtags trending, linguagem jovem e descontraída.',
 }
+
+// Quantidade enxuta para evitar blocos de hashtags e manter o foco na
+// descrição. Os limites seguem as recomendações atuais de cada plataforma.
+const MEDIA_HASHTAG_LIMITS = { instagram: 5, facebook: 2, youtube: 3, tiktok: 5 }
 
 const TONE_HINTS = {
   motivacional: 'Tom motivacional: inspire, energize, use verbos de ação, frases de impacto.',
@@ -1301,14 +1305,19 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
       [plataforma],
       mediaType
     )
+    const hashtagsEmAlta = normalizarHashtags(s.hashtagsEmAlta || s.hashtags_em_alta)
+    const hashtagsNicho = normalizarHashtags(s.hashtagsNicho || s.hashtags_nicho)
+    const hashtagsGerais = normalizarHashtags(s.hashtags)
+    const hashtags = Array.from(new Set([...hashtagsEmAlta, ...hashtagsNicho, ...hashtagsGerais]))
+      .slice(0, MEDIA_HASHTAG_LIMITS[plataforma] || 3)
     return {
       ...s,
       plataforma,
       texto: ajustado.texto,
       titulo: ajustado.titulo,
-      hashtags: normalizarHashtags(s.hashtags),
-      hashtagsEmAlta: normalizarHashtags(s.hashtagsEmAlta || s.hashtags_em_alta),
-      hashtagsNicho: normalizarHashtags(s.hashtagsNicho || s.hashtags_nicho),
+      hashtags,
+      hashtagsEmAlta: hashtags.filter(tag => hashtagsEmAlta.includes(tag)),
+      hashtagsNicho: hashtags.filter(tag => hashtagsNicho.includes(tag)),
       observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
     }
   })
@@ -1320,7 +1329,7 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', modelo = 'openrouter' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
     if (modelo === 'local') return res.status(422).json({ erro: 'O Assistente Rápido não analisa imagens. O agendador usa o OpenRouter para interpretar a mídia.' })
 
@@ -1328,9 +1337,12 @@ router.post('/analyze-media', async (req, res) => {
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
 
     const dataAtual = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())
+    const melhoriaHint = melhorar && contexto?.trim()
+      ? '\n\nO usuário não aprovou a descrição anterior. Reescreva-a de forma claramente melhor: mais natural, específica, envolvente e adequada à mídia, sem apenas trocar algumas palavras.'
+      : ''
     const prompt = `Você é um especialista em marketing digital e social media. Analise a mídia e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
 
-Não responda com uma descrição técnica da imagem. Escreva o texto de publicação pronto para o público, relacionado ao que aparece na mídia e ao contexto informado. Se já existir texto no campo do post, melhore e complete esse texto em vez de ignorá-lo.
+Não responda com uma descrição técnica da imagem. Escreva o texto de publicação pronto para o público, relacionado ao que aparece na mídia e ao contexto informado. Se já existir texto no campo do post, melhore e complete esse texto em vez de ignorá-lo.${melhoriaHint}
 
 Data de referência: ${dataAtual}
 
