@@ -62,8 +62,9 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, replySupported, onReplied }) {
+function CommentRow({ comment, postId, platform, replySupported, onReplied }) {
   const [replyText, setReplyText] = useState('')
+  const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const data = comment.createdAt ? formatDate(comment.createdAt) : ''
@@ -77,6 +78,12 @@ function CommentRow({ comment, postId, replySupported, onReplied }) {
     try {
       await apiFetch(`/api/posts/${postId}/comments/${comment.id}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
       setReplyText('')
+      setSentReplies(current => [...current, {
+        id: `local-reply-${Date.now()}`,
+        author: 'Sua resposta',
+        text,
+        createdAt: new Date().toISOString()
+      }])
       onReplied?.()
     } catch (caught) {
       setError(caught.message)
@@ -92,10 +99,17 @@ function CommentRow({ comment, postId, replySupported, onReplied }) {
     </div>
     <p className="comment-text">{comment.text}</p>
     {data && <div className="comment-date">{data}</div>}
+    {sentReplies.map(reply => <div className="comment-own-reply" key={reply.id}>
+      <div className="comment-own-reply-heading"><span>↳</span><strong>Sua resposta</strong><small>publicada agora</small></div>
+      <p>{reply.text}</p>
+    </div>)}
     {replySupported
-      ? <div className="comment-reply-form">
+      ? <div className="comment-reply-composer">
+          <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
+          <div className="comment-reply-form">
           <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
-          <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Enviando…' : 'Responder'}</button>
+          <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
+          </div>
         </div>
       : <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
     {error && <p className="error-message comment-reply-error">{error}</p>}
@@ -147,7 +161,7 @@ export function CommentsModal({ postId, onClose, embedded = false }) {
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} replySupported={post?.replySupported} onReplied={load} />)}
+      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} platform={post?.platform} replySupported={post?.replySupported} onReplied={load} />)}
     </div>}
   </div>
 
