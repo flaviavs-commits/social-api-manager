@@ -323,9 +323,12 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
   const savedGoogleKey = process.env.GOOGLE_API_KEY
-  if (userKey) delete process.env.GOOGLE_API_KEY
+  // O SDK também lê GOOGLE_API_KEY automaticamente. Remova-a durante a
+  // construção do cliente para não ignorar a chave/modelo escolhido quando as
+  // duas variáveis existem no ambiente do Railway.
+  delete process.env.GOOGLE_API_KEY
   const client = new GoogleGenAI({ apiKey: key })
-  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+  if (savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
   const geminiModel = GEMINI_MODEL_IDS[modelo] || 'gemini-2.0-flash'
   const result = await client.models.generateContent({
     model: geminiModel,
@@ -349,9 +352,9 @@ async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
   const savedGoogleKey = process.env.GOOGLE_API_KEY
-  if (userKey) delete process.env.GOOGLE_API_KEY
+  delete process.env.GOOGLE_API_KEY
   const client = new GoogleGenAI({ apiKey: key })
-  if (userKey && savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
+  if (savedGoogleKey) process.env.GOOGLE_API_KEY = savedGoogleKey
 
   const geminiModel = GEMINI_MODEL_IDS[modelId] || 'gemini-2.0-flash'
 
@@ -1287,6 +1290,62 @@ router.post('/image/lead', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
+function gerarAnaliseMediaLocal({ plataformas, contexto, isVideo }) {
+  const assunto = contexto?.trim() || (isVideo ? 'este vídeo' : 'esta imagem')
+  const palavras = assunto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter(palavra => palavra.length >= 4 && !['para', 'sobre', 'como', 'esta', 'este', 'isso', 'aquela', 'aquele'].includes(palavra))
+  const tagsBase = [...new Set([...palavras.slice(0, 4), 'conteudo', 'criatividade'])]
+  const tagsPorRede = {
+    instagram: [...tagsBase, 'instagram'],
+    facebook: [...tagsBase.slice(0, 3), 'facebook'],
+    youtube: [...tagsBase.slice(0, 3), 'youtube'],
+    tiktok: [...tagsBase.slice(0, 3), 'fyp', 'tiktok'],
+  }
+  const textos = {
+    instagram: `Um novo olhar sobre ${assunto}. Salve para consultar depois e compartilhe com quem precisa ver.`,
+    facebook: `Estamos compartilhando ${assunto}. O que você achou? Conte nos comentários e marque alguém para participar da conversa.`,
+    youtube: `Neste conteúdo, mostramos ${assunto}. Assista até o final e inscreva-se para acompanhar os próximos vídeos.`,
+    tiktok: `Olha isso: ${assunto}. Você já tinha visto algo assim? 👀`,
+  }
+  return {
+    descricao_midia: isVideo ? 'Vídeo enviado para criação de uma sugestão rápida.' : 'Imagem enviada para criação de uma sugestão rápida.',
+    sugestoes: plataformas.map(plataforma => ({
+      plataforma,
+      texto: textos[plataforma] || textos.instagram,
+      hashtags: tagsPorRede[plataforma] || tagsBase,
+      hashtagsEmAlta: [],
+      hashtagsNicho: tagsBase.slice(0, 4),
+      observacaoTendencias: 'Modo rápido: as hashtags foram sugeridas a partir do contexto informado e não representam uma medição de tendência em tempo real.',
+      titulo: plataforma === 'youtube' ? `Tudo sobre ${assunto}` : '',
+    })),
+  }
+}
+
+function formatarSugestoesMedia(parsed, plataformas, mediaType) {
+  const normalizarHashtags = value => Array.from(new Set((Array.isArray(value) ? value : [])
+    .map(tag => String(tag || '').trim().replace(/^#+/, '').replace(/\s+/g, ''))
+    .filter(Boolean)))
+  return (parsed.sugestoes || []).map(s => {
+    const plataforma = plataformas.includes(s.plataforma) ? s.plataforma : plataformas[0]
+    const { post: ajustado } = ajustarPostParaPlataformas(
+      { texto: s.texto || '', titulo: s.titulo || '' },
+      [plataforma],
+      mediaType
+    )
+    return {
+      ...s,
+      plataforma,
+      texto: ajustado.texto,
+      titulo: ajustado.titulo,
+      hashtags: normalizarHashtags(s.hashtags),
+      hashtagsEmAlta: normalizarHashtags(s.hashtagsEmAlta || s.hashtags_em_alta),
+      hashtagsNicho: normalizarHashtags(s.hashtagsNicho || s.hashtags_nicho),
+      observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
+    }
+  })
+}
+
 // POST /api/ai/analyze-media — analisa imagem/vídeo e sugere texto para redes
 // sociais, usando o modelo escolhido pelo usuário no seletor do Agente IA
 // (Gemini, OpenAI, OpenRouter ou Claude) — mesma checagem de chave própria vs.
@@ -1295,8 +1354,6 @@ router.post('/analyze-media', async (req, res) => {
   try {
     const { mediaBase64, mimeType, mediaKind, plataformas = ['instagram'], contexto = '', modelo = 'gemini' } = req.body || {}
     if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
-
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
 
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
@@ -1334,51 +1391,50 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 }`
 
     const isVideo = mediaKind === 'video' || !mediaBase64
-    const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
-
     let parsed
-    try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
+    let modeloUsado = modelo
+    let aviso = ''
+    if (modelo === 'local') {
+      parsed = gerarAnaliseMediaLocal({ plataformas, contexto, isVideo })
+      aviso = 'Modo rápido ativo: a sugestão usa o contexto informado e não consome uma API externa.'
+    } else {
+      const userKey = await getUserApiKey(pool, req.user.id, modelo)
+      const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
+      try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
+    }
 
     // Diferente de /generate, aqui já se sabe o tipo real da mídia (imagem ou
     // vídeo) — então aplica o limite exato da plataforma de cada sugestão
     // (ex: TikTok foto = 90 chars, TikTok vídeo = 2200), em vez do limite
     // genérico mais permissivo.
     const mediaType = isVideo ? 'video' : 'image'
-    const sugestoes = (parsed.sugestoes || []).map(s => {
-      const { post: ajustado } = ajustarPostParaPlataformas(
-        { texto: s.texto || '', titulo: s.titulo || '' },
-        [s.plataforma],
-        mediaType
-      )
-      const normalizarHashtags = value => Array.from(new Set((Array.isArray(value) ? value : [])
-        .map(tag => String(tag || '').trim().replace(/^#+/, '').replace(/\s+/g, ''))
-        .filter(Boolean)))
-      const hashtags = normalizarHashtags(s.hashtags)
-      const hashtagsEmAlta = normalizarHashtags(s.hashtagsEmAlta || s.hashtags_em_alta)
-      const hashtagsNicho = normalizarHashtags(s.hashtagsNicho || s.hashtags_nicho)
-      return {
-        ...s,
-        plataforma: s.plataforma || plataformas[0],
-        texto: ajustado.texto,
-        titulo: ajustado.titulo,
-        hashtags,
-        hashtagsEmAlta,
-        hashtagsNicho,
-        observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
-      }
-    })
+    const sugestoes = formatarSugestoesMedia(parsed, plataformas, mediaType)
     registrarAtividadeIA({
-      userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
+      userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo: modeloUsado,
       detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : 'imagem'} · plataformas: ${plataformas.join(',')}`,
     })
     res.json({
       descricao_midia: parsed.descricao_midia || '',
       sugestoes,
+      modelo: modeloUsado,
+      aviso,
     })
   } catch (err) {
     const msg = err.message || ''
     registrarAtividadeIA({ userId: req.user.id, acao: 'analyze-media', status: 'erro', modelo: req.body?.modelo || 'gemini', detalhes: msg })
-    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Tente novamente.' })
+    if ((msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) && req.body?.modelo !== 'local') {
+      const isVideo = req.body?.mediaKind === 'video' || !req.body?.mediaBase64
+      const mediaType = isVideo ? 'video' : 'image'
+      const fallback = gerarAnaliseMediaLocal({ plataformas: req.body?.plataformas || ['instagram'], contexto: req.body?.contexto || '', isVideo })
+      return res.json({
+        descricao_midia: fallback.descricao_midia,
+        sugestoes: formatarSugestoesMedia(fallback, req.body?.plataformas || ['instagram'], mediaType),
+        modelo: 'local',
+        fallback: true,
+        aviso: 'O modelo selecionado atingiu o limite de requisições. Geramos uma sugestão rápida; você pode trocar o modelo no seletor acima.',
+      })
+    }
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) return res.status(429).json({ erro: 'Limite de requisições atingido. Troque o modelo ou tente novamente em instantes.' })
     console.error('[AI analyze-media]', msg)
     serverError(res, err)
   }

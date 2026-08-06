@@ -6,6 +6,7 @@ import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { AiModelPicker } from '../components/ai/ai-model-picker.jsx'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
@@ -18,6 +19,18 @@ function formatFileSize(bytes) {
 }
 
 const aiPlatformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+const aiModelLabels = {
+  local: 'Assistente Rápido',
+  gemini: 'Gemini 2.0 Flash',
+  'gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'gemini-2.5-lite': 'Gemini Flash-Lite',
+  openai: 'GPT-4o Mini',
+  'openai-4o': 'GPT-4o',
+  openrouter: 'GPT-OSS 20B',
+  claude: 'Claude Haiku',
+  'claude-sonnet': 'Claude Sonnet',
+}
 
 function canvasToAnalysisData(canvas) {
   const dataUrl = canvas.toDataURL('image/jpeg', 0.72)
@@ -93,7 +106,7 @@ function uniqueAiTags(suggestion) {
   ].map(cleanAiTag).filter(Boolean)))
 }
 
-function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
+function MediaAiSuggestions({ files, selected, contexto, previews, modelo, onModeloChange, onApply }) {
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState([])
   const [analysisError, setAnalysisError] = useState('')
@@ -108,26 +121,32 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       const media = await buildMediaAnalysisPayload(file)
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
-        body: JSON.stringify({ ...media, plataformas: selected, contexto, modelo: 'gemini' }),
+        body: JSON.stringify({ ...media, plataformas: selected, contexto, modelo }),
       })
       return { key: mediaFileKey(file), fileName: file.name, mediaType: media.mediaKind, previewUrl: previews.find(item => item.key === mediaFileKey(file))?.url, ...response }
     }))
     const successful = settled.filter(item => item.status === 'fulfilled').map(item => item.value)
     const failures = settled.filter(item => item.status === 'rejected')
     setResults(successful)
-    if (failures.length) setAnalysisError(`${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
+    if (failures.length) {
+      const firstMessage = failures[0].reason?.message || ''
+      setAnalysisError(firstMessage.includes('limite') || firstMessage.includes('429')
+        ? `O modelo ${aiModelLabels[modelo] || modelo} atingiu o limite. Troque o modelo no seletor e tente novamente.`
+        : `${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
+    }
     if (!successful.length && failures.length) setAnalysisError(failures[0].reason?.message || 'Não foi possível analisar as mídias.')
     setBusy(false)
   }
 
   return <section className="media-ai-assistant" aria-label="Sugestões de texto com inteligência artificial">
-    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Crie legendas a partir da sua mídia</strong><small>A IA analisa cada imagem ou vídeo e adapta a legenda, o título e as hashtags para cada rede.</small></div><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando mídias...' : '✦ Gerar sugestões com IA'}</button></div>
+    <div className="media-ai-heading"><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><strong>Crie legendas a partir da sua mídia</strong><small>A IA analisa cada imagem ou vídeo e adapta a legenda, o título e as hashtags para cada rede.</small></div><div className="media-ai-controls"><AiModelPicker value={modelo} onChange={onModeloChange} compact/><button type="button" className="media-ai-button" onClick={analyzeMedia} disabled={busy || !files.length || !selected.length}>{busy ? 'Analisando mídias...' : '✦ Gerar sugestões com IA'}</button></div></div>
     {!files.length && <p className="media-ai-help">Adicione uma imagem ou vídeo para liberar a análise.</p>}
     {!selected.length && <p className="media-ai-help">Selecione pelo menos uma rede social na etapa anterior.</p>}
     {files.length > 6 && <p className="media-ai-help">As primeiras 6 mídias serão analisadas por vez para manter o processamento rápido.</p>}
     {analysisError && <p className="media-ai-error" role="alert">{analysisError}</p>}
     {results.length > 0 && <div className="media-ai-results">{results.map(result => <article className="media-ai-result" key={result.key}>
-      <div className="media-ai-result-heading">{result.previewUrl ? (result.mediaType === 'video' ? <video src={result.previewUrl} muted playsInline preload="metadata" aria-label={`Prévia de ${result.fileName}`}/> : <img src={result.previewUrl} alt={`Prévia de ${result.fileName}`}/>) : <span className={`media-ai-type media-ai-type-${result.mediaType}`}>{result.mediaType === 'video' ? '▶ Vídeo' : '▧ Imagem'}</span>}<div className="media-ai-result-file"><strong title={result.fileName}>{result.fileName}</strong>{result.descricao_midia && <small>{result.descricao_midia}</small>}</div></div>
+      <div className="media-ai-result-heading">{result.previewUrl ? (result.mediaType === 'video' ? <video src={result.previewUrl} muted playsInline preload="metadata" aria-label={`Prévia de ${result.fileName}`}/> : <img src={result.previewUrl} alt={`Prévia de ${result.fileName}`}/>) : <span className={`media-ai-type media-ai-type-${result.mediaType}`}>{result.mediaType === 'video' ? '▶ Vídeo' : '▧ Imagem'}</span>}<div className="media-ai-result-file"><strong title={result.fileName}>{result.fileName}</strong>{result.descricao_midia && <small>{result.descricao_midia}</small>}</div><span className={`media-ai-used-model${result.fallback ? ' is-fallback' : ''}`}>Modelo: {aiModelLabels[result.modelo] || result.modelo || aiModelLabels[modelo]}</span></div>
+      {result.aviso && <p className="media-ai-notice">ⓘ {result.aviso}</p>}
       <div className="media-ai-platform-results">{(result.sugestoes || []).map(suggestion => <div className={`media-ai-platform-result media-ai-platform-result-${suggestion.plataforma}`} key={suggestion.plataforma}>
         <div className="media-ai-platform-heading"><span className="media-ai-platform-icon"><PlatformIcon platform={suggestion.plataforma} className="h-4 w-4"/></span><strong>{aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}</strong></div>
         {suggestion.titulo && <p className="media-ai-title"><span>Título sugerido</span>{suggestion.titulo}</p>}
@@ -179,7 +198,10 @@ const previewLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: '
 function PreviewMedia({ platform, previews, igFormat, accountHandle }) {
   if (!previews.length) return <div className={`social-preview-media social-preview-media-${platform} is-empty`}><span aria-hidden="true">＋</span><small>Adicione uma imagem ou vídeo</small></div>
   const item = previews[0]
-  const media = item.file.type.startsWith('image/') ? <img src={item.url} alt="Prévia da publicação"/> : <div className="social-preview-video"><span aria-hidden="true">▶</span><small>Vídeo selecionado</small></div>
+  const isVideo = item.file.type.startsWith('video/')
+  const media = isVideo
+    ? <div className="social-preview-video"><video src={item.url} controls muted playsInline preload="metadata" aria-label="Prévia do vídeo selecionado"/><span className="social-preview-video-badge">Vídeo selecionado</span></div>
+    : <img src={item.url} alt="Prévia da publicação"/>
   return <div className={`social-preview-media social-preview-media-${platform}${platform === 'instagram' && ['reel', 'story'].includes(igFormat) ? ' is-vertical' : ''}`}>{media}{platform === 'instagram' && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} mídias em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}</div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
 }
 
@@ -230,6 +252,7 @@ export function SchedulerPage() {
   const [youtubeFormat, setYoutubeFormat] = useState('')
   const [firstComment, setFirstComment] = useState('')
   const [textByPlatform, setTextByPlatform] = useState({})
+  const [modelo, setModelo] = useState('local')
   const [locationQuery, setLocationQuery] = useState('')
   const [locationResults, setLocationResults] = useState([])
   const [selectedLocation, setSelectedLocation] = useState(null)
@@ -479,12 +502,12 @@ export function SchedulerPage() {
         <p className="upload-drop-hint">ou arraste os arquivos até aqui · PNG, JPG, WEBP, MP4 e MOV</p>
       </div>
       {files.length > 0 && <div className="media-preview-grid" aria-label="Arquivos selecionados">{mediaPreviews.map(item => <article className="media-preview-card" key={item.key}>
-        {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <div className="media-video-thumb" aria-label={`Vídeo ${item.file.name}`}><span aria-hidden="true">▶</span></div>}
+        {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <video className="media-video-thumb" src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} />}
         <div className="media-preview-info"><strong title={item.file.name}>{item.file.name}</strong><small>{formatFileSize(item.file.size)}</small></div>
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}</div>}
       <label>Texto do post<textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva o texto da publicação..." aria-label="Texto da publicação" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>Adapte a mensagem para cada rede se necessário.</span><span>{text.length}/5000</span></span></label>
-      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
+      <MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} modelo={modelo} onModeloChange={setModelo} onApply={applyMediaSuggestion}/>
       {selected.length > 1 && <div className="advanced-options" style={{ marginTop: 12 }}>{selected.map(platform => <label key={platform}>Texto para {platform} (opcional)<textarea value={textByPlatform[platform] || ''} onChange={event => setTextByPlatform(value => ({ ...value, [platform]: event.target.value }))} maxLength={5000}/></label>)}</div>}
     </SchedSection>
 
