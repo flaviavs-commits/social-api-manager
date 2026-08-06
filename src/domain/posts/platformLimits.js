@@ -2,25 +2,22 @@
 // Agente IA (para não gerar/entregar texto que a rede vai rejeitar) quanto
 // por qualquer validação futura do fluxo normal de posts.
 //
-// TikTok tem dois limites diferentes dependendo do tipo de mídia: vídeo usa o
-// campo "title" da Content Posting API (2200 chars), foto usa outro schema
-// com "title" limitado a 90 chars — descoberto na prática via
-// invalid_params ao testar publicação de foto (ver infra/social/tiktokPublisher.js).
+// O fluxo do produto mantém a legenda do TikTok em até 90 caracteres para
+// garantir compatibilidade com o formato mais restritivo da API, incluindo
+// publicações com foto e sugestões geradas pela IA.
 const TEXT_LIMITS = {
   instagram: { max: 2200 },
   facebook:  { max: 63206 },
   youtube:   { max: 5000 },     // descrição do vídeo — sem limite rígido documentado; usa o teto genérico do formulário
-  tiktok:    { max: 2200, maxPhoto: 90 },
+  tiktok:    { max: 90 },
 }
 
 const YOUTUBE_TITLE_MAX = 100
 
-// Limite de texto efetivo para uma plataforma, dado o tipo de mídia do post
-// (relevante só para o TikTok, que varia entre vídeo e foto).
+// Limite de texto efetivo para uma plataforma, dado o tipo de mídia do post.
 function limiteTexto(platform, mediaType) {
   const limits = TEXT_LIMITS[platform]
   if (!limits) return null
-  if (platform === 'tiktok' && mediaType === 'image') return limits.maxPhoto
   return limits.max
 }
 

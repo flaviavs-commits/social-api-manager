@@ -10,22 +10,18 @@ const { gerarTokenAprovacaoAgente, verificarTokenAprovacaoAgente } = require('..
 
 const router = Router()
 
-// Dicas de ESTILO para o prompt do LLM — o "máximo 150 caracteres" do TikTok
-// aqui é uma recomendação de tom (post curto costuma performar melhor), não
-// o limite técnico real da API (2200 para vídeo, 90 para foto — ver
-// domain/posts/platformLimits.js). O LLM pode não respeitar essas dicas à
-// risca; a garantia real de que o texto cabe é aplicada depois, em
-// ajustarPostParaPlataformas() dentro de montarResposta().
+// Dicas de estilo para o prompt do LLM. O limite de 90 do TikTok também é
+// aplicado no pós-processamento por ajustarPostParaPlataformas().
 const PLATFORM_HINTS = {
   instagram: 'Instagram: máximo 2200 caracteres, use até 5 hashtags específicas, emojis são bem-vindos, tom visual e engajante.',
   facebook:  'Facebook: máximo 63206 caracteres, texto mais longo e descritivo é aceito, use 1-2 hashtags realmente relevantes.',
   youtube:   'YouTube: forneça um título chamativo (máximo 100 caracteres) e descrição otimizada para SEO (200-400 palavras com palavras-chave). Use no máximo 3 hashtags.',
-  tiktok:    'TikTok: texto curto e direto (idealmente até 150 caracteres para melhor engajamento, limite técnico real é maior), use 3-5 hashtags trending, linguagem jovem e descontraída.',
+  tiktok:    'TikTok: a descrição completa, incluindo hashtags, deve ter no máximo 90 caracteres. Use no máximo 2 hashtags muito relevantes, linguagem direta e descontraída.',
 }
 
 // Quantidade enxuta para evitar blocos de hashtags e manter o foco na
 // descrição. Os limites seguem as recomendações atuais de cada plataforma.
-const MEDIA_HASHTAG_LIMITS = { instagram: 5, facebook: 2, youtube: 3, tiktok: 5 }
+const MEDIA_HASHTAG_LIMITS = { instagram: 5, facebook: 2, youtube: 3, tiktok: 2 }
 
 const TONE_HINTS = {
   motivacional: 'Tom motivacional: inspire, energize, use verbos de ação, frases de impacto.',
@@ -527,7 +523,7 @@ function gerarPostsLocal(instrucao, plataformas, qtd, tom) {
 
     let corpo
     if (curto) {
-      // TikTok: abertura + tema, sem CTA nem ângulo longo (limite ~150 chars).
+      // TikTok: abertura + tema, sem CTA nem ângulo longo (limite de 90 chars).
       corpo = `${abertura}\n\n${capitalizar(temaLower)}.`
     } else {
       corpo = `${abertura}\n\n${miolo}${ganchoNicho}\n\n${fechamento}`
@@ -576,7 +572,6 @@ router.get('/requirements', (req, res) => {
       plataforma: p,
       ...PLATFORM_REQUIREMENTS[p],
       textMax: limiteTexto(p, 'video'),
-      ...(p === 'tiktok' ? { textMaxPhoto: limiteTexto(p, 'image') } : {}),
       ...(p === 'youtube' ? { titleMax: YOUTUBE_TITLE_MAX } : {}),
     }))
   res.json({ requirements: lista })
@@ -643,9 +638,8 @@ router.post('/generate', async (req, res) => {
     // selecionadas (ver domain/posts/platformLimits.js) — o LLM recebe uma
     // dica desses limites no prompt (PLATFORM_HINTS), mas nada garante que
     // ele respeite de fato, então o corte aqui é a garantia real. Mídia
-    // ainda não foi anexada nesta etapa (isso só acontece no /schedule), por
-    // isso usa o limite de vídeo do TikTok (mais permissivo) — o limite mais
-    // restrito de foto (90 chars) é aplicado de novo na hora de publicar.
+    // ainda não foi anexada nesta etapa (isso só acontece no /schedule), mas
+    // o limite de 90 caracteres do TikTok já é aplicado desde a geração.
     const montarResposta = (postsRaw, modeloUsado, extra = {}) => {
       const avisosGerais = new Set()
       const posts = postsRaw.slice(0, qtd).map((p, i) => {
@@ -1310,14 +1304,23 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
     const hashtagsGerais = normalizarHashtags(s.hashtags)
     const hashtags = Array.from(new Set([...hashtagsEmAlta, ...hashtagsNicho, ...hashtagsGerais]))
       .slice(0, MEDIA_HASHTAG_LIMITS[plataforma] || 3)
+    const hashtagsTexto = hashtags.map(tag => `#${tag}`).join(' ')
+    const textoFinal = plataforma === 'tiktok'
+      ? ajustarPostParaPlataformas(
+        { texto: [ajustado.texto, hashtagsTexto].filter(Boolean).join('\n\n'), titulo: ajustado.titulo },
+        [plataforma],
+        mediaType
+      ).post.texto
     return {
       ...s,
       plataforma,
-      texto: ajustado.texto,
+      texto: textoFinal,
       titulo: ajustado.titulo,
-      hashtags,
-      hashtagsEmAlta: hashtags.filter(tag => hashtagsEmAlta.includes(tag)),
-      hashtagsNicho: hashtags.filter(tag => hashtagsNicho.includes(tag)),
+      // No TikTok as hashtags já ficam dentro dos 90 caracteres da legenda;
+      // não as devolvemos separadas para o frontend não anexá-las novamente.
+      hashtags: plataforma === 'tiktok' ? [] : hashtags,
+      hashtagsEmAlta: plataforma === 'tiktok' ? [] : hashtags.filter(tag => hashtagsEmAlta.includes(tag)),
+      hashtagsNicho: plataforma === 'tiktok' ? [] : hashtags.filter(tag => hashtagsNicho.includes(tag)),
       observacaoTendencias: String(s.observacaoTendencias || s.observacao_tendencias || '').trim(),
     }
   })

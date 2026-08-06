@@ -5,12 +5,12 @@ describe('limiteTexto', () => {
     expect(limiteTexto('tiktok', 'image')).toBe(90)
   })
 
-  test('tiktok com mídia de vídeo usa o limite de vídeo (2200)', () => {
-    expect(limiteTexto('tiktok', 'video')).toBe(2200)
+  test('tiktok com mídia de vídeo também usa o limite de 90', () => {
+    expect(limiteTexto('tiktok', 'video')).toBe(90)
   })
 
-  test('tiktok sem mediaType definido usa o limite de vídeo (mais permissivo)', () => {
-    expect(limiteTexto('tiktok', null)).toBe(2200)
+  test('tiktok sem mediaType definido mantém o limite de 90', () => {
+    expect(limiteTexto('tiktok', null)).toBe(90)
   })
 
   test('instagram sempre usa 2200 independente do mediaType', () => {
@@ -51,11 +51,12 @@ describe('ajustarPostParaPlataformas', () => {
     expect(avisos[0]).toMatch(/90 caracteres/)
   })
 
-  test('não corta texto para vídeo do TikTok dentro do limite de 2200', () => {
+  test('corta texto para vídeo do TikTok acima do limite de 90', () => {
     const texto = 'x'.repeat(200)
     const { post, avisos } = ajustarPostParaPlataformas({ texto, titulo: '' }, ['tiktok'], 'video')
-    expect(post.texto).toBe(texto)
-    expect(avisos).toHaveLength(0)
+    expect(post.texto.length).toBeLessThanOrEqual(90)
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]).toMatch(/90 caracteres/)
   })
 
   test('usa o menor limite entre múltiplas plataformas selecionadas', () => {
