@@ -14,7 +14,7 @@ const icons = {
   tokens: 'M15 7a4 4 0 1 1-4 4H4v2h2v3h3v-3h2.06A4 4 0 0 0 15 7Zm0-2a6 6 0 1 1-5.92 7H7v3H4v-3H2v-4h7.08A6 6 0 0 1 15 5Z',
   seguranca: 'M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6l8-3Zm0 5v4m0 4h.01',
   atividade: 'M4 5h16M4 12h16M4 19h10',
-  ai: 'M12 2l1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6L12 2Zm7 12 .8 2.6L22.4 17.4 19.8 18.2 19 20.8 18.2 18.2 15.6 17.4 18.2 16.6 19 14Z'
+  ai: 'M8 8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3ZM12 8V5m-2 0h4M8 12h.01M16 12h.01M9 16h6M3 13h2m14 0h2'
 }
 
 const navigation = [
@@ -69,7 +69,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
               }`}
             >
               <span className="flex items-center gap-2.5">
-                {key === 'ai' ? <img src="/logo_assistente.png" alt="" aria-hidden="true" className="sidebar-ai-icon" /> : <NavIcon name={key} />}
+                <NavIcon name={key} />
                 <span className="sidebar-nav-label">{label}</span>
               </span>
               {active && (

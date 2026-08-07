@@ -42,6 +42,7 @@ Gerenciar publicações e métricas de redes sociais em uma única interface, co
 ## Decisões de design & convenções
 
 - [2026-07-31] Aplicado o padrão Felixo de composição, mobile-first, foco visível, contraste, estados de interação e espaçamento consistente, adaptando a paleta dourada já usada pelo produto.
+- [2026-08-07] O item Assistente IA da navegação lateral passou a usar um ícone de robô em SVG linear, com o mesmo traço e comportamento visual dos símbolos dos demais itens. A estrutura da navegação e a interação permaneceram inalteradas.
 - [2026-07-31] Commits futuros seguem Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`).
 
 ## Testes importantes
