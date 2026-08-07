@@ -6,7 +6,7 @@ import { AnalyticsDemographics } from './analytics-demographics.jsx'
 import { AnalyticsPostsList } from './analytics-posts-list.jsx'
 import { AnalyticsAccountInsights } from './analytics-account-insights.jsx'
 
-export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, periodDays, lastUpdated }) {
+export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, periodDays, lastUpdated, reportAccountId = null }) {
   const tabs = NET_TABS[net] || []
   const tabDescription = TAB_HELP[tab] || ''
   const listTab = tab === 'posts' || tab === 'videos'
@@ -60,7 +60,7 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
 
       <AnalyticsDemographics net={net} tab={tab} data={data}/>
 
-      <AnalyticsAccountInsights net={net} data={data}/>
+      <AnalyticsAccountInsights net={net} data={data} accountId={reportAccountId}/>
 
       {listTab && <section className="analytics-posts-section analytics-content-section" aria-labelledby="analytics-content-list-title">
         <div className="analytics-section-heading">

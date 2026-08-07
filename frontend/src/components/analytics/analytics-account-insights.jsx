@@ -43,10 +43,11 @@ function collectSeries(accounts) {
 function collectBreakdowns(accounts) {
   const result = new Map()
   for (const account of accounts) {
-    for (const metric of Object.values(account.totals?.metrics || {})) {
+    for (const [metricName, metric] of Object.entries(account.totals?.metrics || {})) {
       for (const item of metric.breakdowns || []) {
         if (!item.dimension) continue
-        result.set(item.dimension, (result.get(item.dimension) || 0) + (item.value || 0))
+        const label = `${labelForMetric(metricName)} · ${item.dimension}`
+        result.set(label, (result.get(label) || 0) + (item.value || 0))
       }
     }
     for (const report of Object.values(account.reports || {})) {
@@ -56,22 +57,27 @@ function collectBreakdowns(accounts) {
       }
     }
   }
-  return [...result.entries()].sort(([, a], [, b]) => b - a).slice(0, 12)
+  return [...result.entries()].sort(([, a], [, b]) => b - a)
 }
 
-function collectDailyRows(data, net) {
+function belongsToAccount(item, accountId) {
+  if (!accountId) return true
+  return [item.localAccountId, item.accountId, item.providerAccountId, item._id].some(value => value != null && String(value) === String(accountId))
+}
+
+function collectDailyRows(data, net, accountId) {
   return (data.accountAnalytics?.dailyMetrics || [])
-    .filter(item => item.platform === net)
+    .filter(item => item.platform === net && belongsToAccount(item, accountId))
     .flatMap(item => {
       const source = item.data || {}
       return source.dailyData || source.days || source.dailyMetrics || source.values || []
     })
 }
 
-function ProviderTimeline({ net, data }) {
-  const rows = collectDailyRows(data, net)
+function ProviderTimeline({ net, data, accountId }) {
+  const rows = collectDailyRows(data, net, accountId)
   if (!rows.length) return null
-  const names = [...new Set(rows.flatMap(row => Object.keys(row).filter(key => !['date', 'day'].includes(key) && typeof row[key] === 'number')))].slice(0, 5)
+  const names = [...new Set(rows.flatMap(row => Object.keys(row).filter(key => !['date', 'day'].includes(key) && typeof row[key] === 'number')))]
   if (!names.length) return null
   return <div className="analytics-provider-table">
     <div className="analytics-section-title">Métricas diárias agregadas</div>
@@ -85,8 +91,8 @@ function ProviderTimeline({ net, data }) {
   </div>
 }
 
-function ProviderGrowth({ net, data }) {
-  const accounts = (data.accountAnalytics?.followerStats?.accounts || []).filter(account => account.platform === net)
+function ProviderGrowth({ net, data, accountId }) {
+  const accounts = (data.accountAnalytics?.followerStats?.accounts || []).filter(account => account.platform === net && belongsToAccount(account, accountId))
   if (!accounts.length) return null
   return <div className="analytics-provider-growth">
     <div className="analytics-section-title">Crescimento de seguidores</div>
@@ -98,9 +104,9 @@ function ProviderGrowth({ net, data }) {
   </div>
 }
 
-function ProviderDecay({ net, data }) {
+function ProviderDecay({ net, data, accountId }) {
   const buckets = (data.accountAnalytics?.contentDecay || [])
-    .filter(item => item.platform === net)
+    .filter(item => item.platform === net && belongsToAccount(item, accountId))
     .flatMap(item => item.data?.buckets || item.data?.decay || [])
   if (!buckets.length) return null
   return <div className="analytics-provider-growth">
@@ -113,9 +119,9 @@ function ProviderDecay({ net, data }) {
   </div>
 }
 
-function ProviderBestTime({ net, data }) {
+function ProviderBestTime({ net, data, accountId }) {
   const slots = (data.accountAnalytics?.bestTimeToPost || [])
-    .filter(item => item.platform === net)
+    .filter(item => item.platform === net && belongsToAccount(item, accountId))
     .flatMap(item => item.data?.slots || [])
     .sort((a, b) => Number(b.avg_engagement || 0) - Number(a.avg_engagement || 0))
     .slice(0, 5)
@@ -135,7 +141,7 @@ function InsightSeries({ accounts }) {
   if (!entries.length) return null
   const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))].slice(0, 5)
   return <div className="analytics-insight-chart">
-    <div className="analytics-section-title">Evolução das métricas da conta</div>
+    <div className="analytics-section-title">Evolução das principais métricas</div>
     <Line
       data={{
         labels: entries.map(([date]) => formatDiaBR(date)),
@@ -153,6 +159,62 @@ function InsightSeries({ accounts }) {
   </div>
 }
 
+function MetricSeriesTable({ accounts }) {
+  const entries = collectSeries(accounts)
+  if (!entries.length) return null
+  const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))]
+  return <div className="analytics-provider-table analytics-full-series">
+    <div className="analytics-section-title">Série diária completa</div>
+    <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
+    <div className="analytics-table-scroll"><table>
+      <thead><tr><th>Data</th>{names.map(name => <th key={name}>{labelForMetric(name)}</th>)}</tr></thead>
+      <tbody>{entries.slice(-90).map(([date, values]) => <tr key={date}><td>{formatDiaBR(date)}</td>{names.map(name => <td key={name}>{values[name] == null ? '—' : fmtNum(values[name])}</td>)}</tr>)}</tbody>
+    </table></div>
+  </div>
+}
+
+function demographicRows(value, prefix = '') {
+  if (value == null) return []
+  if (typeof value === 'number') return [{ label: prefix || 'Valor', value }]
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => {
+      if (item && typeof item === 'object' && item.value != null) {
+        const dimension = Array.isArray(item.dimensionValues) ? item.dimensionValues.join(' · ') : item.dimension || item.label || item.name || `${prefix || 'Item'} ${index + 1}`
+        return [{ label: prefix ? `${prefix} · ${dimension}` : dimension, value: Number(item.value) }]
+      }
+      return demographicRows(item, prefix || `Item ${index + 1}`)
+    }).filter(item => Number.isFinite(item.value))
+  }
+  if (typeof value !== 'object') return []
+  return Object.entries(value).flatMap(([key, child]) => demographicRows(child, prefix ? `${prefix} · ${key}` : key))
+}
+
+function InsightDemographics({ accounts }) {
+  const groups = accounts.flatMap(account => Object.entries(account.demographics || {}).map(([name, value]) => ({ name, rows: demographicRows(value) })))
+    .filter(group => group.rows.length)
+  if (!groups.length) return null
+  return <div className="analytics-account-demographics">
+    <div className="analytics-section-title">Demografia e audiência</div>
+    <p className="analytics-insights-subtitle">Dimensões de público devolvidas pela integração da conta.</p>
+    <div className="analytics-demographic-detail-grid">{groups.map((group, index) => <div className="analytics-demographic-detail" key={`${group.name}-${index}`}>
+      <strong>{labelForMetric(group.name)}</strong>
+      <div className="analytics-demographic-detail-list">{group.rows.slice(0, 45).map((row, rowIndex) => <span key={`${row.label}-${rowIndex}`}><b>{row.label}</b><em>{fmtNum(row.value)}</em></span>)}</div>
+    </div>)}</div>
+  </div>
+}
+
+function ReportCoverage({ accounts }) {
+  const ranges = accounts.map(account => account.dateRange).filter(range => range?.since || range?.until)
+  const delays = accounts.flatMap(account => [account.totals?.dataDelay, account.timeSeries?.dataDelay, account.dataDelay]).filter(Boolean)
+  const names = accounts.map(account => account.accountName).filter(Boolean)
+  return <div className="analytics-report-coverage">
+    <span><b>Fonte</b> API oficial</span>
+    {names.length > 0 && <span><b>Perfil</b> {names.join(' · ')}</span>}
+    {ranges[0] && <span><b>Janela</b> {ranges[0].since || '—'} até {ranges[0].until || '—'}</span>}
+    {delays.length > 0 && <span><b>Atualização</b> {[...new Set(delays)].join(' · ')}</span>}
+  </div>
+}
+
 function InsightBreakdowns({ accounts }) {
   const entries = collectBreakdowns(accounts)
   if (!entries.length) return null
@@ -160,16 +222,19 @@ function InsightBreakdowns({ accounts }) {
     <div className="analytics-section-title">Detalhes por dimensão</div>
     <Bar
       data={{
-        labels: entries.map(([label]) => label),
-        datasets: [{ label: 'Valor', data: entries.map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
+          labels: entries.slice(0, 20).map(([label]) => label),
+          datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
       }}
       options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { legend: { display: false } } }}
     />
   </div>
 }
 
-export function AnalyticsAccountInsights({ net, data }) {
-  const accounts = data.accountAnalytics?.platforms?.[net] || []
+export function AnalyticsAccountInsights({ net, data, accountId = null }) {
+  const allAccounts = data.accountAnalytics?.platforms?.[net] || []
+  const accounts = accountId
+    ? allAccounts.filter(account => belongsToAccount(account, accountId))
+    : allAccounts
   if (!accounts.length) return null
 
   const metrics = collectMetrics(accounts)
@@ -179,14 +244,18 @@ export function AnalyticsAccountInsights({ net, data }) {
   ])]
   const errors = accounts.flatMap(account => account.errors || [])
 
-  return <section className="analytics-account-insights">
+  const reportName = accounts.length === 1 ? accounts[0].accountName || accounts[0].username || accounts[0].accountId : `${accounts.length} contas`
+
+  return <section id="analytics-account-report" className="analytics-account-insights">
         <div className="analytics-insights-heading">
       <div>
-        <div className="analytics-section-title">Dados detalhados das contas</div>
-        <div className="analytics-insights-subtitle">{accounts.length} conta(s) conectada(s), com métricas específicas fornecidas pela API oficial.</div>
+        <div className="analytics-section-title">Relatório completo do perfil</div>
+        <div className="analytics-insights-subtitle">{reportName || `${accounts.length} conta(s)`} · métricas específicas fornecidas pela API oficial.</div>
       </div>
-      <span className="analytics-insights-badge">API oficial</span>
+      <span className="analytics-insights-badge">{accountId ? 'Perfil selecionado' : 'Todas as contas'}</span>
     </div>
+
+    <ReportCoverage accounts={accounts}/>
 
     {metrics.length
       ? <div className="analytics-insight-metrics">
@@ -198,11 +267,13 @@ export function AnalyticsAccountInsights({ net, data }) {
       : <p className="empty-state">A rede não retornou métricas detalhadas para o período.</p>}
 
     <InsightSeries accounts={accounts}/>
+    <MetricSeriesTable accounts={accounts}/>
     <InsightBreakdowns accounts={accounts}/>
-    <ProviderGrowth net={net} data={data}/>
-    <ProviderTimeline net={net} data={data}/>
-    <ProviderDecay net={net} data={data}/>
-    <ProviderBestTime net={net} data={data}/>
+    <InsightDemographics accounts={accounts}/>
+    <ProviderGrowth net={net} data={data} accountId={accountId}/>
+    <ProviderTimeline net={net} data={data} accountId={accountId}/>
+    <ProviderDecay net={net} data={data} accountId={accountId}/>
+    <ProviderBestTime net={net} data={data} accountId={accountId}/>
 
     {unavailable.length > 0 && <details className="analytics-limitations">
       <summary>Métricas não expostas pela API</summary>

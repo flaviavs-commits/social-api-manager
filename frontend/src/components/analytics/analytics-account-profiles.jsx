@@ -84,7 +84,7 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
             </div>
             <span className={`analytics-profile-status ${status.className}`}><i aria-hidden="true"/>{status.label}</span>
           </div>
-          <div className="analytics-profile-network"><span className={`analytics-profile-network-icon analytics-profile-network-icon-${account.platform}`}><PlatformIcon platform={account.platform} className="h-4 w-4"/></span><span>{PLAT_LABELS[account.platform]}</span><button type="button" onClick={() => onSelectNetwork(account.platform)}>Ver relatório <span aria-hidden="true">→</span></button></div>
+          <div className="analytics-profile-network"><span className={`analytics-profile-network-icon analytics-profile-network-icon-${account.platform}`}><PlatformIcon platform={account.platform} className="h-4 w-4"/></span><span>{PLAT_LABELS[account.platform]}</span><button type="button" onClick={() => onSelectNetwork(account.platform, account.id)}>Ver relatório <span aria-hidden="true">→</span></button></div>
           <div className="analytics-profile-metrics">
             <div><span>{audienceLabel}</span><strong>{fmtNum(audienceFor(data, account, profile))}</strong></div>
             <div><span>Alcance / views</span><strong>{fmtNum(reachFor(account, profile, tiktokVideos))}</strong></div>

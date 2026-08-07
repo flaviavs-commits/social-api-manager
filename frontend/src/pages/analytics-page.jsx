@@ -7,6 +7,7 @@ import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
 import { filterByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { AnalyticsAccountProfiles } from '../components/analytics/analytics-account-profiles.jsx'
+import { AnalyticsExecutiveOverview } from '../components/analytics/analytics-executive-overview.jsx'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -22,6 +23,7 @@ function htmlValue(value) {
 
 export function AnalyticsPage() {
   const [comparePeriod, setComparePeriod] = useState(false)
+  const [reportAccountId, setReportAccountId] = useState(null)
   const {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
@@ -30,6 +32,12 @@ export function AnalyticsPage() {
   const selectedRows = reportRows(data, periodDays, activeNet)
   const selectedViews = selectedRows.reduce((total, item) => total + Number(item.metrics?.views || 0), 0)
   const selectedEngagement = selectedRows.reduce((total, item) => total + Number(item.metrics?.likes || 0) + Number(item.metrics?.comments || 0) + Number(item.metrics?.shares || 0), 0)
+
+  function openAccountReport(platform, accountId) {
+    setReportAccountId(accountId)
+    selectNetwork(platform)
+    window.setTimeout(() => document.getElementById('analytics-account-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+  }
 
   function exportReport() {
     const rows = reportRows(data, periodDays, activeNet)
@@ -88,7 +96,8 @@ export function AnalyticsPage() {
 
     {error && <p className="error-message" role="alert">{error}</p>}
     {loading && !error && <p className="empty-state" aria-live="polite">Carregando métricas...</p>}
-    {!loading && accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} onSelectNetwork={selectNetwork}/>}
+    {!loading && accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} onSelectNetwork={openAccountReport}/>}
+    {!loading && <AnalyticsExecutiveOverview data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>}
     {!loading && networks.length > 0 && <AnalyticsSummary
       data={data}
       tiktokVideos={tiktokVideos}
@@ -105,7 +114,7 @@ export function AnalyticsPage() {
     </section>}
 
     <div className="analytics-layout">
-      <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={selectNetwork}/>
+      <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={net => { setReportAccountId(null); selectNetwork(net) }}/>
       {loading
         ? <section className="analytics-no-network-panel"><span className="analytics-empty-icon" aria-hidden="true">…</span><h3>Carregando redes</h3><p>Verificando conexões e métricas disponíveis.</p></section>
         : networks.includes(activeNet)
@@ -117,6 +126,7 @@ export function AnalyticsPage() {
               tiktokVideos={tiktokVideos}
               periodDays={periodDays}
               lastUpdated={lastUpdated}
+              reportAccountId={reportAccountId}
             />
           : <section className="analytics-no-network-panel" aria-labelledby="analytics-no-network-title">
               <span className="analytics-empty-icon" aria-hidden="true">◎</span>
