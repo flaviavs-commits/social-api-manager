@@ -18,7 +18,11 @@ describe('commentsService', () => {
 
     await expect(service.listarComentariosPost({ externalPlatform: 'facebook', externalPostId: 'post-1', userId: 1 }))
       .resolves.toEqual({ comments: [{ id: 'comment-1', author: 'Ana', text: 'Olá', createdAt: '2026-01-01T00:00:00Z' }], replySupported: true })
-    expect(zernioClient.getPostComments).toHaveBeenCalledWith('post-1', { accountId: 'zernio-account', limit: 100 })
+    expect(zernioClient.getPostComments).toHaveBeenCalledWith(
+      'post-1',
+      { accountId: 'zernio-account', limit: 100 },
+      { timeoutMs: 5000, retries: 0 }
+    )
   })
 
   test('mantém suporte a token direto legado', async () => {
@@ -38,5 +42,19 @@ describe('commentsService', () => {
     await expect(service.responderComentario({ externalPlatform: 'instagram', externalPostId: 'post-1', userId: 1 }, 'c1', 'Obrigado!'))
       .resolves.toEqual({ success: true })
     expect(zernioClient.replyToComment).toHaveBeenCalledWith('post-1', { accountId: 'zernio-account', commentId: 'c1', message: 'Obrigado!' })
+  })
+
+  test('responde comentário do Facebook pela Graph API em conta legada', async () => {
+    buscarContaToken.mockResolvedValue({ accessToken: 'meta-token', status: 'valid' })
+    const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ id: 'reply-1' })
+    })
+
+    await expect(service.responderComentario({ externalPlatform: 'facebook', externalPostId: 'post-1', userId: 1 }, 'c1', 'Obrigado!'))
+      .resolves.toEqual({ id: 'reply-1' })
+    expect(fetchMock).toHaveBeenCalledWith('https://graph.facebook.com/v19.0/c1/comments', expect.objectContaining({ method: 'POST' }))
+    fetchMock.mockRestore()
   })
 })

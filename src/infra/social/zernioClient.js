@@ -29,13 +29,14 @@ function apiKey() {
 // Retry em 5xx/429 — mesmo espírito do fetchJsonWithRetry usado em
 // src/routes/oauth.js para as outras redes. Respeita Retry-After quando
 // presente (documentado pelo Zernio nos headers de rate limit).
-async function zernioFetch(path, { method = 'GET', body, query, retries = 2, delayMs = 600 } = {}) {
+async function zernioFetch(path, { method = 'GET', body, query, timeoutMs = 10_000, retries = 2, delayMs = 600 } = {}) {
   const url = new URL(ZERNIO_BASE_URL + path)
   try {
     return await requestJson(url, {
       method,
       query,
       body,
+      timeoutMs,
       headers: { Authorization: `Bearer ${apiKey()}` },
       retries,
       retryDelayMs: delayMs
@@ -89,8 +90,8 @@ async function getPost(postId) {
 // Inbox de comentários do Zernio. Facebook/Instagram conectados via Zernio
 // não entregam um access token da Meta para a nossa aplicação; o Zernio é quem
 // autentica na rede social e exige o accountId da conta conectada.
-async function getPostComments(postId, query) {
-  return zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}`, { query })
+async function getPostComments(postId, query, requestOptions = {}) {
+  return zernioFetch(`/inbox/comments/${encodeURIComponent(postId)}`, { query, ...requestOptions })
 }
 
 async function replyToComment(postId, body) {

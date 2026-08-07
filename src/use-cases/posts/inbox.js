@@ -98,15 +98,21 @@ async function listarComentarios({ id, userId, isAdmin }) {
   let comments = []
   let replySupported = preview.replySupported
   let commentsError = null
-  try {
-    const result = await commentsService.listarComentariosPost(post)
-    comments = result.comments || []
-    replySupported = result.replySupported ?? replySupported
-  } catch (error) {
-    commentsError = error.message
+  // Comentários e preview são independentes. Antes eram buscados em série,
+  // então a tela esperava a rede social responder comentários para só depois
+  // começar a buscar a mídia. Em uma troca de post isso duplicava o tempo de
+  // espera percebido no Inbox.
+  const [commentsResult, midiaResult] = await Promise.all([
+    commentsService.listarComentariosPost(post).catch(error => ({ error })),
+    commentsService.buscarMidiaPost(post)
+  ])
+  if (commentsResult.error) {
+    commentsError = commentsResult.error.message
+  } else {
+    comments = commentsResult.comments || []
+    replySupported = commentsResult.replySupported ?? replySupported
   }
-
-  const midiaRemota = await commentsService.buscarMidiaPost(post)
+  const midiaRemota = midiaResult
 
   return {
     comments,

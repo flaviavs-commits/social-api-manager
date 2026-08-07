@@ -19,6 +19,22 @@ function mediaItemsOf(post) {
     : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
 }
 
+function previewFromInboxPost(post) {
+  if (!post) return null
+  const platform = post.externalPlatform || post.platform || post.platforms?.[0] || 'instagram'
+  const account = (post.accounts || []).find(item => item.platform === platform) || (post.accounts || [])[0] || {}
+  return {
+    ...post,
+    id: post.id,
+    platform,
+    handle: post.handle || account.handle || '',
+    avatarUrl: post.avatarUrl || account.avatarUrl || null,
+    publishedAt: post.publishedAt || post.scheduledAt || null,
+    youtubeTitle: post.youtubeTitle || post.titleByPlatform?.youtube || post.title || '',
+    text: post.textByPlatform?.[platform] || post.text || ''
+  }
+}
+
 function PostPreview({ post }) {
   if (!post) return null
   const platform = post.platform || 'instagram'
@@ -116,47 +132,71 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied }) {
   </article>
 }
 
-export function CommentsModal({ postId, onClose, embedded = false }) {
+export function CommentsModal({ postId, initialPost = null, onClose, embedded = false }) {
   const [comments, setComments] = useState([])
-  const [post, setPost] = useState(null)
+  const [post, setPost] = useState(() => previewFromInboxPost(initialPost))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback((silent = false) => {
+  const load = useCallback((silent = false, signal) => {
     if (!silent) setLoading(true)
     setError('')
-    apiFetch(`/api/posts/${postId}/comments`)
+    return apiFetch(`/api/posts/${postId}/comments`, { signal })
       .then(result => {
+        if (signal?.aborted) return
         const nextComments = result.comments || []
         setComments(nextComments)
         setPost(result.post || null)
         setError(result.error || '')
         if (nextComments.length) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
       })
-      .catch(caught => setError(caught.message))
-      .finally(() => { if (!silent) setLoading(false) })
+      .catch(caught => { if (!signal?.aborted) setError(caught.message) })
+      .finally(() => { if (!silent && !signal?.aborted) setLoading(false) })
   }, [postId])
 
   useEffect(() => {
-    load()
-    const refresh = () => load(true)
-    const timer = window.setInterval(refresh, 15000)
-    window.addEventListener('focus', refresh)
+    let active = true
+    let timer = null
+    let controller = new AbortController()
+    let version = 0
+
+    // Mostra o post escolhido imediatamente, sem esperar a rede social.
+    setPost(previewFromInboxPost(initialPost))
+    setComments([])
+    setError('')
+    setLoading(true)
+
+    const refresh = (silent = false) => {
+      const currentVersion = ++version
+      if (timer) window.clearTimeout(timer)
+      controller.abort()
+      controller = new AbortController()
+      load(silent, controller.signal).finally(() => {
+        if (active && currentVersion === version) timer = window.setTimeout(() => refresh(true), 15000)
+      })
+    }
+
+    const onFocus = () => refresh(true)
+    refresh()
+    window.addEventListener('focus', onFocus)
     const closeWithEscape = event => { if (event.key === 'Escape') onClose() }
     document.addEventListener('keydown', closeWithEscape)
     return () => {
-      window.clearInterval(timer)
-      window.removeEventListener('focus', refresh)
+      active = false
+      if (timer) window.clearTimeout(timer)
+      controller.abort()
+      window.removeEventListener('focus', onFocus)
       document.removeEventListener('keydown', closeWithEscape)
     }
-  }, [load, onClose])
+  }, [load, onClose, postId])
 
+  const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
   const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
     <div className="modal-header comments-header">
       <div><p className="eyebrow">PUBLICAÇÃO PUBLICADA</p><h3>Comentários e respostas</h3><p className="comments-conversation-title">Confira o conteúdo e responda sua comunidade sem sair do Inbox.</p></div>
       {!embedded && <button type="button" className="link-button" onClick={onClose} aria-label="Fechar">✕</button>}
     </div>
-    <PostPreview post={post} />
+    <PostPreview post={visiblePost} />
     {error && <p className="error-message" style={{ textAlign: 'center', padding: '1.5rem' }}>{error}</p>}
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}

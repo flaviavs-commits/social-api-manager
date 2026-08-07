@@ -122,6 +122,11 @@ async function listarComentariosZernio(token, externalPostId) {
   const data = await zernioClient.getPostComments(externalPostId, {
     accountId: token.zernioAccountId,
     limit: 100
+  }, {
+    // O Inbox é uma interação em tempo real. Uma consulta lenta não deve
+    // prender a troca de publicação por até três tentativas de 10s.
+    timeoutMs: 5000,
+    retries: 0
   })
 
   return (data.comments || []).map(c => ({
