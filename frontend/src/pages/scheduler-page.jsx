@@ -6,6 +6,7 @@ import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
@@ -246,13 +247,15 @@ function PreviewMedia({ platform, previews, igFormat, accountHandle }) {
   return <div className={`social-preview-media social-preview-media-${platform}${platform === 'instagram' && ['reel', 'story'].includes(igFormat) ? ' is-vertical' : ''}`}>{media}{platform === 'instagram' && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} mídias em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}</div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
 }
 
-function PostPreview({ text, selected, files, previews, publishNow, date, youtubeTitle, igFormat, accounts }) {
+function PostPreview({ text, textByPlatform, selected, files, previews, publishNow, date, youtubeTitle, igFormat, accounts }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   useEffect(() => {
     if (!availablePlatforms.includes(activePlatform)) setActivePlatform(availablePlatforms[0])
   }, [activePlatform, availablePlatforms.join(',')])
-  const activeText = text
+  const activeText = Object.prototype.hasOwnProperty.call(textByPlatform, activePlatform)
+    ? textByPlatform[activePlatform]
+    : text
   const isYoutube = activePlatform === 'youtube'
   const isTiktok = activePlatform === 'tiktok'
   const isFacebook = activePlatform === 'facebook'
@@ -274,6 +277,7 @@ function PostPreview({ text, selected, files, previews, publishNow, date, youtub
 
 export function SchedulerPage() {
   const [text, setText] = useState('')
+  const [textByPlatform, setTextByPlatform] = useState({})
   const [date, setDate] = useState('')
   const [publishNow, setPublishNow] = useState(false)
   const [selected, setSelected] = useState(['instagram'])
@@ -326,6 +330,7 @@ export function SchedulerPage() {
       const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || 'null')
       if (savedDraft) {
         setText(savedDraft.text || '')
+        setTextByPlatform(savedDraft.textByPlatform || {})
         setDate(savedDraft.date || '')
         setPublishNow(Boolean(savedDraft.publishNow))
         setSelected(savedDraft.selected?.length ? savedDraft.selected : ['instagram'])
@@ -346,29 +351,29 @@ export function SchedulerPage() {
   useEffect(() => {
     if (!draftReady) return undefined
     const timer = setTimeout(() => {
-      const hasContent = text.trim() || youtubeTitle.trim() || files.length
+      const hasContent = text.trim() || Object.values(textByPlatform).some(value => value?.trim()) || youtubeTitle.trim() || files.length
       if (!hasContent) {
         localStorage.removeItem(AUTOSAVE_KEY)
         setDraftSavedAt(null)
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, savedAt: savedAt.toISOString() }))
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ text, textByPlatform, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)
-  }, [draftReady, text, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, files.length])
+  }, [draftReady, text, textByPlatform, date, publishNow, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, files.length])
 
   useEffect(() => {
     if (!draftReady) return undefined
-    const hasContent = text.trim() || youtubeTitle.trim() || files.length
+    const hasContent = text.trim() || Object.values(textByPlatform).some(value => value?.trim()) || youtubeTitle.trim() || files.length
     if (!hasContent) return undefined
     const timer = setTimeout(async () => {
       try {
         if (serverDraftId.current) {
-          await apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'PATCH', body: JSON.stringify({ text, platforms: selected }) })
+          await apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'PATCH', body: JSON.stringify({ text, textByPlatform, platforms: selected }) })
         } else {
-          const result = await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Autosave', text, platforms: selected }) })
+          const result = await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Autosave', text, textByPlatform, platforms: selected }) })
           serverDraftId.current = result.id
         }
         setServerDraftStatus('Sincronizado na conta')
@@ -377,7 +382,7 @@ export function SchedulerPage() {
       }
     }, 1800)
     return () => clearTimeout(timer)
-  }, [draftReady, text, selected, youtubeTitle, files.length])
+  }, [draftReady, text, textByPlatform, selected, youtubeTitle, files.length])
 
   function monitorPublication(postId, initialCursor) {
     let cursor = initialCursor
@@ -400,6 +405,9 @@ export function SchedulerPage() {
   }
 
   function toggle(platform) { setSelected(value => value.includes(platform) ? value.filter(item => item !== platform) : [...value, platform]) }
+  function updatePlatformText(platform, value) {
+    setTextByPlatform(current => ({ ...current, [platform]: value }))
+  }
   function addFiles(fileList) {
     const incoming = Array.from(fileList || [])
     const valid = incoming.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
@@ -414,7 +422,7 @@ export function SchedulerPage() {
   function removeFile(key) { setFiles(current => current.filter(file => mediaFileKey(file) !== key)) }
   function applyMediaSuggestion(suggestion, options = {}) {
     const composedText = composeAiCaption(suggestion)
-    if (suggestion.plataforma === selected[0]) setText(composedText)
+    if (suggestion.plataforma) updatePlatformText(suggestion.plataforma, composedText)
     if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
     if (!options.silent) notify(`Sugestão aplicada para ${aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma}.`)
   }
@@ -438,7 +446,7 @@ export function SchedulerPage() {
   }, [files])
 
   const validationInput = {
-    text, platforms: selected, files: files.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type })),
+    text, textByPlatform, platforms: selected, files: files.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type })),
     publishNow, scheduledAt: date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey
   }
   useEffect(() => {
@@ -448,7 +456,7 @@ export function SchedulerPage() {
       return
     }
     validationWorker.postMessage({ ...validationInput, requestId })
-  }, [validationWorker, text, selected, files, publishNow, date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey])
+  }, [validationWorker, text, textByPlatform, selected, files, publishNow, date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey])
   const issues = workerIssues
 
   // Busca de local (Facebook/Instagram) com debounce, espelhando o
@@ -492,10 +500,11 @@ export function SchedulerPage() {
       setProgress(files.length ? 'Enviando mídias...' : 'Validando agendamento...')
       const media = await uploadWithConcurrency(files, uploadFile, 3, (completed, total) => setProgress(`Enviando mídias (${completed}/${total})...`))
       const scheduledAt = publishNow ? new Date().toISOString() : date
+      const platformTexts = Object.fromEntries(Object.entries(textByPlatform).filter(([platform]) => selected.includes(platform)))
       setProgress('Processando e salvando agendamento...')
-      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
+      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text, textByPlatform: JSON.stringify(platformTexts), scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId: selectedLocation?.id, locationName: selectedLocation?.name }) })
       if (serverDraftId.current) { apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'DELETE' }).catch(() => {}); serverDraftId.current = null }
-      setText(''); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+      setText(''); setTextByPlatform({}); setDate(''); setFiles([]); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setSelectedLocation(null); setLocationQuery(''); setPublishNow(false); setSaved(true); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
       if (publishNow && createdPost?.id) {
         setPublicationStatus({ type: 'processing', message: `Post #${createdPost.id} enviado. Aguardando confirmação das redes sociais...` })
         monitorPublication(createdPost.id, eventCursor)
@@ -504,9 +513,9 @@ export function SchedulerPage() {
   }
 
   async function saveAsTemplate() {
-    if (!text.trim()) { notify('Escreva algum conteúdo antes de salvar um modelo.', 'error'); return }
+    if (!text.trim() && !Object.values(textByPlatform).some(value => value?.trim())) { notify('Escreva algum conteúdo antes de salvar um modelo.', 'error'); return }
     try {
-      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', text, platforms: selected, isTemplate: true }) })
+      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', text, textByPlatform, platforms: selected, isTemplate: true }) })
       notify('Modelo salvo nos seus rascunhos.')
     } catch (caught) {
       notify(caught.message, 'error')
@@ -542,7 +551,8 @@ export function SchedulerPage() {
         <div className="media-preview-info"><strong title={item.file.name}>{item.file.name}</strong><small>{formatFileSize(item.file.size)}</small></div>
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}</div>}
-      <label className="post-content-field"><span className="post-content-title">Descrição do post</span><textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Escreva a descrição do post ou gere com IA..." aria-label="Descrição do post" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>A descrição gerada será inserida aqui e adaptada para cada rede.</span><span>{text.length}/5000</span></span><MediaAiSuggestions files={files} selected={selected} contexto={text} previews={mediaPreviews} onApply={applyMediaSuggestion}/></label>
+      <label className="post-content-field"><span className="post-content-title">Texto padrão (opcional)</span><textarea value={text} onChange={event => setText(event.target.value)} maxLength={5000} placeholder="Use este texto como base para as redes sem personalização..." aria-label="Texto padrão do post" aria-describedby="post-text-help"/><span id="post-text-help" className="field-help"><span>É usado apenas onde você não criar um texto específico.</span><span>{text.length}/5000</span></span><MediaAiSuggestions files={files} selected={selected} contexto={textByPlatform[selected[0]] ?? text} previews={mediaPreviews} onApply={applyMediaSuggestion}/></label>
+      {selected.length > 0 && <div className="platform-text-editors" aria-label="Textos específicos por rede"><div className="platform-text-editors-heading"><strong>Texto de cada rede</strong><span>Cada campo tem seu próprio limite e não altera os demais.</span></div>{selected.map(platform => { const limit = getPlatformTextLimit(platform); const value = Object.prototype.hasOwnProperty.call(textByPlatform, platform) ? textByPlatform[platform] : text; return <label className={`platform-text-editor platform-text-editor-${platform}`} key={platform}><span className="platform-text-editor-label"><span>{PLATFORM_TEXT_LIMITS[platform]?.label || platform}</span><span>{value.length}/{limit} caracteres</span></span><textarea value={value} onChange={event => updatePlatformText(platform, event.target.value)} maxLength={limit} placeholder={`Escreva o texto do ${PLATFORM_TEXT_LIMITS[platform]?.label || platform}...`} aria-label={`Texto específico do ${PLATFORM_TEXT_LIMITS[platform]?.label || platform}`}/><small>Este conteúdo é enviado somente para o {PLATFORM_TEXT_LIMITS[platform]?.label || platform}.</small></label> })}</div>}
     </SchedSection>
 
     <SchedSection number={3} title="Configurações por rede">
@@ -573,6 +583,6 @@ export function SchedulerPage() {
     </SchedSection>
 
     {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
-    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !text.trim()}>Salvar como modelo</button></div>
-  </form><PostPreview text={text} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} accounts={connectedAccounts}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
+    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || (!text.trim() && !Object.values(textByPlatform).some(value => value?.trim()))}>Salvar como modelo</button></div>
+  </form><PostPreview text={text} textByPlatform={textByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} accounts={connectedAccounts}/></div>{saved && !publicationStatus && <p className="success-message">Publicação agendada.</p>}{publicationStatus && <p className={publicationStatus.type === 'error' ? 'error-message' : 'success-message'} role={publicationStatus.type === 'error' ? 'alert' : 'status'}>{publicationStatus.message}</p>}{error && <p className="error-message" role="alert">{error}</p>}</section></section>
 }

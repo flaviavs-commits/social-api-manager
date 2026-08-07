@@ -1,4 +1,4 @@
-const { validarCriacaoPost, normalizarScheduledAtBR, scheduledAtParaUTC, INSTAGRAM_MIN_ANTECEDENCIA_MIN, MAX_TEXT_LENGTH, YOUTUBE_CATEGORY_IDS } = require('../../../../src/domain/posts/post')
+const { validarCriacaoPost, normalizarScheduledAtBR, scheduledAtParaUTC, INSTAGRAM_MIN_ANTECEDENCIA_MIN, YOUTUBE_CATEGORY_IDS } = require('../../../../src/domain/posts/post')
 
 function baseArgs(overrides = {}) {
   return {
@@ -97,12 +97,24 @@ describe('validarCriacaoPost — textByPlatform', () => {
     expect(erro).toBeNull()
   })
 
-  test('rejeita quando o texto de uma rede específica excede o limite', () => {
-    const textoGigante = 'a'.repeat(MAX_TEXT_LENGTH + 1)
+  test('rejeita quando o texto da rede selecionada excede o limite dela', () => {
+    const textoGigante = 'a'.repeat(63206 + 1)
     const erro = validarCriacaoPost(baseArgs({
-      textByPlatform: { instagram: 'ok', facebook: textoGigante }
+      platforms: ['facebook'],
+      textByPlatform: { facebook: textoGigante }
     }))
-    expect(erro).toMatch(new RegExp(`${MAX_TEXT_LENGTH} caracteres`))
+    expect(erro).toMatch(/63206 caracteres/)
+  })
+
+  test('não deixa o limite do TikTok interferir no Instagram', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['instagram', 'tiktok'],
+      textByPlatform: { instagram: 'a'.repeat(2200), tiktok: 'a'.repeat(90) },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      itemsByPlatform: { tiktok: [{ path: 'x.mp4', type: 'video', caption: '' }] },
+      aspectRatioValidoTiktokByPlatform: { tiktok: true },
+    }))
+    expect(erro).toBeNull()
   })
 })
 

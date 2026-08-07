@@ -58,10 +58,10 @@ router.patch('/:id', async (req, res) => {
   try {
     const id = parseId(req.params.id)
     if (!id) return res.status(400).json({ erro: 'id inválido' })
-    const { text, platforms } = req.body || {}
+    const { text, textByPlatform, platforms } = req.body || {}
     const { rowCount } = await pool.query(
-      `UPDATE drafts SET text=$1, platforms=$2 WHERE id=$3 AND user_id=$4`,
-      [typeof text === 'string' ? text : null, Array.isArray(platforms) ? platforms : [], id, req.user.id]
+      `UPDATE drafts SET text=$1, text_by_platform=$2, platforms=$3 WHERE id=$4 AND user_id=$5`,
+      [typeof text === 'string' ? text : null, textByPlatform && Object.keys(textByPlatform).length ? JSON.stringify(textByPlatform) : null, Array.isArray(platforms) ? platforms : [], id, req.user.id]
     )
     if (!rowCount) return res.status(404).json({ erro: 'Rascunho não encontrado' })
     res.status(204).send()

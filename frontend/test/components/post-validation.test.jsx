@@ -51,6 +51,22 @@ describe('buildValidationIssues', () => {
     expect(issues.filter(i => i.platform === 'youtube')).toHaveLength(0)
   })
 
+  it('validates each selected network with its own text limit', () => {
+    const issues = buildValidationIssues(baseArgs({
+      platforms: ['instagram', 'facebook', 'tiktok'],
+      text: 'a'.repeat(5000),
+      textByPlatform: {
+        instagram: 'a'.repeat(2200),
+        facebook: 'a'.repeat(5000),
+        tiktok: 'a'.repeat(91),
+      },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+    }))
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ platform: 'tiktok' })
+    expect(issues[0].message).toContain('90 caracteres')
+  })
+
   it('blocks Instagram Stories carousels (more than one file)', () => {
     const issues = buildValidationIssues(baseArgs({
       platforms: ['instagram'],

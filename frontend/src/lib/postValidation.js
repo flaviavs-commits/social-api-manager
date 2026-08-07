@@ -3,6 +3,8 @@
 // e src/domain/posts/videoRules.js (isAspectRatioValidForTiktok). O backend
 // continua sendo a fonte da verdade (ver comentário lá); ao mudar uma regra
 // nesses arquivos, atualize aqui também.
+import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from './platformTextLimits.js'
+
 const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
@@ -38,13 +40,28 @@ export function readVideoMeta(file) {
 // Retorna a lista de pendências para o post atual. `youtubeMadeForKids` é a
 // string do <select> ('', 'true' ou 'false'), não um boolean — mesmo padrão
 // já usado por youtubeVisibility/igFormat/tiktokPrivacyLevel neste formulário.
-export function buildValidationIssues({ text, platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey }) {
+export function buildValidationIssues({ text, textByPlatform = {}, platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey }) {
   const issues = []
   const hasMedia = files.length > 0
   const videoFiles = files.filter(file => file.type.startsWith('video/'))
   const hasVideo = videoFiles.length > 0
+  const textForPlatform = platform => Object.prototype.hasOwnProperty.call(textByPlatform, platform)
+    ? textByPlatform[platform]
+    : text
 
-  if (!text.trim() && !hasMedia)
+  for (const platform of platforms) {
+    const value = textForPlatform(platform) || ''
+    const maxLength = getPlatformTextLimit(platform)
+    if (value.length > maxLength) {
+      issues.push({
+        platform,
+        message: `O texto do ${PLATFORM_TEXT_LIMITS[platform]?.label || platform} pode ter no máximo ${maxLength} caracteres.`,
+      })
+    }
+  }
+
+  const hasText = text.trim() || Object.values(textByPlatform).some(value => value?.trim())
+  if (!hasText && !hasMedia)
     issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo.' })
 
   if (!platforms.length)

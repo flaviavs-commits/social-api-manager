@@ -2,6 +2,7 @@
 // Tudo aqui recebe dados já carregados e devolve decisões/valores, nunca efeitos colaterais.
 
 const { PLATFORMS, REPEATS } = require('../../utils/http')
+const { TEXT_LIMITS } = require('./platformLimits')
 
 const MAX_TEXT_LENGTH = 5000
 const MAX_YOUTUBE_TITLE_LENGTH = 100
@@ -60,19 +61,33 @@ function validarLimiteDeTexto(value, maxLength, message) {
   return null
 }
 
-function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform }) {
-  const erroTexto = validarLimiteDeTexto(
-    text,
-    MAX_TEXT_LENGTH,
-    `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
-  )
-  if (erroTexto) return erroTexto
+function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform, platforms }) {
+  // O texto específico tem prioridade sobre o texto padrão, exatamente como
+  // no publisher. Assim, editar o TikTok não corta nem altera Instagram,
+  // Facebook ou YouTube.
+  const plataformas = Array.isArray(platforms) && platforms.length
+    ? platforms
+    : Object.keys(textByPlatform || {})
 
-  for (const texto of Object.values(textByPlatform || {})) {
-    const erro = validarLimiteDeTexto(
-      texto,
+  if (!plataformas.length) {
+    const erroTexto = validarLimiteDeTexto(
+      text,
       MAX_TEXT_LENGTH,
       `O texto do post pode ter no máximo ${MAX_TEXT_LENGTH} caracteres.`
+    )
+    if (erroTexto) return erroTexto
+  }
+
+  for (const platform of plataformas) {
+    const texto = Object.prototype.hasOwnProperty.call(textByPlatform || {}, platform)
+      ? textByPlatform[platform]
+      : text
+    const maxLength = TEXT_LIMITS[platform]?.max || MAX_TEXT_LENGTH
+    const label = TEXT_LIMITS[platform] ? platform[0].toUpperCase() + platform.slice(1) : 'post'
+    const erro = validarLimiteDeTexto(
+      texto,
+      maxLength,
+      `O texto do ${label} pode ter no máximo ${maxLength} caracteres.`
     )
     if (erro) return erro
   }
@@ -106,7 +121,7 @@ function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPla
 // caso as regras de "cada rede exige tal mídia" validam contra os itens
 // daquela rede específica, não mais contra a lista global.
 function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, scheduledAtUTC, publishNow }) {
-  const erroDeTexto = validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform })
+  const erroDeTexto = validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform, platforms })
   if (erroDeTexto) return erroDeTexto
 
   if (!YOUTUBE_VISIBILITIES.includes(youtubeVisibility))
@@ -136,7 +151,8 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   // mídia independente por card, é possível não ter mídia global nenhuma e
   // ainda assim ter anexado algo em pelo menos um dos cards.
   const temAlgumaMidia = items.length > 0 || Object.values(itemsByPlatform || {}).some(arr => arr?.length > 0)
-  if (!text?.trim() && !temAlgumaMidia)
+  const temTexto = text?.trim() || Object.values(textByPlatform || {}).some(value => value?.trim())
+  if (!temTexto && !temAlgumaMidia)
     return 'Informe o texto do post ou anexe uma imagem/vídeo'
 
   const midiaContext = { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram }
