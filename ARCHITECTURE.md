@@ -1,5 +1,9 @@
 # Arquitetura
 
+Para o diagnóstico detalhado, o mapa completo de responsabilidades, riscos e
+roadmap de evolução, consulte
+[`docs/ARQUITETURA-EVOLUTIVA.md`](docs/ARQUITETURA-EVOLUTIVA.md).
+
 O projeto é dividido em dois produtos independentes:
 
 ```text
