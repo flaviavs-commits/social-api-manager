@@ -115,6 +115,45 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
   }))
 }
 
+// Remove conexões locais que foram excluídas no Zernio. A consulta ao provedor
+// só é feita pelo controller quando existem contas Zernio locais; assim uma
+// indisponibilidade temporária do Zernio nunca apaga dados por engano.
+async function listarIdsZernioDoUsuario(userId) {
+  const { rows } = await pool.query(
+    `SELECT id, zernio_account_id AS "zernioAccountId"
+       FROM contas
+      WHERE user_id = $1 AND zernio_account_id IS NOT NULL`,
+    [userId]
+  )
+  return rows
+}
+
+async function removerContasZernioAusentes(userId, zernioAccountIds) {
+  const ids = Array.isArray(zernioAccountIds) ? zernioAccountIds.filter(Boolean) : []
+  const linkedIds = ids.length
+    ? (await pool.query(
+      `SELECT id FROM contas
+        WHERE user_id = $1
+          AND zernio_account_id IS NOT NULL
+          AND NOT (zernio_account_id = ANY($2::text[]))`,
+      [userId, ids]
+    )).rows.map(row => row.id)
+    : (await pool.query(
+      `SELECT id FROM contas WHERE user_id = $1 AND zernio_account_id IS NOT NULL`,
+      [userId]
+    )).rows.map(row => row.id)
+
+  if (!linkedIds.length) return 0
+
+  // Mantém a mesma ordem da exclusão manual: tokens primeiro, conta depois.
+  await pool.query('DELETE FROM tokens WHERE conta_id = ANY($1::int[])', [linkedIds])
+  const { rowCount } = await pool.query(
+    'DELETE FROM contas WHERE id = ANY($1::int[]) AND user_id = $2',
+    [linkedIds, userId]
+  )
+  return rowCount
+}
+
 // Todas as contas ativas do usuário nas plataformas informadas — usado por
 // criarPost.js para resolver automaticamente "todas as contas de cada rede
 // marcada" (o post publica em N contas, uma linha em post_accounts por
@@ -328,7 +367,8 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 }
 
 module.exports = {
-  getDashboardStats, listarContas, listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
+  getDashboardStats, listarContas, listarIdsZernioDoUsuario, removerContasZernioAusentes,
+  listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta, definirZernioAccountId,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
   registrarSnapshotStatsTiktok, buscarHistoricoStatsTiktok,

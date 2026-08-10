@@ -1,6 +1,23 @@
 const accounts = require('../../repositories/contasRepository')
+const zernioClient = require('../../infra/social/zernioClient')
 const { addLog } = require('../../middleware/logger')
 const { PLATFORMS, TIPOS, parseId, serverError } = require('../../utils/http')
+
+async function reconciliarContasZernio(userId) {
+  const locais = await accounts.listarIdsZernioDoUsuario(userId)
+  if (!locais.length) return
+
+  try {
+    const resposta = await zernioClient.listAccounts()
+    const idsAtivos = (resposta.accounts || []).map(account => account._id).filter(Boolean)
+    const removidas = await accounts.removerContasZernioAusentes(userId, idsAtivos)
+    if (removidas) addLog('info', `${removidas} conexão(ões) removida(s) após sincronização com o Zernio`, null, null, userId)
+  } catch (error) {
+    // Falha no provedor não deve impedir o usuário de ver e gerenciar as
+    // contas locais, nem deve ser interpretada como exclusão remota.
+    addLog('warn', `Não foi possível sincronizar exclusões do Zernio: ${error.message}`, null, null, userId)
+  }
+}
 
 async function getStats(req, res) {
   try { res.json(await accounts.getDashboardStats(req.user.id, false)) }
@@ -12,6 +29,7 @@ async function list(req, res) {
     const { platform, tipo, ativo } = req.query
     if (platform !== undefined && !PLATFORMS.includes(platform)) return res.status(400).json({ erro: `platform inválida. Use um de: ${PLATFORMS.join(', ')}` })
     if (tipo !== undefined && !TIPOS.includes(tipo)) return res.status(400).json({ erro: `tipo inválido. Use um de: ${TIPOS.join(', ')}` })
+    await reconciliarContasZernio(req.user.id)
     const data = await accounts.listarContas({ platform: platform || null, tipo: tipo || null, ativo: ativo !== undefined ? ativo === 'true' : undefined, userId: req.user.id, isAdmin: false })
     res.json({ total: data.length, data })
   } catch (error) { serverError(res, error) }
