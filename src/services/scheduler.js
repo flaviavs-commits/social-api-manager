@@ -8,6 +8,9 @@ const { enviarPush } = require('./pushService')
 const { verificarSaudePlataformas } = require('./platformHealth')
 const { comentarYoutube } = require('../infra/social/youtubePublisher')
 const { mapWithConcurrency } = require('../utils/concurrency')
+const { processarFilasRecorrentes, processarRelatoriosAgendados } = require('./prioritySchedulers')
+const { dispatchWebhook } = require('./webhookService')
+const benchmarkObserver = require('./benchmarkObserver')
 
 const POST_CONCURRENCY = 4
 
@@ -61,7 +64,10 @@ async function processarPost(post) {
       status = results.every(sucesso) ? 'published'
         : results.some(sucesso) ? 'partial'
         : 'error'
-      await postsRepo.atualizarStatusPost(post.id, status)
+      const failureDetails = falhas
+        .map(result => `${result.platform || 'Rede social'}: ${result.error || 'A rede não confirmou a publicação.'}`)
+        .join(' | ') || null
+      await postsRepo.atualizarStatusPost(post.id, status, status === 'published' ? null : failureDetails)
     }
 
     if (pendente) return // log/evento de conclusão só quando o Instagram confirmar
@@ -84,6 +90,7 @@ async function processarPost(post) {
       text: post.text,
       results
     }, post.userId)
+    dispatchWebhook('post_published', { id: post.id, status, platforms: post.platforms, text: post.text }, post.userId).catch(() => {})
 
     // Envia push notification para o usuário
     try {
@@ -102,11 +109,11 @@ async function processarPost(post) {
       console.error('Erro ao enviar push:', pushErr.message)
     }
   } catch (err) {
-    await postsRepo.atualizarStatusPost(post.id, 'error')
     // err.message às vezes vem vazio (ex: erro sem mensagem) — inclui o nome
     // do erro e a primeira linha do stack para não perder a causa real de
     // falhas que acontecem fora do try/catch por-plataforma do publisher.
     const detalhe = err.message || `${err.name || 'Erro'}: ${(err.stack || '').split('\n')[1]?.trim() || 'sem detalhes'}`
+    await postsRepo.atualizarStatusPost(post.id, 'error', detalhe)
     await registrarLog({ type: 'err', message: `Post #${post.id} falhou ao publicar: ${detalhe}`, platform: null, user_id: post.userId })
 
     // Envia push de falha
@@ -189,6 +196,8 @@ async function processarPrimeirosComentarios() {
 }
 
 async function processarPendentes() {
+  try { await processarFilasRecorrentes() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar fila recorrente: ${err.message}`, platform: null }) }
+  try { await processarRelatoriosAgendados() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar relatório agendado: ${err.message}`, platform: null }) }
   try {
     const pendentes = await postsRepo.reservarPostsPendentes()
     // Posts pendentes são independentes entre si (já reservados atomicamente como
@@ -237,6 +246,16 @@ function start() {
   // Verifica a cada minuto se as redes sociais estão respondendo
   cron.schedule('* * * * *', verificarSaudePlataformas)
   verificarSaudePlataformas()
+
+  // O worker de benchmarking respeita o intervalo individual de cada perfil.
+  // O tick de 5 minutos mantém o monitor automático responsivo sem consultar
+  // perfis que ainda não venceram o próprio intervalo.
+  cron.schedule('*/5 * * * *', () => benchmarkObserver.observarBenchmarks().catch(err => {
+    console.error('Falha ao observar benchmarks:', err?.message || err)
+  }))
+  benchmarkObserver.observarBenchmarks().catch(err => {
+    console.error('Falha ao iniciar observação de benchmarks:', err?.message || err)
+  })
 }
 
 module.exports = { start, processarPost, processarPendentes, renovarTokensProativamente, verificarSaudePlataformas }

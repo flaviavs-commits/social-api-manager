@@ -2,14 +2,14 @@
 // Agente IA (para não gerar/entregar texto que a rede vai rejeitar) quanto
 // por qualquer validação futura do fluxo normal de posts.
 //
-// O fluxo do produto mantém a legenda do TikTok em até 90 caracteres para
-// garantir compatibilidade com o formato mais restritivo da API, incluindo
-// publicações com foto e sugestões geradas pela IA.
+// O TikTok usa campos separados nas publicações com foto: título de até 90
+// caracteres e descrição de até 4.000 caracteres. O texto deste arquivo é a
+// descrição/caption por rede; o limite do título é validado em post.js.
 const TEXT_LIMITS = {
   instagram: { max: 2200 },
   facebook:  { max: 63206 },
   youtube:   { max: 5000 },     // descrição do vídeo — sem limite rígido documentado; usa o teto genérico do formulário
-  tiktok:    { max: 90 },
+  tiktok:    { max: 4000 },
 }
 
 const YOUTUBE_TITLE_MAX = 100
@@ -56,6 +56,10 @@ function ajustarPostParaPlataformas(post, plataformas, mediaType) {
   if (plataformas.includes('youtube') && titulo.length > YOUTUBE_TITLE_MAX) {
     titulo = cortarParaLimite(titulo, YOUTUBE_TITLE_MAX)
     avisos.push(`Título do YouTube ajustado para ${YOUTUBE_TITLE_MAX} caracteres`)
+  }
+  if (plataformas.includes('tiktok') && titulo.length > 90) {
+    titulo = cortarParaLimite(titulo, 90)
+    avisos.push('Título do TikTok ajustado para 90 caracteres')
   }
 
   return { post: { ...post, texto, titulo }, avisos }

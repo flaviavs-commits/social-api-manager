@@ -43,6 +43,35 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
       })
       return { message: 'Conteúdo gerado. Revise o texto antes de publicar.', data: result, navigation: 'ai' }
     }
+    case 'generate_post_with_image': {
+      if (typeof generatePosts !== 'function' || typeof generateImage !== 'function') throw Object.assign(new Error('Gerador de conteúdo e imagem indisponível.'), { status: 503 })
+      const instruction = String(args.instruction || '').trim()
+      const result = await generatePosts({
+        instruction,
+        platforms: (Array.isArray(args.platforms) ? args.platforms : []).filter(platform => PLATFORMS.includes(platform)),
+        quantity: Math.min(Math.max(Number(args.quantity) || 1, 1), 5),
+        tone: String(args.tone || 'casual'),
+      })
+      const firstPost = result?.posts?.[0] || {}
+      let imageResult
+      try {
+        imageResult = await generateImage({ description: instruction.slice(0, 4000), model: String(args.model || 'auto') })
+      } catch (error) {
+        // O texto continua útil mesmo quando nenhum provedor de imagem está
+        // configurado ou quando a geração visual excede o tempo disponível.
+        return {
+          message: 'O texto do post ficou pronto, mas não consegui gerar a imagem agora. Revise o conteúdo e tente gerar o visual novamente.',
+          data: { ...result, imageUnavailable: true, postDraft: { text: firstPost.texto || firstPost.text || instruction } },
+          navigation: 'ai',
+        }
+      }
+      if (!imageResult?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
+      return {
+        message: 'Preparei uma ideia de post com imagem. Revise o texto e use o botão para continuar no Criador de Posts.',
+        data: { ...result, ...imageResult, postDraft: { image: imageResult.image, text: firstPost.texto || firstPost.text || instruction } },
+        navigation: 'ai',
+      }
+    }
     case 'create_image': {
       if (typeof generateImage !== 'function') throw Object.assign(new Error('Gerador de imagens indisponível.'), { status: 503 })
       const description = String(args.description || '').trim()
@@ -52,7 +81,11 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
         model: String(args.model || 'auto'),
       })
       if (!result?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
-      return { message: `Imagem criada com ${result.modelo || 'um modelo disponível'}.`, data: result, navigation: 'ai' }
+      return {
+        message: 'Imagem criada. Se quiser publicar, use "Usar no Criador de Posts" para continuar com esta imagem, revisar o texto e escolher as redes.',
+        data: { ...result, postDraft: { image: result.image, text: description } },
+        navigation: 'ai',
+      }
     }
     case 'list_posts': {
       const status = args.status || undefined
@@ -109,20 +142,37 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
     case 'analytics_insight': {
       const data = await buscarAnalytics(ctx)
       const platform = args.platform && PLATFORMS.includes(args.platform) ? args.platform : null
+      const { buildAnalyticsInsights } = require('./analyticsInsights')
+      const structuredInsights = buildAnalyticsInsights(data, 30, platform)
       let insight = ''
       if (typeof generateText === 'function') {
-        const prompt = `Você é um estrategista de conteúdo. Analise SOMENTE os dados reais abaixo e responda em português do Brasil.
-Não invente números nem atribua causalidade que os dados não comprovem. Aponte até três observações, até três ações práticas priorizadas e uma pergunta que ajudaria a aprofundar a análise. Se houver pouca amostra, diga isso claramente.${platform ? ` Dê prioridade à plataforma ${platform}.` : ''}
+        const prompt = `Você é um estrategista de conteúdo. Analise SOMENTE a análise estruturada e os dados reais abaixo e responda em português do Brasil.
+O usuário quer entender por que uma publicação teve mais visualizações que outra. Explique a diferença usando os posts e sinais observados, deixando claro quando é apenas associação e quando faltam dados para concluir.
+Sua resposta DEVE conter exatamente estes blocos:
+DIAGNÓSTICO: explique o que provavelmente diferenciou os resultados.
+SOLUÇÃO RECOMENDADA: dê uma ação prática para a próxima publicação.
+OUTRA ABORDAGEM: proponha um teste ou estratégia alternativa para buscar mais visualizações.
+PRÓXIMA MEDIÇÃO: diga quais métricas e período comparar.
+Não invente números, benchmarks, causas ou informações que não estejam nos dados. Se houver pouca amostra, diga isso claramente.${platform ? ` Dê prioridade à plataforma ${platform}.` : ''}
 
-DADOS REAIS DO USUÁRIO:
-${JSON.stringify(data).slice(0, 16000)}
+ANÁLISE ESTRUTURADA:
+${JSON.stringify(structuredInsights).slice(0, 12000)}
 
-Responda em texto simples, com títulos curtos e bullets. Não use JSON.`
+AMOSTRA BRUTA:
+${JSON.stringify(data.metrics || []).slice(0, 10000)}
+
+Responda em texto simples. Não use JSON.`
         insight = String(await generateText(prompt) || '').trim().slice(0, 4000)
       }
+      const fallbackInsight = structuredInsights.performanceAnalysis.comparisons.map(item => [
+        `DIAGNÓSTICO: ${item.diagnosis}`,
+        `SOLUÇÃO RECOMENDADA: ${item.solution}`,
+        `OUTRA ABORDAGEM: ${item.alternativeApproach}`,
+        `PRÓXIMA MEDIÇÃO: Compare visualizações, interações e taxa de interação após o mesmo período de coleta. Amostra atual: ${item.sampleSize} publicação(ões); confiança ${item.confidence}.`,
+      ].join('\n')).join('\n\n') || 'DIAGNÓSTICO: Ainda não há métricas suficientes.\nSOLUÇÃO RECOMENDADA: Publique mais variações do mesmo tema e registre horário, formato e objetivo de cada uma.\nOUTRA ABORDAGEM: Faça um teste A/B alterando somente o gancho inicial.\nPRÓXIMA MEDIÇÃO: Compare visualizações e interações após o mesmo período de coleta.'
       return {
-        message: insight || 'Carreguei os dados. Para receber recomendações personalizadas, habilite um modelo de IA disponível.',
-        data: { ...data, insight: insight || null },
+        message: insight || fallbackInsight,
+        data: { ...data, insight: insight || null, performanceAnalysis: structuredInsights.performanceAnalysis },
         navigation: 'analytics',
       }
     }

@@ -111,6 +111,8 @@ async function publicarTiktok(token, post) {
   const disableComment = post.tiktokDisableComment ?? false
   const disableDuet = post.tiktokDisableDuet ?? false
   const disableStitch = post.tiktokDisableStitch ?? false
+  const tiktokTitle = post.titleByPlatform?.tiktok || ''
+  const tiktokDescription = post.textByPlatform?.tiktokDescription || post.text || ''
 
   // ── Vídeo ──
   if (isVideo) {
@@ -121,7 +123,10 @@ async function publicarTiktok(token, post) {
     // guidelines".
     const montarBody = privacy => JSON.stringify({
       post_info: {
-        title: post.text || '',
+        // O endpoint de vídeo ainda chama a legenda de `title` e aceita até
+        // 2200 caracteres; a descrição separada de 4000 é suportada no fluxo
+        // de fotos abaixo.
+        title: tiktokDescription.slice(0, 2200),
         privacy_level: privacy,
         disable_duet: disableDuet,
         disable_comment: disableComment,
@@ -156,11 +161,12 @@ async function publicarTiktok(token, post) {
 
   // Para media_type PHOTO, o schema de post_info é diferente do de vídeo:
   // não existem disable_duet/disable_stitch (causam invalid_params se
-  // enviados), title tem limite de 90 caracteres (não 2200), e
+  // enviados), title tem limite de 90 caracteres e description de 4000, e
   // brand_content_toggle/brand_organic_toggle são obrigatórios.
   const montarBody = privacy => JSON.stringify({
     post_info: {
-      title: (post.text || '').slice(0, 90),
+      title: tiktokTitle.slice(0, 90),
+      description: tiktokDescription.slice(0, 4000),
       privacy_level: privacy,
       disable_comment: disableComment,
       brand_content_toggle: false,

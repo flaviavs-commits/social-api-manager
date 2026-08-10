@@ -1,4 +1,5 @@
 const { ValidationError } = require('../domain/posts/errors')
+const { safeMessage } = require('../utils/redact')
 
 function statusOf(error) {
   if (error instanceof ValidationError) return 400
@@ -12,7 +13,7 @@ function errorHandler(error, req, res, next) {
   if (res.headersSent) return next(error)
 
   const status = statusOf(error)
-  if (status >= 500) console.error(error)
+  if (status >= 500) console.error(safeMessage(error?.stack || error?.message || error))
 
   if (error?.type === 'entity.parse.failed') {
     return res.status(400).json({ erro: 'JSON inválido' })

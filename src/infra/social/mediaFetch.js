@@ -3,6 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { gerarTokenMedia } = require('../storage/mediaToken')
+const { isBlobUrl, readResponseLimited, MAX_UPLOAD_SIZE_BYTES } = require('../storage/blobStorage')
 
 const UPLOADS_DIR = path.join(__dirname, '../../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -13,14 +14,15 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 // migração para o Blob, para não quebrar nada que já estivesse na fila no
 // momento do deploy.
 function isUrlExterna(mediaPath) {
-  return /^https?:\/\//i.test(mediaPath)
+  return typeof mediaPath === 'string' && /^https?:\/\//i.test(mediaPath)
 }
 
 async function mediaToBlob(mediaPath) {
   if (isUrlExterna(mediaPath)) {
-    const res = await fetch(mediaPath)
-    if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status}): ${mediaPath}`)
-    const buffer = Buffer.from(await res.arrayBuffer())
+    if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
+    const res = await fetch(mediaPath, { redirect: 'error', signal: AbortSignal.timeout(30_000) })
+    if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status})`)
+    const buffer = await readResponseLimited(res, MAX_UPLOAD_SIZE_BYTES)
     return { buffer, filename: path.basename(new URL(mediaPath).pathname) }
   }
 
@@ -35,7 +37,10 @@ async function mediaToBlob(mediaPath) {
 // relativo (/uploads/...) continuam usando o token assinado de curta duração,
 // já que /uploads normalmente exige sessão e essas APIs não enviam cookie.
 function mediaUrl(mediaPath) {
-  if (isUrlExterna(mediaPath)) return mediaPath
+  if (isUrlExterna(mediaPath)) {
+    if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
+    return mediaPath
+  }
 
   const filename = path.basename(mediaPath)
   const token = gerarTokenMedia(filename)
@@ -50,6 +55,7 @@ function mediaUrl(mediaPath) {
 // duração — as demais plataformas continuam usando a URL do Blob direto.
 function mediaUrlTiktok(mediaPath) {
   if (!isUrlExterna(mediaPath)) return mediaUrl(mediaPath)
+  if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
 
   // O TikTok valida o url_prefix de forma estrita: a URL precisa começar com
   // o prefixo verificado e (na prática) terminar num arquivo, sem query

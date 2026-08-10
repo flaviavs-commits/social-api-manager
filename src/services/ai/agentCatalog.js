@@ -29,6 +29,11 @@ const CAPABILITIES = [
     parameters: ['instruction', 'platforms', 'quantity', 'tone'], examples: ['crie um post profissional sobre promoção no Instagram'],
   },
   {
+    id: 'generate_post_with_image', label: 'Gerar conteúdo com imagem', category: 'conteúdo', mode: 'read',
+    description: 'Gera uma ideia ou texto de post e uma imagem relacionada ao tema, sem publicar automaticamente.',
+    parameters: ['instruction', 'platforms', 'quantity', 'tone', 'model'], examples: ['quero um post sobre ônibus com imagens'],
+  },
+  {
     id: 'create_image', label: 'Criar imagem', category: 'conteúdo', mode: 'read',
     description: 'Gera uma imagem a partir de uma descrição e troca automaticamente de modelo quando o primeiro provedor falha.',
     parameters: ['description', 'model'], examples: ['crie uma imagem de uma cafeteria aconchegante ao pôr do sol'],

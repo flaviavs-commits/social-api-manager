@@ -150,14 +150,23 @@ export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokSt
 export const CHART_TICK_COLOR = '#8b8fa3'
 export const CHART_GRID_COLOR = 'rgba(255,255,255,0.05)'
 
+export function chartThemeColors() {
+  const isLightTheme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
+  return {
+    tick: isLightTheme ? '#667085' : CHART_TICK_COLOR,
+    grid: isLightTheme ? 'rgba(29,39,51,0.1)' : CHART_GRID_COLOR,
+  }
+}
+
 export function baseChartOptions() {
+  const { tick: tickColor, grid: gridColor } = chartThemeColors()
   return {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      y: { beginAtZero: true, ticks: { precision: 0, color: CHART_TICK_COLOR }, grid: { color: CHART_GRID_COLOR } },
-      x: { ticks: { color: CHART_TICK_COLOR }, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
+      x: { ticks: { color: tickColor }, grid: { display: false } },
     },
-    plugins: { legend: { position: 'bottom', labels: { color: CHART_TICK_COLOR, boxWidth: 12 } } },
+    plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12 } } },
   }
 }

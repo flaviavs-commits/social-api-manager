@@ -1,9 +1,17 @@
 const { Router } = require('express')
+const rateLimit = require('express-rate-limit')
 const controller = require('../controllers/postsController')
 
 const router = Router()
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: 'Limite de uploads atingido. Aguarde antes de enviar mais arquivos.' }
+})
 
-router.post('/upload-url', controller.postUploadUrl)
+router.post('/upload-url', uploadLimiter, controller.postUploadUrl)
 
 router.get('/inbox/unread', controller.getInboxUnread)
 router.post('/inbox/seen', controller.postInboxSeen)

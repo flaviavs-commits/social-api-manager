@@ -79,8 +79,11 @@ function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPla
   }
 
   for (const platform of plataformas) {
-    const texto = Object.prototype.hasOwnProperty.call(textByPlatform || {}, platform)
-      ? textByPlatform[platform]
+    const chaveTexto = platform === 'tiktok' && Object.prototype.hasOwnProperty.call(textByPlatform || {}, 'tiktokDescription')
+      ? 'tiktokDescription'
+      : platform
+    const texto = Object.prototype.hasOwnProperty.call(textByPlatform || {}, chaveTexto)
+      ? textByPlatform[chaveTexto]
       : text
     const maxLength = TEXT_LIMITS[platform]?.max || MAX_TEXT_LENGTH
     const label = TEXT_LIMITS[platform] ? platform[0].toUpperCase() + platform.slice(1) : 'post'
@@ -99,12 +102,10 @@ function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPla
   )
   if (erroTitulo) return erroTitulo
 
-  for (const titulo of Object.values(titleByPlatform || {})) {
-    const erro = validarLimiteDeTexto(
-      titulo,
-      MAX_YOUTUBE_TITLE_LENGTH,
-      `O título pode ter no máximo ${MAX_YOUTUBE_TITLE_LENGTH} caracteres.`
-    )
+  for (const [platform, titulo] of Object.entries(titleByPlatform || {})) {
+    const maxLength = platform === 'tiktok' ? 90 : MAX_YOUTUBE_TITLE_LENGTH
+    const nome = platform === 'tiktok' ? 'do TikTok' : ''
+    const erro = validarLimiteDeTexto(titulo, maxLength, `O título ${nome} pode ter no máximo ${maxLength} caracteres.`)
     if (erro) return erro
   }
 

@@ -44,6 +44,25 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
   return { ...token, accessToken: decrypt(token.accessToken), refreshToken: decrypt(token.refreshToken) }
 }
 
+async function buscarTokenPorId(tokenId, userId, isSuperAdmin = false) {
+  const params = [tokenId]
+  const owner = isSuperAdmin ? '' : ' AND c.user_id = $2'
+  if (!isSuperAdmin) params.push(userId)
+  const { rows } = await pool.query(`
+    SELECT t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
+           t.refresh_token AS "refreshToken", t.account_name AS "accountName",
+           t.status, t.expires_at AS "expiresAt", c.handle AS handle,
+           c.external_user_id AS "externalUserId", c.zernio_account_id AS "zernioAccountId"
+    FROM tokens t
+    JOIN contas c ON c.id = t.conta_id
+    WHERE t.id = $1${owner}
+    LIMIT 1
+  `, params)
+  const token = rows[0]
+  if (!token) return null
+  return { ...token, accessToken: decrypt(token.accessToken), refreshToken: decrypt(token.refreshToken) }
+}
+
 // Lista todos os tokens conectados de uma plataforma para o usuário (não só
 // o mais recente). Usado para reconciliar posts antigos com o post real na
 // rede social, quando ainda não se sabe qual conta publicou cada post.
@@ -54,7 +73,7 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
 
   const { rows } = await pool.query(`
     SELECT
-      t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
+      t.id AS token_id, t.conta_id AS "contaId", t.platform, t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
       t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.zernio_account_id AS "zernioAccountId"
     FROM tokens t
@@ -193,7 +212,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     // diferencia qual finalizador (cron) deve tratar cada linha.
     if (data?.pending) {
       const isZernio = data.provider === 'zernio'
-      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accessToken: token.accessToken, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
+      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
       const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
       const tipoPost = data.stage === 'carousel_children' ? 'Carrossel' : 'Post'
       await registrarLog({
@@ -289,13 +308,15 @@ async function finalizarInstagramPendentes() {
     const pending = linha.instagramPending
     const postId = linha.id
     try {
+      const token = await buscarTokenPorId(pending.tokenId, linha.userId, linha.userRole === 'super_admin')
+      if (!token) throw new Error('Token da conta não encontrado ou desconectado')
       const containerIds = pending.stage === 'carousel_children' ? pending.childIds : [pending.containerId]
-      const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, pending.accessToken)))
+      const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, token.accessToken)))
 
       if (statuses.some(s => s === 'ERROR')) throw new Error('O Instagram encontrou um problema ao processar a mídia. Verifique se o arquivo é válido e tente publicar novamente.')
       if (!statuses.every(s => s === 'FINISHED')) return // ainda processando — tenta de novo no próximo tick
 
-      const data = await finalizarPublicacaoInstagram(pending)
+      const data = await finalizarPublicacaoInstagram({ ...pending, accessToken: token.accessToken })
 
       // Container pai do carrossel ainda não estava pronto — atualiza o pending e tenta no próximo tick
       if (data?.requeue) {

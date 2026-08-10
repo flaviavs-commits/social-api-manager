@@ -28,4 +28,20 @@ describe('analyticsInsights', () => {
     expect(insights.nicheComparisons[0].niche).toBe('fitness')
     expect(insights.recommendations.length).toBeGreaterThan(0)
   })
+
+  test('compara visualizações e entrega solução e abordagem alternativa', () => {
+    const insights = buildAnalyticsInsights({
+      metrics: [
+        { postId: 10, platform: 'instagram', text: 'Treino rápido de academia', publishedAt: '2026-07-10T19:00:00.000Z', mediaType: 'video', metrics: { views: 2400, likes: 180, comments: 30, shares: 22 } },
+        { postId: 11, platform: 'instagram', text: 'Treino de academia', publishedAt: '2026-07-11T09:00:00.000Z', mediaType: 'image', metrics: { views: 400, likes: 12, comments: 2, shares: 1 } },
+      ],
+    }, 30, 'instagram')
+
+    const comparison = insights.performanceAnalysis.comparisons[0]
+    expect(comparison).toMatchObject({ platform: 'instagram', sampleSize: 2 })
+    expect(comparison.topPost.id).toBe(10)
+    expect(comparison.lowPost.id).toBe(11)
+    expect(comparison.solution).toMatch(/referência|replicar/i)
+    expect(comparison.alternativeApproach).toMatch(/teste A\/B/i)
+  })
 })

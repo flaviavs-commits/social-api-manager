@@ -8,6 +8,7 @@ import { filterByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { AnalyticsAccountProfiles } from '../components/analytics/analytics-account-profiles.jsx'
 import { AnalyticsExecutiveOverview } from '../components/analytics/analytics-executive-overview.jsx'
+import { ReportSchedulePanel } from '../components/analytics/report-schedule-panel.jsx'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -93,6 +94,7 @@ export function AnalyticsPage() {
       <div><span>Interações</span><strong>{loading ? '—' : fmtNum(selectedEngagement)}</strong></div>
       <div><span>Rede analisada</span><strong>{loading ? '—' : activeNet ? PLAT_LABELS[activeNet] || activeNet : 'Todas'}</strong></div>
     </section>
+    <ReportSchedulePanel />
 
     {error && <p className="error-message" role="alert">{error}</p>}
     {loading && !error && <p className="empty-state" aria-live="polite">Carregando métricas...</p>}

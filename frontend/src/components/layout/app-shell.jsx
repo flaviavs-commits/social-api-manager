@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
 import { apiFetch, logout } from '../../lib/api.js'
 import { ToastProvider } from '../ui/toast.jsx'
+import { ThemeSelector } from '../ui/theme-selector.jsx'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -14,7 +15,12 @@ const icons = {
   tokens: 'M15 7a4 4 0 1 1-4 4H4v2h2v3h3v-3h2.06A4 4 0 0 0 15 7Zm0-2a6 6 0 1 1-5.92 7H7v3H4v-3H2v-4h7.08A6 6 0 0 1 15 5Z',
   seguranca: 'M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6l8-3Zm0 5v4m0 4h.01',
   atividade: 'M4 5h16M4 12h16M4 19h10',
-  ai: 'M8 8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3ZM12 8V5m-2 0h4M8 12h.01M16 12h.01M9 16h6M3 13h2m14 0h2'
+  ai: 'M8 8h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3ZM12 8V5m-2 0h4M8 12h.01M16 12h.01M9 16h6M3 13h2m14 0h2',
+  biblioteca: 'M4 5h16v14H4V5Zm4 0v14m-4-4h4m8-6h4m-4 3h4',
+  filas: 'M5 4h14v16H5V4Zm3 0v3m8-3v3M8 11h8M8 15h5'
+  ,smartlinks: 'M10 13a5 5 0 0 0 7.1.1l1.4-1.4a5 5 0 0 0-7.1-7.1l-.8.8m3.4 5.4a5 5 0 0 0-7.1-.1l-1.4 1.4a5 5 0 0 0 7.1 7.1l.8-.8',
+  equipe: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm9 2v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
+  benchmarking: 'M4 19V5m0 14h16M8 16v-4m4 4V8m4 8V5m4 11V3'
 }
 
 const navigation = [
@@ -28,7 +34,13 @@ const navigation = [
   ['tokens', 'Tokens'],
   ['seguranca', 'Segurança'],
   ['atividade', 'Atividades'],
-  ['ai', 'Assistente IA']
+  ['ai', 'Assistente IA'],
+  ['biblioteca', 'Biblioteca'],
+  ['filas', 'Filas recorrentes']
+  ,['smartlinks', 'Smartlinks']
+  ,['equipe', 'Equipe']
+  ,['benchmarking', 'Benchmarking']
+  ,['automacoes', 'Automações']
 ]
 
 function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
@@ -162,6 +174,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
       </div>
 
       <div className="flex items-center gap-3">
+        <ThemeSelector />
         <button type="button" aria-label="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">?</button>
         <button aria-label="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>

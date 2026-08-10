@@ -1,49 +1,35 @@
 const usersRepo = require('../repositories/usersRepository')
 const { verificarTokenSessaoDetalhado } = require('../utils/authToken')
-
-// Cache de usuário autenticado: evita uma query ao banco por request.
-// TTL de 60 segundos — suficiente para a maioria das navegações, curto
-// o bastante para que mudanças de role/ativo se propaguem rapidamente.
-const userCache = new Map()
-const USER_CACHE_TTL_MS = 60_000
-
-function getCachedUser(userId) {
-  const entry = userCache.get(userId)
-  if (!entry) return null
-  if (Date.now() > entry.expiresAt) { userCache.delete(userId); return null }
-  return entry.user
-}
-
-function setCachedUser(userId, user) {
-  userCache.set(userId, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS })
-}
-
-// Permite invalidar o cache imediatamente quando role ou ativo mudar.
-function invalidarCacheUsuario(userId) {
-  userCache.delete(userId)
-}
+const { AUTH_COOKIE, readCookie } = require('../utils/authCookie')
 
 async function requireAuth(req, res, next) {
-  // Bypass temporário para permitir que o Google revise a aplicação sem
-  // login — ativado só com REVIEW_MODE_NO_AUTH=true no ambiente. Enquanto
-  // ligado, TODA a API fica pública (dados de todos os usuários incluídos).
-  // Desligar (remover a env var) restaura a autenticação normal sem precisar
-  // reverter código. NUNCA deixar ligado além do período estrito da revisão.
-  // O modo de revisão nunca pode interferir em testes automatizados, mesmo
-  // quando um `.env` local o deixa configurado para homologação.
+  // Modo público solicitado para a demonstração: todas as requisições usam
+  // somente a conta demo configurada, sem exigir login ou senha.
   if (process.env.REVIEW_MODE_NO_AUTH === 'true' && process.env.NODE_ENV !== 'test') {
-    req.user = { id: Number(process.env.REVIEW_MODE_USER_ID) || null, email: 'review@local', role: 'user', fullName: 'Revisor', avatarUrl: null, totpEnabled: false }
+    req.user = {
+      id: Number(process.env.REVIEW_MODE_USER_ID) || 38,
+      email: 'review-tiktok@demo.local',
+      role: 'user',
+      fullName: 'Demonstração',
+      avatarUrl: null,
+      totpEnabled: false
+    }
     return next()
   }
 
   const header = req.headers.authorization || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+  // Cookies HttpOnly são o caminho principal. O Bearer continua aceito
+  // temporariamente para clientes antigos durante a migração, mas o frontend
+  // não o armazena mais em localStorage.
+  const token = readCookie(req, AUTH_COOKIE) || (header.startsWith('Bearer ') ? header.slice(7) : null)
 
   let userId = null
   let tokenInfo = null
   try {
     if (token) {
       tokenInfo = verificarTokenSessaoDetalhado(token)
+      if (tokenInfo.purpose !== 'session' || !Number.isSafeInteger(Number(tokenInfo.userId))) throw new Error('Token de sessão inválido')
+      if (tokenInfo.iat > Date.now() + 60_000) throw new Error('Token de sessão futuro')
       userId = tokenInfo.userId
     }
   } catch {
@@ -58,11 +44,12 @@ async function requireAuth(req, res, next) {
   }
 
   try {
-    let user = process.env.NODE_ENV === 'test' ? null : getCachedUser(userId)
-    if (!user) {
-      user = await usersRepo.buscarPorId(userId)
-      if (user) setCachedUser(userId, user)
-    }
+    if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) throw new Error('userId inválido')
+    userId = Number(userId)
+    // Busca sempre o estado atual para que logout-all, troca de senha,
+    // desativação e mudança de papel tenham efeito imediato, sem uma janela
+    // de sessão válida mantida em cache local da instância.
+    const user = await usersRepo.buscarPorId(userId)
 
     if (!user) {
       if (req.path.startsWith('/api/')) {
@@ -85,4 +72,6 @@ async function requireAuth(req, res, next) {
 }
 
 module.exports = requireAuth
-module.exports.invalidarCacheUsuario = invalidarCacheUsuario
+// Mantido como no-op para compatibilidade com o controlador administrativo;
+// a consulta acima já não usa cache local.
+module.exports.invalidarCacheUsuario = () => {}

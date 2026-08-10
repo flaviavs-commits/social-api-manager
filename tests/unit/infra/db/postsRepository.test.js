@@ -126,7 +126,7 @@ describe('atualizarStatusPost', () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.atualizarStatusPost(1, 'published')
     const params = pool.query.mock.calls[0][1]
-    expect(params).toEqual(['published', 1])
+    expect(params).toEqual(['published', null, 1])
   })
 })
 

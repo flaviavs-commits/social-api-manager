@@ -85,6 +85,41 @@ describe('validarCriacaoPost — data no passado', () => {
 })
 
 describe('validarCriacaoPost — textByPlatform', () => {
+  test('aceita descrição do TikTok até 4000 caracteres', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'a'.repeat(4000) },
+      titleByPlatform: { tiktok: 'Título curto' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      aspectRatioValidoTiktokByPlatform: { tiktok: true },
+    }))
+    expect(erro).toBeNull()
+  })
+
+  test('rejeita descrição do TikTok acima de 4000 caracteres', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'a'.repeat(4001) },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      aspectRatioValidoTiktokByPlatform: { tiktok: true },
+    }))
+    expect(erro).toMatch(/4000 caracteres/)
+  })
+
+  test('rejeita título do TikTok acima de 90 caracteres', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      titleByPlatform: { tiktok: 'a'.repeat(91) },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      aspectRatioValidoTiktokByPlatform: { tiktok: true },
+    }))
+    expect(erro).toMatch(/título do TikTok.*90 caracteres/)
+  })
+
   test('aceita textByPlatform ausente', () => {
     const erro = validarCriacaoPost(baseArgs())
     expect(erro).toBeNull()

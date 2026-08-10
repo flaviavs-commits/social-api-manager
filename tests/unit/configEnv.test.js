@@ -24,6 +24,13 @@ describe('config/env', () => {
   test('exige segredos mínimos somente em produção', () => {
     expect(() => assertProductionSecrets({ NODE_ENV: 'test' })).not.toThrow()
     expect(() => assertProductionSecrets({ NODE_ENV: 'production' })).toThrow(/DATABASE_URL/)
-    expect(() => assertProductionSecrets({ NODE_ENV: 'production', AUTH_TOKEN_SECRET: 'a', TOKEN_ENCRYPTION_KEY: 'b', DATABASE_URL: 'postgres://db' })).not.toThrow()
+    expect(() => assertProductionSecrets({
+      NODE_ENV: 'production',
+      AUTH_TOKEN_SECRET: 'a'.repeat(32), SESSION_SECRET: 'b'.repeat(32), CRON_SECRET: 'c'.repeat(32),
+      TOKEN_ENCRYPTION_KEY: 'd'.repeat(64), DATABASE_URL: 'postgres://db',
+      BASE_URL: 'https://api.example.com', FRONTEND_URL: 'https://app.example.com',
+      FRONTEND_ORIGIN: 'https://app.example.com', BLOB_ALLOWED_HOSTS: 'storage.public.blob.vercel-storage.com',
+      TRUST_PROXY: '1'
+    })).not.toThrow()
   })
 })

@@ -1,17 +1,52 @@
 const { Router } = require('express')
+const rateLimit = require('express-rate-limit')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
+const { isBlobUrl } = require('../infra/storage/blobStorage')
 const { getCapability, getPublicCapabilities } = require('../services/ai/agentCatalog')
 const { interpretAgentMessage } = require('../services/ai/agentInterpreter')
 const { executeAgentAction } = require('../services/ai/agentExecutor')
 const { gerarTokenAprovacaoAgente, verificarTokenAprovacaoAgente } = require('../utils/authToken')
 const { buscarAnalytics } = require('../use-cases/posts/buscarAnalytics')
 const { buildAnalyticsInsights } = require('../services/ai/analyticsInsights')
+const { safeMessage } = require('../utils/redact')
 
 const router = Router()
 const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
+// O GPT-OSS gratuito pode levar mais de 30s quando precisa gerar vários
+// posts em JSON. O frontend tem um limite ligeiramente maior para receber a
+// resposta ou o fallback do servidor.
+const AI_PROVIDER_TIMEOUT_MS = 45_000
+const AI_IMAGE_PROVIDER_TIMEOUT_MS = 35_000
+
+// O Google AI Studio usa historicamente GOOGLE_API_KEY, enquanto o restante
+// do projeto usa GEMINI_API_KEY. Aceitamos os dois nomes para não descartar a
+// chave válida e cair desnecessariamente no OpenRouter.
+function getGeminiApiKey() {
+  return String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim() || null
+}
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: 'Limite de operações de IA atingido. Aguarde alguns minutos.' }
+})
+router.use(aiLimiter)
+
+async function withTimeout(task, timeoutMs, message) {
+  let timer
+  try {
+    return await Promise.race([
+      Promise.resolve().then(task),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error(message), { code: 'ai_provider_timeout' })), timeoutMs) }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 function normalizarPlataformasSelecionadas(value) {
   return Array.from(new Set((Array.isArray(value) ? value : [])
@@ -26,13 +61,13 @@ function validarPlataformasSelecionadas(raw, plataformas) {
   return null
 }
 
-// Dicas de estilo para o prompt do LLM. O limite de 90 do TikTok também é
-// aplicado no pós-processamento por ajustarPostParaPlataformas().
+// Dicas de estilo para o prompt do LLM. Os limites do TikTok (título 90 e
+// descrição 4000) também são aplicados no pós-processamento.
 const PLATFORM_HINTS = {
   instagram: 'Instagram: máximo 2200 caracteres, use até 5 hashtags específicas, emojis são bem-vindos, tom visual e engajante.',
   facebook:  'Facebook: máximo 63206 caracteres, texto mais longo e descritivo é aceito, use 1-2 hashtags realmente relevantes.',
   youtube:   'YouTube: forneça um título chamativo (máximo 100 caracteres) e descrição otimizada para SEO (200-400 palavras com palavras-chave). Use no máximo 3 hashtags.',
-  tiktok:    'TikTok: a descrição completa, incluindo hashtags, deve ter no máximo 90 caracteres. Use no máximo 2 hashtags muito relevantes, linguagem direta e descontraída.',
+  tiktok:    'TikTok: título de até 90 caracteres e descrição completa de até 4000 caracteres, incluindo hashtags. Use no máximo 2 hashtags muito relevantes, linguagem direta e descontraída.',
 }
 
 // Quantidade enxuta para evitar blocos de hashtags e manter o foco na
@@ -119,11 +154,11 @@ async function generateWithClaude(prompt, userKey, modelId = 'claude') {
   if (!key) throw Object.assign(new Error('Para usar o Claude, configure sua chave de API da Anthropic.'), { status: 503 })
   const Anthropic = require('@anthropic-ai/sdk')
   const client = new Anthropic({ apiKey: key })
-  const msg = await client.messages.create({
+  const msg = await withTimeout(() => client.messages.create({
     model: CLAUDE_MODEL_IDS[modelId] || CLAUDE_MODEL_IDS.claude,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
-  })
+  }), AI_PROVIDER_TIMEOUT_MS, 'O provedor de IA demorou mais que o esperado.')
   return msg.content[0]?.text || ''
 }
 
@@ -132,17 +167,17 @@ async function generateWithOpenAI(prompt, userKey, modelId = 'openai') {
   if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key })
-  const msg = await client.chat.completions.create({
+  const msg = await withTimeout(() => client.chat.completions.create({
     model: OPENAI_MODEL_IDS[modelId] || OPENAI_MODEL_IDS.openai,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
-  })
+  }), AI_PROVIDER_TIMEOUT_MS, 'O provedor de IA demorou mais que o esperado.')
   return msg.choices[0]?.message?.content || ''
 }
 
 // OpenRouter fala o mesmo formato de API que a OpenAI (chat.completions) — só
 // muda a baseURL e o formato do id do modelo ("empresa/modelo"). Um único
-// modelo fixo (gpt-4o-mini via OpenRouter) evita ter que expor ao usuário a
+// modelo fixo (GPT-OSS 20B via OpenRouter) evita ter que expor ao usuário a
 // escolha entre dezenas de modelos disponíveis no OpenRouter.
 const OPENROUTER_MODEL_IDS = {
   openrouter: 'openai/gpt-oss-20b:free',
@@ -153,11 +188,13 @@ async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
   if (!key) throw Object.assign(new Error('Para usar o OpenRouter, configure sua chave de API.'), { status: 503 })
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
-  const msg = await client.chat.completions.create({
+  const msg = await withTimeout(() => client.chat.completions.create({
     model: OPENROUTER_MODEL_IDS[modelId] || OPENROUTER_MODEL_IDS.openrouter,
-    max_tokens: 4096,
+    // O GPT-OSS pode gastar muitos tokens em raciocínio antes do JSON. Para
+    // três ideias de Instagram, 2048 é suficiente e evita o timeout do free.
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
-  })
+  }), AI_PROVIDER_TIMEOUT_MS, 'O provedor de IA demorou mais que o esperado.')
   return msg.choices[0]?.message?.content || ''
 }
 
@@ -180,10 +217,10 @@ function imageError(message, status = 502, code = 'image_provider_error') {
 async function generateImageWithGemini(descricao, key) {
   const { GoogleGenAI } = require('@google/genai')
   const client = new GoogleGenAI({ apiKey: key })
-  const result = await client.models.generateContent({
+  const result = await withTimeout(() => client.models.generateContent({
     model: GEMINI_IMAGE_MODEL,
     contents: descricao,
-  })
+  }), AI_IMAGE_PROVIDER_TIMEOUT_MS, 'O gerador de imagens demorou mais que o esperado.')
   const parts = result.candidates?.[0]?.content?.parts || []
   const imgPart = parts.find(part => part.inlineData?.data)
   if (!imgPart?.inlineData?.data) throw imageError('O Gemini respondeu sem uma imagem válida.')
@@ -194,11 +231,11 @@ async function generateImageWithGemini(descricao, key) {
 async function generateImageWithOpenRouter(descricao, key) {
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
-  const completion = await client.chat.completions.create({
+  const completion = await withTimeout(() => client.chat.completions.create({
     model: OPENROUTER_IMAGE_MODEL,
     modalities: ['image', 'text'],
     messages: [{ role: 'user', content: descricao }],
-  })
+  }), AI_IMAGE_PROVIDER_TIMEOUT_MS, 'O gerador de imagens demorou mais que o esperado.')
   const message = completion.choices[0]?.message
   const image = message?.images?.[0]?.image_url?.url
   if (!image) throw imageError('O OpenRouter respondeu sem uma imagem válida.')
@@ -224,7 +261,7 @@ async function generateImageResilient({ descricao, userId, preferredModel = 'aut
     getUserApiKey(pool, userId, 'openrouter'),
   ])
   const credentials = {
-    gemini: { key: geminiUserKey || process.env.GEMINI_API_KEY, userKey: geminiUserKey },
+    gemini: { key: geminiUserKey || getGeminiApiKey(), userKey: geminiUserKey },
     openrouter: { key: openrouterUserKey || process.env.OPENROUTER_API_KEY, userKey: openrouterUserKey },
   }
   const providers = Object.keys(credentials).filter(provider => credentials[provider].key)
@@ -336,7 +373,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
 
   // Gemini (padrão) — cobre 'gemini*' e qualquer modelo desconhecido, igual
   // ao comportamento original desta rota.
-  const key = userKey || process.env.GEMINI_API_KEY
+  const key = userKey || getGeminiApiKey()
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
   const savedGoogleKey = process.env.GOOGLE_API_KEY
@@ -365,7 +402,7 @@ const GEMINI_MODEL_IDS = {
 }
 
 async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
-  const key = userKey || process.env.GEMINI_API_KEY
+  const key = userKey || getGeminiApiKey()
   if (!key) throw Object.assign(new Error('GEMINI_API_KEY não configurada no servidor'), { status: 503 })
   const { GoogleGenAI } = require('@google/genai')
   const savedGoogleKey = process.env.GOOGLE_API_KEY
@@ -378,10 +415,10 @@ async function generateWithGemini(prompt, userKey, modelId = 'gemini') {
   const MAX_RETRIES = 3
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const result = await client.models.generateContent({
+      const result = await withTimeout(() => client.models.generateContent({
         model: geminiModel,
         contents: prompt,
-      })
+      }), AI_PROVIDER_TIMEOUT_MS, 'O provedor de IA demorou mais que o esperado.')
       return result.text
     } catch (e) {
       const msg = e.message || ''
@@ -473,6 +510,22 @@ function extrairHashtagsDoTema(instrucao) {
 function pick(arr, i) { return arr[i % arr.length] }
 function capitalizar(s) { return s ? s[0].toUpperCase() + s.slice(1) : s }
 
+// O gerador local precisa do tema, não da frase usada para pedir o conteúdo.
+// Sem essa limpeza, "eu quero um post sobre motos japonesas" vira literalmente
+// o tema do post e o template produz frases como "sobre eu quero um post...".
+function extrairTemaParaGeradorLocal(instrucao) {
+  const original = String(instrucao || '').trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
+  if (!original) return 'conteúdo para redes sociais'
+
+  let tema = original
+  tema = tema.replace(/^(?:(?:eu\s+)?(?:quero|preciso|gostaria(?:\s+de)?|pode(?:\s+me)?|me\s+ajude(?:\s+a)?|me\s+ajuda(?:\s+a)?|fa[çc]a|crie|gere|gerar|criar|fazer|produza|produzir|escreva|escrever|monte|montar|sugira|sugerir)\s*)+/i, '')
+  tema = tema.replace(/^(?:um|uma|uns|umas|o|a|os|as)\s+/i, '')
+  tema = tema.replace(/^(?:post|posts|conte[uú]do|conte[uú]dos|legenda|legendas|caption|copy|carrossel|roteiro|ideia|ideias|campanha|an[uú]ncio|an[uú]ncios)\b\s*/i, '')
+  tema = tema.replace(/^(?:sobre|a respeito de|com|para)\s+/i, '')
+
+  return tema.trim() || original
+}
+
 // Cada ângulo monta o miolo do post de um jeito estruturalmente diferente, para
 // que os posts variem de verdade entre si — não só na frase de abertura.
 // Recebe (tema, gancho do nicho) e devolve o corpo central (sem abertura/CTA).
@@ -507,15 +560,16 @@ function descricaoYoutube(tema, gancho, hashtagsArr) {
 
 function gerarPostsLocal(instrucao, plataformas, qtd, tom) {
   const t = LOCAL_ABERTURAS[tom] ? tom : 'casual'
-  const tema = instrucao.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '')
+  const tema = extrairTemaParaGeradorLocal(instrucao)
   const temaLower = tema.toLowerCase()
   const nicho = detectarNicho(tema)
 
-  const temaHashtags = extrairHashtagsDoTema(instrucao)
+  const temaHashtags = extrairHashtagsDoTema(tema)
   const nichoHashtags = nicho ? nicho.hashtags : []
   const ehYoutube = plataformas.includes('youtube')
   const ehInstagram = plataformas.includes('instagram')
-  // TikTok exige texto curto — se estiver entre as redes, encurta o corpo.
+  // TikTok recebe uma descrição própria; o limite de 4000 é aplicado no
+  // pós-processamento, sem reduzir desnecessariamente o texto aqui.
   const curto = plataformas.includes('tiktok')
 
   // Pontos de partida aleatórios nos ciclos de abertura/fechamento/ângulo: sem
@@ -540,7 +594,8 @@ function gerarPostsLocal(instrucao, plataformas, qtd, tom) {
 
     let corpo
     if (curto) {
-      // TikTok: abertura + tema, sem CTA nem ângulo longo (limite de 90 chars).
+      // TikTok: abertura + tema, sem CTA nem ângulo longo para manter a leitura
+      // direta; o limite final de 4000 é aplicado depois.
       corpo = `${abertura}\n\n${capitalizar(temaLower)}.`
     } else {
       corpo = `${abertura}\n\n${miolo}${ganchoNicho}\n\n${fechamento}`
@@ -577,7 +632,7 @@ const PLATFORM_REQUIREMENTS = {
   instagram: { media: 'required', mediaTypes: ['image', 'video'], label: 'Instagram', descricao: 'Exige uma imagem ou vídeo — não publica só texto.' },
   facebook:  { media: 'optional', mediaTypes: ['image', 'video'], label: 'Facebook',  descricao: 'Aceita só texto; imagem/vídeo são opcionais.' },
   youtube:   { media: 'required', mediaTypes: ['video'],          label: 'YouTube',   descricao: 'Exige um vídeo e um título.' },
-  tiktok:    { media: 'required', mediaTypes: ['image', 'video'], label: 'TikTok',    descricao: 'Exige ao menos uma mídia (imagem ou vídeo) e texto curto.' },
+  tiktok:    { media: 'required', mediaTypes: ['image', 'video'], label: 'TikTok',    descricao: 'Exige ao menos uma mídia (imagem ou vídeo), título de até 90 caracteres e descrição de até 4000 caracteres.' },
 }
 
 // GET /api/ai/requirements?plataformas=instagram,youtube — o que cada rede exige
@@ -590,6 +645,7 @@ router.get('/requirements', (req, res) => {
       ...PLATFORM_REQUIREMENTS[p],
       textMax: limiteTexto(p, 'video'),
       ...(p === 'youtube' ? { titleMax: YOUTUBE_TITLE_MAX } : {}),
+      ...(p === 'tiktok' ? { titleMax: 90 } : {}),
     }))
   res.json({ requirements: lista })
 })
@@ -627,7 +683,7 @@ async function registrarUsoDemo(userId) {
 
 // GET /api/ai/demo-status — quanto resta do demo grátis hoje (para o frontend)
 router.get('/demo-status', async (req, res) => {
-  const hasServerKey = !!process.env.GEMINI_API_KEY
+  const hasServerKey = !!getGeminiApiKey()
   const usados = await demoUsosHoje(req.user.id)
   res.json({
     llmDisponivel: hasServerKey,
@@ -658,7 +714,7 @@ router.post('/generate', async (req, res) => {
     // dica desses limites no prompt (PLATFORM_HINTS), mas nada garante que
     // ele respeite de fato, então o corte aqui é a garantia real. Mídia
     // ainda não foi anexada nesta etapa (isso só acontece no /schedule), mas
-    // o limite de 90 caracteres do TikTok já é aplicado desde a geração.
+    // o limite de 4000 caracteres da descrição do TikTok já é aplicado desde a geração.
     const montarResposta = (postsRaw, modeloUsado, extra = {}) => {
       const avisosGerais = new Set()
       const posts = postsRaw.slice(0, qtd).map((p, i) => {
@@ -701,7 +757,7 @@ router.post('/generate', async (req, res) => {
     // SERVIDOR, sem exigir conta do usuário — respeitando o limite diário.
     // Sem chave no servidor OU limite estourado OU erro do LLM → template.
     if (modelo === 'local') {
-      if (!process.env.GEMINI_API_KEY) return responderComTemplate()
+      if (!getGeminiApiKey()) return responderComTemplate()
 
       const usados = await demoUsosHoje(req.user.id)
       if (usados >= DEMO_LIMITE_DIA) return responderComTemplate('limite_diario')
@@ -730,7 +786,7 @@ router.post('/generate', async (req, res) => {
     // Claude continuam exigindo chave própria do usuário (não há chave deles
     // configurada no servidor).
     if (GEMINI_MODEL_IDS[modelo]) {
-      if (!process.env.GEMINI_API_KEY) {
+      if (!getGeminiApiKey()) {
         throw Object.assign(new Error('Nenhum modelo Gemini está disponível no momento.'), { status: 503 })
       }
       const usados = await demoUsosHoje(req.user.id)
@@ -750,7 +806,7 @@ router.post('/generate', async (req, res) => {
         parsedGemini = parseJsonResponse(rawTextGemini)
       } catch (parseError) {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+        return responderComTemplate('resposta_invalida')
       }
       return montarResposta(parsedGemini.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
     }
@@ -778,7 +834,7 @@ router.post('/generate', async (req, res) => {
         parsedOpenai = parseJsonResponse(rawTextOpenai)
       } catch (parseError) {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+        return responderComTemplate('resposta_invalida')
       }
       return montarResposta(parsedOpenai.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
     }
@@ -801,16 +857,24 @@ router.post('/generate', async (req, res) => {
         parsedOpenrouter = parseJsonResponse(rawTextOpenrouter)
       } catch (parseError) {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
-        return res.status(500).json({ erro: 'IA retornou formato inválido. Tente novamente.' })
+        return responderComTemplate('resposta_invalida')
       }
       return montarResposta(parsedOpenrouter.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - usados - 1) })
     }
 
     let rawText
-    if (OPENAI_MODEL_IDS[modelo])       rawText = await generateWithOpenAI(prompt, userKey, modelo)
-    else if (OPENROUTER_MODEL_IDS[modelo]) rawText = await generateWithOpenRouter(prompt, userKey, modelo)
-    else if (CLAUDE_MODEL_IDS[modelo])  rawText = await generateWithClaude(prompt, userKey, modelo)
-    else                                 rawText = await generateWithGemini(prompt, userKey, modelo)
+    try {
+      if (OPENAI_MODEL_IDS[modelo])       rawText = await generateWithOpenAI(prompt, userKey, modelo)
+      else if (OPENROUTER_MODEL_IDS[modelo]) rawText = await generateWithOpenRouter(prompt, userKey, modelo)
+      else if (CLAUDE_MODEL_IDS[modelo])  rawText = await generateWithClaude(prompt, userKey, modelo)
+      else                                 rawText = await generateWithGemini(prompt, userKey, modelo)
+    } catch (providerError) {
+      // A geração de texto não pode deixar o usuário sem resposta só porque o
+      // modelo selecionado caiu. O template local preserva a instrução e
+      // devolve um texto válido, além de registrar o motivo real.
+      console.error(`[AI generate:${modelo}] provedor indisponível, usando fallback:`, providerError.message)
+      return responderComTemplate(`provedor_${modelo}_indisponivel`)
+    }
 
     let parsed
     try {
@@ -824,6 +888,14 @@ router.post('/generate', async (req, res) => {
   } catch (err) {
     const modeloTentado = req.body?.modelo || 'gemini'
     registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo: modeloTentado, detalhes: err.message })
+
+    const providerFailure = err?.code === 'ai_provider_timeout'
+      || [401, 429, 503].includes(Number(err?.status))
+      || /quota|resource_exhausted|provedor|sem json|resposta inválida/i.test(String(err?.message || ''))
+    if (typeof req.body?.instrucao === 'string' && req.body.instrucao.trim() && providerFailure) {
+      console.error(`[AI generate:${modeloTentado}] falha final, usando fallback:`, err.message)
+      return responderComTemplate(`provedor_${modeloTentado}_indisponivel`)
+    }
 
     if (err.status === 503) return res.status(503).json({ erro: err.message })
     if (err.status === 401) return res.status(422).json({ erro: 'Chave de API inválida. Verifique a chave configurada.' })
@@ -855,10 +927,10 @@ async function registrarAtividadeIA({ userId, acao, status, modelo = null, detal
   try {
     await pool.query(
       `INSERT INTO ai_activity_log (user_id, acao, status, modelo, detalhes) VALUES ($1, $2, $3, $4, $5)`,
-      [userId, acao, status, modelo, detalhes ? String(detalhes).slice(0, 2000) : null]
+      [userId, acao, status, modelo, detalhes ? safeMessage(String(detalhes).slice(0, 2000)) : null]
     )
   } catch (err) {
-    console.error('[AI activity log] falha ao registrar:', err.message)
+    console.error('[AI activity log] falha ao registrar:', safeMessage(err?.message))
   }
 }
 
@@ -1277,7 +1349,7 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
       plataforma,
       texto: textoFinal,
       titulo: ajustado.titulo,
-      // No TikTok as hashtags já ficam dentro dos 90 caracteres da legenda;
+      // No TikTok as hashtags já ficam dentro dos 4000 caracteres da descrição;
       // não as devolvemos separadas para o frontend não anexá-las novamente.
       hashtags: plataforma === 'tiktok' ? [] : hashtags,
       hashtagsEmAlta: plataforma === 'tiktok' ? [] : hashtags.filter(tag => hashtagsEmAlta.includes(tag)),
@@ -1349,7 +1421,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 
     // Diferente de /generate, aqui já se sabe o tipo real da mídia (imagem ou
     // vídeo) — então aplica o limite exato da plataforma de cada sugestão
-    // (90 caracteres para o TikTok), em vez do limite genérico mais permissivo.
+    // (4000 caracteres para a descrição do TikTok), em vez do limite genérico mais permissivo.
     const mediaType = isVideo ? 'video' : 'image'
     const sugestoes = formatarSugestoesMedia(parsed, plataformas, mediaType)
     const plataformasSemSugestao = plataformas.filter(platform => !sugestoes.some(suggestion => suggestion.plataforma === platform && suggestion.texto?.trim()))
@@ -1379,7 +1451,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 // configurada no servidor OU exige chave própria do usuário, marcado como
 // sempre "disponível" já que basta o usuário colar a chave dele).
 router.get('/models', (req, res) => {
-  const hasGemini = !!process.env.GEMINI_API_KEY
+  const hasGemini = !!getGeminiApiKey()
   const hasOpenai = !!process.env.OPENAI_API_KEY
   const hasOpenrouter = !!process.env.OPENROUTER_API_KEY
   res.json({
@@ -1419,7 +1491,7 @@ async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
   const userKey = await getUserApiKey(pool, userId, modeloReal)
 
   if (GEMINI_MODEL_IDS[modeloReal]) {
-    if (!userKey && !process.env.GEMINI_API_KEY) return null
+    if (!userKey && !getGeminiApiKey()) return null
     const usados = await demoUsosHoje(userId)
     if (!userKey && usados >= DEMO_LIMITE_DIA) return null
     const raw = await generateWithGemini(prompt, userKey, modeloReal)
@@ -1442,14 +1514,46 @@ async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
   return null
 }
 
+// O fallback de imagens já tenta todos os provedores disponíveis. O agente de
+// texto deve ter a mesma tolerância: Gemini é o padrão do modo rápido, mas uma
+// falha de quota, timeout ou billing não deve transformar um pedido válido em
+// um template local se o OpenRouter puder atender.
+async function gerarTextoParaAgenteResiliente(prompt, userId, modelo = 'local') {
+  const preferido = String(modelo || 'local').toLowerCase() === 'local'
+    ? 'gemini'
+    : String(modelo).toLowerCase()
+  const candidatos = [...new Set([preferido, 'openrouter', 'gemini'])]
+    .filter(id => GEMINI_MODEL_IDS[id] || OPENROUTER_MODEL_IDS[id])
+
+  for (const candidato of candidatos) {
+    try {
+      const rawText = await gerarTextoParaAgente(prompt, userId, candidato)
+      if (rawText?.trim()) return { rawText, modelo: candidato }
+    } catch (err) {
+      console.error(`[AI agent generate:${candidato}]`, err.message)
+    }
+  }
+
+  return { rawText: null, modelo: null }
+}
+
 // Geração inteligente para o agente: usa o modelo de linguagem quando
 // disponível e preserva o gerador local como fallback sem chave/quota.
 async function gerarPostsParaAgente({ instruction, platforms, quantity, tone }, userId, modelo = 'local') {
   const plataformas = platforms.length ? platforms : ['instagram']
   const qtd = Math.min(Math.max(Number(quantity) || 1, 1), 5)
-  const fallback = () => gerarPostsLocal(instruction, plataformas, qtd, tone)
+  const fallback = () => {
+    const result = gerarPostsLocal(instruction, plataformas, qtd, tone)
+    return {
+      ...result,
+      modelo: 'local',
+      llm: false,
+      posts: result.posts.map(post => ({ ...post, plataformas })),
+    }
+  }
   try {
-    const rawText = await gerarTextoParaAgente(buildPrompt(instruction, plataformas, qtd, tone, 'pt-BR'), userId, modelo)
+    const generated = await gerarTextoParaAgenteResiliente(buildPrompt(instruction, plataformas, qtd, tone, 'pt-BR'), userId, modelo)
+    const rawText = generated.rawText
     if (!rawText) return fallback()
     const parsed = parseJsonResponse(rawText)
     const posts = Array.isArray(parsed.posts) ? parsed.posts.slice(0, qtd).map(post => {
@@ -1460,9 +1564,9 @@ async function gerarPostsParaAgente({ instruction, platforms, quantity, tone }, 
       )
       return { ...post, texto: ajustado.texto, titulo: ajustado.titulo, plataformas }
     }) : []
-    return posts.length ? { posts, modelo, llm: true } : fallback()
+    return posts.length ? { posts, modelo: generated.modelo, llm: true } : fallback()
   } catch (err) {
-    console.error('[AI agent generate]', err.message)
+    console.error('[AI agent generate:parse]', err.message)
     return fallback()
   }
 }
@@ -1504,7 +1608,7 @@ router.post('/agent', async (req, res) => {
         history,
         currentPage,
         pendingPlan,
-        generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
+        generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'local').then(result => result.rawText),
       })
     }
 
@@ -1532,7 +1636,7 @@ router.post('/agent', async (req, res) => {
       actionId: plan.actionId,
       arguments: plan.actionId === 'conversation' ? { ...plan.arguments, response: plan.answer } : plan.arguments,
       user: req.user,
-      generateText: prompt => gerarTextoParaAgente(prompt, req.user.id, req.body?.modelo || 'local'),
+      generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'local').then(result => result.rawText),
       generatePosts: args => gerarPostsParaAgente(args, req.user.id, req.body?.modelo || 'local'),
       generateImage: args => generateImageResilient({
         descricao: args.description,
@@ -1571,6 +1675,9 @@ router.post('/schedule', async (req, res) => {
     for (const p of posts) {
       const querPublicarAgora = p.publishNow === true || req.body.publishNow === true
       const temMidia = !!p.mediaPath
+      if (temMidia && !isBlobUrl(p.mediaPath)) {
+        return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload oficial do aplicativo.' })
+      }
       const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
       const publishNow = querPublicarAgora && (temMidia || !exigeMidia)
 

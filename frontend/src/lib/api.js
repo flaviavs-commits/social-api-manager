@@ -1,4 +1,3 @@
-const getToken = () => localStorage.getItem('authToken')
 // Em desenvolvimento o Vite usa o proxy local; em produção o front pode ser
 // hospedado separadamente do backend (Vercel/Railway, por exemplo).
 export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -12,7 +11,7 @@ export class ApiError extends Error {
 }
 
 export function logout() {
-  localStorage.removeItem('authToken')
+  void fetch(`${API_URL}/auth/login/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
   window.location.assign('/login.html')
 }
 
@@ -27,17 +26,16 @@ function errorMessage(body, fallback) {
 
 async function request(path, options = {}) {
   const { headers = {}, timeoutMs = 15_000, ...requestOptions } = options
-  const authToken = getToken()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
+      credentials: 'include',
       signal: requestOptions.signal || controller.signal,
       headers: {
         ...(requestOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         ...headers,
       },
     })

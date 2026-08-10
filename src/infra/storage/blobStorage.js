@@ -10,6 +10,8 @@ const ALLOWED_MEDIA_TYPES = new Set([
 
 const MAX_UPLOAD_SIZE_BYTES = 200 * 1024 * 1024
 const UPLOAD_URL_TTL_MS = 10 * 60 * 1000
+const BLOB_ALLOWED_HOSTS = new Set(String(process.env.BLOB_ALLOWED_HOSTS || '')
+  .split(',').map(host => host.trim().toLowerCase()).filter(Boolean))
 
 // Gera uma URL pré-assinada para o navegador enviar o arquivo direto ao
 // Vercel Blob, sem passar pelo corpo da requisição desta API. Necessário
@@ -51,10 +53,40 @@ function isBlobUrl(url) {
   if (typeof url !== 'string') return false
   try {
     const parsed = new URL(url)
-    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.public.blob.vercel-storage.com')
+    if (parsed.protocol !== 'https:') return false
+    if (BLOB_ALLOWED_HOSTS.size) return BLOB_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())
+    // Desenvolvimento/testes mantêm compatibilidade com o formato do Blob;
+    // produção precisa declarar os hosts exatos para impedir objetos de outra
+    // conta/storage serem usados como origem de processamento.
+    return process.env.NODE_ENV !== 'production' && parsed.hostname.endsWith('.public.blob.vercel-storage.com')
   } catch {
     return false
   }
 }
 
-module.exports = { ALLOWED_MEDIA_TYPES, gerarUploadUrl, salvarBuffer, isBlobUrl }
+async function readResponseLimited(response, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
+  const declared = Number(response.headers.get('content-length') || 0)
+  if (declared > maxBytes) throw new Error('Mídia excede o tamanho máximo permitido')
+  if (!response.body) return Buffer.alloc(0)
+
+  const reader = response.body.getReader()
+  const chunks = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > maxBytes) {
+        await reader.cancel()
+        throw new Error('Mídia excede o tamanho máximo permitido')
+      }
+      chunks.push(Buffer.from(value))
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  return Buffer.concat(chunks, total)
+}
+
+module.exports = { ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES, gerarUploadUrl, salvarBuffer, isBlobUrl, readResponseLimited }

@@ -1,5 +1,6 @@
 import { Bar, Line } from 'react-chartjs-2'
 import { baseChartOptions, fmtNum, formatDiaBR, labelForMetric } from '../../lib/analytics-format.js'
+import { useTheme } from '../ui/theme-selector.jsx'
 
 function numberValue(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -38,6 +39,12 @@ function collectSeries(accounts) {
     }
   }
   return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b))
+}
+
+function sampleSeries(entries, maxPoints = 30) {
+  if (entries.length <= maxPoints) return entries
+  const indexes = new Set(Array.from({ length: maxPoints }, (_, index) => Math.round(index * (entries.length - 1) / (maxPoints - 1))))
+  return [...indexes].sort((a, b) => a - b).map(index => entries[index])
 }
 
 function collectBreakdowns(accounts) {
@@ -139,22 +146,23 @@ function ProviderBestTime({ net, data, accountId }) {
 function InsightSeries({ accounts }) {
   const entries = collectSeries(accounts)
   if (!entries.length) return null
-  const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))].slice(0, 5)
+  const chartEntries = sampleSeries(entries)
+  const names = [...new Set(chartEntries.flatMap(([, values]) => Object.keys(values)))].slice(0, 4)
   return <div className="analytics-insight-chart">
-    <div className="analytics-section-title">Evolução das principais métricas</div>
+    <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Evolução das principais métricas</div><span>{entries.length > chartEntries.length ? `Visão compacta · ${chartEntries.length} pontos` : `${entries.length} pontos`}</span></div>
     <Line
       data={{
-        labels: entries.map(([date]) => formatDiaBR(date)),
+        labels: chartEntries.map(([date]) => formatDiaBR(date)),
         datasets: names.map((name, index) => ({
           label: labelForMetric(name),
-          data: entries.map(([, values]) => values[name] || 0),
+          data: chartEntries.map(([, values]) => values[name] || 0),
           borderColor: ['#d1993e', '#e94f8a', '#4ade80', '#5b8def', '#a78bfa'][index],
           backgroundColor: 'transparent',
           tension: 0.3,
           pointRadius: 2
         }))
       }}
-      options={baseChartOptions()}
+      options={{ ...baseChartOptions(), scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 8, maxRotation: 0 } } } }}
     />
   </div>
 }
@@ -163,14 +171,16 @@ function MetricSeriesTable({ accounts }) {
   const entries = collectSeries(accounts)
   if (!entries.length) return null
   const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))]
-  return <div className="analytics-provider-table analytics-full-series">
-    <div className="analytics-section-title">Série diária completa</div>
-    <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
-    <div className="analytics-table-scroll"><table>
-      <thead><tr><th>Data</th>{names.map(name => <th key={name}>{labelForMetric(name)}</th>)}</tr></thead>
-      <tbody>{entries.slice(-90).map(([date, values]) => <tr key={date}><td>{formatDiaBR(date)}</td>{names.map(name => <td key={name}>{values[name] == null ? '—' : fmtNum(values[name])}</td>)}</tr>)}</tbody>
-    </table></div>
-  </div>
+  return <details className="analytics-report-detail">
+    <summary>Ver série diária completa <span>{entries.length} pontos</span></summary>
+    <div className="analytics-provider-table analytics-full-series">
+      <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
+      <div className="analytics-table-scroll"><table>
+        <thead><tr><th>Data</th>{names.map(name => <th key={name}>{labelForMetric(name)}</th>)}</tr></thead>
+        <tbody>{entries.slice(-90).map(([date, values]) => <tr key={date}><td>{formatDiaBR(date)}</td>{names.map(name => <td key={name}>{values[name] == null ? '—' : fmtNum(values[name])}</td>)}</tr>)}</tbody>
+      </table></div>
+    </div>
+  </details>
 }
 
 function demographicRows(value, prefix = '') {
@@ -218,19 +228,23 @@ function ReportCoverage({ accounts }) {
 function InsightBreakdowns({ accounts }) {
   const entries = collectBreakdowns(accounts)
   if (!entries.length) return null
-  return <div className="analytics-insight-chart">
-    <div className="analytics-section-title">Detalhes por dimensão</div>
-    <Bar
-      data={{
-          labels: entries.slice(0, 20).map(([label]) => label),
-          datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
-      }}
-      options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { legend: { display: false } } }}
-    />
-  </div>
+  return <details className="analytics-report-detail">
+    <summary>Ver detalhes por dimensão <span>{entries.length} dimensões</span></summary>
+    <div className="analytics-insight-chart analytics-breakdown-chart">
+      <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Detalhes por dimensão</div><span>Top 20</span></div>
+      <Bar
+        data={{
+            labels: entries.slice(0, 20).map(([label]) => label),
+            datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
+        }}
+        options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { legend: { display: false } }, scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 6 } }, y: { ...baseChartOptions().scales.y, ticks: { ...baseChartOptions().scales.y.ticks, autoSkip: false, font: { size: 10 } } } } }}
+      />
+    </div>
+  </details>
 }
 
 export function AnalyticsAccountInsights({ net, data, accountId = null }) {
+  useTheme()
   const allAccounts = data.accountAnalytics?.platforms?.[net] || []
   const accounts = accountId
     ? allAccounts.filter(account => belongsToAccount(account, accountId))

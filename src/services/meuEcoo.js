@@ -11,6 +11,7 @@
 const PARTNER_LOGIN_PATH = '/api/partner/auth/login'
 const PARTNER_SYNC_PATH = '/api/partner/auth/sync-credential'
 const TIMEOUT_MS = 5000
+const { safeMessage } = require('../utils/redact')
 
 function getConfig() {
   const url = process.env.MEU_ECOO_API_URL
@@ -31,7 +32,7 @@ async function sincronizarCredencial(email, password, nome) {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   } catch (err) {
-    console.error('[Meu Ecoo] falha ao sincronizar credencial:', err.message)
+    console.error('[Meu Ecoo] falha ao sincronizar credencial:', safeMessage(err?.message))
   }
 }
 
@@ -48,7 +49,7 @@ async function autenticarViaMeuEcoo(email, password) {
     })
     return res.ok
   } catch (err) {
-    console.error('[Meu Ecoo] falha ao autenticar via fallback:', err.message)
+    console.error('[Meu Ecoo] falha ao autenticar via fallback:', safeMessage(err?.message))
     return false
   }
 }

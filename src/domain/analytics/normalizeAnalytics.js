@@ -50,16 +50,31 @@ function normalizePostAnalytics(response, platformPostId = null) {
   const platform = platforms.find(item => item.platformPostId === platformPostId) || post?.platforms?.[0] || post
   const analytics = { ...(post?.analytics || {}), ...(platform?.analytics || {}) }
 
+  // Cada rede/provedor usa um nome diferente para a contagem de reproduções.
+  // Normalizamos esses aliases aqui para que a lista de publicações possa
+  // exibir "Visualizações" de forma consistente sem estimar o valor.
+  const views = analytics.views
+    ?? analytics.viewCount
+    ?? analytics.view_count
+    ?? analytics.video_views
+    ?? analytics.videoViews
+    ?? analytics.media_views
+    ?? analytics.mediaViews
+    ?? analytics.plays
+    ?? analytics.playCount
+    ?? analytics.play_count
+    ?? null
+
   return {
     ...analytics,
-    impressions: analytics.impressions ?? null,
+    impressions: analytics.impressions ?? analytics.impressionCount ?? analytics.impression_count ?? null,
     reach: analytics.reach ?? null,
-    likes: analytics.likes ?? analytics.likeCount ?? null,
-    comments: analytics.comments ?? analytics.commentCount ?? null,
-    shares: analytics.shares ?? analytics.shareCount ?? null,
-    saves: analytics.saves ?? null,
+    likes: analytics.likes ?? analytics.likeCount ?? analytics.like_count ?? null,
+    comments: analytics.comments ?? analytics.commentCount ?? analytics.comment_count ?? null,
+    shares: analytics.shares ?? analytics.shareCount ?? analytics.share_count ?? null,
+    saves: analytics.saves ?? analytics.saveCount ?? analytics.save_count ?? null,
     clicks: analytics.clicks ?? null,
-    views: analytics.views ?? analytics.viewCount ?? null,
+    views,
     follows: analytics.follows ?? null
   }
 }

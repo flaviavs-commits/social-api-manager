@@ -105,8 +105,9 @@ async function publicarZernioTiktok(token, post) {
   // default silencioso escolhido pelo backend.
   if (!post.tiktokPrivacyLevel) throw new Error('Escolha quem pode ver o vídeo no TikTok antes de publicar.')
 
+  const tiktokDescription = post.textByPlatform?.tiktokDescription || post.text || ''
   const platformSpecificData = {
-    videoTitle: post.text || '',
+    videoTitle: (post.titleByPlatform?.tiktok || post.text || '').slice(0, 90),
     disableComment: !!post.tiktokDisableComment,
     disableDuet: !!post.tiktokDisableDuet,
     disableStitch: !!post.tiktokDisableStitch,
@@ -114,7 +115,7 @@ async function publicarZernioTiktok(token, post) {
   }
 
   const { post: created } = await zernioClient.createPost({
-    content: post.text || '',
+    content: tiktokDescription.slice(0, 4000),
     publishNow: true,
     mediaItems: montarMediaItems(post),
     platforms: [{ platform: 'tiktok', accountId: token.accessToken, platformSpecificData }]

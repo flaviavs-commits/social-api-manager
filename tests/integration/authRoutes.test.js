@@ -80,11 +80,11 @@ describe('POST /auth/login/login', () => {
 
   test('200 login bem-sucedido retorna token e sincroniza credencial com o Meu Ecoo', async () => {
     usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', full_name: 'Ana', totp_enabled: false })
-    credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('Senha#1', 1) })
-    const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'Senha#1' })
+    credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('SenhaSegura#123', 1) })
+    const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'SenhaSegura#123' })
     expect(res.status).toBe(200)
     expect(res.body.token).toBeTruthy()
-    expect(meuEcoo.sincronizarCredencial).toHaveBeenCalledWith('a@b.com', 'Senha#1', 'Ana')
+    expect(meuEcoo.sincronizarCredencial).toHaveBeenCalledWith('a@b.com', 'SenhaSegura#123', 'Ana')
   })
 
   test('senha local errada cai no fallback do Meu Ecoo e re-hasheia com bcrypt', async () => {
@@ -102,8 +102,8 @@ describe('POST /auth/login/login', () => {
 
   test('200 com 2FA ativo retorna pendingToken', async () => {
     usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@b.com', totp_enabled: true })
-    credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('Senha#1', 1) })
-    const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'Senha#1' })
+    credRepo.buscarPorUserId.mockResolvedValue({ password_hash: await bcrypt.hash('SenhaSegura#123', 1) })
+    const res = await request(app).post(`${BASE}/login`).send({ email: 'a@b.com', password: 'SenhaSegura#123' })
     expect(res.status).toBe(200)
     expect(res.body.requires2fa).toBe(true)
     expect(res.body.pendingToken).toBeTruthy()
@@ -119,7 +119,7 @@ describe('POST /auth/login/register', () => {
   })
 
   test('400 email inválido', async () => {
-    const res = await request(app).post(`${BASE}/register`).send({ email: 'ruim', password: 'Abc@1234' })
+    const res = await request(app).post(`${BASE}/register`).send({ email: 'ruim', password: 'AbcSegura@1234' })
     expect(res.status).toBe(400)
   })
 
@@ -130,7 +130,7 @@ describe('POST /auth/login/register', () => {
 
   test('409 email já cadastrado', async () => {
     usersRepo.buscarPorEmail.mockResolvedValue({ id: 1 })
-    const res = await request(app).post(`${BASE}/register`).send({ email: 'a@b.com', password: 'Abc@1234' })
+    const res = await request(app).post(`${BASE}/register`).send({ email: 'a@b.com', password: 'AbcSegura@1234' })
     expect(res.status).toBe(409)
   })
 
@@ -138,7 +138,7 @@ describe('POST /auth/login/register', () => {
     usersRepo.buscarPorEmail.mockResolvedValue(null)
     usersRepo.criar.mockResolvedValue({ id: 5, email: 'novo@x.com' })
     credRepo.criar.mockResolvedValue(undefined)
-    const res = await request(app).post(`${BASE}/register`).send({ email: 'novo@x.com', password: 'Abc@1234' })
+    const res = await request(app).post(`${BASE}/register`).send({ email: 'novo@x.com', password: 'AbcSegura@1234' })
     expect(res.status).toBe(200)
     expect(res.body.token).toBeTruthy()
   })
@@ -249,13 +249,13 @@ describe('POST /auth/login/reset-password', () => {
 
   test('400 token inválido/expirado', async () => {
     credRepo.atualizarSenhaPorResetToken.mockResolvedValue(null)
-    const res = await request(app).post(`${BASE}/reset-password`).send({ token: 'expirado', password: 'Abc@1234' })
+    const res = await request(app).post(`${BASE}/reset-password`).send({ token: 'expirado', password: 'AbcSegura@1234' })
     expect(res.status).toBe(400)
   })
 
   test('200 redefine senha com token válido', async () => {
     credRepo.atualizarSenhaPorResetToken.mockResolvedValue({ user_id: 1 })
-    const res = await request(app).post(`${BASE}/reset-password`).send({ token: 'valido', password: 'Abc@1234' })
+    const res = await request(app).post(`${BASE}/reset-password`).send({ token: 'valido', password: 'AbcSegura@1234' })
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
   })

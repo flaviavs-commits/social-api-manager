@@ -3,6 +3,10 @@ import { apiFetch } from '../lib/api.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
 import { AiModelPicker } from '../components/ai/ai-model-picker.jsx'
 
+// O backend espera até 45s pelo provedor. O OpenRouter pode precisar de alguns
+// segundos adicionais para devolver a resposta ou o fallback do servidor.
+const AI_GENERATION_TIMEOUT_MS = 60_000
+
 export function AiPage() {
   const [instruction, setInstruction] = useState('')
   const [posts, setPosts] = useState([])
@@ -25,7 +29,7 @@ export function AiPage() {
   async function generate(event) {
     event.preventDefault(); setLoading(true); setError('')
     try {
-      const data = await apiFetch('/api/ai/generate', { method: 'POST', body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
+      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
       setPosts((data.posts || []).map(post => ({ ...post, text: post.text || post.caption || '' })))
       setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
@@ -78,6 +82,7 @@ export function AiPage() {
     {!analyticsInsights && !analyticsLoading && !analyticsError && <div className="ai-analytics-empty"><span aria-hidden="true">✦</span><div><strong>Descubra o melhor momento para publicar</strong><p>Escolha o período e deixe a IA transformar seus dados em decisões práticas.</p></div></div>}
     {analyticsInsights && <div className="ai-analytics-insights-content">
       <div className="ai-analytics-summary"><span className="ai-analytics-summary-mark" aria-hidden="true">✓</span><p>{analyticsInsights.summary}</p></div>
+      {analyticsInsights.performanceAnalysis?.comparisons?.length > 0 && <section className="ai-performance-analysis" aria-labelledby="ai-performance-analysis-title"><div className="analytics-section-heading"><div><span className="ai-analytics-card-kicker">COMPARAÇÃO DE VISUALIZAÇÕES</span><h3 id="ai-performance-analysis-title">Por que um post foi melhor que outro?</h3></div><small>Correlação, não causalidade</small></div>{analyticsInsights.performanceAnalysis.comparisons.map(item => <article className="ai-performance-comparison" key={item.platform}><div className="ai-performance-comparison-heading"><strong>{item.platformLabel}</strong><span>{item.sampleSize} publicação(ões) · confiança {item.confidence}</span></div><p>{item.diagnosis}</p><div className="ai-performance-actions"><div><b>Solução recomendada</b><span>{item.solution}</span></div><div><b>Outra abordagem</b><span>{item.alternativeApproach}</span></div></div></article>)}</section>}
       <div className="ai-analytics-highlight-grid">
         <article className="ai-analytics-highlight-card is-gold"><span className="ai-analytics-card-kicker">MELHOR HORÁRIO</span>{analyticsInsights.bestTime ? <><strong>{analyticsInsights.bestTime.hour}h · {analyticsInsights.bestTime.period}</strong><span>{analyticsInsights.bestTime.day} no {analyticsInsights.bestTime.platformLabel}</span><small>{formatMetric(analyticsInsights.bestTime.averageInteractions)} de interação média · {analyticsInsights.bestTime.postCount || 0} publicação(ões)</small></> : <><strong>Dados insuficientes</strong><span>Publique mais vezes para identificar um padrão.</span></>}</article>
         <article className="ai-analytics-highlight-card"><span className="ai-analytics-card-kicker">PERÍODO DO DIA</span><strong>{analyticsInsights.bestPeriod || 'Ainda não identificado'}</strong><span>{analyticsInsights.bestPeriod ? 'É o período com melhor sinal no histórico analisado.' : 'Ainda não há horários suficientes para comparar.'}</span><small>Baseado nas métricas do período selecionado</small></article>

@@ -25,7 +25,7 @@ function verify(token, secret) {
 }
 
 function gerarTokenSessao(userId) {
-  return sign({ userId, iat: Date.now(), exp: Date.now() + 30 * 24 * 60 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
+  return sign({ purpose: 'session', jti: crypto.randomUUID(), userId, iat: Date.now(), exp: Date.now() + 8 * 60 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
 }
 
 function verificarTokenSessao(token) {

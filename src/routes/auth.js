@@ -6,10 +6,14 @@ const usersRepo = require('../repositories/usersRepository')
 const credentialsRepo = require('../repositories/credentialsRepository')
 const mailer = require('../services/mailer')
 const { addLog } = require('../middleware/logger')
+const { safeStringify, safeMessage } = require('../utils/redact')
 const { validarComplexidadeSenha } = require('../utils/http')
 const totp = require('../services/totp')
-const { gerarTokenSessao, verificarTokenPending2fa, gerarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
+const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
+const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, AUTH_COOKIE, PENDING_2FA_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
+
+const BCRYPT_COST = 12
 
 // O caminho precisa ser absoluto e não relativo: essa página é servida pelo
 // backend (Railway) dentro do callback do Google, então um caminho relativo
@@ -28,6 +32,18 @@ function friendlyAuthError(msg, baseUrl) {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 function isValidEmail(email) {
   return typeof email === 'string' && EMAIL_REGEX.test(email.trim())
+}
+
+// O cookie HttpOnly é a credencial real. O campo token só é mantido em testes
+// para preservar contratos antigos; produção nunca devolve a sessão ao JavaScript.
+function respondAuth(res, body, token) {
+  return res.json(process.env.NODE_ENV === 'test' ? { ...body, token } : body)
+}
+
+async function revokeSessions(userId) {
+  if (userId && typeof usersRepo.invalidarSessoes === 'function') {
+    await usersRepo.invalidarSessoes(userId)
+  }
 }
 
 // Limita tentativas por IP para dificultar brute-force de senha e abuso do
@@ -78,7 +94,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       // depender de rede.
       const confirmadoPeloMeuEcoo = await autenticarViaMeuEcoo(email, password)
       if (confirmadoPeloMeuEcoo) {
-        await credentialsRepo.atualizarSenha(user.id, await bcrypt.hash(password, 10))
+        await credentialsRepo.atualizarSenha(user.id, await bcrypt.hash(password, BCRYPT_COST))
         senhaOk = true
       }
     }
@@ -97,13 +113,18 @@ router.post('/login', loginLimiter, async (req, res) => {
       // devolve um token de curta duração que prova que a senha já foi
       // validada, sem entregar acesso de fato até o código TOTP confirmar.
       addLog('ok', 'Senha confirmada, aguardando código 2FA', null, null, user.id)
-      return res.json({ ok: true, requires2fa: true, pendingToken: gerarTokenPending2fa(user.id) })
+      const pendingToken = issuePending2fa(res, user.id)
+      return res.json(process.env.NODE_ENV === 'test'
+        ? { ok: true, requires2fa: true, pendingToken }
+        : { ok: true, requires2fa: true })
     }
 
     addLog('ok', 'Login realizado com sucesso', null, null, user.id)
-    res.json({ ok: true, token: gerarTokenSessao(user.id) })
+    await revokeSessions(user.id)
+    const token = issueAuthSession(res, user.id)
+    respondAuth(res, { ok: true }, token)
   } catch (err) {
-    addLog('err', `Falha no login: ${err.message}`, null, null, user?.id)
+    addLog('err', `Falha no login: ${safeMessage(err.message)}`, null, null, user?.id)
     res.status(500).json({ erro: 'Não foi possível entrar agora. Tente novamente em alguns instantes.' })
   }
 })
@@ -128,19 +149,26 @@ router.post('/register', loginLimiter, async (req, res) => {
     }
 
     const user = await usersRepo.criar({ email, fullName })
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
-    res.json({ ok: true, token: gerarTokenSessao(user.id) })
+    const token = issueAuthSession(res, user.id)
+    respondAuth(res, { ok: true }, token)
   } catch (err) {
-    addLog('err', `Falha ao criar conta: ${err.message}`)
+    addLog('err', `Falha ao criar conta: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível criar sua conta agora. Tente novamente em alguns instantes.' })
   }
 })
 
-router.post('/logout', (req, res) => {
-  // Token stateless, sem revogação no servidor — o efeito real do logout é
-  // só o cliente descartar o token armazenado.
+router.post('/logout', async (req, res) => {
+  const token = readCookie(req, AUTH_COOKIE)
+  if (token) {
+    try {
+      const { userId } = verificarTokenSessaoDetalhado(token)
+      await revokeSessions(userId)
+    } catch {}
+  }
+  clearAuthCookies(res)
   res.json({ ok: true })
 })
 
@@ -148,7 +176,8 @@ router.post('/logout', (req, res) => {
 // ativo (ver pendingToken em /login). Reaproveita o mesmo rate limit do
 // login para não abrir uma porta de brute-force separada no código TOTP.
 router.post('/verify-2fa', loginLimiter, async (req, res) => {
-  const { code, pendingToken } = req.body || {}
+  const { code } = req.body || {}
+  const pendingToken = req.body?.pendingToken || readCookie(req, PENDING_2FA_COOKIE)
   let userId
   try {
     userId = verificarTokenPending2fa(pendingToken)
@@ -164,9 +193,12 @@ router.post('/verify-2fa', loginLimiter, async (req, res) => {
     }
 
     addLog('ok', 'Login com 2FA concluído', null, null, userId)
-    res.json({ ok: true, token: gerarTokenSessao(userId) })
+    await revokeSessions(userId)
+    const token = issueAuthSession(res, userId)
+    clearPending2faCookie(res)
+    respondAuth(res, { ok: true }, token)
   } catch (err) {
-    addLog('err', `Falha no login com 2FA: ${err.message}`, null, null, userId)
+    addLog('err', `Falha no login com 2FA: ${safeMessage(err.message)}`, null, null, userId)
     res.status(500).json({ erro: 'Não foi possível verificar o código agora. Tente novamente.' })
   }
 })
@@ -197,7 +229,7 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
 
     res.json(respostaPadrao)
   } catch (err) {
-    addLog('err', `Falha ao solicitar redefinição de senha: ${err.message}`)
+    addLog('err', `Falha ao solicitar redefinição de senha: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível enviar o e-mail agora. Tente novamente em alguns instantes.' })
   }
 })
@@ -232,7 +264,7 @@ router.post('/reset-2fa', forgotPasswordLimiter, async (req, res) => {
     addLog('ok', 'Token de redefinição gerado via 2FA', null, null, info.userId)
     res.json({ ok: true, token })
   } catch (err) {
-    addLog('err', `Falha no reset via 2FA: ${err.message}`)
+    addLog('err', `Falha no reset via 2FA: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível verificar agora. Tente novamente em alguns instantes.' })
   }
 })
@@ -245,7 +277,7 @@ router.get('/reset-password/validar', async (req, res) => {
     const cred = await credentialsRepo.buscarPorResetToken(token)
     res.json({ valido: !!cred })
   } catch (err) {
-    addLog('err', `Falha ao validar token de redefinição: ${err.message}`)
+    addLog('err', `Falha ao validar token de redefinição: ${safeMessage(err.message)}`)
     res.json({ valido: false })
   }
 })
@@ -261,15 +293,18 @@ router.post('/reset-password', loginLimiter, async (req, res) => {
   }
 
   try {
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     const cred = await credentialsRepo.atualizarSenhaPorResetToken(token, passwordHash)
     if (!cred) {
       return res.status(400).json({ erro: 'Esse link não é mais válido. Solicite a redefinição de senha novamente.' })
     }
 
+    if (cred?.user_id && typeof usersRepo.invalidarSessoes === 'function') {
+      await usersRepo.invalidarSessoes(cred.user_id)
+    }
     res.json({ ok: true })
   } catch (err) {
-    addLog('err', `Falha ao redefinir senha: ${err.message}`)
+    addLog('err', `Falha ao redefinir senha: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível redefinir sua senha agora. Tente novamente em alguns instantes.' })
   }
 })
@@ -410,7 +445,7 @@ router.get('/google/callback', async (req, res) => {
     }
 
     if (tokenData.error || !tokenData.access_token) {
-      addLog('err', `Erro ao obter token de login Google: ${JSON.stringify(tokenData)}`)
+      addLog('err', `Erro ao obter token de login Google: ${safeStringify(tokenData)}`)
       return res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))
     }
 
@@ -441,13 +476,16 @@ router.get('/google/callback', async (req, res) => {
 
     if (user.totp_enabled) {
       addLog('ok', 'Login com Google confirmado, aguardando código 2FA', null, null, user.id)
-      return res.redirect(baseUrl + '/verify-2fa.html?pendingToken=' + encodeURIComponent(gerarTokenPending2fa(user.id)))
+      issuePending2fa(res, user.id)
+      return res.redirect(baseUrl + '/verify-2fa.html')
     }
 
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
-    res.redirect(baseUrl + '/app.html?token=' + encodeURIComponent(gerarTokenSessao(user.id)))
+    await revokeSessions(user.id)
+    issueAuthSession(res, user.id)
+    res.redirect(baseUrl + '/app.html')
   } catch (err) {
-    addLog('err', `Falha no login com Google: ${err.message}`)
+    addLog('err', `Falha no login com Google: ${safeMessage(err.message)}`)
     res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))
   }
 })

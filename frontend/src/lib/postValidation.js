@@ -40,14 +40,19 @@ export function readVideoMeta(file) {
 // Retorna a lista de pendências para o post atual. `youtubeMadeForKids` é a
 // string do <select> ('', 'true' ou 'false'), não um boolean — mesmo padrão
 // já usado por youtubeVisibility/igFormat/tiktokPrivacyLevel neste formulário.
-export function buildValidationIssues({ text, textByPlatform = {}, platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey }) {
+export function buildValidationIssues({ text = '', textByPlatform = {}, titleByPlatform = {}, tiktokDescription = '', platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey }) {
   const issues = []
   const hasMedia = files.length > 0
   const videoFiles = files.filter(file => file.type.startsWith('video/'))
   const hasVideo = videoFiles.length > 0
-  const textForPlatform = platform => Object.prototype.hasOwnProperty.call(textByPlatform, platform)
-    ? textByPlatform[platform]
-    : text
+  const textForPlatform = platform => {
+    const key = platform === 'tiktok' && Object.prototype.hasOwnProperty.call(textByPlatform, 'tiktokDescription')
+      ? 'tiktokDescription'
+      : platform
+    return Object.prototype.hasOwnProperty.call(textByPlatform, key)
+      ? textByPlatform[key]
+      : text
+  }
 
   for (const platform of platforms) {
     const value = textForPlatform(platform) || ''
@@ -59,6 +64,11 @@ export function buildValidationIssues({ text, textByPlatform = {}, platforms, fi
       })
     }
   }
+
+  if (platforms.includes('tiktok') && (titleByPlatform.tiktok || '').length > 90)
+    issues.push({ platform: 'tiktok', message: 'O título do TikTok pode ter no máximo 90 caracteres.' })
+  if (platforms.includes('tiktok') && tiktokDescription.length > 4000)
+    issues.push({ platform: 'tiktok', message: 'A descrição do TikTok pode ter no máximo 4000 caracteres.' })
 
   const hasText = text.trim() || Object.values(textByPlatform).some(value => value?.trim())
   if (!hasText && !hasMedia)

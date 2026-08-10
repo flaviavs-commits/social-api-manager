@@ -8,14 +8,25 @@ import { ModulePage } from './pages/module-page.jsx'
 import { LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
 import { AdminPage } from './pages/admin-page.jsx'
 import { apiFetch } from './lib/api.js'
+import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
 import './styles/tokens.css'
 import './styles/app.css'
 import './styles/modules.css'
+import './styles/global-ui.css'
+import './styles/analytics-audience.css'
+import './styles/tokens-page.css'
 import './styles/tailwind.css'
 import './styles/auth.css'
 import './styles/admin.css'
+import './styles/scheduler-theme.css'
+import './styles/drafts-theme.css'
+import './styles/theme.css'
+import './styles/light-theme.css'
+import './styles/benchmarking.css'
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil'])
+applyTheme(getStoredTheme())
+
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe', 'benchmarking', 'automacoes'])
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
@@ -46,20 +57,8 @@ function App() {
   </AppShell>
 }
 
-function consumeTokenFromUrl() {
-  if (window.location.pathname !== '/app.html' && !window.location.pathname.startsWith('/app/')) return
-  const params = new URLSearchParams(window.location.search)
-  const token = params.get('token')
-  if (!token) return
-  localStorage.setItem('authToken', token)
-  params.delete('token')
-  const query = params.toString()
-  window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
-}
-
-consumeTokenFromUrl()
 const pathname = window.location.pathname
-const page = pathname === '/login.html' ? <LoginPage />
+const page = pathname === '/login.html' ? <App />
   : pathname === '/reset-password.html' ? <ResetPasswordPage />
     : pathname === '/verify-2fa.html' ? <VerifyTwoFactorPage />
     : pathname === '/admin.html' ? <AdminPage />

@@ -158,7 +158,11 @@ function basePlan(actionId, args = {}, answer = '') {
 
 function isLikelyFieldReply(message) {
   const normalized = normalize(message)
-  if (/^(abra|abrir|mostre|mostrar|quero ver|crie|criar|gere|gerar|cancele|cancelar|exclua|excluir|salve|salvar|consulte|consultar|responda|reagende|reagendar)\b/.test(normalized)) return false
+  // Uma resposta de campo é curta e direta ("42", "amanhã às 10h" ou
+  // "tom profissional"). Se a pessoa começa um novo pedido, o novo pedido
+  // tem prioridade e não deve ser usado para preencher o plano anterior.
+  if (/[?]/.test(normalized)
+    || /^(abra|abrir|mostre|mostrar|me mostre|me mostra|me diga|me diz|me consulte|consultar|consulte|quero|preciso|gostaria|pode|poderia|tem como|voce consegue|você consegue|faça|faca|crie|criar|gere|gerar|escreva|escrever|monte|montar|cancele|cancelar|exclua|excluir|salve|salvar|responda|reagende|reagendar|me ajude|me ajuda|como|qual|por que|porque)\b/.test(normalized)) return false
   return true
 }
 
@@ -213,9 +217,15 @@ function inferFromContext(message, currentPage, history = []) {
   const previous = lastAgentContext(history)
   const previousAction = previous?.action
   const platform = extractPlatforms(message)[0] || null
-  const explicitRequest = /^(mostre|mostrar|ver|veja|consultar|consulte|abra|abrir|listar|liste)\b/.test(normalized)
-  const isReference = !explicitRequest && (/^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
-    || normalized.split(/\s+/).filter(Boolean).length <= 3)
+  const performanceReference = /visualiza|views|alcance|desempenho|perform/.test(normalized)
+    && /post|publica|conteudo|compar|outro|diferenc|por que|porque/.test(normalized)
+  if (performanceReference) return basePlan('analytics_insight', { platform }, 'Vou comparar as publicações, explicar os sinais de desempenho e sugerir uma solução com uma abordagem alternativa.')
+  const explicitRequest = /^(mostre|mostrar|ver|veja|consultar|consulte|abra|abrir|listar|liste|crie|criar|gere|gerar|faça|faca|escreva|escrever|quero|preciso|gostaria|pode|poderia|salve|salvar|agende|agendar|publique|publicar)\b/.test(normalized)
+  const startsAsReference = /^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
+  const words = normalized.split(/\s+/).filter(Boolean)
+  const shortReference = words.length <= 3 && !explicitRequest
+    && (platform || /^(isso|esse|essa|aqui|ali|tambem|mais|detalhe|melhor|continuar|continua|sim|nao)\b/.test(normalized))
+  const isReference = !explicitRequest && (startsAsReference || shortReference)
   if (!isReference) return null
 
   if (['analytics', 'analytics_insight'].includes(previousAction)) {
@@ -344,16 +354,36 @@ function interpretWithRules(message, currentPage, history = []) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
     return { ...basePlan('mark_comments_seen', { postId, commentIds: [] }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Posso marcar os comentários desse post como vistos. Confirme para continuar.' : 'Informe o ID do post cujos comentários deseja marcar como vistos.' }
   }
-  const imageIntent = /(?:imagem|image|ilustracao|ilustração|arte|banner|thumbnail|foto)/.test(normalized)
-    && /(?:gerar|gere|criar|crie|fazer|faca|faça|produzir|produza|desenhar|desenhe)/.test(normalized)
-  if (imageIntent) {
-    const description = extractImageDescription(text)
-    return basePlan('create_image', { description, model: 'auto' }, 'Vou criar a imagem e, se necessário, trocar automaticamente de modelo para concluir.')
+  // Aceita pedidos naturais, sem exigir uma fórmula exata como "crie um post".
+  // Exemplos: "quero um post sobre ônibus", "preciso de uma legenda",
+  // "pode fazer um carrossel?" e "me ajuda com ideias para o Instagram".
+  const contentTarget = /post|conteudo|publica|legenda|caption|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio|marketing|instagram|facebook|youtube|tiktok/.test(normalized)
+  const contentCreationLanguage = /gerar|gere|criar|crie|escrever|escreva|fazer|faça|faca|montar|monte|sugerir|sugira|ideia|legenda|caption|quero.*(?:post|conteudo|legenda|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio)|preciso.*(?:post|conteudo|legenda|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio)|gostaria.*(?:post|conteudo|legenda|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio)|pode.*(?:post|conteudo|legenda|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio)|me ajuda.*(?:post|conteudo|legenda|copy|carrossel|roteiro|ideia|campanha|anuncio|anúncio)/.test(normalized)
+  const contentIntent = contentCreationLanguage && contentTarget
+    && !/(?:salvar|salve|guardar|guarde|listar|liste|mostrar|mostre|consultar|consulte|excluir|apagar|remover|deletar)/.test(normalized)
+  const imageWithContentIntent = contentIntent
+    && !/\bsem\s+(?:imagem|arte|foto|visual)\b/.test(normalized)
+    && (/(?:com|incluindo|inclua|acompanhado|junto)\b.*\b(?:imagem|imagens|arte|artes|foto|fotos|visual|ilustracao)\b/.test(normalized)
+      || /\b(?:imagem|imagens|arte|artes|foto|fotos|visual|ilustracao)\b.*\b(?:para|do|da|de)\s+(?:(?:o|a|os|as)\s+)?(?:post|legenda|conteudo|publicacao)\b/.test(normalized)
+      || /\b(?:post|legenda|conteudo|publicacao|carrossel|roteiro)\b.*\b(?:ilustrado|ilustrada|visual|composicao|composicoes)\b/.test(normalized))
+  if (imageWithContentIntent) {
+    const platforms = extractPlatforms(text)
+    const tone = /profissional|formal/.test(normalized) ? 'profissional' : /motiv/.test(normalized) ? 'motivacional' : /inform/.test(normalized) ? 'informativo' : /humor|engrac|engraç/.test(normalized) ? 'humoristico' : 'casual'
+    const quantity = Math.min(Math.max(Number(normalized.match(/\b(\d+)\s+(?:posts?|ideias?|legendas?)\b/)?.[1]) || 1, 1), 5)
+    return basePlan('generate_post_with_image', { instruction: text, platforms: platforms.length ? platforms : ['instagram'], quantity, tone, model: 'auto' }, 'Vou criar o conteúdo e os visuais relacionados ao tema.')
   }
 
-  const contentIntent = /gerar|gere|criar|crie|escrever|escreva|sugerir|sugira|ideia|legenda|caption/.test(normalized)
-    && /post|conteudo|publica|instagram|facebook|youtube|tiktok/.test(normalized)
-  if (!contentIntent && /metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo/.test(normalized)) return basePlan('analytics_insight', {}, 'Vou analisar seus dados e sugerir próximos passos.')
+  const imageIntent = /(?:imagem|image|ilustracao|ilustração|arte|banner|thumbnail|foto|visual)/.test(normalized)
+    && /(?:gerar|gere|criar|crie|fazer|faca|faça|produzir|produza|desenhar|desenhe|quero.*(?:imagem|arte|foto|visual)|preciso.*(?:imagem|arte|foto|visual)|gostaria.*(?:imagem|arte|foto|visual)|pode.*(?:imagem|arte|foto|visual)|me ajuda.*(?:imagem|arte|foto|visual))/.test(normalized)
+  if (imageIntent) {
+    const description = extractImageDescription(text)
+    return basePlan('create_image', { description, model: 'auto' }, 'Vou criar a imagem e, se necessário, trocar automaticamente de provedor para concluir.')
+  }
+  const performanceComparisonIntent = /visualiza|views|alcance|desempenho|perform/.test(normalized)
+    && /post|publica|conteudo|compar|outro|diferenc|por que|porque|solucao|abordagem|entend/.test(normalized)
+  if (!contentIntent && (performanceComparisonIntent || (/metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo|por que|porque/.test(normalized)))) {
+    return basePlan('analytics_insight', { platform: extractPlatforms(text)[0] || null }, 'Vou comparar as publicações, explicar os sinais de desempenho e sugerir uma solução com uma abordagem alternativa.')
+  }
   if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
   if (/calendario|calendário|o que tenho agendado|publicacoes.*mes|publicações.*mês/.test(normalized)) return basePlan('calendar', extractMonth(text), 'Vou consultar o calendário desse período.')
   if (/requisit|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
@@ -391,15 +421,22 @@ function interpretWithRules(message, currentPage, history = []) {
 
   const openQuestion = /\?|\b(?:como|qual|quais|por que|porque|me ajude|estrategia|estratégia|sugestao|sugestão|ideias|o que devo|vale a pena|melhor forma|analise|análise|planeje|planejamento)\b/.test(normalized)
   if (openQuestion) return basePlan('conversation', { topic: text }, 'Vou analisar seu pedido e responder com uma orientação prática.')
-  return { ...basePlan('show_capabilities'), actionId: 'unknown', confidence: 0, answer: `Não identifiquei uma ação específica${currentPage ? ` no módulo ${APP_PAGES[currentPage] || currentPage}` : ''}. Posso conversar sobre estratégia, conteúdo e redes sociais, ou executar uma ação da aplicação.` }
+  // Todo requisito textual ainda deve receber um plano. Se não houver uma
+  // ação operacional segura, encaminhamos o pedido para conversa aberta e
+  // preservamos o texto integral. Assim, a ausência de um provedor LLM não
+  // transforma pedidos diferentes na mesma resposta de ajuda.
+  return basePlan('conversation', { topic: text }, `Entendi o seu pedido: “${text.slice(0, 500)}”. Vou analisar o que você precisa e orientar o próximo passo.`)
 }
 
 function buildAgentPrompt({ message, history = [], currentPage = null, pendingPlan = null }) {
   return `Você é o agente inteligente do Social API Manager. Converse em português do Brasil com clareza, naturalidade e iniciativa. Você pode executar UMA ação da aplicação OU responder uma pergunta aberta. Nunca invente dados da conta, métricas, posts, contas conectadas, IDs ou resultados: quando o usuário pedir dados reais, escolha a ação de consulta adequada. Se faltarem dados para uma ação, preencha missingFields e não execute. Ações de escrita exigem confirmação.
 
 COMO RACIOCINAR:
+- Trate cada mensagem como um requisito independente. Uma nova intenção explícita sempre vence o histórico; nunca copie a ação ou a resposta anterior só porque o pedido é curto.
+- Aceite requisitos livres em texto, linguagem informal, abreviações, erros de digitação, listas e várias condições. Preserve detalhes, restrições, público, prazo e formato informados pelo usuário nos arguments ou no topic.
 - Para estratégia, ideias, explicações, diagnóstico conceitual ou dúvidas gerais, use actionId "conversation" e escreva uma resposta útil, específica e acionável em answer.
 - Para pedidos de conteúdo, entenda objetivo, público, formato, tom e rede; use generate_posts quando o usuário quer textos prontos.
+- Interprete linguagem cotidiana para conteúdo: "quero um post sobre ônibus", "preciso de uma legenda", "pode fazer um carrossel?", "me ajuda com ideias" e pedidos com erros de digitação devem virar generate_posts quando o usuário quer algo pronto.
 - Para pedidos de imagem, use create_image. Preserve a descrição visual do usuário e deixe model como "auto" para permitir fallback entre provedores. Nunca responda que a imagem foi criada sem receber uma imagem válida do executor.
 - Para pedidos compostos, responda a parte que puder e indique a próxima etapa mais segura; não execute várias escritas escondidas.
 - Diferencie uma pergunta sobre a palavra "analytics" de uma consulta dos dados reais da conta.

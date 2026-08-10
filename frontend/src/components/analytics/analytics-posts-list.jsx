@@ -68,7 +68,7 @@ function NetworkPostsList({ net, metrics, onOpenComments }) {
                 </span>
                 {pl.metrics
                   ? <>
-                      {pl.metrics.views != null && <span title="Visualizações">👁 {fmtNum(pl.metrics.views)}</span>}
+                      <span className="analytics-post-view-metric" title={pl.metrics.views == null ? 'A rede ainda não forneceu a contagem de visualizações' : 'Visualizações'}>👁 {fmtNum(pl.metrics.views)}</span>
                       {pl.metrics.likes != null && <span title="Curtidas">❤ {fmtNum(pl.metrics.likes)}</span>}
                       {pl.metrics.comments != null && <span title="Comentários">💬 {fmtNum(pl.metrics.comments)}</span>}
                       {pl.metrics.shares != null && <span>↗ {fmtNum(pl.metrics.shares)}</span>}

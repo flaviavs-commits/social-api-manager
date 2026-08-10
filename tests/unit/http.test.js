@@ -40,7 +40,7 @@ describe('isAdminRole', () => {
 
 describe('validarComplexidadeSenha', () => {
   test('senha válida retorna null', () => {
-    expect(validarComplexidadeSenha('Senha@1')).toBeNull()
+    expect(validarComplexidadeSenha('SenhaSegura@1')).toBeNull()
     expect(validarComplexidadeSenha('MinhaSenha#123')).toBeNull()
   })
   test('muito curta retorna erro', () => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_URL, ApiError, publicApiFetch } from '../lib/api.js'
+import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -34,7 +35,7 @@ function Message({ message }) {
 }
 
 function AuthCard({ children }) {
-  return <main className="auth-page"><section className="auth-card"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a>{children}</section></main>
+  return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a>{children}</section></main>
 }
 
 export function LoginPage() {
@@ -51,14 +52,6 @@ export function LoginPage() {
 
   useEffect(() => {
     if (queryError) setMessage({ type: 'error', text: queryError })
-    let active = true
-    publicApiFetch('/api/review-token').then(({ token }) => {
-      if (active && token) {
-        localStorage.setItem('authToken', token)
-        window.location.assign('/app.html')
-      }
-    }).catch(() => {})
-    return () => { active = false }
   }, [queryError])
 
   const submitCredentials = async event => {
@@ -70,11 +63,9 @@ export function LoginPage() {
       const endpoint = register ? '/auth/login/register' : '/auth/login/login'
       const data = await publicApiFetch(endpoint, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() || undefined }) })
       if (data.requires2fa) {
-        sessionStorage.setItem('pending2faToken', data.pendingToken)
         setFlow('login-2fa')
         return
       }
-      localStorage.setItem('authToken', data.token)
       window.location.assign('/app.html')
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Não foi possível conectar ao servidor.' })
@@ -88,9 +79,7 @@ export function LoginPage() {
     if (!/^\d{6}$/.test(code)) return setMessage({ type: 'error', text: 'Digite o código de 6 dígitos do app autenticador.' })
     setBusy(true)
     try {
-      const data = await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code, pendingToken: sessionStorage.getItem('pending2faToken') }) })
-      sessionStorage.removeItem('pending2faToken')
-      localStorage.setItem('authToken', data.token)
+      await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code }) })
       window.location.assign('/app.html')
     } catch (error) {
       setMessage({ type: 'error', text: error.message || 'Não foi possível verificar o código.' })
@@ -200,9 +189,7 @@ export function VerifyTwoFactorPage() {
   const [message, setMessage] = useState(null)
 
   useEffect(() => {
-    const pendingToken = new URLSearchParams(window.location.search).get('pendingToken')
-    if (pendingToken) {
-      sessionStorage.setItem('pending2faToken', pendingToken)
+    if (window.location.search) {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -212,9 +199,7 @@ export function VerifyTwoFactorPage() {
     if (!/^\d{6}$/.test(code)) return setMessage({ type: 'error', text: 'Digite o código de 6 dígitos do app autenticador.' })
     setBusy(true)
     try {
-      const data = await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code, pendingToken: sessionStorage.getItem('pending2faToken') }) })
-      sessionStorage.removeItem('pending2faToken')
-      localStorage.setItem('authToken', data.token)
+      await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code }) })
       window.location.assign('/app.html')
     } catch (error) { setMessage({ type: 'error', text: error.message || 'Não foi possível verificar o código.' }) }
     finally { setBusy(false) }

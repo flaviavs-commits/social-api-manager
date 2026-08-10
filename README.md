@@ -1,7 +1,7 @@
 # Social Api Manager
 
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
-Suporta Facebook, Instagram, YouTube, TikTok e Kwai via OAuth 2.0.
+Suporta Facebook, Instagram, YouTube e TikTok via OAuth 2.0.
 
 Possui login próprio (e-mail/senha ou Google) com **multi-tenancy**: cada
 usuário só vê e gerencia as contas de redes sociais que ele mesmo conectou.
@@ -395,7 +395,6 @@ remove os dados das demais.
 | GET | `/auth/tiktok` ou `/oauth/tiktok` | Iniciar OAuth TikTok |
 | GET | `/auth/tiktok/google` | Iniciar OAuth TikTok via Google |
 | GET | `/oauth/tiktok/callback` | Callback TikTok |
-| GET | `/auth/kwai` ou `/oauth/kwai` | Conectar conta Kwai (simulado) |
 
 ### Logs
 | Método | Rota | Descrição |
@@ -424,7 +423,6 @@ remove os dados das demais.
 | Instagram | Igual ao Meta | Requer conta Business |
 | YouTube | 10.000 unidades/dia | Upload = 1.600 unidades |
 | TikTok | Sem agendamento nativo | PKCE obrigatório · Sandbox para testes |
-| Kwai | Token dura 30 dias | Sem OAuth público — conexão simulada |
 
 ## Deploy em produção
 
@@ -514,3 +512,18 @@ tests/
     ├── postScore.test.js          — score de qualidade por plataforma (puro JS)
     └── bestTimes.test.js          — merge de horários sugeridos e applyBestTime
 ```
+
+## Recursos de produtividade e crescimento
+
+As migrations `045_priority_features.sql` a `048_api_keys.sql` adicionam:
+
+- Biblioteca de mídia em `/app/biblioteca` (`/api/media-assets`), com upload direto, pastas e busca.
+- Filas recorrentes em `/app/filas` (`/api/content-queues`), que criam posts agendados nos dias e horários configurados.
+- Relatórios por e-mail configuráveis dentro de Relatórios (`/api/report-schedules`). O envio exige `GMAIL_USER` e `GMAIL_APP_PASSWORD`.
+- Smartlinks em `/app/smartlinks` (`/api/smartlinks`), com páginas públicas em `/go/:slug` e contagem de cliques.
+- Espaços de trabalho, membros, identidade visual e aprovação de posts em `/app/equipe` (`/api/workspaces`).
+- Cadastro de perfis para benchmarking em `/api/competitors`. A coleta de métricas de concorrentes depende das permissões oficiais de cada rede e não é simulada pelo produto.
+- Webhooks assinados em `/app/automacoes` (`/api/webhooks`) para eventos `post_published` e `approval_updated`.
+- API somente leitura por chave em `/api/v1/posts`, `/api/v1/accounts` e `/api/v1/health`. As chaves são criadas e revogadas em `/api/api-keys`; o valor completo é exibido apenas uma vez.
+
+O produto trabalha exclusivamente com Facebook, Instagram, YouTube e TikTok. Não há conectores ou telas para outras redes.

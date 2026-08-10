@@ -45,6 +45,12 @@ describe('analytics normalizer', () => {
     })
   })
 
+  test('normaliza aliases de visualização usados pelas redes', () => {
+    expect(normalizePostAnalytics({
+      post: { platforms: [{ platformPostId: 'tt-1', analytics: { play_count: 42 } }] }
+    }, 'tt-1')).toMatchObject({ views: 42 })
+  })
+
   test('soma séries e quebras de contas diferentes sem perder datas', () => {
     expect(mergeMetricEntries([
       { total: 10, values: [{ date: '2026-08-01', value: 4 }], breakdowns: [{ dimension: 'A', value: 2 }] },

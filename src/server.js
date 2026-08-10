@@ -2,6 +2,7 @@ require('dotenv').config()
 const express  = require('express')
 const path     = require('path')
 const cors     = require('cors')
+const rateLimit = require('express-rate-limit')
 
 const compression    = require('compression')
 const accountsRoutes = require('./routes/accounts')
@@ -20,14 +21,26 @@ const savedTextsRoutes = require('./routes/savedTexts')
 const platformPresetsRoutes = require('./routes/platformPresets')
 const pushRoutes     = require('./routes/push')
 const aiRoutes       = require('./routes/ai')
+const mediaAssetsRoutes = require('./routes/mediaAssets')
+const { router: contentQueuesRoutes } = require('./routes/contentQueues')
+const { router: reportSchedulesRoutes } = require('./routes/reportSchedules')
+const { apiRouter: smartlinksRoutes, publicRouter: publicSmartlinksRoutes } = require('./routes/smartlinks')
+const workspacesRoutes = require('./routes/workspaces')
+const competitorsRoutes = require('./routes/competitors')
+const webhooksRoutes = require('./routes/webhooks')
+const apiKeysRoutes = require('./routes/apiKeys')
+const apiV1Routes = require('./routes/apiV1')
+const requireApiKey = require('./middleware/requireApiKey')
 const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
 const { getStatusMap } = require('./services/platformHealth')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
-const { gerarTokenSessao } = require('./utils/authToken')
+const { isBlobUrl, readResponseLimited, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('./infra/storage/blobStorage')
+const { issueAuthSession } = require('./utils/authCookie')
 const { readEnv, assertProductionSecrets } = require('./config/env')
 const asyncHandler = require('./http/asyncHandler')
 const { errorHandler } = require('./http/errorHandler')
+const { safeMessage } = require('./utils/redact')
 
 const app = express()
 app.disable('x-powered-by')
@@ -46,13 +59,16 @@ assertProductionSecrets()
 // proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
 app.set('trust proxy', config.trustProxy)
 
-// Frontend (Vercel) e backend (Railway) são domínios diferentes — a
-// autenticação viaja via Bearer token, não cookie, então não precisa de
-// credentials:true aqui (sem cookies envolvidos na requisição cross-origin).
+// Frontend e backend podem estar em origens diferentes. A sessão viaja em
+// cookie HttpOnly; CORS precisa ser explícito e nunca pode cair em `true`.
 app.use(cors({
-  origin: config.allowedOrigins.length ? config.allowedOrigins : true,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, false)
+    return callback(null, config.allowedOrigins.includes(origin))
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   maxAge: 86400
 }))
 app.use(compression())
@@ -61,9 +77,11 @@ app.use(compression())
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains')
+  if (config.isProduction && req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
   next()
 })
 
@@ -75,6 +93,20 @@ app.use('/oauth/tiktok/webhook', express.json({
 }))
 
 app.use(express.json({ limit: '1mb' }))
+
+// Como a sessão é cookie HttpOnly, qualquer requisição que altera estado e
+// venha de um navegador precisa declarar uma origem permitida. Requisições
+// server-to-server (cron, webhooks e integrações) normalmente não enviam
+// Origin e continuam sendo validadas por seus próprios segredos/assinaturas.
+app.use((req, res, next) => {
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+  const protectedPath = ['/api/', '/auth/', '/oauth/'].some(prefix => req.path.startsWith(prefix))
+  const origin = req.headers.origin
+  if (mutating && protectedPath && origin && !config.allowedOrigins.includes(origin)) {
+    return res.status(403).json({ erro: 'Origem não autorizada' })
+  }
+  next()
+})
 
 app.use('/auth/login', authRoutes)
 
@@ -90,6 +122,7 @@ app.use('/oauth', oauthRoutes)
 // comum — autenticado pelo header Authorization (CRON_SECRET), não por
 // sessão de usuário, então fica fora do requireAuth global.
 app.use('/api/cron', cronRoutes)
+app.use('/go', publicSmartlinksRoutes)
 
 // Bearer token não viaja em navegação simples, então o HTML em si não pode
 // mais ser bloqueado no servidor — a página carrega vazia para quem não tem
@@ -146,27 +179,24 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
   // restringe o destino a HTTPS no domínio do Vercel Blob. Sem isso, se o
   // SESSION_SECRET vazasse ou houvesse bug na validação, o proxy viraria um
   // SSRF capaz de alcançar localhost/metadata interna da infra.
-  let parsed
-  try {
-    parsed = new URL(url)
-  } catch {
-    return res.status(400).end()
-  }
-  const isAllowedBlobHost = parsed.hostname === 'public.blob.vercel-storage.com' || parsed.hostname.endsWith('.public.blob.vercel-storage.com')
-  if (parsed.protocol !== 'https:' || !isAllowedBlobHost) {
+  if (!isBlobUrl(url)) {
     return res.status(403).end()
   }
 
-  const upstream = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+  let upstream
+  try {
+    upstream = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15_000) })
+  } catch {
+    return res.status(502).end()
+  }
   if (!upstream.ok) return res.status(502).end()
 
-  const contentLength = Number(upstream.headers.get('content-length') || 0)
-  const maxMediaBytes = 200 * 1024 * 1024
-  if (contentLength > maxMediaBytes) return res.status(413).end()
-
-  res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream')
-  const buffer = Buffer.from(await upstream.arrayBuffer())
-  if (buffer.length > maxMediaBytes) return res.status(413).end()
+  const contentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+  if (!ALLOWED_MEDIA_TYPES.has(contentType)) return res.status(415).end()
+  let buffer
+  try { buffer = await readResponseLimited(upstream, MAX_UPLOAD_SIZE_BYTES) } catch { return res.status(413).end() }
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Content-Type', contentType)
   res.send(buffer)
 })
 
@@ -175,18 +205,16 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
 // que precisam entender o app sem precisar de uma conta). Quem já tem sessão
 // válida vai direto para o painel, sem precisar passar por ela de novo.
 app.get('/', (req, res) => {
-  // Sem cookie de sessão para checar aqui (Bearer token não viaja em
-  // navegação simples) — quem decide se já está logado e redireciona para
-  // /app.html é o próprio front, lendo o token salvo no localStorage.
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
+    return res.redirect('/app.html')
+  }
 
-  // Modo de revisão (TikTok): quando TIKTOK_REVIEW_MODE=true e há um usuário
-  // demo configurado, o app abre direto no painel sem tela de login — o
-  // avaliador acessa a URL e já vê o dashboard funcionando, como exigido pela
-  // revisão. O auto-login entra SOMENTE na conta demo isolada (nunca em dados
-  // reais de outros usuários), e a flag deve ser desligada após a aprovação.
+  // O modo de revisão não cria mais uma sessão pública. Revisões devem usar um
+  // ambiente demo isolado, sem alterar o controle de acesso da produção.
   if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
-    const token = gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID))
-    return res.redirect((process.env.FRONTEND_URL || '') + '/app.html?token=' + encodeURIComponent(token))
+    if (config.isProduction) return res.status(404).end()
+    issueAuthSession(res, Number(process.env.TIKTOK_REVIEW_USER_ID))
+    return res.redirect((process.env.FRONTEND_URL || '') + '/app.html')
   }
 
   res.sendFile(path.join(__dirname, '../public/react/index.html'))
@@ -218,9 +246,8 @@ app.get('/api/config', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=300')
   res.json({
     googleClientId: process.env.GOOGLE_CLIENT_ID || null,
-    googleApiKey: process.env.GOOGLE_API_KEY || null,
     facebookAppId: process.env.META_APP_ID || null,
-    reviewMode: process.env.TIKTOK_REVIEW_MODE === 'true'
+    reviewMode: false
   })
 })
 
@@ -228,15 +255,6 @@ app.get('/api/config', (req, res) => {
 // TikTok entrar sem precisar de login. Só funciona quando TIKTOK_REVIEW_MODE=true.
 // Não expõe senha nem dados reais — o user_id apontado deve ser uma conta demo isolada.
 app.get('/api/review-token', (req, res) => {
-  if (process.env.TIKTOK_REVIEW_MODE === 'true' && process.env.TIKTOK_REVIEW_USER_ID) {
-    return res.json({ token: gerarTokenSessao(Number(process.env.TIKTOK_REVIEW_USER_ID)) })
-  }
-  // Modo de revisão geral (Google) — REVIEW_MODE_NO_AUTH=true já libera a API
-  // inteira sem token em requireAuth; aqui só evita o front-end redirecionar
-  // pra /login.html antes de qualquer chamada de API rodar.
-  if (process.env.REVIEW_MODE_NO_AUTH === 'true') {
-    return res.json({ token: gerarTokenSessao(Number(process.env.REVIEW_MODE_USER_ID) || 0) })
-  }
   return res.status(404).json({ erro: 'não disponível' })
 })
 
@@ -244,7 +262,20 @@ app.get('/api/review-token', (req, res) => {
 // e por monitores externos para validar que o processo HTTP está de pé.
 app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 'social-api-manager' }))
 
+// API pública somente leitura: autenticação por chave, sem depender de sessão
+// do navegador. As rotas autenticadas da aplicação continuam abaixo.
+app.use('/api/v1', requireApiKey, apiV1Routes)
+
 app.use(requireAuth)
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: 'Muitas requisições. Aguarde alguns minutos e tente novamente.' }
+})
+app.use('/api', apiLimiter)
 
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=30')
@@ -262,6 +293,14 @@ app.use('/api/saved-texts', savedTextsRoutes)
 app.use('/api/platform-presets', platformPresetsRoutes)
 app.use('/api/push',     pushRoutes)
 app.use('/api/ai',       aiRoutes)
+app.use('/api/media-assets', mediaAssetsRoutes)
+app.use('/api/content-queues', contentQueuesRoutes)
+app.use('/api/report-schedules', reportSchedulesRoutes)
+app.use('/api/smartlinks', smartlinksRoutes)
+app.use('/api/workspaces', workspacesRoutes)
+app.use('/api/competitors', competitorsRoutes)
+app.use('/api/webhooks', webhooksRoutes)
+app.use('/api/api-keys', apiKeysRoutes)
 
 app.get('/api/platform-health', asyncHandler(async (req, res) => {
   const { getStatusMap } = require('./services/platformHealth')
@@ -287,16 +326,16 @@ app.use(errorHandler)
 // seguir vivo é preferível a cair — a requisição que falhou já respondeu erro
 // pelo error handler do Express; o resto do servidor não deve morrer junto.
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled promise rejection:', reason)
+  console.error('Unhandled promise rejection:', safeMessage(reason?.stack || reason?.message || reason))
 })
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err)
+  console.error('Uncaught exception:', safeMessage(err?.stack || err?.message || err))
 })
 
 if (require.main === module) {
   const PORT = config.port
   runMigrations()
-    .catch(err => console.error('Migration error:', err))
+    .catch(err => console.error('Migration error:', safeMessage(err?.stack || err?.message || err)))
     .finally(() => {
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Servidor rodando em http://localhost:${PORT}`)

@@ -19,6 +19,8 @@ async function ensurePostAccounts() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB')
+  // Remove credenciais que versões antigas gravavam no estado operacional.
+  await bestEffort("UPDATE post_accounts SET instagram_pending = instagram_pending - 'accessToken' - 'refreshToken' WHERE instagram_pending IS NOT NULL")
   await bestEffort(`
     INSERT INTO post_accounts (post_id, account_id)
     SELECT id, account_id FROM posts WHERE account_id IS NOT NULL
@@ -92,6 +94,23 @@ async function ensureAiTables() {
   ])
 }
 
+async function ensurePublicBenchmarking() {
+  await bestEffort(`CREATE TABLE IF NOT EXISTS competitor_profiles (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, platform TEXT NOT NULL, handle TEXT NOT NULL, profile_url TEXT, niche TEXT NOT NULL DEFAULT 'geral', public_only BOOLEAN NOT NULL DEFAULT TRUE, active BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ DEFAULT NOW())`)
+  await bestEffort("ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS niche TEXT NOT NULL DEFAULT 'geral'")
+  await bestEffort('ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS public_only BOOLEAN NOT NULL DEFAULT TRUE')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_competitor_profiles_user ON competitor_profiles(user_id,criado_em DESC)')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_competitor_profiles_user_niche ON competitor_profiles(user_id,niche,criado_em DESC)')
+  await bestEffort(`CREATE TABLE IF NOT EXISTS public_profile_snapshots (id SERIAL PRIMARY KEY, competitor_profile_id INTEGER NOT NULL REFERENCES competitor_profiles(id) ON DELETE CASCADE, captured_on DATE NOT NULL DEFAULT CURRENT_DATE, followers BIGINT NOT NULL DEFAULT 0 CHECK (followers >= 0), posts_last_30_days INTEGER NOT NULL DEFAULT 0 CHECK (posts_last_30_days >= 0), avg_likes NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (avg_likes >= 0), avg_comments NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (avg_comments >= 0), avg_shares NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (avg_shares >= 0), avg_views NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (avg_views >= 0), avg_saves NUMERIC(20,2) NOT NULL DEFAULT 0 CHECK (avg_saves >= 0), source_url TEXT, collection_method TEXT NOT NULL DEFAULT 'manual' CHECK (collection_method IN ('manual','official_api')), criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (competitor_profile_id,captured_on))`)
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_public_profile_snapshots_profile_date ON public_profile_snapshots(competitor_profile_id,captured_on DESC)')
+  await bestEffort('ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS monitor_enabled BOOLEAN NOT NULL DEFAULT FALSE')
+  await bestEffort("ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS monitor_provider TEXT NOT NULL DEFAULT 'auto'")
+  await bestEffort('ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS monitor_interval_minutes INTEGER NOT NULL DEFAULT 15')
+  await bestEffort('ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ')
+  await bestEffort("ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS monitor_status TEXT NOT NULL DEFAULT 'idle'")
+  await bestEffort('ALTER TABLE competitor_profiles ADD COLUMN IF NOT EXISTS monitor_error TEXT')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_competitor_profiles_monitor_due ON competitor_profiles(monitor_enabled,last_synced_at)')
+}
+
 async function runMigrations() {
   await Promise.all([
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB'),
@@ -125,6 +144,24 @@ async function runMigrations() {
     bestEffort('CREATE INDEX IF NOT EXISTS idx_credentials_reset_token ON credentials (reset_token) WHERE reset_token IS NOT NULL'),
     bestEffort("CREATE INDEX IF NOT EXISTS idx_posts_published_no_external ON posts (status, criado_em DESC) WHERE status = 'published' AND external_post_id IS NULL"),
     bestEffort('CREATE INDEX IF NOT EXISTS idx_posts_instagram_pending ON posts (id) WHERE instagram_pending IS NOT NULL'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS media_assets (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, url TEXT NOT NULL, mime_type TEXT, size_bytes BIGINT, folder TEXT NOT NULL DEFAULT 'Geral', tags TEXT[] NOT NULL DEFAULT '{}', criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_media_assets_user_created ON media_assets(user_id, criado_em DESC)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS content_queues (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, platforms TEXT[] NOT NULL DEFAULT '{}', content JSONB NOT NULL DEFAULT '{}', recurrence JSONB NOT NULL DEFAULT '{"days":[1,3,5],"time":"10:00"}', next_run_at TIMESTAMPTZ, active BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ DEFAULT NOW(), atualizado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_content_queues_due ON content_queues(active, next_run_at)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS report_schedules (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, period_days INTEGER NOT NULL DEFAULT 30, platform TEXT, recipients TEXT[] NOT NULL DEFAULT '{}', frequency TEXT NOT NULL DEFAULT 'monthly', branding JSONB NOT NULL DEFAULT '{}', next_run_at TIMESTAMPTZ, active BOOLEAN NOT NULL DEFAULT TRUE, last_sent_at TIMESTAMPTZ, criado_em TIMESTAMPTZ DEFAULT NOW(), atualizado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_report_schedules_due ON report_schedules(active, next_run_at)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS workspaces (id SERIAL PRIMARY KEY, owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, branding JSONB NOT NULL DEFAULT '{}', criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS workspace_members (workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL DEFAULT 'editor', criado_em TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (workspace_id,user_id))`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS approval_requests (id SERIAL PRIMARY KEY, workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL, status TEXT NOT NULL DEFAULT 'pending', feedback TEXT, criado_em TIMESTAMPTZ DEFAULT NOW(), revisado_em TIMESTAMPTZ)`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_approval_requests_workspace ON approval_requests(workspace_id,status,criado_em DESC)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS smartlinks (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, title TEXT, description TEXT, theme JSONB NOT NULL DEFAULT '{}', active BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS smartlink_items (id SERIAL PRIMARY KEY, smartlink_id INTEGER NOT NULL REFERENCES smartlinks(id) ON DELETE CASCADE, label TEXT NOT NULL, url TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0)`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_smartlinks_slug ON smartlinks(slug)'),
+    ensurePublicBenchmarking(),
+    bestEffort(`CREATE TABLE IF NOT EXISTS webhook_endpoints (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL, events TEXT[] NOT NULL DEFAULT '{post_published,approval_updated}', active BOOLEAN NOT NULL DEFAULT TRUE, last_status INTEGER, last_error TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user ON webhook_endpoints(user_id,active)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS api_keys (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, last_used_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(key_hash) WHERE revoked_at IS NULL'),
     ensurePostAccounts(),
     ensurePostPublications(),
     ensureMetricHistory(),

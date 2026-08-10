@@ -28,17 +28,48 @@ function readEnv(source = process.env) {
     allowedOrigins: csv(source.FRONTEND_ORIGIN),
     reviewMode: boolean(source.REVIEW_MODE_NO_AUTH),
     tiktokReviewMode: boolean(source.TIKTOK_REVIEW_MODE),
-    trustProxy: number(source.TRUST_PROXY, 1)
+    trustProxy: number(source.TRUST_PROXY, 0)
   })
 }
 
 function assertProductionSecrets(source = process.env) {
   if ((source.NODE_ENV || 'development') !== 'production') return
 
-  const required = ['AUTH_TOKEN_SECRET', 'TOKEN_ENCRYPTION_KEY', 'DATABASE_URL']
+  const required = [
+    'AUTH_TOKEN_SECRET', 'SESSION_SECRET', 'TOKEN_ENCRYPTION_KEY', 'DATABASE_URL',
+    'BASE_URL', 'FRONTEND_URL', 'FRONTEND_ORIGIN', 'CRON_SECRET', 'BLOB_ALLOWED_HOSTS'
+  ]
   const missing = required.filter(name => !String(source[name] || '').trim())
   if (missing.length) {
     const error = new Error(`Segredos obrigatórios ausentes: ${missing.join(', ')}`)
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+
+  const secrets = ['AUTH_TOKEN_SECRET', 'SESSION_SECRET', 'CRON_SECRET']
+  const weak = secrets.filter(name => String(source[name]).length < 32)
+  if (!/^[0-9a-f]{64}$/i.test(String(source.TOKEN_ENCRYPTION_KEY || ''))) weak.push('TOKEN_ENCRYPTION_KEY(64 hex)')
+
+  let origins
+  try { origins = csv(source.FRONTEND_ORIGIN).map(origin => new URL(origin)) } catch { origins = null }
+  const invalidOrigins = !origins?.length || origins.some(origin => origin.protocol !== 'https:')
+  if (invalidOrigins) weak.push('FRONTEND_ORIGIN(HTTPS)')
+
+  for (const name of ['BASE_URL', 'FRONTEND_URL']) {
+    try {
+      if (new URL(source[name]).protocol !== 'https:') weak.push(`${name}(HTTPS)`)
+    } catch { weak.push(`${name}(URL)`) }
+  }
+
+  if (number(source.TRUST_PROXY, 0) !== 1) weak.push('TRUST_PROXY(1)')
+
+  const blobHosts = csv(source.BLOB_ALLOWED_HOSTS)
+  if (!blobHosts.length || blobHosts.some(host => !/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(host) || host.includes('*'))) {
+    weak.push('BLOB_ALLOWED_HOSTS(exatos)')
+  }
+
+  if (weak.length) {
+    const error = new Error(`Configuração de produção insegura: ${weak.join(', ')}`)
     error.code = 'CONFIGURATION_ERROR'
     throw error
   }

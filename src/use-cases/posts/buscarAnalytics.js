@@ -59,7 +59,8 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
     return {
       postId: p.id,
       platform: pub.platform,
-      text: p.text,
+      text: p.textByPlatform?.[pub.platform] ?? p.text,
+      youtubeTitle: p.titleByPlatform?.[pub.platform] ?? p.youtubeTitle,
       publishedAt: pub.publishedAt || p.publishedAt,
       mediaPath: p.mediaPath,
       mediaType: p.mediaType,

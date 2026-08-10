@@ -58,20 +58,31 @@ describe('AiAssistantWidget', () => {
     await waitFor(() => expect(screen.getByAltText('Imagem criada pela IA')).toHaveAttribute('src', 'data:image/png;base64,abc'))
   })
 
-  it('offers model choices and persists the selected model', async () => {
-    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/ai/models') return Promise.resolve({ models: [{ id: 'openai-4o', name: 'GPT-4o', provider: 'OpenAI', available: true }] })
-      if (path === '/api/ai/prefs') return Promise.resolve({ preferred_model: 'openai-4o' })
+  it('encaminha a imagem gerada para o Criador de Posts', async () => {
+    const onNavigate = vi.fn()
+    const postDraft = { image: 'data:image/png;base64,abc', text: 'Legenda sugerida' }
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/ai/agent') return Promise.resolve({ message: 'Imagem criada', data: { image: postDraft.image, postDraft } })
       return Promise.resolve({ ok: true })
     })
 
+    render(<AiAssistantWidget onNavigate={onNavigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem para meu post' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+
+    const continueButton = await screen.findByRole('button', { name: 'Usar no Criador de Posts' })
+    fireEvent.click(continueButton)
+    expect(onNavigate).toHaveBeenCalledWith('agendador')
+    expect(JSON.parse(sessionStorage.getItem('meu-ecoo:ai-post-draft'))).toMatchObject(postDraft)
+    sessionStorage.removeItem('meu-ecoo:ai-post-draft')
+    window.__socialAiPostDraft = null
+  })
+
+  it('does not expose the selected model in the agent interface', () => {
     render(<AiAssistantWidget />)
     fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-
-    const picker = await screen.findByRole('combobox', { name: 'Modelo de IA' })
-    expect(picker).toHaveValue('openai-4o')
-    fireEvent.change(picker, { target: { value: 'openai-4o' } })
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/ai/prefs', expect.objectContaining({ method: 'PUT' })))
+    expect(screen.queryByRole('combobox', { name: 'Modelo de IA' })).not.toBeInTheDocument()
   })
 
   it('shows an error message if the agent fails, without crashing the widget', async () => {
@@ -86,6 +97,22 @@ describe('AiAssistantWidget', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao interpretar pedido'))
+  })
+
+  it('usa timeout estendido e explica amigavelmente quando a IA demora', async () => {
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/ai/agent') return Promise.reject(Object.assign(new Error('Tempo esgotado'), { status: 408 }))
+      return Promise.resolve({ ok: true })
+    })
+
+    render(<AiAssistantWidget />)
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('A IA está levando mais tempo que o esperado'))
+    const agentCall = apiFetchMock.mock.calls.find(([path]) => path === '/api/ai/agent')
+    expect(agentCall[1]).toEqual(expect.objectContaining({ timeoutMs: 120000 }))
   })
 
   it('does not submit an empty or whitespace-only message', () => {

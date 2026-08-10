@@ -18,6 +18,31 @@ function platformsOf(draft) {
   return Array.isArray(draft.platforms) ? draft.platforms.filter(Boolean) : []
 }
 
+function objectField(value) {
+  if (!value) return {}
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function textOf(draft) {
+  if (draft.text?.trim()) return draft.text.trim()
+  const textByPlatform = objectField(draft.text_by_platform || draft.textByPlatform)
+  return Object.values(textByPlatform).filter(value => typeof value === 'string' && value.trim()).join('\n\n')
+}
+
+function inferredPlatformsOf(draft) {
+  const selected = platformsOf(draft)
+  if (selected.length) return selected
+  const textByPlatform = objectField(draft.text_by_platform || draft.textByPlatform)
+  const keys = Object.keys(textByPlatform)
+  return keys.filter(key => PLATFORM_LABELS[key] || key === 'tiktokDescription').map(key => key === 'tiktokDescription' ? 'tiktok' : key)
+}
+
 function formatDraftDate(value) {
   if (!value) return 'Data não informada'
   return new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
@@ -43,7 +68,7 @@ export function DraftsPage({ onNavigate }) {
     const query = search.trim().toLowerCase()
     return drafts.filter(draft => {
       const isTemplate = Boolean(draft.is_template || draft.isTemplate)
-      const content = `${draft.title || ''} ${draft.text || ''} ${platformsOf(draft).join(' ')}`.toLowerCase()
+      const content = `${draft.title || ''} ${textOf(draft)} ${inferredPlatformsOf(draft).join(' ')}`.toLowerCase()
       return (!query || content.includes(query)) && (filter === 'all' || (filter === 'templates' ? isTemplate : !isTemplate))
     })
   }, [drafts, filter, search])
@@ -63,9 +88,24 @@ export function DraftsPage({ onNavigate }) {
   }
 
   function useDraft(draft) {
-    const platforms = platformsOf(draft)
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({ text: draft.text || '', selected: platforms.length ? platforms : ['instagram'], publishNow: false, date: '', firstComment: draft.first_comment || draft.firstComment || '', textByPlatform: draft.text_by_platform || draft.textByPlatform || {}, savedAt: new Date().toISOString() }))
-    notify('Conteúdo carregado no editor.')
+    const platforms = inferredPlatformsOf(draft)
+    const textByPlatform = objectField(draft.text_by_platform || draft.textByPlatform)
+    const titleByPlatform = objectField(draft.title_by_platform || draft.titleByPlatform)
+    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
+      text: textOf(draft),
+      selected: platforms.length ? platforms : ['instagram'],
+      publishNow: false,
+      date: '',
+      textByPlatform,
+      titleByPlatform,
+      youtubeTitle: draft.youtube_title || draft.youtubeTitle || '',
+      youtubeVisibility: draft.youtube_visibility || draft.youtubeVisibility || 'public',
+      youtubeMadeForKids: draft.youtube_made_for_kids == null ? '' : String(draft.youtube_made_for_kids),
+      igFormat: draft.ig_format || draft.igFormat || 'post',
+      tiktokPrivacyLevel: draft.tiktok_privacy_level || draft.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
+      savedAt: new Date().toISOString()
+    }))
+    notify('Rascunho carregado no Criador de Posts.')
     onNavigate?.('agendador')
   }
 
@@ -74,6 +114,7 @@ export function DraftsPage({ onNavigate }) {
 
   return <section className="page-view drafts-page drafts-page-v2">
     <header className="drafts-v2-heading"><div className="drafts-v2-heading-copy"><span className="drafts-v2-heading-icon" aria-hidden="true">✎</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Rascunhos</h2><p>Guarde ideias, refine suas publicações e continue de onde parou.</p></div></div><button type="button" className="secondary-button drafts-v2-refresh" onClick={() => reload().catch(() => {})}><span aria-hidden="true">↻</span> Atualizar</button></header>
+    <div className="drafts-v2-howto" role="note"><span className="drafts-v2-howto-icon" aria-hidden="true">i</span><div><strong>Como usar um rascunho no post?</strong><p>Clique em <b>Usar no post</b> para abrir o conteúdo no Criador de Posts. Lá você escolhe as redes, adiciona as mídias e decide entre publicar agora ou agendar. O rascunho original continua salvo.</p></div></div>
     <div className="drafts-v2-summary" aria-label="Resumo dos rascunhos"><article><span className="drafts-v2-stat-icon" aria-hidden="true">▤</span><div><span>Total de rascunhos</span><strong>{drafts.length}</strong><small>Conteúdos salvos</small></div></article><article><span className="drafts-v2-stat-icon is-purple" aria-hidden="true">◇</span><div><span>Modelos</span><strong>{templatesCount}</strong><small>Prontos para reutilizar</small></div></article><article><span className="drafts-v2-stat-icon is-green" aria-hidden="true">▧</span><div><span>Com mídia</span><strong>{mediaCount}</strong><small>Fotos ou vídeos anexados</small></div></article></div>
     <div className="drafts-v2-workspace">
       <section className="panel drafts-v2-editor-panel">
@@ -90,8 +131,8 @@ export function DraftsPage({ onNavigate }) {
         <div className="drafts-v2-toolbar"><label className="drafts-v2-search"><span aria-hidden="true">⌕</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por texto, título ou rede..." aria-label="Buscar rascunho" /></label><div className="drafts-v2-filter-tabs" role="tablist" aria-label="Filtrar rascunhos">{[['all', 'Todos'], ['drafts', 'Em andamento'], ['templates', 'Modelos']].map(([key, label]) => <button type="button" role="tab" aria-selected={filter === key} className={filter === key ? 'is-active' : ''} onClick={() => setFilter(key)} key={key}>{label}</button>)}</div></div>
         {loading ? <LoadingState>Carregando rascunhos...</LoadingState> : visibleDrafts.length ? <div className="drafts-v2-card-list">{visibleDrafts.map(draft => {
           const template = Boolean(draft.is_template || draft.isTemplate)
-          const platforms = platformsOf(draft)
-          return <article className="drafts-v2-card" key={draft.id}><DraftMedia draft={draft}/><div className="drafts-v2-card-body"><div className="drafts-v2-card-topline"><span className={`drafts-v2-type-badge${template ? ' is-template' : ''}`}>{template ? 'Modelo' : 'Rascunho'}</span><time>{formatDraftDate(draft.criado_em || draft.createdAt)}</time></div><h4>{draft.title || 'Rascunho sem título'}</h4><p>{draft.text || 'Sem texto adicionado ainda.'}</p><div className="drafts-v2-card-footer"><div className="drafts-v2-card-platforms" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>{platforms.length ? platforms.map(platform => <span className={`drafts-v2-platform drafts-v2-platform-${platform}`} key={platform} title={PLATFORM_LABELS[platform] || platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <small>Nenhuma rede selecionada</small>}</div><span className="drafts-v2-card-actions"><button type="button" className="link-button" onClick={() => useDraft(draft)}>{template ? 'Usar modelo' : 'Continuar editando'}</button><button type="button" className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div></div></article>
+          const platforms = inferredPlatformsOf(draft)
+          return <article className="drafts-v2-card" key={draft.id}><DraftMedia draft={draft}/><div className="drafts-v2-card-body"><div className="drafts-v2-card-topline"><span className={`drafts-v2-type-badge${template ? ' is-template' : ''}`}>{template ? 'Modelo' : 'Rascunho'}</span><time>{formatDraftDate(draft.criado_em || draft.createdAt)}</time></div><h4>{draft.title || 'Rascunho sem título'}</h4><p>{textOf(draft) || 'Sem texto adicionado ainda.'}</p><div className="drafts-v2-card-footer"><div className="drafts-v2-card-platforms" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>{platforms.length ? platforms.map(platform => <span className={`drafts-v2-platform drafts-v2-platform-${platform}`} key={platform} title={PLATFORM_LABELS[platform] || platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <small>Nenhuma rede selecionada</small>}</div><span className="drafts-v2-card-actions"><button type="button" className="action-button drafts-v2-use-button" onClick={() => useDraft(draft)}>{template ? 'Usar modelo no post' : 'Usar no post'} <span aria-hidden="true">→</span></button><button type="button" className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div></div></article>
         })}</div> : <div className="drafts-v2-empty"><span aria-hidden="true">✦</span><strong>{search || filter !== 'all' ? 'Nenhum rascunho encontrado' : 'Sua biblioteca está vazia'}</strong><p>{search || filter !== 'all' ? 'Tente mudar os filtros ou a busca.' : 'Salve uma ideia ao lado para começar sua biblioteca de conteúdo.'}</p>{(search || filter !== 'all') && <button type="button" className="link-button" onClick={() => { setSearch(''); setFilter('all') }}>Limpar filtros</button>}</div>}
       </section>
     </div>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
+import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 
 const roleLabels = { super_admin: 'Administrador principal', admin: 'Administrador', user: 'Usuário' }
 
 function Notice({ notice }) {
-  return notice ? <p className={`admin-notice admin-notice--${notice.type}`} role="alert">{notice.text}</p> : null
+  return <div className="admin-notice-area"><ThemeSelector />{notice ? <p className={`admin-notice admin-notice--${notice.type}`} role="alert">{notice.text}</p> : null}</div>
 }
 
 export function AdminPage() {

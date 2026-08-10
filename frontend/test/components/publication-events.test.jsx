@@ -1,4 +1,4 @@
-import { findPublicationResult, latestPublicationEventId } from '../../src/lib/publicationEvents.js'
+import { findPublicationResult, formatPlatformList, latestPublicationEventId, processingPublicationMessage, scheduledPublicationMessage } from '../../src/lib/publicationEvents.js'
 
 describe('publication events', () => {
   it('shows the platform error returned after an asynchronous publication', () => {
@@ -14,8 +14,18 @@ describe('publication events', () => {
 
     expect(result).toEqual({
       type: 'error',
-      message: 'Não foi possível publicar o post #42. instagram (@perfil): Token expirado',
+      message: 'A publicação não foi concluída no Instagram. instagram (@perfil): Token expirado',
     })
+  })
+
+  it('formats publication confirmations with the selected platforms', () => {
+    expect(formatPlatformList(['instagram', 'tiktok', 'youtube'])).toBe('Instagram, TikTok e YouTube')
+    expect(processingPublicationMessage(['instagram', 'tiktok'])).toBe('Publicação iniciada com sucesso para Instagram e TikTok. Estamos enviando agora e a confirmação aparecerá aqui em instantes.')
+  })
+
+  it('includes the scheduled date and time in the confirmation', () => {
+    expect(scheduledPublicationMessage('2026-08-10T15:30:00', ['instagram'])).toContain('Publicação agendada com sucesso para')
+    expect(scheduledPublicationMessage('2026-08-10T15:30:00', ['instagram'])).toContain('Ela será enviada para Instagram.')
   })
 
   it('ignores publication events from another post', () => {

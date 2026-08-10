@@ -12,7 +12,8 @@
     "test:integration": "jest --runInBand tests/integration",
     "test:coverage": "jest --runInBand --coverage",
     "test:all": "npm test && npm run test:components",
-    "test:components": "vitest run --config frontend/vitest.config.js"
+    "test:components": "vitest run --config frontend/vitest.config.js",
+    "db:migrate:security:local": "node scripts/apply-security-migration-local.js"
   },
   "jest": {
     "testEnvironment": "node",

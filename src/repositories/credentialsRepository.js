@@ -1,6 +1,10 @@
 const pool = require('../db/pool')
 const crypto = require('crypto')
 
+function hashResetToken(token) {
+  return `sha256:${crypto.createHash('sha256').update(String(token)).digest('hex')}`
+}
+
 async function criar(userId, passwordHash) {
   await pool.query(
     `INSERT INTO credentials (user_id, password_hash) VALUES ($1, $2)`,
@@ -27,12 +31,13 @@ async function atualizarSenha(userId, passwordHash) {
 // condicionada ao token ainda estar válido — evita que duas requisições
 // concorrentes com o mesmo token consigam trocar a senha duas vezes.
 async function atualizarSenhaPorResetToken(token, passwordHash) {
+  const tokenHash = hashResetToken(token)
   const { rows: [cred] } = await pool.query(
     `UPDATE credentials
      SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL, atualizado_em = NOW()
      WHERE reset_token = $2 AND reset_token_expires > NOW()
      RETURNING user_id`,
-    [passwordHash, token]
+    [passwordHash, tokenHash]
   )
   return cred || null
 }
@@ -42,17 +47,18 @@ async function gerarTokenReset(userId) {
   const expira = new Date(Date.now() + 60 * 60 * 1000)
   await pool.query(
     `UPDATE credentials SET reset_token = $1, reset_token_expires = $2 WHERE user_id = $3`,
-    [token, expira.toISOString(), userId]
+    [hashResetToken(token), expira.toISOString(), userId]
   )
   return token
 }
 
 async function buscarPorResetToken(token) {
+  const tokenHash = hashResetToken(token)
   const { rows: [cred] } = await pool.query(
     `SELECT c.user_id, c.reset_token_expires, u.email FROM credentials c
      JOIN users u ON u.id = c.user_id
      WHERE c.reset_token = $1 AND c.reset_token_expires > NOW()`,
-    [token]
+    [tokenHash]
   )
   return cred || null
 }

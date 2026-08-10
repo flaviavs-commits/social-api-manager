@@ -7,6 +7,7 @@ const tokensRepo = require('../repositories/tokensRepository');
 const zernioClient = require('../infra/social/zernioClient');
 const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
+const { safeStringify } = require('../utils/redact');
 
 // Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
@@ -116,20 +117,22 @@ function popupSuccess(tiktokUser) {
     ? `window.open('https://www.tiktok.com/@' + encodeURIComponent(${JSON.stringify(String(tiktokUser))}), '_blank');`
     : '';
   const frontendUrl = process.env.FRONTEND_URL || '';
+  const successUrl = JSON.stringify(`${frontendUrl}/?connected=true`)
   return `<!DOCTYPE html><html><body><script>
     if (window.opener) {
-      window.opener.location.href = '${frontendUrl}/?connected=true';
+      window.opener.location.href = ${successUrl};
       ${profileScript}
       window.close();
-    } else { window.location.href = '${frontendUrl}/?connected=true'; }
+    } else { window.location.href = ${successUrl}; }
   </script></body></html>`;
 }
 
 function popupError(msg) {
   const frontendUrl = process.env.FRONTEND_URL || '';
+  const errorUrl = JSON.stringify(`${frontendUrl}/?error=${encodeURIComponent(String(msg || 'oauth_failed').slice(0, 64))}`)
   return `<!DOCTYPE html><html><body><script>
-    if (window.opener) { window.opener.location.href = '${frontendUrl}/?error=${msg}'; window.close(); }
-    else { window.location.href = '${frontendUrl}/?error=${msg}'; }
+    if (window.opener) { window.opener.location.href = ${errorUrl}; window.close(); }
+    else { window.location.href = ${errorUrl}; }
   </script></body></html>`;
 }
 
@@ -152,6 +155,23 @@ function checkEnv(vars, platform) {
     }
   }
   return null;
+}
+
+function connectionStartError(res, err, platform, providerLabel, userId) {
+  const label = providerLabel || platform;
+  const prefix = `Falha ao iniciar OAuth ${label}`;
+  const status = Number(err?.status);
+
+  if (status === 402) {
+    addLog('err', `${prefix}: limite de conexões do provedor atingido`, platform, null, userId);
+    return res.status(402).json({
+      error: 'O limite gratuito de contas conectadas foi atingido. Adicione um método de pagamento no Zernio para conectar mais contas.',
+      detail: 'Adicione um método de pagamento no Zernio para conectar mais contas. Nenhuma conta foi adicionada.'
+    });
+  }
+
+  addLog('err', `${prefix}: ${err?.message || 'erro desconhecido'}`, platform, null, userId);
+  return res.status(502).json({ error: `Não foi possível iniciar a conexão com o ${label} no momento.` });
 }
 
 const ZERNIO_PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
@@ -221,8 +241,7 @@ router.get('/meta', requireAuth, async (req, res) => {
     addLog('info', `OAuth Facebook (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
-    addLog('err', `Falha ao iniciar OAuth Facebook via Zernio: ${err.message}`, platform, null, req.user.id);
-    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o Facebook no momento.' });
+    connectionStartError(res, err, platform, 'Facebook', req.user.id);
   }
 });
 
@@ -314,7 +333,7 @@ router.get('/meta/callback', async (req, res) => {
       `&code=${encodeURIComponent(code)}`);
 
     if (tokenData.error || !tokenData.access_token) {
-      addLog('err', `Erro ao obter token Facebook: ${JSON.stringify(tokenData)}`, 'facebook', null, meta.userId);
+      addLog('err', `Erro ao obter token Facebook: ${safeStringify(tokenData)}`, 'facebook', null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -375,8 +394,7 @@ router.get('/instagram', requireAuth, async (req, res) => {
     addLog('info', `OAuth Instagram (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
-    addLog('err', `Falha ao iniciar OAuth Instagram via Zernio: ${err.message}`, platform, null, req.user.id);
-    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o Instagram no momento.' });
+    connectionStartError(res, err, platform, 'Instagram', req.user.id);
   }
 });
 
@@ -406,6 +424,9 @@ router.get('/instagram/zernio-return', async (req, res) => {
 // ─── Google / YouTube ──────────────────────────────────────────────────────────
 
 router.get('/google', requireAuth, (req, res) => {
+  const configError = checkEnv(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'], 'youtube');
+  if (configError) return res.status(400).json(configError);
+
   const { accountName } = req.query;
   const state = signState({ accountName, platform: 'youtube', userId: req.user.id });
   const scopes = [
@@ -428,7 +449,7 @@ router.get('/google', requireAuth, (req, res) => {
     `&scope=${encodeURIComponent(scopes)}` +
     `&access_type=offline` +
     `&prompt=consent` +
-    `&state=${state}`;
+    `&state=${encodeURIComponent(state)}`;
 
   addLog('info', `OAuth Google iniciado para "${accountName}"`, 'youtube', null, req.user.id);
   res.json({ authUrl: url });
@@ -465,7 +486,7 @@ router.get('/google/callback', async (req, res) => {
     });
 
     if (tokenData.error || !tokenData.access_token) {
-      addLog('err', `Erro ao obter token Google: ${JSON.stringify(tokenData)}`, 'youtube', null, meta.userId);
+      addLog('err', `Erro ao obter token Google: ${safeStringify(tokenData)}`, 'youtube', null, meta.userId);
       return res.send(popupError('token_failed'));
     }
 
@@ -529,7 +550,7 @@ async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessag
       `?client_key=${process.env.TIKTOK_CLIENT_KEY}` +
       `&redirect_uri=${encodeURIComponent(process.env.TIKTOK_REDIRECT_URI)}` +
       `&scope=${scopes.join(',')}` +
-      `&state=${state}` +
+      `&state=${encodeURIComponent(state)}` +
       `&response_type=code` +
       `&code_challenge=${codeChallenge}` +
       `&code_challenge_method=S256`;
@@ -579,8 +600,7 @@ router.get('/tiktok', requireAuth, async (req, res) => {
     addLog('info', `OAuth TikTok (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
-    addLog('err', `Falha ao iniciar OAuth TikTok via Zernio: ${err.message}`, platform, null, req.user.id);
-    res.status(502).json({ error: 'Não foi possível iniciar a conexão com o TikTok no momento.' });
+    connectionStartError(res, err, platform, 'TikTok', req.user.id);
   }
 });
 
@@ -669,7 +689,7 @@ router.get('/tiktok/callback', async (req, res) => {
     // expires_in é obrigatório para calcular a expiração do token — sem ele,
     // `Date.now() + undefined * 1000` vira NaN, salvando "Invalid Date" no banco.
     if (!token.expires_in) {
-      addLog('err', `Token TikTok sem expires_in na resposta: ${JSON.stringify(token)}`, 'tiktok', null, meta.userId)
+      addLog('err', 'Token TikTok sem expires_in na resposta', 'tiktok', null, meta.userId)
       return res.send(popupError('token_failed'))
     }
 
@@ -846,7 +866,7 @@ router.post('/meta/data-deletion', express.urlencoded({ extended: false }), asyn
     });
   } catch (err) {
     addLog('err', `Data Deletion Callback rejeitado: ${err.message}`, 'facebook');
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'Não foi possível processar a solicitação de exclusão.' });
   }
 });
 
@@ -854,7 +874,8 @@ router.post('/meta/data-deletion', express.urlencoded({ extended: false }), asyn
 // como a exclusão é imediata (sem fila assíncrona de longa duração), sempre
 // responde como concluída.
 router.get('/meta/data-deletion/status', (req, res) => {
-  res.send(`<!DOCTYPE html><html><body>Solicitação ${req.query.id || ''} processada: os dados foram apagados.</body></html>`);
+  const id = String(req.query.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128)
+  res.send(`<!DOCTYPE html><html><body>Solicitação ${id} processada: os dados foram apagados.</body></html>`);
 });
 
 module.exports = router;

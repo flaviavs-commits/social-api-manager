@@ -1,6 +1,8 @@
 const { Router } = require('express')
 const scheduler = require('../services/scheduler')
+const benchmarkObserver = require('../services/benchmarkObserver')
 const logsRepo = require('../repositories/logsRepository')
+const { safeMessage } = require('../utils/redact')
 
 const router = Router()
 
@@ -23,7 +25,7 @@ router.get('/process-posts', async (req, res) => {
     await scheduler.processarPendentes()
     res.json({ ok: true })
   } catch (err) {
-    console.error('Falha no cron process-posts:', err)
+    console.error('Falha no cron process-posts:', safeMessage(err?.stack || err?.message || err))
     res.status(500).json({ ok: false, erro: 'Falha ao processar posts pendentes.' })
   }
 })
@@ -37,7 +39,7 @@ router.get('/renew-tokens', async (req, res) => {
     const limpeza = await logsRepo.limparAntigos()
     res.json({ ok: true, limpeza })
   } catch (err) {
-    console.error('Falha no cron renew-tokens:', err)
+    console.error('Falha no cron renew-tokens:', safeMessage(err?.stack || err?.message || err))
     res.status(500).json({ ok: false, erro: 'Falha ao renovar tokens e limpar logs.' })
   }
 })
@@ -47,8 +49,18 @@ router.get('/health-check', async (req, res) => {
     await scheduler.verificarSaudePlataformas()
     res.json({ ok: true })
   } catch (err) {
-    console.error('Falha no cron health-check:', err)
+    console.error('Falha no cron health-check:', safeMessage(err?.stack || err?.message || err))
     res.status(500).json({ ok: false, erro: 'Falha ao verificar plataformas.' })
+  }
+})
+
+router.get('/benchmarking', async (req, res) => {
+  try {
+    const result = await benchmarkObserver.observarBenchmarks()
+    res.json({ ok: true, ...result })
+  } catch (err) {
+    console.error('Falha no cron benchmarking:', safeMessage(err?.stack || err?.message || err))
+    res.status(500).json({ ok: false, erro: 'Falha ao sincronizar benchmarking.' })
   }
 })
 

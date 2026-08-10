@@ -4,6 +4,7 @@ import {
   filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
 } from '../../lib/analytics-format.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { useTheme } from '../ui/theme-selector.jsx'
 
 function buildTrend(metrics) {
   const porDia = {}
@@ -35,6 +36,7 @@ function comparisonLabel(current, previous, enabled) {
 }
 
 export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPeriod = () => {}, comparePeriod = false, onToggleCompare = () => {} }) {
+  useTheme()
   const metrics = filterByPeriod(data.metrics, periodDays)
   const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
   const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1)

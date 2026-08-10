@@ -1,4 +1,5 @@
 const pool = require('../db/pool')
+const { safeMessage } = require('../utils/redact')
 
 // Um log "pertence" a um usuário se a conta associada (conta_id) for dele,
 // ou se o log foi gravado diretamente com o user_id dele (ex: erro antes de
@@ -17,7 +18,7 @@ async function registrarLog({ type, message, platform = null, conta_id = null, u
     INSERT INTO logs (type, message, platform, conta_id, user_id)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING *
-  `, [type, message, platform, conta_id, user_id])
+  `, [type, safeMessage(message), platform, conta_id, user_id])
 
   return log
 }

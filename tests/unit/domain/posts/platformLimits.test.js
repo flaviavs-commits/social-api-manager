@@ -1,16 +1,16 @@
 const { limiteTexto, cortarParaLimite, ajustarPostParaPlataformas, YOUTUBE_TITLE_MAX } = require('../../../../src/domain/posts/platformLimits')
 
 describe('limiteTexto', () => {
-  test('tiktok com mídia de imagem usa o limite de foto (90)', () => {
-    expect(limiteTexto('tiktok', 'image')).toBe(90)
+  test('tiktok com mídia de imagem usa o limite de descrição (4000)', () => {
+    expect(limiteTexto('tiktok', 'image')).toBe(4000)
   })
 
-  test('tiktok com mídia de vídeo também usa o limite de 90', () => {
-    expect(limiteTexto('tiktok', 'video')).toBe(90)
+  test('tiktok com mídia de vídeo também usa o limite de descrição (4000)', () => {
+    expect(limiteTexto('tiktok', 'video')).toBe(4000)
   })
 
-  test('tiktok sem mediaType definido mantém o limite de 90', () => {
-    expect(limiteTexto('tiktok', null)).toBe(90)
+  test('tiktok sem mediaType definido mantém o limite de descrição (4000)', () => {
+    expect(limiteTexto('tiktok', null)).toBe(4000)
   })
 
   test('instagram sempre usa 2200 independente do mediaType', () => {
@@ -44,24 +44,23 @@ describe('cortarParaLimite', () => {
 })
 
 describe('ajustarPostParaPlataformas', () => {
-  test('corta texto para o limite de foto do TikTok quando mediaType é image', () => {
+  test('corta texto para o limite de descrição do TikTok quando mediaType é image', () => {
     const { post, avisos } = ajustarPostParaPlataformas({ texto: 'x'.repeat(200), titulo: '' }, ['tiktok'], 'image')
-    expect(post.texto.length).toBeLessThanOrEqual(90)
-    expect(avisos).toHaveLength(1)
-    expect(avisos[0]).toMatch(/90 caracteres/)
+    expect(post.texto).toBe('x'.repeat(200))
+    expect(avisos).toHaveLength(0)
   })
 
-  test('corta texto para vídeo do TikTok acima do limite de 90', () => {
-    const texto = 'x'.repeat(200)
+  test('corta texto para vídeo do TikTok acima do limite de 4000', () => {
+    const texto = 'x'.repeat(4100)
     const { post, avisos } = ajustarPostParaPlataformas({ texto, titulo: '' }, ['tiktok'], 'video')
-    expect(post.texto.length).toBeLessThanOrEqual(90)
+    expect(post.texto.length).toBeLessThanOrEqual(4000)
     expect(avisos).toHaveLength(1)
-    expect(avisos[0]).toMatch(/90 caracteres/)
+    expect(avisos[0]).toMatch(/4000 caracteres/)
   })
 
   test('usa o menor limite entre múltiplas plataformas selecionadas', () => {
-    const { post } = ajustarPostParaPlataformas({ texto: 'x'.repeat(200), titulo: '' }, ['facebook', 'tiktok'], 'image')
-    expect(post.texto.length).toBeLessThanOrEqual(90)
+    const { post } = ajustarPostParaPlataformas({ texto: 'x'.repeat(64000), titulo: '' }, ['facebook', 'tiktok'], 'image')
+    expect(post.texto.length).toBeLessThanOrEqual(4000)
   })
 
   test('corta o título do YouTube para 100 caracteres', () => {

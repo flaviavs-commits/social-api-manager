@@ -50,8 +50,17 @@ footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2
 footer a { color: var(--muted); text-decoration: none; }
 footer a:hover { color: var(--text); text-decoration: underline; opacity: 1; }
 </style>
+<style>
+html[data-theme='light'] { --bg:#f4f6fa; --surface:#fff; --surface2:#eef2f7; --border:#d9e1ea; --border2:#b9c6d4; --text:#1d2733; --muted:#5f6b7a; --accent:#a66d12; }
+.theme-toggle { position:fixed; top:18px; right:18px; z-index:10; padding:8px 12px; border:1px solid var(--border2); border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:600 12px var(--sans); box-shadow:0 6px 18px rgba(45,59,76,.12); }
+.theme-toggle:hover { border-color:var(--accent); color:var(--accent); }
+</style>
+<script>
+try { document.documentElement.dataset.theme = localStorage.getItem('meu-ecoo:theme:v2') === 'dark' ? 'dark' : 'light' } catch { document.documentElement.dataset.theme = 'light' }
+</script>
 </head>
 <body>
+<button class="theme-toggle" type="button" aria-label="Alternar tema">☀ Claro</button>
 
 <div class="wrap">
   <div class="legal-header">
@@ -275,5 +284,14 @@ footer a:hover { color: var(--text); text-decoration: underline; opacity: 1; }
   </footer>
 </div>
 
+<script>
+document.querySelector('.theme-toggle').addEventListener('click', function () {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'
+  document.documentElement.dataset.theme = next
+  try { localStorage.setItem('meu-ecoo:theme:v2', next) } catch {}
+  this.textContent = next === 'light' ? '☾ Escuro' : '☀ Claro'
+})
+if (document.documentElement.dataset.theme === 'light') document.querySelector('.theme-toggle').textContent = '☾ Escuro'
+</script>
 </body>
 </html>

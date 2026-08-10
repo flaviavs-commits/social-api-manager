@@ -29,6 +29,46 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.arguments.tone).toBe('profissional')
   })
 
+  test.each([
+    'quero um post bem legal sobre ônibus',
+    'eu quero um post sobre motos japonesas',
+    'preciso de uma legenda sobre viagens de ônibus',
+    'gostaria de ideias para um carrossel sobre mobilidade',
+    'pode fazer um roteiro para o YouTube sobre transporte público?',
+    'me ajuda com um post para o Instagram sobre sustentabilidade',
+  ])('entende pedido natural de conteúdo: %s', pedido => {
+    const plan = interpretWithRules(pedido, 'ai')
+
+    expect(plan.actionId).toBe('generate_posts')
+    expect(plan.arguments.instruction).toBe(pedido)
+  })
+
+  test('entende quando o pedido de conteúdo também exige imagem', () => {
+    const plan = interpretWithRules('quero uma ideia bem legal sobre post de ônibus, com imagens', 'ai')
+
+    expect(plan.actionId).toBe('generate_post_with_image')
+    expect(plan.arguments.model).toBe('auto')
+    expect(plan.arguments.instruction).toContain('ônibus')
+  })
+
+  test.each([
+    'quero um post com uma foto de ônibus ao pôr do sol',
+    'preciso de uma arte para a legenda sobre mobilidade',
+    'crie 3 ideias de post sobre transporte, cada uma com visual',
+    'gostaria de um carrossel ilustrado sobre viagens',
+  ])('entende formatos diferentes de pedido com visual: %s', pedido => {
+    const plan = interpretWithRules(pedido, 'ai')
+
+    expect(plan.actionId).toBe('generate_post_with_image')
+  })
+
+  test('entende pedido natural de imagem sem exigir o verbo criar', () => {
+    const plan = interpretWithRules('quero uma imagem bonita de um ônibus moderno', 'ai')
+
+    expect(plan.actionId).toBe('create_image')
+    expect(plan.arguments.description).toContain('ônibus moderno')
+  })
+
   test('identifica pedido de imagem e deixa o modelo em fallback automático', () => {
     const plan = interpretWithRules('crie uma imagem de uma cafeteria aconchegante ao pôr do sol', 'ai')
 
@@ -47,6 +87,13 @@ describe('agente operacional — interpretação de pedidos', () => {
     const plan = interpretWithRules('analise minhas métricas e diga o que devo melhorar', 'analytics')
 
     expect(plan.actionId).toBe('analytics_insight')
+  })
+
+  test('entende pedido de comparação entre posts por visualizações', () => {
+    const plan = interpretWithRules('por que um post teve boas visualizações e outro não? me dê uma solução e outra abordagem', 'ai')
+
+    expect(plan.actionId).toBe('analytics_insight')
+    expect(plan.arguments.platform).toBeNull()
   })
 
   test('não confunde analytics citado no conteúdo com consulta de métricas', () => {
@@ -76,11 +123,31 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(() => parseModelPlan('{"actionId":"apagar_banco","arguments":{}}')).toThrow(/não existe no catálogo/)
   })
 
-  test('retorna ajuda para pedido sem intenção reconhecida', () => {
+  test('encaminha requisito livre para conversa sem repetir a ajuda', () => {
     const plan = interpretWithRules('faça algo incrível para mim', 'dashboard')
 
-    expect(plan.actionId).toBe('unknown')
-    expect(plan.answer).toMatch(/funções disponíveis|conversar/i)
+    expect(plan.actionId).toBe('conversation')
+    expect(plan.arguments.topic).toBe('faça algo incrível para mim')
+    expect(plan.answer).toContain('faça algo incrível para mim')
+  })
+
+  test('um novo pedido curto não herda a ação anterior', () => {
+    const history = [{ role: 'agent', action: 'analytics', content: 'Relatórios carregados.' }]
+
+    const plan = interpretWithRules('crie post', 'ai', history)
+
+    expect(plan.actionId).toBe('generate_posts')
+  })
+
+  test('um novo requisito não preenche um plano pendente por engano', () => {
+    const plan = completePendingPlan('quero consultar minhas métricas', {
+      actionId: 'reschedule_post',
+      arguments: { postId: null, scheduledAt: null },
+      missingFields: ['postId', 'scheduledAt'],
+      requiresConfirmation: true,
+    })
+
+    expect(plan).toBeNull()
   })
 
   test('interpreta reagendamento com data relativa e exige confirmação', () => {

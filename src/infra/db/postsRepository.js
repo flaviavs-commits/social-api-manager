@@ -118,10 +118,10 @@ async function buscarPostPorId(id, userId, isAdmin) {
   return post
 }
 
-async function atualizarStatusPost(id, status) {
+async function atualizarStatusPost(id, status, errorMessage = null) {
   // Limpa next_retry_at ao fechar o post num status final — evita confusão
   // caso o post seja reagendado manualmente depois (ver reagendarParaRetry).
-  await pool.query(`UPDATE posts SET status = $1, next_retry_at = NULL WHERE id = $2`, [status, id])
+  await pool.query(`UPDATE posts SET status = $1, error_message = $2, next_retry_at = NULL WHERE id = $3`, [status, errorMessage, id])
 }
 
 // Marca atomicamente os posts agendados como "processing" antes de publicar,
@@ -334,7 +334,10 @@ async function definirAccountIdSeVazio(id, accountId) {
 // suportar múltiplas contas de Instagram publicando o mesmo post em paralelo,
 // cada uma com sua própria pendência independente.
 async function salvarInstagramPending(postAccountId, pendingState) {
-  await pool.query(`UPDATE post_accounts SET instagram_pending = $1 WHERE id = $2`, [JSON.stringify(pendingState), postAccountId])
+  const safeState = { ...(pendingState || {}) }
+  delete safeState.accessToken
+  delete safeState.refreshToken
+  await pool.query(`UPDATE post_accounts SET instagram_pending = $1 WHERE id = $2`, [JSON.stringify(safeState), postAccountId])
 }
 
 async function limparInstagramPending(postAccountId) {
@@ -347,9 +350,10 @@ async function limparInstagramPending(postAccountId) {
 async function listarPostsComInstagramPendente() {
   const { rows } = await pool.query(`
     SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", pa.instagram_pending AS "instagramPending",
-           p.id, p.text, p.platforms, p.status, p.user_id AS "userId"
+           p.id, p.text, p.platforms, p.status, p.user_id AS "userId", u.role AS "userRole"
     FROM post_accounts pa
     JOIN posts p ON p.id = pa.post_id
+    LEFT JOIN users u ON u.id = p.user_id
     WHERE pa.instagram_pending IS NOT NULL
   `)
   return rows
@@ -414,7 +418,8 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
 
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms, status, repeat,
+      id, text, text_by_platform AS "textByPlatform", platforms, status, repeat,
+      error_message AS "errorMessage",
       scheduled_at  AS "scheduledAt",
       published_at  AS "publishedAt",
       ${calendarDate} AS "calendarAt",

@@ -78,7 +78,7 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, platform, replySupported, onReplied }) {
+function CommentRow({ comment, postId, platform, replySupported, onReplied, savedTexts = [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
@@ -108,6 +108,15 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied }) {
     }
   }
 
+  async function saveReply() {
+    const text = replyText.trim()
+    if (!text) return setError('Escreva a resposta antes de salvar.')
+    try {
+      await apiFetch('/api/saved-texts', { method: 'POST', body: JSON.stringify({ title: 'Resposta salva', body: text }) })
+      setError('Resposta salva na biblioteca de textos.')
+    } catch (caught) { setError(caught.message) }
+  }
+
   return <article className="comment-row">
     <div className="comment-author-line">
       <span className="comment-author-avatar">{author.slice(0, 1).toUpperCase()}</span>
@@ -126,6 +135,8 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied }) {
           <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
           <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
           </div>
+          {savedTexts.length > 0 && <select className="mt-2 w-full rounded-lg border border-subtle bg-app px-2 py-1 text-xs text-zinc-300" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title || item.body.slice(0, 50)}</option>)}</select>}
+          <button type="button" className="link-button mt-1" onClick={saveReply}>Salvar texto atual</button>
         </div>
       : <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
     {error && <p className="error-message comment-reply-error">{error}</p>}
@@ -137,6 +148,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
   const [post, setPost] = useState(() => previewFromInboxPost(initialPost))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [savedTexts, setSavedTexts] = useState([])
 
   const load = useCallback((silent = false, signal) => {
     if (!silent) setLoading(true)
@@ -190,6 +202,8 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     }
   }, [load, onClose, postId])
 
+  useEffect(() => { apiFetch('/api/saved-texts').then(data => setSavedTexts(data.savedTexts || [])).catch(() => {}) }, [])
+
   const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
   const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
     <div className="modal-header comments-header">
@@ -201,7 +215,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} platform={post?.platform} replySupported={post?.replySupported} onReplied={load} />)}
+      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} platform={post?.platform} replySupported={post?.replySupported} onReplied={load} savedTexts={savedTexts} />)}
     </div>}
   </div>
 

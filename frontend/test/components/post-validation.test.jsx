@@ -58,12 +58,23 @@ describe('buildValidationIssues', () => {
       textByPlatform: {
         instagram: 'a'.repeat(2200),
         facebook: 'a'.repeat(5000),
-        tiktok: 'a'.repeat(91),
+        tiktokDescription: 'a'.repeat(4001),
       },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
     }))
     expect(issues).toHaveLength(1)
     expect(issues[0]).toMatchObject({ platform: 'tiktok' })
+    expect(issues[0].message).toContain('4000 caracteres')
+  })
+
+  it('accepts a TikTok description up to 4000 and rejects a title above 90', () => {
+    const issues = buildValidationIssues(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'a'.repeat(4000) },
+      titleByPlatform: { tiktok: 'a'.repeat(91) },
+      tiktokDescription: 'a'.repeat(4000),
+    }))
+    expect(issues).toHaveLength(1)
     expect(issues[0].message).toContain('90 caracteres')
   })
 

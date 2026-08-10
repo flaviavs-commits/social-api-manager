@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
@@ -40,6 +40,7 @@ export function AccountsPage({ onNavigate }) {
   const [connectionNotice, setConnectionNotice] = useState('')
   const [platformHealth, setPlatformHealth] = useState({})
   const [healthLoading, setHealthLoading] = useState(true)
+  const accountInputRef = useRef(null)
   const notify = useToast()
   const accountsByPlatform = platformName => accounts.filter(account => account.platform === platformName)
   const visibleAccounts = accounts.filter(account => {
@@ -94,6 +95,17 @@ export function AccountsPage({ onNavigate }) {
     }
   }
 
+  function openAddAccount(provider, connected, tokenStatus) {
+    setPlatform(provider.platform)
+    setAccountName(connected.length && tokenStatus !== 'valid'
+      ? connected[0].handle || connected[0].name || ''
+      : '')
+    requestAnimationFrame(() => {
+      accountInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      accountInputRef.current?.focus()
+    })
+  }
+
   async function remove(id) {
     if (!window.confirm('Deseja realmente desconectar esta conta?')) return
     try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); notify('Conta desconectada.') }
@@ -118,7 +130,7 @@ export function AccountsPage({ onNavigate }) {
           </div>
           <div className="account-platform-card-status"><span className={`account-status-dot${connected.length && tokenStatus === 'valid' ? ' is-connected' : ''}${tokenStatus === 'error' ? ' is-error' : tokenStatus === 'expiring' ? ' is-warning' : ''}`} aria-hidden="true" />{connected.length ? `${connected.length} conta${connected.length > 1 ? 's' : ''} conectada${connected.length > 1 ? 's' : ''}` : 'Nenhuma conta conectada'}</div>
           <div className={`account-health-status account-health-${healthStatus}`}><span aria-hidden="true">{healthStatus === 'up' ? '●' : healthStatus === 'down' ? '!' : '○'}</span>{healthLoading ? 'Verificando API…' : HEALTH_LABELS[healthStatus] || HEALTH_LABELS.unknown}{tokenStatus === 'error' ? ' · Requer reconexão' : tokenStatus === 'expiring' ? ' · Token expirando' : ''}</div>
-          <button type="button" className="account-platform-card-action" onClick={() => { setPlatform(provider.platform); if (connected.length && tokenStatus !== 'valid') setAccountName(connected[0].handle || connected[0].name || '') }}>{connected.length && tokenStatus !== 'valid' ? 'Reconectar' : connected.length ? 'Adicionar outra' : 'Conectar'}</button>
+          <button type="button" className="account-platform-card-action" onClick={() => openAddAccount(provider, connected, tokenStatus)}>{connected.length && tokenStatus !== 'valid' ? 'Reconectar' : connected.length ? 'Adicionar outra' : 'Conectar'}</button>
         </article>
       })}
     </div>
@@ -128,7 +140,7 @@ export function AccountsPage({ onNavigate }) {
         <select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Plataforma" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100">
           {providers.map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
         </select>
-        <input value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Nome de usuário ou link do perfil" aria-label="Nome ou link da conta" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
+        <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Nome de usuário ou link do perfil" aria-label="Nome ou link da conta" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
         <button type="button" onClick={connect} disabled={connecting} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{connecting ? 'Abrindo…' : 'Conectar'}</button>
       </div>
       <p className="mt-2 text-xs text-zinc-500">Você será levado à página oficial de autorização da plataforma.</p>

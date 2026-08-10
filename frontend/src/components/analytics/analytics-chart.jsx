@@ -1,5 +1,6 @@
 import { Line, Bar } from 'react-chartjs-2'
 import { filterByPeriod, formatDiaBR, baseChartOptions, PLAT_COLORS } from '../../lib/analytics-format.js'
+import { useTheme } from '../ui/theme-selector.jsx'
 
 function EmptyChart({ message }) {
   return <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>{message}</p>
@@ -77,6 +78,7 @@ function PostsBarChart({ net, metrics }) {
 }
 
 export function AnalyticsChart({ net, tab, data, periodDays }) {
+  useTheme()
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
   const instagramFollowers = filterByPeriod(data.instagramFollowers, periodDays)
   const tiktokStats = filterByPeriod(data.tiktokStats, periodDays)

@@ -1,4 +1,5 @@
 const { Router } = require('express')
+const rateLimit = require('express-rate-limit')
 const bcrypt = require('bcrypt')
 const QRCode = require('qrcode')
 const usersRepo = require('../repositories/usersRepository')
@@ -6,11 +7,21 @@ const credentialsRepo = require('../repositories/credentialsRepository')
 const { serverError, validarComplexidadeSenha } = require('../utils/http')
 const { addLog } = require('../middleware/logger')
 const totp = require('../services/totp')
+const { isBlobUrl } = require('../infra/storage/blobStorage')
+
+const BCRYPT_COST = 12
 
 const router = Router()
 
 const PROFILE_PLATFORMS = new Set(['instagram', 'facebook', 'youtube', 'tiktok'])
 const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
+const totpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erro: 'Muitas tentativas de 2FA. Aguarde alguns minutos.' }
+})
 
 // GET /api/me/profile — dados editáveis e preferências do usuário.
 router.get('/profile', async (req, res) => {
@@ -84,13 +95,14 @@ router.post('/password', async (req, res) => {
       }
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10)
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_COST)
     if (cred) {
       await credentialsRepo.atualizarSenha(req.user.id, passwordHash)
     } else {
       await credentialsRepo.criar(req.user.id, passwordHash)
     }
 
+    await usersRepo.invalidarSessoes(req.user.id)
     addLog('ok', 'Senha alterada com sucesso', null, null, req.user.id)
     res.json({ ok: true })
   } catch (e) {
@@ -110,9 +122,7 @@ router.post('/avatar', async (req, res) => {
     // Aceita só URLs do nosso storage (Blob) ou null (remover foto) — evita
     // que a coluna seja usada para apontar/refletir uma URL externa arbitrária.
     if (avatarUrl) {
-      let parsed
-      try { parsed = new URL(avatarUrl) } catch { return res.status(400).json({ erro: 'avatarUrl inválido.' }) }
-      if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.public.blob.vercel-storage.com'))
+      if (!isBlobUrl(avatarUrl))
         return res.status(400).json({ erro: 'avatarUrl precisa ser uma imagem enviada pelo aplicativo.' })
     }
 
@@ -128,7 +138,7 @@ router.post('/avatar', async (req, res) => {
 // POST /api/me/2fa/setup — gera um novo segredo (ainda não habilitado) e
 // devolve a otpauth URI para o frontend renderizar o QR code. Só conclui a
 // ativação depois que o usuário confirma um código válido (/2fa/enable).
-router.post('/2fa/setup', async (req, res) => {
+router.post('/2fa/setup', totpLimiter, async (req, res) => {
   try {
     const segredo = totp.gerarSegredo()
     await usersRepo.salvarSegredoTotp(req.user.id, segredo)
@@ -142,7 +152,7 @@ router.post('/2fa/setup', async (req, res) => {
 
 // POST /api/me/2fa/enable { code } — confirma o primeiro código do app
 // autenticador e ativa o 2FA de fato.
-router.post('/2fa/enable', async (req, res) => {
+router.post('/2fa/enable', totpLimiter, async (req, res) => {
   try {
     const { code } = req.body || {}
     const info = await usersRepo.buscarTotp(req.user.id)
@@ -160,7 +170,7 @@ router.post('/2fa/enable', async (req, res) => {
 
 // POST /api/me/2fa/disable { code } — exige um código válido para desativar,
 // evitando que alguém com a sessão aberta remova o 2FA sem ter o app.
-router.post('/2fa/disable', async (req, res) => {
+router.post('/2fa/disable', totpLimiter, async (req, res) => {
   try {
     const { code } = req.body || {}
     const info = await usersRepo.buscarTotp(req.user.id)

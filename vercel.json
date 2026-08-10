@@ -1,8 +1,13 @@
 {
   "framework": null,
   "outputDirectory": "public",
+  "crons": [
+    { "path": "/api/cron/benchmarking", "schedule": "*/15 * * * *" }
+  ],
+  "redirects": [
+    { "source": "/", "destination": "/app.html", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/", "destination": "/react/index.html" },
     { "source": "/sobre", "destination": "/react/index.html" },
     { "source": "/app.html", "destination": "/react/index.html" },
     { "source": "/app/:path*", "destination": "/react/index.html" },
@@ -11,6 +16,7 @@
     { "source": "/verify-2fa.html", "destination": "/react/index.html" },
     { "source": "/admin.html", "destination": "/react/index.html" },
     { "source": "/assets/:path*", "destination": "/react/assets/:path*" },
+    { "source": "/go/:path*", "destination": "https://social-api-manager-production.up.railway.app/go/:path*" },
     { "source": "/api/:path*", "destination": "https://social-api-manager-production.up.railway.app/api/:path*" },
     { "source": "/auth/:path*", "destination": "https://social-api-manager-production.up.railway.app/auth/:path*" },
     { "source": "/support", "destination": "/support.html" },

@@ -1,0 +1,41 @@
+/* A configuração do TikTok usa a mesma paleta dourada do produto. A prévia
+   continua preta para representar a interface da própria rede social. */
+.platform-option-tiktok .platform-option-icon,
+.preview-network-tab-tiktok .preview-network-tab-icon,
+.social-preview-avatar-tiktok {
+  background: rgba(209, 153, 62, .14);
+  color: #f0c877;
+}
+
+.platform-text-editor-tiktok {
+  border-color: rgba(209, 153, 62, .25);
+}
+
+.tiktok-post-editor {
+  border-color: rgba(209, 153, 62, .28);
+  background: linear-gradient(145deg, rgba(209, 153, 62, .07), #181a20 48%);
+}
+
+.tiktok-post-editor-heading .eyebrow {
+  color: #d1993e;
+}
+
+.tiktok-post-editor-badge {
+  border-color: rgba(209, 153, 62, .3);
+  color: #f0c877;
+}
+
+.tiktok-title-field input:focus,
+.tiktok-description-field textarea:focus {
+  border-color: #d1993e;
+  box-shadow: 0 0 0 3px rgba(209, 153, 62, .12);
+}
+
+.tiktok-description-actions button:hover {
+  color: #f0c877;
+}
+
+.media-add-card:hover {
+  border-color: #d1993e !important;
+  color: #f0c877 !important;
+}
