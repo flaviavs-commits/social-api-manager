@@ -12,6 +12,7 @@ export function AiPage() {
   const [posts, setPosts] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [activityLogs, setActivityLogs] = useState([])
   const [modelo, setModelo] = useState('local')
@@ -33,6 +34,19 @@ export function AiPage() {
       setPosts((data.posts || []).map(post => ({ ...post, text: post.texto || post.text || post.caption || '' })))
       setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
+  }
+
+  // Gera mais ideias sobre o mesmo assunto (mesma instrução e modelo já
+  // usados) e acrescenta às sugestões já na tela, em vez de substituí-las —
+  // permite ao usuário pedir várias rodadas de ideias sem perder as
+  // anteriores nem reescrever a instrução.
+  async function generateMore() {
+    setLoadingMore(true); setError('')
+    try {
+      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
+      const novos = (data.posts || []).map(post => ({ ...post, text: post.texto || post.text || post.caption || '' }))
+      setPosts(current => [...current, ...novos])
+    } catch (e) { setError(e.message) } finally { setLoadingMore(false) }
   }
 
   async function loadAnalyticsInsights() {
@@ -62,7 +76,7 @@ export function AiPage() {
         <textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Inclua tema, público, objetivo, tom de voz ou rede social.</span>
       </SchedSection>
       <AiModelPicker value={modelo} onChange={setModelo} />
-      <button className="action-button ai-generate-button" disabled={loading}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
+      <button className="action-button ai-generate-button" disabled={loading || loadingMore}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
     </form>
     {error && <p className="error-message" role="alert">{error}</p>}
   </section>
@@ -74,6 +88,7 @@ export function AiPage() {
         : <p>{post.text}</p>}
       <button type="button" className="ai-edit-button link-button" onClick={() => setEditingIndex(editingIndex === index ? null : index)}>{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</button>
     </div></article>)}</div>
+    <button type="button" className="action-button ai-generate-more-button" onClick={generateMore} disabled={loadingMore || loading}>{loadingMore ? 'Gerando mais ideias...' : 'Gerar mais ideias sobre este assunto'}</button>
   </section>}
   <section className="panel ai-analytics-insights-panel">
     <div className="ai-panel-heading ai-analytics-insights-heading"><div><p className="eyebrow">INTELIGÊNCIA DE PERFORMANCE</p><h2>O que está acontecendo no seu Analytics?</h2><p>A IA cruza suas métricas reais para indicar quando publicar e qual perfil está evoluindo melhor dentro de cada nicho.</p></div><span className="ai-analytics-insights-icon" aria-hidden="true">◒</span></div>
