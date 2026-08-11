@@ -23,6 +23,7 @@ import './styles/drafts-theme.css'
 import './styles/theme.css'
 import './styles/light-theme.css'
 import './styles/benchmarking.css'
+import './styles/semantic-theme.css'
 
 applyTheme(getStoredTheme())
 

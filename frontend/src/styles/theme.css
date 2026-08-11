@@ -1,81 +1,67 @@
-/* Shared theme controls. The app starts in dark mode and remembers the user's choice. */
-:root{--text:#eef0f6}
-.theme-selector{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2);white-space:nowrap}
-.theme-selector button{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:0;border-radius:999px;background:transparent;color:var(--muted);font:600 11px/1 inherit;cursor:pointer;transition:background .18s ease,color .18s ease}
-.theme-selector button:hover{color:var(--text)}
-.theme-selector button.is-active{background:var(--accent-glow);color:var(--accent)}
-.theme-selector button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.site-header-actions{display:flex;align-items:center;gap:12px}
-.auth-card-toolbar{display:flex;justify-content:flex-end;margin:-14px -12px 8px}
-
-html[data-theme='light']{
-  color-scheme:light;
-  --app-bg:#f4f6fa;
-  --surface:#ffffff;
-  --surface-2:#eef2f7;
-  --border:#d9e1ea;
-  --border-hover:#b9c6d4;
-  --muted:#5f6b7a;
-  --text:#1d2733;
-  --accent:#a66d12;
-  --accent-glow:rgba(166,109,18,.14);
-  --color-app:#f4f6fa;
-  --color-surface:#ffffff;
-  --color-surface-soft:#eef2f7;
-  --color-subtle:#d9e1ea;
-  --color-gold:#a66d12;
-  --color-gold-muted:#9a6818;
+/* Shared theme controls. The selected theme is applied before first paint. */
+.theme-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
-html[data-theme='light'] body{background:radial-gradient(circle at 75% 0,rgba(166,109,18,.12),transparent 32rem),var(--app-bg);color:var(--text)}
-html[data-theme='light'] .app-shell-modern{background:radial-gradient(circle at 80% -10%,rgba(166,109,18,.1),transparent 28rem),var(--app-bg)!important;color:var(--text)}
-html[data-theme='light'] .app-topbar-modern{background:rgba(244,246,250,.88)!important}
-html[data-theme='light'] .app-shell-modern aside>a:first-child{background:linear-gradient(180deg,rgba(166,109,18,.08),transparent)}
-html[data-theme='light'] .app-shell-modern .panel,
-html[data-theme='light'] .app-shell-modern .metric-grid article,
-html[data-theme='light'] .app-shell-modern .analytics-panel,
-html[data-theme='light'] .app-shell-modern .analytics-sidebar,
-html[data-theme='light'] .app-shell-modern .analytics-no-network-panel,
-html[data-theme='light'] .app-shell-modern .profile-section,
-html[data-theme='light'] .app-shell-modern .post-preview,
-html[data-theme='light'] .app-shell-modern .toast,
-html[data-theme='light'] .app-shell-modern .notification-popover,
-html[data-theme='light'] .app-shell-modern .profile-menu,
-html[data-theme='light'] .app-shell-modern .command-palette{background:var(--surface);border-color:var(--border)}
-html[data-theme='light'] .app-shell-modern .dashboard-upcoming-item,
-html[data-theme='light'] .app-shell-modern .dashboard-account-chip,
-html[data-theme='light'] .app-shell-modern .account-platform-card,
-html[data-theme='light'] .app-shell-modern .calendar-list-item,
-html[data-theme='light'] .app-shell-modern .inbox-item,
-html[data-theme='light'] .app-shell-modern .activity-item,
-html[data-theme='light'] .app-shell-modern .profile-identity-card,
-html[data-theme='light'] .app-shell-modern .profile-toggle,
-html[data-theme='light'] .app-shell-modern .profile-security-row,
-html[data-theme='light'] .app-shell-modern .profile-session-row,
-html[data-theme='light'] .app-shell-modern .profile-usage-card{background:var(--surface-2);border-color:var(--border)}
-html[data-theme='light'] .app-shell-modern .post-preview-card{background:var(--surface-2);border-color:var(--border-hover)}
-html[data-theme='light'] .app-shell-modern .post-preview-media,
-html[data-theme='light'] .app-shell-modern .calendar-view-toggle,
-html[data-theme='light'] .app-shell-modern .dashboard-filter-buttons{background:var(--surface-2);border-color:var(--border)}
-html[data-theme='light'] .app-shell-modern input:not([type='checkbox']):not([type='radio']),
-html[data-theme='light'] .app-shell-modern select,
-html[data-theme='light'] .app-shell-modern textarea{background:var(--surface);border-color:var(--border-hover);color:var(--text)}
-html[data-theme='light'] .app-shell-modern .secondary-button{border-color:var(--border-hover);color:var(--text)}
-html[data-theme='light'] .app-shell-modern .text-zinc-50,
-html[data-theme='light'] .app-shell-modern .text-zinc-100,
-html[data-theme='light'] .app-shell-modern .text-zinc-200,
-html[data-theme='light'] .app-shell-modern .text-zinc-300{color:var(--text)!important}
-html[data-theme='light'] .app-shell-modern .text-zinc-400,
-html[data-theme='light'] .app-shell-modern .text-zinc-500,
-html[data-theme='light'] .app-shell-modern .text-zinc-600{color:var(--muted)!important}
-html[data-theme='light'] .mobile-bottom-nav{background:rgba(255,255,255,.94);border-color:var(--border)}
-html[data-theme='light'] .notification-dot{border-color:var(--surface)}
+.theme-selector button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font: 600 11px/1 inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
 
-html[data-theme='light'] .auth-card{box-shadow:0 24px 60px rgba(45,59,76,.14)}
-html[data-theme='light'] .auth-button--google{background:#fff;border-color:var(--border);color:#1f1f1f}
+.theme-selector button:hover {
+  color: var(--text);
+  background: var(--surface);
+}
 
-@media(max-width:640px){
-  .theme-selector button span:last-child{display:none}
-  .theme-selector button{padding:6px 8px;font-size:14px}
-  .site-header-actions{gap:8px}
+.theme-selector button.is-active {
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.theme-selector button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-card-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -14px -12px 8px;
+}
+
+@media (max-width: 640px) {
+  .theme-selector button span:last-child {
+    display: none;
+  }
+
+  .theme-selector button {
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .site-header-actions {
+    gap: 8px;
+  }
 }

@@ -4,10 +4,10 @@
   gap: 12px;
   margin-bottom: 18px;
   padding: 13px 15px;
-  border: 1px solid rgba(209, 153, 62, .24);
+  color: var(--text-tertiary);
+  background: linear-gradient(110deg, var(--accent-glow), var(--surface) 72%);
+  border: 1px solid rgb(var(--accent-rgb) / 0.24);
   border-radius: 11px;
-  background: linear-gradient(110deg, rgba(209, 153, 62, .09), rgba(24, 26, 32, .72));
-  color: #b4bacc;
 }
 
 .drafts-v2-howto-icon {
@@ -17,9 +17,9 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  color: var(--accent-strong);
+  background: rgb(var(--accent-rgb) / 0.18);
   border-radius: 50%;
-  background: rgba(209, 153, 62, .18);
-  color: #f0c877;
   font-size: 12px;
   font-weight: 700;
 }
@@ -27,7 +27,7 @@
 .drafts-v2-howto strong {
   display: block;
   margin-bottom: 3px;
-  color: #f0c877;
+  color: var(--accent-strong);
   font-size: 12px;
 }
 
@@ -38,7 +38,7 @@
 }
 
 .drafts-v2-howto b {
-  color: #eef0f6;
+  color: var(--text);
 }
 
 .drafts-v2-use-button {
