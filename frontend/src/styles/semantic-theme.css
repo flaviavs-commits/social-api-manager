@@ -5,6 +5,16 @@
  * This layer maps their public component surfaces to the same semantic
  * palette as the shell. It is intentionally loaded last and uses tokens,
  * not a second hardcoded light palette.
+ *
+ * Selectors here are plain comma lists, NOT :where(...). :where() has zero
+ * specificity, so it silently loses to any normal selector in the base
+ * stylesheet -- e.g. `.accounts-overview-strip>div{background:#1c1e25}`
+ * in modules.css (specificity 0,2,0) beat `:where(.accounts-overview-strip)`
+ * (specificity 0,0,0) even though this file loads after modules.css in
+ * main.jsx. That let several light-mode surfaces stay dark (dashboard
+ * summary cards, tokens/drafts/analytics overview strips, etc.). Plain
+ * selectors give each rule real specificity, so the load-order-last
+ * guarantee here actually holds. Keep new rules as plain comma lists too.
  */
 html[data-theme='light'] {
   color-scheme: light;
@@ -39,532 +49,522 @@ html[data-theme='light'] .app-shell-modern .ai-prompt-input {
   border-color: var(--border-hover) !important;
 }
 
-html[data-theme='light'] :where(.app-sidebar, .app-topbar-modern, .mobile-bottom-nav, .app-shell-modern aside) {
+html[data-theme='light'] .app-sidebar,
+html[data-theme='light'] .app-topbar-modern,
+html[data-theme='light'] .mobile-bottom-nav,
+html[data-theme='light'] .app-shell-modern aside {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
 }
 
-html[data-theme='light'] :where(.app-topbar-modern, .mobile-bottom-nav) {
+html[data-theme='light'] .app-topbar-modern,
+html[data-theme='light'] .mobile-bottom-nav {
   background-color: rgb(var(--surface-rgb) / 0.94);
 }
 
 /* A safe fallback for legacy module wrappers not yet using a named token. */
-html[data-theme='light'] .app-shell-modern :where(
-  [class*='-card'],
-  [class*='-panel'],
-  [class*='-section'],
-  [class*='-toolbar'],
-  [class*='-summary'],
-  [class*='-list-panel'],
-  [class*='-table-wrap'],
-  [class*='-history'],
-  [class*='-form'],
-  [class*='-editor'],
-  [class*='-row'],
-  [class*='-kpi'],
-  [class*='-overview'],
-  [class*='-highlight'],
-  [class*='-comparison'],
-  [class*='-insight'],
-  [class*='-detail'],
-  [class*='-table']
-) {
+html[data-theme='light'] .app-shell-modern [class*='-card'],
+html[data-theme='light'] .app-shell-modern [class*='-panel'],
+html[data-theme='light'] .app-shell-modern [class*='-section'],
+html[data-theme='light'] .app-shell-modern [class*='-toolbar'],
+html[data-theme='light'] .app-shell-modern [class*='-summary'],
+html[data-theme='light'] .app-shell-modern [class*='-list-panel'],
+html[data-theme='light'] .app-shell-modern [class*='-table-wrap'],
+html[data-theme='light'] .app-shell-modern [class*='-history'],
+html[data-theme='light'] .app-shell-modern [class*='-form'],
+html[data-theme='light'] .app-shell-modern [class*='-editor'],
+html[data-theme='light'] .app-shell-modern [class*='-row'],
+html[data-theme='light'] .app-shell-modern [class*='-kpi'],
+html[data-theme='light'] .app-shell-modern [class*='-overview'],
+html[data-theme='light'] .app-shell-modern [class*='-highlight'],
+html[data-theme='light'] .app-shell-modern [class*='-comparison'],
+html[data-theme='light'] .app-shell-modern [class*='-insight'],
+html[data-theme='light'] .app-shell-modern [class*='-detail'],
+html[data-theme='light'] .app-shell-modern [class*='-table'] {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
 }
 
-html[data-theme='light'] :where(
-  .panel,
-  .card,
-  .analytics-panel,
-  .analytics-sidebar,
-  .analytics-no-network-panel,
-  .profile-section,
-  .profile-identity-card,
-  .profile-usage-card,
-  .post-preview,
-  .toast,
-  .notification-popover,
-  .profile-menu,
-  .command-palette,
-  .modal,
-  .modal-content,
-  .dialog,
-  .popover,
-  .dropdown-menu,
-  .benchmark-form-panel,
-  .benchmark-results-panel,
-  .tokens-panel,
-  .token-summary-card,
-  .analytics-demographics-summary-card,
-  .analytics-report-detail,
-  .analytics-account-insights,
-  .analytics-breakdown-chart,
-  .analytics-insight-chart,
-  .analytics-provider-table
-  , .accounts-overview-strip
-  , .admin-content
-  , .admin-page
-  , .admin-table-wrap
-  , .ai-analytics-insights-panel
-  , .ai-generator-panel
-  , .ai-performance-comparison
-  , .drafts-editor-panel
-  , .inbox-conversation-pane
-  , .inbox-toolbar
-  , .scheduler-panel
-  , .settings-card
-  , .security-setup
-  , .security-confirm
-  , .onboarding-progress
-) {
+html[data-theme='light'] .panel,
+html[data-theme='light'] .card,
+html[data-theme='light'] .analytics-panel,
+html[data-theme='light'] .analytics-sidebar,
+html[data-theme='light'] .analytics-no-network-panel,
+html[data-theme='light'] .profile-section,
+html[data-theme='light'] .profile-identity-card,
+html[data-theme='light'] .profile-usage-card,
+html[data-theme='light'] .post-preview,
+html[data-theme='light'] .toast,
+html[data-theme='light'] .notification-popover,
+html[data-theme='light'] .profile-menu,
+html[data-theme='light'] .command-palette,
+html[data-theme='light'] .modal,
+html[data-theme='light'] .modal-content,
+html[data-theme='light'] .dialog,
+html[data-theme='light'] .popover,
+html[data-theme='light'] .dropdown-menu,
+html[data-theme='light'] .benchmark-form-panel,
+html[data-theme='light'] .benchmark-results-panel,
+html[data-theme='light'] .tokens-panel,
+html[data-theme='light'] .token-summary-card,
+html[data-theme='light'] .analytics-demographics-summary-card,
+html[data-theme='light'] .analytics-report-detail,
+html[data-theme='light'] .analytics-account-insights,
+html[data-theme='light'] .analytics-breakdown-chart,
+html[data-theme='light'] .analytics-insight-chart,
+html[data-theme='light'] .analytics-provider-table,
+html[data-theme='light'] .accounts-overview-strip,
+html[data-theme='light'] .admin-content,
+html[data-theme='light'] .admin-page,
+html[data-theme='light'] .admin-table-wrap,
+html[data-theme='light'] .ai-analytics-insights-panel,
+html[data-theme='light'] .ai-generator-panel,
+html[data-theme='light'] .ai-performance-comparison,
+html[data-theme='light'] .drafts-editor-panel,
+html[data-theme='light'] .inbox-conversation-pane,
+html[data-theme='light'] .inbox-toolbar,
+html[data-theme='light'] .scheduler-panel,
+html[data-theme='light'] .settings-card,
+html[data-theme='light'] .security-setup,
+html[data-theme='light'] .security-confirm,
+html[data-theme='light'] .onboarding-progress {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
   box-shadow: var(--shadow-sm);
 }
 
-html[data-theme='light'] :where(
-  .dashboard-upcoming-item,
-  .dashboard-account-chip,
-  .account-platform-card,
-  .calendar-list-item,
-  .inbox-item,
-  .activity-item,
-  .profile-toggle,
-  .profile-security-row,
-  .profile-session-row,
-  .post-preview-card,
-  .post-preview-media,
-  .calendar-view-toggle,
-  .dashboard-filter-buttons,
-  .benchmark-metric,
-  .benchmark-history,
-  .benchmark-profile-card,
-  .benchmark-profile-wrap,
-  .benchmark-profile-list,
-  .benchmark-filter,
-  .benchmark-help,
-  .benchmark-privacy-note,
-  .token-filter-toolbar,
-  .token-row,
-  .token-empty,
-  .analytics-demographics-summary-grid,
-  .analytics-demographics-unavailable,
-  .analytics-post-view-metric
-  , .analytics-card
-  , .analytics-executive-overview
-  , .analytics-executive-section-heading
-  , .analytics-report-snapshot
-  , .analytics-post-item
-  , .analytics-post-metrics
-  , .analytics-profile-metrics
-  , .analytics-net-item
-  , .calendar-day
-  , .calendar-day-cell
-  , .calendar-event
-  , .draft-card
-  , .drafts-filter-tabs
-  , .drafts-search
-  , .drafts-summary
-  , .drafts-v2-card
-  , .drafts-v2-filter-tabs
-  , .drafts-v2-list-panel
-  , .drafts-v2-search
-  , .drafts-v2-summary
-  , .inbox-bulk-toolbar
-  , .inbox-platform-filter-card
-  , .location-results
-  , .media-upload-card
-  , .media-upload-empty
-  , .platform-option
-  , .platform-options
-  , .profile-fields
-  , .profile-password-form
-  , .shortcut-help
-  , .shortcut-help-list
-  , .token-summary-card
-) {
+html[data-theme='light'] .dashboard-upcoming-item,
+html[data-theme='light'] .dashboard-account-chip,
+html[data-theme='light'] .account-platform-card,
+html[data-theme='light'] .calendar-list-item,
+html[data-theme='light'] .inbox-item,
+html[data-theme='light'] .activity-item,
+html[data-theme='light'] .profile-toggle,
+html[data-theme='light'] .profile-security-row,
+html[data-theme='light'] .profile-session-row,
+html[data-theme='light'] .post-preview-card,
+html[data-theme='light'] .post-preview-media,
+html[data-theme='light'] .calendar-view-toggle,
+html[data-theme='light'] .dashboard-filter-buttons,
+html[data-theme='light'] .benchmark-metric,
+html[data-theme='light'] .benchmark-history,
+html[data-theme='light'] .benchmark-profile-card,
+html[data-theme='light'] .benchmark-profile-wrap,
+html[data-theme='light'] .benchmark-profile-list,
+html[data-theme='light'] .benchmark-filter,
+html[data-theme='light'] .benchmark-help,
+html[data-theme='light'] .benchmark-privacy-note,
+html[data-theme='light'] .token-filter-toolbar,
+html[data-theme='light'] .token-row,
+html[data-theme='light'] .token-empty,
+html[data-theme='light'] .analytics-demographics-summary-grid,
+html[data-theme='light'] .analytics-demographics-unavailable,
+html[data-theme='light'] .analytics-post-view-metric,
+html[data-theme='light'] .analytics-card,
+html[data-theme='light'] .analytics-executive-overview,
+html[data-theme='light'] .analytics-executive-section-heading,
+html[data-theme='light'] .analytics-report-snapshot,
+html[data-theme='light'] .analytics-post-item,
+html[data-theme='light'] .analytics-post-metrics,
+html[data-theme='light'] .analytics-profile-metrics,
+html[data-theme='light'] .analytics-net-item,
+html[data-theme='light'] .calendar-day,
+html[data-theme='light'] .calendar-day-cell,
+html[data-theme='light'] .calendar-event,
+html[data-theme='light'] .draft-card,
+html[data-theme='light'] .drafts-filter-tabs,
+html[data-theme='light'] .drafts-search,
+html[data-theme='light'] .drafts-summary,
+html[data-theme='light'] .drafts-v2-card,
+html[data-theme='light'] .drafts-v2-filter-tabs,
+html[data-theme='light'] .drafts-v2-list-panel,
+html[data-theme='light'] .drafts-v2-search,
+html[data-theme='light'] .drafts-v2-summary,
+html[data-theme='light'] .inbox-bulk-toolbar,
+html[data-theme='light'] .inbox-platform-filter-card,
+html[data-theme='light'] .location-results,
+html[data-theme='light'] .media-upload-card,
+html[data-theme='light'] .media-upload-empty,
+html[data-theme='light'] .platform-option,
+html[data-theme='light'] .platform-options,
+html[data-theme='light'] .profile-fields,
+html[data-theme='light'] .profile-password-form,
+html[data-theme='light'] .shortcut-help,
+html[data-theme='light'] .shortcut-help-list,
+html[data-theme='light'] .token-summary-card {
   color: var(--text);
   background-color: var(--surface-2);
   border-color: var(--border);
 }
 
-html[data-theme='light'] :where(
-  .dashboard-account-chip,
-  .account-platform-card,
-  .calendar-list-item,
-  .inbox-item,
-  .activity-item,
-  .profile-toggle,
-  .profile-security-row,
-  .profile-session-row,
-  .benchmark-metric,
-  .token-row
-) {
+html[data-theme='light'] .dashboard-account-chip,
+html[data-theme='light'] .account-platform-card,
+html[data-theme='light'] .calendar-list-item,
+html[data-theme='light'] .inbox-item,
+html[data-theme='light'] .activity-item,
+html[data-theme='light'] .profile-toggle,
+html[data-theme='light'] .profile-security-row,
+html[data-theme='light'] .profile-session-row,
+html[data-theme='light'] .benchmark-metric,
+html[data-theme='light'] .token-row {
   box-shadow: none;
 }
 
-html[data-theme='light'] :where(
-  input:not([type='checkbox']):not([type='radio']):not([type='range']),
-  select,
-  textarea,
-  .search-input,
-  .command-palette-input,
-  .token-search-field,
-  .token-filter-select,
-  .benchmark-form input,
-  .benchmark-form select,
-  .benchmark-form textarea
-) {
+html[data-theme='light'] input:not([type='checkbox']):not([type='radio']):not([type='range']),
+html[data-theme='light'] select,
+html[data-theme='light'] textarea,
+html[data-theme='light'] .search-input,
+html[data-theme='light'] .command-palette-input,
+html[data-theme='light'] .token-search-field,
+html[data-theme='light'] .token-filter-select,
+html[data-theme='light'] .benchmark-form input,
+html[data-theme='light'] .benchmark-form select,
+html[data-theme='light'] .benchmark-form textarea {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border-hover);
   caret-color: var(--accent);
 }
 
-html[data-theme='light'] :where(input, select, textarea)::placeholder {
+html[data-theme='light'] input::placeholder,
+html[data-theme='light'] select::placeholder,
+html[data-theme='light'] textarea::placeholder {
   color: var(--text-muted);
   opacity: 1;
 }
 
-html[data-theme='light'] :where(input, select, textarea):focus,
-html[data-theme='light'] :where(input, select, textarea):focus-visible {
+html[data-theme='light'] input:focus,
+html[data-theme='light'] select:focus,
+html[data-theme='light'] textarea:focus,
+html[data-theme='light'] input:focus-visible,
+html[data-theme='light'] select:focus-visible,
+html[data-theme='light'] textarea:focus-visible {
   border-color: var(--accent);
   outline: 2px solid rgb(var(--accent-rgb) / 0.2);
   outline-offset: 1px;
 }
 
-html[data-theme='light'] :where(
-  .app-shell-modern h1,
-  .app-shell-modern h2,
-  .app-shell-modern h3,
-  .app-shell-modern h4,
-  .panel-heading,
-  .section-title,
-  .section-heading,
-  .benchmark-section-heading,
-  .benchmark-results-heading,
-  .tokens-list-heading,
-  .token-table-heading,
-  .analytics-demographics-heading,
-  .analytics-insight-chart-heading
-) {
+html[data-theme='light'] .app-shell-modern h1,
+html[data-theme='light'] .app-shell-modern h2,
+html[data-theme='light'] .app-shell-modern h3,
+html[data-theme='light'] .app-shell-modern h4,
+html[data-theme='light'] .panel-heading,
+html[data-theme='light'] .section-title,
+html[data-theme='light'] .section-heading,
+html[data-theme='light'] .benchmark-section-heading,
+html[data-theme='light'] .benchmark-results-heading,
+html[data-theme='light'] .tokens-list-heading,
+html[data-theme='light'] .token-table-heading,
+html[data-theme='light'] .analytics-demographics-heading,
+html[data-theme='light'] .analytics-insight-chart-heading {
   color: var(--text);
 }
 
-html[data-theme='light'] :where(
-  .app-shell-modern p,
-  .app-shell-modern small,
-  .app-shell-modern label,
-  .app-shell-modern .muted,
-  .app-shell-modern .text-muted,
-  .app-shell-modern .text-secondary,
-  .app-shell-modern .panel-description,
-  .app-shell-modern .section-description,
-  .benchmark-help,
-  .benchmark-privacy-note,
-  .benchmark-profile-copy,
-  .analytics-section-description,
-  .calendar-list-copy
-) {
+html[data-theme='light'] .app-shell-modern p,
+html[data-theme='light'] .app-shell-modern small,
+html[data-theme='light'] .app-shell-modern label,
+html[data-theme='light'] .app-shell-modern .muted,
+html[data-theme='light'] .app-shell-modern .text-muted,
+html[data-theme='light'] .app-shell-modern .text-secondary,
+html[data-theme='light'] .app-shell-modern .panel-description,
+html[data-theme='light'] .app-shell-modern .section-description,
+html[data-theme='light'] .benchmark-help,
+html[data-theme='light'] .benchmark-privacy-note,
+html[data-theme='light'] .benchmark-profile-copy,
+html[data-theme='light'] .analytics-section-description,
+html[data-theme='light'] .calendar-list-copy {
   color: var(--text-muted);
 }
 
-html[data-theme='light'] :where(
-  .text-zinc-50,
-  .text-zinc-100,
-  .text-zinc-200,
-  .text-zinc-300
-) {
+html[data-theme='light'] .text-zinc-50,
+html[data-theme='light'] .text-zinc-100,
+html[data-theme='light'] .text-zinc-200,
+html[data-theme='light'] .text-zinc-300 {
   color: var(--text);
 }
 
-html[data-theme='light'] :where(
-  .text-zinc-400,
-  .text-zinc-500,
-  .text-zinc-600,
-  .text-gray-400,
-  .text-gray-500,
-  .text-gray-600
-) {
+html[data-theme='light'] .text-zinc-400,
+html[data-theme='light'] .text-zinc-500,
+html[data-theme='light'] .text-zinc-600,
+html[data-theme='light'] .text-gray-400,
+html[data-theme='light'] .text-gray-500,
+html[data-theme='light'] .text-gray-600 {
   color: var(--text-muted);
 }
 
-html[data-theme='light'] :where(
-  .secondary-button,
-  .link-button,
-  .action-button.secondary,
-  .app-sidebar button,
-  .app-topbar-modern button,
-  .dashboard-filter-buttons button,
-  .calendar-view-toggle button,
-  .token-filter-toolbar button
-) {
+html[data-theme='light'] .secondary-button,
+html[data-theme='light'] .link-button,
+html[data-theme='light'] .action-button.secondary,
+html[data-theme='light'] .app-sidebar button,
+html[data-theme='light'] .app-topbar-modern button,
+html[data-theme='light'] .dashboard-filter-buttons button,
+html[data-theme='light'] .calendar-view-toggle button,
+html[data-theme='light'] .token-filter-toolbar button {
   color: var(--text-secondary);
   border-color: var(--border-hover);
 }
 
-html[data-theme='light'] :where(
-  .secondary-button:hover,
-  .link-button:hover,
-  .action-button.secondary:hover,
-  .app-sidebar button:hover,
-  .app-topbar-modern button:hover,
-  .dashboard-filter-buttons button:hover,
-  .calendar-view-toggle button:hover,
-  .token-filter-toolbar button:hover,
-  .dashboard-upcoming-item:hover,
-  .dashboard-account-chip:hover,
-  .account-platform-card:hover,
-  .calendar-list-item:hover,
-  .inbox-item:hover,
-  .activity-item:hover,
-  .benchmark-profile-card:hover,
-  .token-row:hover
-) {
+html[data-theme='light'] .secondary-button:hover,
+html[data-theme='light'] .link-button:hover,
+html[data-theme='light'] .action-button.secondary:hover,
+html[data-theme='light'] .app-sidebar button:hover,
+html[data-theme='light'] .app-topbar-modern button:hover,
+html[data-theme='light'] .dashboard-filter-buttons button:hover,
+html[data-theme='light'] .calendar-view-toggle button:hover,
+html[data-theme='light'] .token-filter-toolbar button:hover,
+html[data-theme='light'] .dashboard-upcoming-item:hover,
+html[data-theme='light'] .dashboard-account-chip:hover,
+html[data-theme='light'] .account-platform-card:hover,
+html[data-theme='light'] .calendar-list-item:hover,
+html[data-theme='light'] .inbox-item:hover,
+html[data-theme='light'] .activity-item:hover,
+html[data-theme='light'] .benchmark-profile-card:hover,
+html[data-theme='light'] .token-row:hover {
   color: var(--text);
   background-color: var(--surface-3);
   border-color: var(--border-hover);
 }
 
-html[data-theme='light'] :where(
-  .app-sidebar button.is-active,
-  .app-sidebar a.is-active,
-  .theme-selector button.is-active,
-  .calendar-view-toggle button.is-active,
-  .dashboard-filter-buttons button.is-active,
-  .token-filter-toolbar button.is-active,
-  .token-status-badge,
-  .tokens-health-pill
-) {
+html[data-theme='light'] .app-sidebar button.is-active,
+html[data-theme='light'] .app-sidebar a.is-active,
+html[data-theme='light'] .theme-selector button.is-active,
+html[data-theme='light'] .calendar-view-toggle button.is-active,
+html[data-theme='light'] .dashboard-filter-buttons button.is-active,
+html[data-theme='light'] .token-filter-toolbar button.is-active,
+html[data-theme='light'] .token-status-badge,
+html[data-theme='light'] .tokens-health-pill {
   color: var(--accent-strong);
   background-color: var(--accent-glow);
   border-color: rgb(var(--accent-rgb) / 0.32);
 }
 
-html[data-theme='light'] :where(
-  button:disabled,
-  input:disabled,
-  select:disabled,
-  textarea:disabled,
-  .is-disabled
-) {
+html[data-theme='light'] button:disabled,
+html[data-theme='light'] input:disabled,
+html[data-theme='light'] select:disabled,
+html[data-theme='light'] textarea:disabled,
+html[data-theme='light'] .is-disabled {
   color: var(--text-subtle);
   background-color: var(--surface-3);
   border-color: var(--border);
   opacity: 0.72;
 }
 
-html[data-theme='light'] :where(.success, .is-success, .status-success, .token-status-valid, .benchmark-monitor-active) {
+html[data-theme='light'] .success,
+html[data-theme='light'] .is-success,
+html[data-theme='light'] .status-success,
+html[data-theme='light'] .token-status-valid,
+html[data-theme='light'] .benchmark-monitor-active {
   color: var(--success);
   background-color: var(--success-soft);
 }
 
-html[data-theme='light'] :where(.danger, .is-danger, .status-error, .token-status-error, .token-status-expired, .benchmark-monitor-error) {
+html[data-theme='light'] .danger,
+html[data-theme='light'] .is-danger,
+html[data-theme='light'] .status-error,
+html[data-theme='light'] .token-status-error,
+html[data-theme='light'] .token-status-expired,
+html[data-theme='light'] .benchmark-monitor-error {
   color: var(--danger);
   background-color: var(--danger-soft);
 }
 
-html[data-theme='light'] :where(.warning, .is-warning, .status-warning, .token-status-expiring, .benchmark-monitor-syncing) {
+html[data-theme='light'] .warning,
+html[data-theme='light'] .is-warning,
+html[data-theme='light'] .status-warning,
+html[data-theme='light'] .token-status-expiring,
+html[data-theme='light'] .benchmark-monitor-syncing {
   color: var(--warning);
   background-color: var(--warning-soft);
 }
 
-html[data-theme='light'] :where(.notification-dot, .connection-indicator, .connected-indicator) {
+html[data-theme='light'] .notification-dot,
+html[data-theme='light'] .connection-indicator,
+html[data-theme='light'] .connected-indicator {
   border-color: var(--surface);
 }
 
-html[data-theme='light'] :where(.app-sidebar nav a:hover, .app-sidebar nav button:hover) {
+html[data-theme='light'] .app-sidebar nav a:hover,
+html[data-theme='light'] .app-sidebar nav button:hover {
   background-color: var(--surface-2);
 }
 
-html[data-theme='light'] :where(.app-sidebar nav a.is-active, .app-sidebar nav button.is-active) {
+html[data-theme='light'] .app-sidebar nav a.is-active,
+html[data-theme='light'] .app-sidebar nav button.is-active {
   background: linear-gradient(90deg, var(--accent-glow), transparent);
 }
 
-html[data-theme='light'] :where(.overlay, .modal-backdrop, .command-palette-backdrop) {
+html[data-theme='light'] .overlay,
+html[data-theme='light'] .modal-backdrop,
+html[data-theme='light'] .command-palette-backdrop {
   background-color: var(--overlay);
 }
 
-html[data-theme='light'] :where(.toast, .notification-popover, .profile-menu, .command-palette, .dropdown-menu, .popover) {
+html[data-theme='light'] .toast,
+html[data-theme='light'] .notification-popover,
+html[data-theme='light'] .profile-menu,
+html[data-theme='light'] .command-palette,
+html[data-theme='light'] .dropdown-menu,
+html[data-theme='light'] .popover {
   box-shadow: var(--shadow-md);
 }
 
 /* Resolve legacy child selectors whose specificity was higher than the old
  * light-theme bridge. These are still token-based and cover nested states. */
-html[data-theme='light'] .app-shell-modern :where(
-  [class*='-card'] strong,
-  [class*='-panel'] strong,
-  [class*='-row'] strong,
-  [class*='-section'] strong,
-  [class*='-summary'] strong,
-  [class*='-card'] h1,
-  [class*='-card'] h2,
-  [class*='-card'] h3,
-  [class*='-panel'] h1,
-  [class*='-panel'] h2,
-  [class*='-panel'] h3
-) {
+html[data-theme='light'] .app-shell-modern [class*='-card'] strong,
+html[data-theme='light'] .app-shell-modern [class*='-panel'] strong,
+html[data-theme='light'] .app-shell-modern [class*='-row'] strong,
+html[data-theme='light'] .app-shell-modern [class*='-section'] strong,
+html[data-theme='light'] .app-shell-modern [class*='-summary'] strong,
+html[data-theme='light'] .app-shell-modern [class*='-card'] h1,
+html[data-theme='light'] .app-shell-modern [class*='-card'] h2,
+html[data-theme='light'] .app-shell-modern [class*='-card'] h3,
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h1,
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h2,
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h3 {
   color: var(--text);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .benchmark-summary-grid > .benchmark-metric,
-  .metric-grid article,
-  .benchmark-profile-card,
-  .benchmark-history,
-  .benchmark-history-list span,
-  .token-row,
-  .token-filter-toolbar,
-  .analytics-demographics-summary-card,
-  .analytics-account-insights .analytics-insight-chart,
-  .analytics-report-detail,
-  .analytics-report-detail .analytics-insight-chart,
-  .onboarding-step,
-  .upload-field,
-  .media-preview-card,
-  .platform-text-editor,
-  .ai-analytics-block,
-  .ai-niche-comparison-card,
-  .ai-performance-comparison,
-  .ai-performance-actions > div
-) {
+html[data-theme='light'] .app-shell-modern .benchmark-summary-grid > .benchmark-metric,
+html[data-theme='light'] .app-shell-modern .metric-grid article,
+html[data-theme='light'] .app-shell-modern .benchmark-profile-card,
+html[data-theme='light'] .app-shell-modern .benchmark-history,
+html[data-theme='light'] .app-shell-modern .benchmark-history-list span,
+html[data-theme='light'] .app-shell-modern .token-row,
+html[data-theme='light'] .app-shell-modern .token-filter-toolbar,
+html[data-theme='light'] .app-shell-modern .analytics-demographics-summary-card,
+html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytics-insight-chart,
+html[data-theme='light'] .app-shell-modern .analytics-report-detail,
+html[data-theme='light'] .app-shell-modern .analytics-report-detail .analytics-insight-chart,
+html[data-theme='light'] .app-shell-modern .onboarding-step,
+html[data-theme='light'] .app-shell-modern .upload-field,
+html[data-theme='light'] .app-shell-modern .media-preview-card,
+html[data-theme='light'] .app-shell-modern .platform-text-editor,
+html[data-theme='light'] .app-shell-modern .ai-analytics-block,
+html[data-theme='light'] .app-shell-modern .ai-niche-comparison-card,
+html[data-theme='light'] .app-shell-modern .ai-performance-comparison,
+html[data-theme='light'] .app-shell-modern .ai-performance-actions > div {
   color: var(--text);
   background-color: var(--surface-2);
   border-color: var(--border);
 }
 
 /* Pages and nested panels loaded by feature modules use these legacy names. */
-html[data-theme='light'] .app-shell-modern :where(
-  .notification-item,
-  .shortcut-help-list > div,
-  .command-palette-item,
-  .post-preview,
-  .scheduler-panel,
-  .sched-section,
-  .drafts-v2-editor-panel,
-  .drafts-v2-list-panel,
-  .drafts-v2-card,
-  .drafts-v2-media,
-  .drafts-v2-media-empty,
-  .drafts-v2-search,
-  .drafts-v2-filter-tabs,
-  .drafts-v2-form-tip,
-  .drafts-v2-summary article,
-  .drafts-v2-preview,
-  .media-upload-card,
-  .media-upload-empty,
-  .calendar-day,
-  .calendar-day-cell,
-  .media-preview-card,
-  .comments-post-preview,
-  .inbox-bulk-toolbar,
-  .inbox-conversation-pane,
-  .social-preview-card,
-  .social-preview-format,
-  .social-preview-media,
-  .social-preview-video,
-  .advanced-options,
-  .location-results,
-  .notification-item,
-  .ai-analytics-controls,
-  .ai-analytics-highlight-card,
-  .analytics-executive-overview,
-  .analytics-executive-kpi,
-  .analytics-executive-table-wrap,
-  .analytics-executive-highlight,
-  .analytics-executive-network
-) {
+html[data-theme='light'] .app-shell-modern .notification-item,
+html[data-theme='light'] .app-shell-modern .shortcut-help-list > div,
+html[data-theme='light'] .app-shell-modern .command-palette-item,
+html[data-theme='light'] .app-shell-modern .post-preview,
+html[data-theme='light'] .app-shell-modern .scheduler-panel,
+html[data-theme='light'] .app-shell-modern .sched-section,
+html[data-theme='light'] .app-shell-modern .drafts-v2-editor-panel,
+html[data-theme='light'] .app-shell-modern .drafts-v2-list-panel,
+html[data-theme='light'] .app-shell-modern .drafts-v2-card,
+html[data-theme='light'] .app-shell-modern .drafts-v2-media,
+html[data-theme='light'] .app-shell-modern .drafts-v2-media-empty,
+html[data-theme='light'] .app-shell-modern .drafts-v2-search,
+html[data-theme='light'] .app-shell-modern .drafts-v2-filter-tabs,
+html[data-theme='light'] .app-shell-modern .drafts-v2-form-tip,
+html[data-theme='light'] .app-shell-modern .drafts-v2-summary article,
+html[data-theme='light'] .app-shell-modern .drafts-v2-preview,
+html[data-theme='light'] .app-shell-modern .media-upload-card,
+html[data-theme='light'] .app-shell-modern .media-upload-empty,
+html[data-theme='light'] .app-shell-modern .calendar-day,
+html[data-theme='light'] .app-shell-modern .calendar-day-cell,
+html[data-theme='light'] .app-shell-modern .media-preview-card,
+html[data-theme='light'] .app-shell-modern .comments-post-preview,
+html[data-theme='light'] .app-shell-modern .inbox-bulk-toolbar,
+html[data-theme='light'] .app-shell-modern .inbox-conversation-pane,
+html[data-theme='light'] .app-shell-modern .social-preview-card,
+html[data-theme='light'] .app-shell-modern .social-preview-format,
+html[data-theme='light'] .app-shell-modern .social-preview-media,
+html[data-theme='light'] .app-shell-modern .social-preview-video,
+html[data-theme='light'] .app-shell-modern .advanced-options,
+html[data-theme='light'] .app-shell-modern .location-results,
+html[data-theme='light'] .app-shell-modern .notification-item,
+html[data-theme='light'] .app-shell-modern .ai-analytics-controls,
+html[data-theme='light'] .app-shell-modern .ai-analytics-highlight-card,
+html[data-theme='light'] .app-shell-modern .analytics-executive-overview,
+html[data-theme='light'] .app-shell-modern .analytics-executive-kpi,
+html[data-theme='light'] .app-shell-modern .analytics-executive-table-wrap,
+html[data-theme='light'] .app-shell-modern .analytics-executive-highlight,
+html[data-theme='light'] .app-shell-modern .analytics-executive-network {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .drafts-v2-summary article,
-  .drafts-v2-preview,
-  .drafts-v2-media,
-  .drafts-v2-media-empty,
-  .media-preview-card > img,
-  .media-video-thumb,
-  .post-preview-media-strip img,
-  .post-preview-video,
-  .social-preview-media,
-  .social-preview-video,
-  .analytics-post-thumb-fallback,
-  .comments-post-platform-icon
-) {
+html[data-theme='light'] .app-shell-modern .drafts-v2-summary article,
+html[data-theme='light'] .app-shell-modern .drafts-v2-preview,
+html[data-theme='light'] .app-shell-modern .drafts-v2-media,
+html[data-theme='light'] .app-shell-modern .drafts-v2-media-empty,
+html[data-theme='light'] .app-shell-modern .media-preview-card > img,
+html[data-theme='light'] .app-shell-modern .media-video-thumb,
+html[data-theme='light'] .app-shell-modern .post-preview-media-strip img,
+html[data-theme='light'] .app-shell-modern .post-preview-video,
+html[data-theme='light'] .app-shell-modern .social-preview-media,
+html[data-theme='light'] .app-shell-modern .social-preview-video,
+html[data-theme='light'] .app-shell-modern .analytics-post-thumb-fallback,
+html[data-theme='light'] .app-shell-modern .comments-post-platform-icon {
   color: var(--text-muted);
   background: var(--surface-2);
   border-color: var(--border);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .post-preview-text,
-  .post-preview-account strong,
-  .notification-item p,
-  .command-palette-list button,
-  .social-preview-card strong,
-  .social-preview-tiktok-copy,
-  .social-preview-tiktok-copy > strong,
-  .social-preview-caption
-) {
+html[data-theme='light'] .app-shell-modern .post-preview-text,
+html[data-theme='light'] .app-shell-modern .post-preview-account strong,
+html[data-theme='light'] .app-shell-modern .notification-item p,
+html[data-theme='light'] .app-shell-modern .command-palette-list button,
+html[data-theme='light'] .app-shell-modern .social-preview-card strong,
+html[data-theme='light'] .app-shell-modern .social-preview-tiktok-copy,
+html[data-theme='light'] .app-shell-modern .social-preview-tiktok-copy > strong,
+html[data-theme='light'] .app-shell-modern .social-preview-caption {
   color: var(--text);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .advanced-options label,
-  .checkbox-row label,
-  .mode-toggle,
-  .calendar-list-copy,
-  .social-preview-account small,
-  .social-preview-more,
-  .social-preview-actions,
-  .social-preview-actions small,
-  .social-preview-youtube-copy small,
-  .drafts-v2-howto,
-  .drafts-v2-form-tip
-) {
+html[data-theme='light'] .app-shell-modern .advanced-options label,
+html[data-theme='light'] .app-shell-modern .checkbox-row label,
+html[data-theme='light'] .app-shell-modern .mode-toggle,
+html[data-theme='light'] .app-shell-modern .calendar-list-copy,
+html[data-theme='light'] .app-shell-modern .social-preview-account small,
+html[data-theme='light'] .app-shell-modern .social-preview-more,
+html[data-theme='light'] .app-shell-modern .social-preview-actions,
+html[data-theme='light'] .app-shell-modern .social-preview-actions small,
+html[data-theme='light'] .app-shell-modern .social-preview-youtube-copy small,
+html[data-theme='light'] .app-shell-modern .drafts-v2-howto,
+html[data-theme='light'] .app-shell-modern .drafts-v2-form-tip {
   color: var(--text-muted);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .ai-robot-avatar,
-  .social-preview-card-tiktok,
-  .social-preview-card-tiktok .social-preview-caption,
-  .social-preview-tiktok-copy,
-  .social-preview-card-tiktok .social-preview-format
-) {
+html[data-theme='light'] .app-shell-modern .ai-robot-avatar,
+html[data-theme='light'] .app-shell-modern .social-preview-card-tiktok,
+html[data-theme='light'] .app-shell-modern .social-preview-card-tiktok .social-preview-caption,
+html[data-theme='light'] .app-shell-modern .social-preview-tiktok-copy,
+html[data-theme='light'] .app-shell-modern .social-preview-card-tiktok .social-preview-format {
   color: var(--text);
   background: var(--surface);
   border-color: var(--border);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .drafts-v2-text-field textarea,
-  .drafts-editor-panel .sched-section textarea,
-  .tiktok-title-field input,
-  .tiktok-description-field textarea,
-  .advanced-options input,
-  .advanced-options select,
-  .advanced-options textarea,
-  .inline-form input,
-  .activity-toolbar input
-) {
+html[data-theme='light'] .app-shell-modern .drafts-v2-text-field textarea,
+html[data-theme='light'] .app-shell-modern .drafts-editor-panel .sched-section textarea,
+html[data-theme='light'] .app-shell-modern .tiktok-title-field input,
+html[data-theme='light'] .app-shell-modern .tiktok-description-field textarea,
+html[data-theme='light'] .app-shell-modern .advanced-options input,
+html[data-theme='light'] .app-shell-modern .advanced-options select,
+html[data-theme='light'] .app-shell-modern .advanced-options textarea,
+html[data-theme='light'] .app-shell-modern .inline-form input,
+html[data-theme='light'] .app-shell-modern .activity-toolbar input {
   color: var(--text);
   background: var(--surface);
   border-color: var(--border-hover);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .preview-network-tab:hover,
-  .social-preview-format:hover,
-  .post-preview-media-strip img:hover,
-  .post-preview-video:hover
-) {
+html[data-theme='light'] .app-shell-modern .preview-network-tab:hover,
+html[data-theme='light'] .app-shell-modern .social-preview-format:hover,
+html[data-theme='light'] .app-shell-modern .post-preview-media-strip img:hover,
+html[data-theme='light'] .app-shell-modern .post-preview-video:hover {
   color: var(--text);
   background: var(--surface-3);
   border-color: var(--border-hover);
@@ -577,100 +577,105 @@ html[data-theme='light'] a:focus-visible {
   outline-offset: 2px;
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .benchmark-metric > span,
-  .benchmark-metric > small,
-  .benchmark-history > p,
-  .benchmark-history-list small,
-  .token-row-copy small,
-  .token-row-expiry > span,
-  .analytics-demographics-summary-card > span,
-  .analytics-demographics-summary-card small,
-  .analytics-insight-chart-heading span,
-  .analytics-report-detail summary span,
-  .ai-analytics-block-heading > small,
-  .ai-niche-comparison-card small,
-  .ai-performance-comparison-heading span,
-  .ai-performance-actions span,
-  .onboarding-step p,
-  .media-preview-info small
-) {
+html[data-theme='light'] .app-shell-modern .benchmark-metric > span,
+html[data-theme='light'] .app-shell-modern .benchmark-metric > small,
+html[data-theme='light'] .app-shell-modern .benchmark-history > p,
+html[data-theme='light'] .app-shell-modern .benchmark-history-list small,
+html[data-theme='light'] .app-shell-modern .token-row-copy small,
+html[data-theme='light'] .app-shell-modern .token-row-expiry > span,
+html[data-theme='light'] .app-shell-modern .analytics-demographics-summary-card > span,
+html[data-theme='light'] .app-shell-modern .analytics-demographics-summary-card small,
+html[data-theme='light'] .app-shell-modern .analytics-insight-chart-heading span,
+html[data-theme='light'] .app-shell-modern .analytics-report-detail summary span,
+html[data-theme='light'] .app-shell-modern .ai-analytics-block-heading > small,
+html[data-theme='light'] .app-shell-modern .ai-niche-comparison-card small,
+html[data-theme='light'] .app-shell-modern .ai-performance-comparison-heading span,
+html[data-theme='light'] .app-shell-modern .ai-performance-actions span,
+html[data-theme='light'] .app-shell-modern .onboarding-step p,
+html[data-theme='light'] .app-shell-modern .media-preview-info small {
   color: var(--text-muted);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .benchmark-summary-grid > .benchmark-metric > strong,
-  .benchmark-profile-copy strong,
-  .benchmark-history-list em,
-  .token-row-copy strong,
-  .token-summary-card strong,
-  .analytics-demographics-summary-card > strong,
-  .analytics-report-detail summary,
-  .media-preview-info strong,
-  .ai-analytics-block-heading strong,
-  .ai-niche-comparison-card strong,
-  .ai-performance-comparison > p
-) {
+html[data-theme='light'] .app-shell-modern .benchmark-summary-grid > .benchmark-metric > strong,
+html[data-theme='light'] .app-shell-modern .benchmark-profile-copy strong,
+html[data-theme='light'] .app-shell-modern .benchmark-history-list em,
+html[data-theme='light'] .app-shell-modern .token-row-copy strong,
+html[data-theme='light'] .app-shell-modern .token-summary-card strong,
+html[data-theme='light'] .app-shell-modern .analytics-demographics-summary-card > strong,
+html[data-theme='light'] .app-shell-modern .analytics-report-detail summary,
+html[data-theme='light'] .app-shell-modern .media-preview-info strong,
+html[data-theme='light'] .app-shell-modern .ai-analytics-block-heading strong,
+html[data-theme='light'] .app-shell-modern .ai-niche-comparison-card strong,
+html[data-theme='light'] .app-shell-modern .ai-performance-comparison > p {
   color: var(--text);
 }
 
-html[data-theme='light'] .app-shell-modern :where(
-  .benchmark-summary-grid > .benchmark-metric:hover,
-  .benchmark-profile-card:hover,
-  .token-row:hover,
-  .analytics-net-item:hover,
-  .inbox-item:hover,
-  .account-platform-card:hover
-) {
+html[data-theme='light'] .app-shell-modern .benchmark-summary-grid > .benchmark-metric:hover,
+html[data-theme='light'] .app-shell-modern .benchmark-profile-card:hover,
+html[data-theme='light'] .app-shell-modern .token-row:hover,
+html[data-theme='light'] .app-shell-modern .analytics-net-item:hover,
+html[data-theme='light'] .app-shell-modern .inbox-item:hover,
+html[data-theme='light'] .app-shell-modern .account-platform-card:hover {
   color: var(--text);
   background-color: var(--surface-3);
   border-color: var(--border-hover);
 }
 
-html[data-theme='light'] :where(.app-shell-modern .app-topbar-modern, .app-shell-modern .app-sidebar) {
+html[data-theme='light'] .app-shell-modern .app-topbar-modern,
+html[data-theme='light'] .app-shell-modern .app-sidebar {
   box-shadow: 0 1px 0 rgb(var(--shadow-rgb) / 0.04);
 }
 
-html[data-theme='light'] :where(.benchmarking-hero, .tokens-hero) {
+html[data-theme='light'] .benchmarking-hero,
+html[data-theme='light'] .tokens-hero {
   color: var(--text);
   background: linear-gradient(135deg, var(--surface), var(--surface-2));
   border-color: var(--border);
 }
 
-html[data-theme='light'] :where(.benchmarking-hero h1, .benchmarking-hero h2, .tokens-hero h1, .tokens-hero h2) {
+html[data-theme='light'] .benchmarking-hero h1,
+html[data-theme='light'] .benchmarking-hero h2,
+html[data-theme='light'] .tokens-hero h1,
+html[data-theme='light'] .tokens-hero h2 {
   color: var(--text);
 }
 
-html[data-theme='light'] :where(.benchmarking-hero p, .tokens-hero p, .tokens-hero-copy) {
+html[data-theme='light'] .benchmarking-hero p,
+html[data-theme='light'] .tokens-hero p,
+html[data-theme='light'] .tokens-hero-copy {
   color: var(--text-muted);
 }
 
 /* Keep platform previews/media intentionally dark in both themes. */
-html[data-theme='light'] :where(
-  .post-preview-media.is-platform-preview,
-  .calendar-media-preview.is-platform-preview,
-  .tiktok-preview,
-  .tiktok-preview-card,
-  .comments-post-media,
-  .comments-post-media-empty
-) {
+html[data-theme='light'] .post-preview-media.is-platform-preview,
+html[data-theme='light'] .calendar-media-preview.is-platform-preview,
+html[data-theme='light'] .tiktok-preview,
+html[data-theme='light'] .tiktok-preview-card,
+html[data-theme='light'] .comments-post-media,
+html[data-theme='light'] .comments-post-media-empty {
   color: var(--preview-text);
   background-color: var(--preview-bg);
   border-color: rgb(255 255 255 / 0.12);
 }
 
-html[data-theme='light'] :where(.social-preview input, .social-preview textarea, .tiktok-preview input, .tiktok-preview textarea) {
+html[data-theme='light'] .social-preview input,
+html[data-theme='light'] .social-preview textarea,
+html[data-theme='light'] .tiktok-preview input,
+html[data-theme='light'] .tiktok-preview textarea {
   color: var(--preview-text);
   background-color: rgb(255 255 255 / 0.08);
   border-color: rgb(255 255 255 / 0.18);
 }
 
-html[data-theme='light'] :where(.media-remove-button, .preview-close-button) {
+html[data-theme='light'] .media-remove-button,
+html[data-theme='light'] .preview-close-button {
   color: #ffffff;
   background-color: rgb(var(--preview-bg-rgb) / 0.78);
 }
 
-html[data-theme='light'] :where(.app-shell-modern hr, .panel hr, .modal hr) {
+html[data-theme='light'] .app-shell-modern hr,
+html[data-theme='light'] .panel hr,
+html[data-theme='light'] .modal hr {
   border-color: var(--border);
 }
 
@@ -678,3 +683,506 @@ html[data-theme='light'] ::selection {
   color: var(--on-accent);
   background-color: var(--accent);
 }
+/* Auto-derived overrides for base selectors whose specificity beats the
+ * generic component groups above (compound selectors like ".draft-form
+ * textarea" or ".analytics-report-snapshot > div"). Each declaration set
+ * mirrors the exact tokens the component already uses in dark mode
+ * (background/border/color), just resolved through the light palette. */
+html[data-theme='light'] .draft-form textarea,
+html[data-theme='light'] .draft-form input[type=datetime-local],
+html[data-theme='light'] .comment-reply-form input,
+html[data-theme='light'] .security-confirm input,
+html[data-theme='light'] .security-disable input {
+  border-color: var(--border-hover);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+html[data-theme='light'] .platform-options label {
+  background: var(--surface-2);
+  border-color: var(--border-hover);
+}
+
+html[data-theme='light'] .media-preview span,
+html[data-theme='light'] .analytics-decay-list span {
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}
+
+html[data-theme='light'] .activity-toolbar select,
+html[data-theme='light'] .dashboard-activity-toolbar input,
+html[data-theme='light'] .calendar-toolbar select,
+html[data-theme='light'] .inbox-toolbar input,
+html[data-theme='light'] .inbox-toolbar select,
+html[data-theme='light'] .accounts-filter-toolbar input,
+html[data-theme='light'] .accounts-filter-toolbar select,
+html[data-theme='light'] .token-filter-toolbar input,
+html[data-theme='light'] .token-filter-toolbar select {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+html[data-theme='light'] .sidebar-collapse-button {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .an-summary-card,
+html[data-theme='light'] .an-summary-section,
+html[data-theme='light'] .analytics-empty-state {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+html[data-theme='light'] .an-eng-type-bar,
+html[data-theme='light'] .analytics-insight-metric,
+html[data-theme='light'] .media-preview-card>img,
+html[data-theme='light'] .ai-suggestion-card:hover,
+html[data-theme='light'] .draft-card:hover,
+html[data-theme='light'] .drafts-v2-card:hover,
+html[data-theme='light'] .analytics-profile-card:hover,
+html[data-theme='light'] .analytics-profile-metrics>div,
+html[data-theme='light'] .ai-performance-actions>div {
+  background: var(--surface-2);
+}
+
+html[data-theme='light'] .inbox-item-media {
+  border-color: var(--border-hover);
+  background: var(--app-bg);
+  color: var(--accent);
+}
+
+html[data-theme='light'] .security-intro,
+html[data-theme='light'] .security-enabled,
+html[data-theme='light'] .shortcut-help-list>div,
+html[data-theme='light'] .ai-suggestion-card,
+html[data-theme='light'] .token-summary-grid>div,
+html[data-theme='light'] .accounts-overview-strip>div,
+html[data-theme='light'] .media-ai-platform-result {
+  border-color: var(--border);
+  background: var(--surface-3);
+}
+
+html[data-theme='light'] .security-secret {
+  background: var(--surface-2);
+  color: var(--accent-strong);
+}
+
+html[data-theme='light'] .shortcut-help-list kbd {
+  border-color: var(--border-hover);
+  background: var(--surface-2);
+  color: var(--accent-strong);
+}
+
+html[data-theme='light'] .calendar-day-cell:hover {
+  background: var(--surface-3);
+}
+
+html[data-theme='light'] .analytics-report-snapshot>div,
+html[data-theme='light'] .drafts-summary>div,
+html[data-theme='light'] .ai-generated-media {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+html[data-theme='light'] .platform-options .platform-option,
+html[data-theme='light'] .ai-publish-platform-options .platform-option.is-disabled:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-2);
+}
+
+html[data-theme='light'] .ai-suggestion-editor,
+html[data-theme='light'] .ai-model-picker select,
+html[data-theme='light'] .profile-fields input,
+html[data-theme='light'] .profile-fields select,
+html[data-theme='light'] .profile-password-form input,
+html[data-theme='light'] .ai-analytics-controls select {
+  border-color: var(--border-hover);
+  background: var(--app-bg);
+  color: var(--text);
+}
+
+html[data-theme='light'] .dashboard-platform-card {
+  border-color: var(--border);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+html[data-theme='light'] .media-ai-result-heading>img,
+html[data-theme='light'] .media-ai-result-heading>video {
+  border-color: var(--border-hover);
+  background: var(--app-bg);
+}
+
+html[data-theme='light'] .media-ai-controls .ai-model-picker select,
+html[data-theme='light'] .media-preview-card>video.media-video-thumb {
+  background: var(--app-bg);
+}
+
+html[data-theme='light'] .drafts-filter-tabs button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+html[data-theme='light'] .draft-card-media {
+  background: var(--app-bg);
+  color: var(--accent);
+}
+
+html[data-theme='light'] .analytics-report-coverage span {
+  border-color: var(--border-hover);
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .analytics-demographic-detail {
+  border-color: var(--border-hover);
+  background: var(--surface-3);
+}
+
+html[data-theme='light'] .ai-suggestion-action-button {
+  border-color: var(--border-hover);
+  background: var(--surface-2);
+  color: var(--text-tertiary);
+}
+
+
+/* Auto-derived text-color overrides: same rationale as the block above,
+ * but for compound selectors setting a literal light/white `color` (meant
+ * for a dark background) with no matching light-theme rule — e.g.
+ * ".accounts-overview-strip strong{color:#eef0f6}" reads as near-invisible
+ * once the background goes light. */
+html[data-theme='light'] .draft-form textarea,
+html[data-theme='light'] .location-results li button,
+html[data-theme='light'] .command-palette-input input,
+html[data-theme='light'] .an-eng-type-head .an-eng-type-name,
+html[data-theme='light'] .analytics-period-btn:hover,
+html[data-theme='light'] .analytics-tab:hover,
+html[data-theme='light'] .analytics-provider-growth-row strong,
+html[data-theme='light'] .analytics-decay-list strong,
+html[data-theme='light'] .analytics-insight-metric strong,
+html[data-theme='light'] .analytics-report-insight strong,
+html[data-theme='light'] .inbox-overview strong,
+html[data-theme='light'] .inbox-conversation-empty strong,
+html[data-theme='light'] .onboarding-step strong,
+html[data-theme='light'] .security-intro h3,
+html[data-theme='light'] .security-enabled h3,
+html[data-theme='light'] .security-setup h3,
+html[data-theme='light'] .shortcut-help-heading h2,
+html[data-theme='light'] .analytics-report-snapshot strong,
+html[data-theme='light'] .upload-field-heading strong,
+html[data-theme='light'] .upload-picker,
+html[data-theme='light'] .publish-now-copy strong,
+html[data-theme='light'] .platform-option-name,
+html[data-theme='light'] .token-summary-grid strong,
+html[data-theme='light'] .accounts-overview-strip strong,
+html[data-theme='light'] .calendar-day-modal .modal-header h2,
+html[data-theme='light'] .comments-post-account-copy strong,
+html[data-theme='light'] .comments-post-youtube-copy strong,
+html[data-theme='light'] .comment-text,
+html[data-theme='light'] .profile-menu-heading strong,
+html[data-theme='light'] .profile-identity-copy strong,
+html[data-theme='light'] .profile-section-heading h3,
+html[data-theme='light'] .profile-preference-group>strong,
+html[data-theme='light'] .profile-security-row strong,
+html[data-theme='light'] .profile-session-row strong,
+html[data-theme='light'] .profile-usage-card strong,
+html[data-theme='light'] .media-ai-heading strong,
+html[data-theme='light'] .media-ai-platform-heading strong,
+html[data-theme='light'] .drafts-summary strong,
+html[data-theme='light'] .drafts-editor-heading h3,
+html[data-theme='light'] .drafts-list-heading h3,
+html[data-theme='light'] .drafts-search input,
+html[data-theme='light'] .draft-card h4,
+html[data-theme='light'] .drafts-v2-search input,
+html[data-theme='light'] .drafts-v2-filter-tabs button:hover,
+html[data-theme='light'] .drafts-v2-card h4,
+html[data-theme='light'] .analytics-profile-identity strong,
+html[data-theme='light'] .analytics-profile-metrics strong,
+html[data-theme='light'] .media-ai-generator-heading strong,
+html[data-theme='light'] .comment-own-reply p,
+html[data-theme='light'] .analytics-executive-section-heading strong,
+html[data-theme='light'] .analytics-executive-highlight strong,
+html[data-theme='light'] .analytics-report-coverage b,
+html[data-theme='light'] .analytics-demographic-detail>strong,
+html[data-theme='light'] .ai-analytics-empty strong,
+html[data-theme='light'] .ai-profile-comparison-main strong,
+html[data-theme='light'] .tiktok-post-editor-heading strong,
+html[data-theme='light'] .ai-suggestion-action-button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+html[data-theme='light'] .calendar-day strong,
+html[data-theme='light'] .location-selected button,
+html[data-theme='light'] .command-palette-list p,
+html[data-theme='light'] .activity-type,
+html[data-theme='light'] .activity-empty,
+html[data-theme='light'] .an-summary-label,
+html[data-theme='light'] .analytics-sidebar-label,
+html[data-theme='light'] .analytics-period-btn,
+html[data-theme='light'] .analytics-last-updated,
+html[data-theme='light'] .analytics-tab,
+html[data-theme='light'] .analytics-card-label,
+html[data-theme='light'] .analytics-post-date,
+html[data-theme='light'] .analytics-insights-subtitle,
+html[data-theme='light'] .analytics-page h3+p,
+html[data-theme='light'] .analytics-empty-state .analytics-empty-note,
+html[data-theme='light'] .analytics-period-control>span,
+html[data-theme='light'] .an-summary-card p,
+html[data-theme='light'] .analytics-chart-legend-hint,
+html[data-theme='light'] .analytics-period-context,
+html[data-theme='light'] .analytics-sidebar-help,
+html[data-theme='light'] .analytics-no-network-panel p,
+html[data-theme='light'] .dashboard-hero>div:first-child>p:last-child,
+html[data-theme='light'] .panel-subtitle,
+html[data-theme='light'] .status-text,
+html[data-theme='light'] .account-platform-card-status,
+html[data-theme='light'] .notification-empty,
+html[data-theme='light'] .loading-state,
+html[data-theme='light'] .calendar-toolbar label,
+html[data-theme='light'] .inbox-heading p:last-child,
+html[data-theme='light'] .inbox-empty,
+html[data-theme='light'] .scheduler-heading p:last-child,
+html[data-theme='light'] .post-preview-account small,
+html[data-theme='light'] .inbox-overview span,
+html[data-theme='light'] .account-health-status,
+html[data-theme='light'] .account-token-missing,
+html[data-theme='light'] .onboarding-dismiss,
+html[data-theme='light'] .onboarding-step-icon,
+html[data-theme='light'] .comment-date,
+html[data-theme='light'] .security-intro p,
+html[data-theme='light'] .security-enabled p,
+html[data-theme='light'] .security-setup p,
+html[data-theme='light'] .analytics-report-snapshot span,
+html[data-theme='light'] .publish-now-copy small,
+html[data-theme='light'] .inbox-platform-filter-label,
+html[data-theme='light'] .ai-generator-heading p:last-child,
+html[data-theme='light'] .ai-panel-heading p:last-child,
+html[data-theme='light'] .ai-log-status-label,
+html[data-theme='light'] .inbox-conversation-empty,
+html[data-theme='light'] .accounts-empty,
+html[data-theme='light'] .token-summary-grid span,
+html[data-theme='light'] .accounts-overview-strip span,
+html[data-theme='light'] .accounts-overview-strip small,
+html[data-theme='light'] .comments-conversation-title,
+html[data-theme='light'] .ai-model-picker-compact>span,
+html[data-theme='light'] .calendar-detail-status,
+html[data-theme='light'] .comments-post-account-copy small,
+html[data-theme='light'] .comments-post-actions,
+html[data-theme='light'] .profile-status-dot,
+html[data-theme='light'] .profile-footer-links a,
+html[data-theme='light'] .media-ai-heading small,
+html[data-theme='light'] .drafts-heading p:last-child,
+html[data-theme='light'] .drafts-summary span,
+html[data-theme='light'] .drafts-editor-heading p:last-child,
+html[data-theme='light'] .drafts-filter-tabs button,
+html[data-theme='light'] .drafts-v2-heading-copy>div>p:last-child,
+html[data-theme='light'] .drafts-v2-summary article span:not(.drafts-v2-stat-icon),
+html[data-theme='light'] .drafts-v2-editor-heading p:last-child,
+html[data-theme='light'] .drafts-v2-list-count,
+html[data-theme='light'] .drafts-v2-filter-tabs button,
+html[data-theme='light'] .analytics-profiles-heading p:last-child,
+html[data-theme='light'] .analytics-profiles-period,
+html[data-theme='light'] .analytics-profile-status,
+html[data-theme='light'] .analytics-profile-metrics span,
+html[data-theme='light'] .media-ai-generator-copy,
+html[data-theme='light'] .media-ai-generator-state,
+html[data-theme='light'] .media-ai-generator-ready,
+html[data-theme='light'] .comment-own-reply-heading small,
+html[data-theme='light'] .analytics-executive-heading p:last-child,
+html[data-theme='light'] .analytics-executive-kpi span,
+html[data-theme='light'] .analytics-executive-highlight-note,
+html[data-theme='light'] .ai-analytics-controls label,
+html[data-theme='light'] .platform-text-editor-label span:last-child,
+html[data-theme='light'] .tiktok-post-editor-heading span:not(.eyebrow),
+html[data-theme='light'] .tiktok-title-field small,
+html[data-theme='light'] .tiktok-description-field small,
+html[data-theme='light'] .media-add-card,
+html[data-theme='light'] .ai-publish-platform-copy {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .sched-section-title,
+html[data-theme='light'] .sched-section label,
+html[data-theme='light'] .analytics-post-plat-row,
+html[data-theme='light'] .analytics-insight-metric span,
+html[data-theme='light'] .analytics-limitations,
+html[data-theme='light'] .analytics-provider-growth-row,
+html[data-theme='light'] .analytics-table-scroll th:first-child,
+html[data-theme='light'] .analytics-table-scroll td:first-child,
+html[data-theme='light'] .analytics-page-intro>p:last-child,
+html[data-theme='light'] .analytics-empty-state p,
+html[data-theme='light'] .analytics-summary-note,
+html[data-theme='light'] .analytics-report-insight,
+html[data-theme='light'] .dashboard-callout,
+html[data-theme='light'] .checkbox-group legend,
+html[data-theme='light'] .calendar-list-platform,
+html[data-theme='light'] .analytics-compare-toggle,
+html[data-theme='light'] .analytics-next-action,
+html[data-theme='light'] .onboarding-heading p:last-child,
+html[data-theme='light'] .security-confirm label,
+html[data-theme='light'] .security-disable label,
+html[data-theme='light'] .shortcut-help-list p,
+html[data-theme='light'] .upload-picker-copy small,
+html[data-theme='light'] .ai-page-intro p:last-child,
+html[data-theme='light'] .token-attention-banner p,
+html[data-theme='light'] .token-row-expiry,
+html[data-theme='light'] .ai-model-picker,
+html[data-theme='light'] .platform-options .platform-option:has(input:checked) .platform-option-account,
+html[data-theme='light'] .calendar-day-event,
+html[data-theme='light'] .profile-menu>button,
+html[data-theme='light'] .profile-identity-copy span,
+html[data-theme='light'] .profile-fields label,
+html[data-theme='light'] .profile-password-form label,
+html[data-theme='light'] .profile-quick-links button,
+html[data-theme='light'] .post-text-label,
+html[data-theme='light'] .post-content-title,
+html[data-theme='light'] .draft-card-body>p,
+html[data-theme='light'] .drafts-v2-card-body>p,
+html[data-theme='light'] .analytics-profile-network,
+html[data-theme='light'] .analytics-executive-table-scroll td,
+html[data-theme='light'] .analytics-executive-highlight-network,
+html[data-theme='light'] .analytics-executive-highlight-metrics,
+html[data-theme='light'] .analytics-demographic-detail-list span,
+html[data-theme='light'] .ai-analytics-empty,
+html[data-theme='light'] .ai-analytics-highlight-card span:not(.ai-analytics-card-kicker),
+html[data-theme='light'] .ai-analytics-recommendations p,
+html[data-theme='light'] .ai-performance-comparison>p,
+html[data-theme='light'] .platform-text-editor-label,
+html[data-theme='light'] .tiktok-description-actions button {
+  color: var(--text-tertiary);
+}
+
+html[data-theme='light'] .topbar-search-button kbd,
+html[data-theme='light'] .command-palette-input input::placeholder,
+html[data-theme='light'] .command-palette-input kbd,
+html[data-theme='light'] .command-palette-list button small,
+html[data-theme='light'] .command-palette-hint,
+html[data-theme='light'] .dashboard-failure-item small,
+html[data-theme='light'] .activity-copy small,
+html[data-theme='light'] .mobile-bottom-nav button,
+html[data-theme='light'] .dashboard-activity-toolbar input::placeholder,
+html[data-theme='light'] .analytics-net-item-status,
+html[data-theme='light'] .dashboard-metrics small,
+html[data-theme='light'] .dashboard-post-copy small,
+html[data-theme='light'] .account-platform-card-heading p,
+html[data-theme='light'] .field-help,
+html[data-theme='light'] .notification-popover-heading span,
+html[data-theme='light'] .notification-item small,
+html[data-theme='light'] .inbox-item-body small,
+html[data-theme='light'] .post-preview-text.is-placeholder,
+html[data-theme='light'] .post-preview-media.is-empty,
+html[data-theme='light'] .post-preview-footer,
+html[data-theme='light'] .post-preview-hint,
+html[data-theme='light'] .analytics-page-intro-actions span,
+html[data-theme='light'] .inbox-overview small,
+html[data-theme='light'] .inbox-conversation-empty p,
+html[data-theme='light'] .account-health-unknown,
+html[data-theme='light'] .token-row-name small,
+html[data-theme='light'] .upload-drop-hint,
+html[data-theme='light'] .draft-row-copy small,
+html[data-theme='light'] .shortcut-help-list span,
+html[data-theme='light'] .shortcut-help-note,
+html[data-theme='light'] .calendar-toolbar-summary,
+html[data-theme='light'] .platform-option-hint,
+html[data-theme='light'] .inbox-platform-filter-card small,
+html[data-theme='light'] .ai-prompt-help,
+html[data-theme='light'] .ai-log-row small,
+html[data-theme='light'] .accounts-list-heading>span,
+html[data-theme='light'] .account-row-sync,
+html[data-theme='light'] .token-last-used,
+html[data-theme='light'] .accounts-table-heading,
+html[data-theme='light'] .ai-model-picker small,
+html[data-theme='light'] .dashboard-platform-missing,
+html[data-theme='light'] .dashboard-platform-card small,
+html[data-theme='light'] .dashboard-platform-state,
+html[data-theme='light'] .platform-option-account,
+html[data-theme='light'] .platform-options .platform-option:not(:has(input:checked)) .platform-option-account,
+html[data-theme='light'] .platform-options .platform-option:not(:has(input:checked)):hover .platform-option-check,
+html[data-theme='light'] .calendar-day-more,
+html[data-theme='light'] .comments-post-caption-empty,
+html[data-theme='light'] .comment-reply-unavailable,
+html[data-theme='light'] .profile-menu-chevron,
+html[data-theme='light'] .profile-menu-heading small,
+html[data-theme='light'] .profile-identity-copy small,
+html[data-theme='light'] .profile-fields input:disabled,
+html[data-theme='light'] .profile-preference-group>span,
+html[data-theme='light'] .profile-toggle small,
+html[data-theme='light'] .profile-security-row small,
+html[data-theme='light'] .profile-session-row small,
+html[data-theme='light'] .profile-usage-card small,
+html[data-theme='light'] .profile-help-text,
+html[data-theme='light'] .profile-footer-links,
+html[data-theme='light'] .profile-session-actions p,
+html[data-theme='light'] .media-ai-help,
+html[data-theme='light'] .media-ai-result-heading small,
+html[data-theme='light'] .media-ai-title span,
+html[data-theme='light'] .media-ai-tags>span,
+html[data-theme='light'] .media-ai-result-footer small,
+html[data-theme='light'] .media-ai-result-file small,
+html[data-theme='light'] .media-ai-controls .ai-model-picker>span,
+html[data-theme='light'] .drafts-summary small,
+html[data-theme='light'] .draft-editor-meta,
+html[data-theme='light'] .drafts-list-count,
+html[data-theme='light'] .drafts-search input::placeholder,
+html[data-theme='light'] .draft-card-media-empty small,
+html[data-theme='light'] .draft-card-video small,
+html[data-theme='light'] .draft-card-topline time,
+html[data-theme='light'] .draft-card-platforms small,
+html[data-theme='light'] .drafts-empty p,
+html[data-theme='light'] .drafts-v2-summary small,
+html[data-theme='light'] .drafts-v2-text-field textarea::placeholder,
+html[data-theme='light'] .drafts-v2-editor-meta,
+html[data-theme='light'] .drafts-v2-search input::placeholder,
+html[data-theme='light'] .drafts-v2-media small,
+html[data-theme='light'] .drafts-v2-video small,
+html[data-theme='light'] .drafts-v2-card-topline time,
+html[data-theme='light'] .drafts-v2-card-platforms small,
+html[data-theme='light'] .drafts-v2-empty p,
+html[data-theme='light'] .analytics-profile-identity span,
+html[data-theme='light'] .media-ai-generator-hints,
+html[data-theme='light'] .comment-reply-destination,
+html[data-theme='light'] .analytics-executive-kpi small,
+html[data-theme='light'] .analytics-executive-section-heading span,
+html[data-theme='light'] .analytics-executive-table-scroll th,
+html[data-theme='light'] .analytics-executive-highlight>small,
+html[data-theme='light'] .ai-analytics-empty p,
+html[data-theme='light'] .ai-analytics-highlight-card small,
+html[data-theme='light'] .ai-analytics-block-heading>small,
+html[data-theme='light'] .ai-profile-rank,
+html[data-theme='light'] .ai-profile-comparison-main small,
+html[data-theme='light'] .ai-profile-comparison-metrics small,
+html[data-theme='light'] .ai-analytics-no-data,
+html[data-theme='light'] .ai-analytics-data-note,
+html[data-theme='light'] .ai-performance-analysis small,
+html[data-theme='light'] .platform-text-editors-heading span,
+html[data-theme='light'] .platform-text-editor small,
+html[data-theme='light'] .tiktok-title-field input::placeholder,
+html[data-theme='light'] .tiktok-description-field textarea::placeholder,
+html[data-theme='light'] .ai-generated-media small {
+  color: var(--text-subtle);
+}
+
+html[data-theme='light'] .activity-copy strong,
+html[data-theme='light'] .analytics-next-action strong,
+html[data-theme='light'] .ai-suggestion-body p,
+html[data-theme='light'] .ai-log-row strong,
+html[data-theme='light'] .ai-model-picker>span,
+html[data-theme='light'] .calendar-detail-copy,
+html[data-theme='light'] .comments-post-avatar,
+html[data-theme='light'] .profile-toggle strong,
+html[data-theme='light'] .profile-password-form h4,
+html[data-theme='light'] .media-ai-result-heading strong,
+html[data-theme='light'] .media-ai-title,
+html[data-theme='light'] .drafts-empty strong,
+html[data-theme='light'] .drafts-v2-text-field,
+html[data-theme='light'] .drafts-v2-empty strong,
+html[data-theme='light'] .ai-performance-actions b,
+html[data-theme='light'] .platform-text-editors-heading strong,
+html[data-theme='light'] .tiktok-title-field>span,
+html[data-theme='light'] .tiktok-description-field>span:first-child {
+  color: var(--text-secondary);
+}
+
