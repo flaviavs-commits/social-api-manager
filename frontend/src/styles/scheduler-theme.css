@@ -38,3 +38,114 @@
   color: var(--accent-strong);
   border-color: var(--accent) !important;
 }
+
+/* Realistic, adjustable media framing used by Instagram and TikTok preview. */
+.social-preview-media {
+  aspect-ratio: var(--preview-aspect, 1 / 1);
+  height: auto;
+  max-height: 480px;
+}
+
+.social-preview-media.is-square { max-width: 100%; }
+.social-preview-media.is-portrait { max-height: 440px; }
+.social-preview-media.is-vertical { max-height: 480px; }
+.social-preview-media.is-landscape { aspect-ratio: 16 / 9; }
+
+.social-preview-media > img,
+.social-preview-media > .social-preview-video,
+.social-preview-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.social-preview-video {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.social-preview-video-badge {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  padding: 4px 7px;
+  color: #fff;
+  background: rgb(0 0 0 / 0.68);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.media-detection-panel,
+.social-preview-detection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.media-detection-panel {
+  margin-top: 10px;
+  padding: 9px 10px;
+}
+
+.media-detection-panel > div,
+.social-preview-detection > span {
+  display: grid;
+  gap: 3px;
+}
+
+.media-detection-panel strong,
+.social-preview-detection > span {
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.media-detection-panel span,
+.media-detection-panel small,
+.social-preview-detection small {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.media-detection-panel strong::before,
+.social-preview-detection > span::before {
+  margin-right: 5px;
+  color: var(--accent);
+  content: '◈';
+}
+
+.media-detection-panel strong:has(+ span)::before,
+.social-preview-detection > span.is-video::before {
+  content: '▶';
+}
+
+.social-preview-detection {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+}
+
+.social-preview-detection > span.is-video {
+  color: var(--accent-strong);
+}
+
+@media (max-width: 767px) {
+  .social-preview-media.is-vertical {
+    max-height: 420px;
+  }
+
+  .media-detection-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
