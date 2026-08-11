@@ -58,7 +58,7 @@ function App() {
 }
 
 const pathname = window.location.pathname
-const page = pathname === '/login.html' ? <App />
+const page = pathname === '/login.html' ? <LoginPage />
   : pathname === '/reset-password.html' ? <ResetPasswordPage />
     : pathname === '/verify-2fa.html' ? <VerifyTwoFactorPage />
     : pathname === '/admin.html' ? <AdminPage />
