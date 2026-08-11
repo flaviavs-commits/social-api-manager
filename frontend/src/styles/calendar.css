@@ -12,8 +12,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  background: rgba(229, 184, 66, .12);
-  color: #e5b842;
+  background: var(--accent-glow);
+  color: var(--accent-bright);
 }
 
 .calendar-platform-badge-instagram { background: rgba(225, 48, 108, .15); color: #f472b6; }
@@ -39,9 +39,9 @@
   width: min(100%, 360px);
   max-height: 280px;
   object-fit: cover;
-  border: 1px solid #2a2d36;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: #111217;
+  background: var(--surface-2);
 }
 
 .calendar-media-preview.is-compact {
@@ -61,7 +61,7 @@
   border: 1px dashed rgba(251, 113, 133, .42);
   border-radius: 9px;
   background: rgba(251, 113, 133, .07);
-  color: #e4a4ac;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -75,14 +75,14 @@
 
 .calendar-media-unavailable.is-compact::before {
   content: '!';
-  color: #fb7185;
+  color: var(--danger);
   font-size: 15px;
   font-weight: 700;
 }
 
 .calendar-post-warning {
   margin: 0;
-  color: #f0a8ad;
+  color: var(--danger);
   font-size: 11px;
   line-height: 1.4;
 }

@@ -437,6 +437,146 @@ html[data-theme='light'] .app-shell-modern :where(
   border-color: var(--border);
 }
 
+/* Pages and nested panels loaded by feature modules use these legacy names. */
+html[data-theme='light'] .app-shell-modern :where(
+  .notification-item,
+  .shortcut-help-list > div,
+  .command-palette-item,
+  .post-preview,
+  .scheduler-panel,
+  .sched-section,
+  .drafts-v2-editor-panel,
+  .drafts-v2-list-panel,
+  .drafts-v2-card,
+  .drafts-v2-media,
+  .drafts-v2-media-empty,
+  .drafts-v2-search,
+  .drafts-v2-filter-tabs,
+  .drafts-v2-form-tip,
+  .drafts-v2-summary article,
+  .drafts-v2-preview,
+  .media-upload-card,
+  .media-upload-empty,
+  .calendar-day,
+  .calendar-day-cell,
+  .media-preview-card,
+  .comments-post-preview,
+  .inbox-bulk-toolbar,
+  .inbox-conversation-pane,
+  .social-preview-card,
+  .social-preview-format,
+  .social-preview-media,
+  .social-preview-video,
+  .advanced-options,
+  .location-results,
+  .notification-item,
+  .ai-analytics-controls,
+  .ai-analytics-highlight-card,
+  .analytics-executive-overview,
+  .analytics-executive-kpi,
+  .analytics-executive-table-wrap,
+  .analytics-executive-highlight,
+  .analytics-executive-network
+) {
+  color: var(--text);
+  background-color: var(--surface);
+  border-color: var(--border);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .drafts-v2-summary article,
+  .drafts-v2-preview,
+  .drafts-v2-media,
+  .drafts-v2-media-empty,
+  .media-preview-card > img,
+  .media-video-thumb,
+  .post-preview-media-strip img,
+  .post-preview-video,
+  .social-preview-media,
+  .social-preview-video,
+  .analytics-post-thumb-fallback,
+  .comments-post-platform-icon
+) {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .post-preview-text,
+  .post-preview-account strong,
+  .notification-item p,
+  .command-palette-list button,
+  .social-preview-card strong,
+  .social-preview-tiktok-copy,
+  .social-preview-tiktok-copy > strong,
+  .social-preview-caption
+) {
+  color: var(--text);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .advanced-options label,
+  .checkbox-row label,
+  .mode-toggle,
+  .calendar-list-copy,
+  .social-preview-account small,
+  .social-preview-more,
+  .social-preview-actions,
+  .social-preview-actions small,
+  .social-preview-youtube-copy small,
+  .drafts-v2-howto,
+  .drafts-v2-form-tip
+) {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .ai-robot-avatar,
+  .social-preview-card-tiktok,
+  .social-preview-card-tiktok .social-preview-caption,
+  .social-preview-tiktok-copy,
+  .social-preview-card-tiktok .social-preview-format
+) {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .drafts-v2-text-field textarea,
+  .drafts-editor-panel .sched-section textarea,
+  .tiktok-title-field input,
+  .tiktok-description-field textarea,
+  .advanced-options input,
+  .advanced-options select,
+  .advanced-options textarea,
+  .inline-form input,
+  .activity-toolbar input
+) {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-hover);
+}
+
+html[data-theme='light'] .app-shell-modern :where(
+  .preview-network-tab:hover,
+  .social-preview-format:hover,
+  .post-preview-media-strip img:hover,
+  .post-preview-video:hover
+) {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--border-hover);
+}
+
+html[data-theme='light'] button:focus-visible,
+html[data-theme='light'] [role='button']:focus-visible,
+html[data-theme='light'] a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 html[data-theme='light'] .app-shell-modern :where(
   .benchmark-metric > span,
   .benchmark-metric > small,
@@ -507,8 +647,6 @@ html[data-theme='light'] :where(.benchmarking-hero p, .tokens-hero p, .tokens-he
 
 /* Keep platform previews/media intentionally dark in both themes. */
 html[data-theme='light'] :where(
-  .social-preview,
-  .social-preview-card,
   .post-preview-media.is-platform-preview,
   .calendar-media-preview.is-platform-preview,
   .tiktok-preview,
