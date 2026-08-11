@@ -1,9 +1,6 @@
 {
   "framework": null,
   "outputDirectory": "public",
-  "crons": [
-    { "path": "/api/cron/benchmarking", "schedule": "*/15 * * * *" }
-  ],
   "redirects": [
     { "source": "/", "destination": "/app.html", "permanent": false }
   ],

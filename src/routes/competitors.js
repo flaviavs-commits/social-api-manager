@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, PLATFORMS, serverError } = require('../utils/http')
+const { coletarBenchmarksSelecionados } = require('../services/benchmarkObserver')
 
 const router = Router()
 
@@ -197,6 +198,20 @@ router.post('/', async (req, res) => {
       RETURNING id
     `, [req.user.id, cleanName, platform, cleanProfileHandle, cleanProfileUrl, cleanNiche])
     res.status(201).json({ id: rows[0].id })
+  } catch (err) {
+    if (err.statusCode === 400) return publicProfileError(res, err.message)
+    serverError(res, err)
+  }
+})
+
+router.post('/collect', async (req, res) => {
+  try {
+    const requestedIds = Array.isArray(req.body?.profileIds) ? req.body.profileIds : []
+    const profileIds = [...new Set(requestedIds.map(parseId).filter(Boolean))]
+    if (!profileIds.length) return publicProfileError(res, 'Selecione pelo menos um perfil público para coletar.')
+    if (profileIds.length > 50) return publicProfileError(res, 'A coleta em lote aceita no máximo 50 perfis por vez.')
+    const result = await coletarBenchmarksSelecionados(req.user.id, profileIds)
+    res.json(result)
   } catch (err) {
     if (err.statusCode === 400) return publicProfileError(res, err.message)
     serverError(res, err)

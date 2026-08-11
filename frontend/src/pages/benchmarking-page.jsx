@@ -23,6 +23,8 @@ function emptySnapshotForm() {
   return { capturedOn: today(), followers: '', postsLast30Days: '', avgLikes: '', avgComments: '', avgShares: '', avgViews: '', avgSaves: '', sourceUrl: '', collectionMethod: 'manual' }
 }
 
+const ALL_NICHES = 'all'
+
 function fmtNumber(value) {
   return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0))
 }
@@ -51,9 +53,12 @@ export function BenchmarkingPage() {
   const [snapshotForm, setSnapshotForm] = useState(emptySnapshotForm)
   const [selectedId, setSelectedId] = useState(null)
   const [nicheFilter, setNicheFilter] = useState('all')
+  const [collectionNiche, setCollectionNiche] = useState(ALL_NICHES)
+  const [collectionProfileIds, setCollectionProfileIds] = useState([])
   const [history, setHistory] = useState(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingSnapshot, setSavingSnapshot] = useState(false)
+  const [collectingBatch, setCollectingBatch] = useState(false)
   const [monitorBusyId, setMonitorBusyId] = useState(null)
   const notify = useToast()
 
@@ -63,6 +68,7 @@ export function BenchmarkingPage() {
       const result = await apiFetch('/api/competitors')
       setData({ competitors: result.competitors || [], summary: result.summary || {} })
       setSelectedId(current => focusId || current || result.competitors?.[0]?.id || null)
+      setCollectionNiche(current => current === ALL_NICHES && result.competitors?.[0]?.niche ? result.competitors[0].niche : current)
     } catch (error) {
       notify(error.message, 'error')
     } finally {
@@ -77,7 +83,46 @@ export function BenchmarkingPage() {
     const profiles = nicheFilter === 'all' ? data.competitors : data.competitors.filter(item => item.niche === nicheFilter)
     return [...profiles].sort((a, b) => Number(b.latestSnapshot?.engagementRate || 0) - Number(a.latestSnapshot?.engagementRate || 0))
   }, [data.competitors, nicheFilter])
+  const collectionProfiles = useMemo(() => {
+    const profiles = collectionNiche === ALL_NICHES
+      ? data.competitors
+      : data.competitors.filter(item => item.niche === collectionNiche)
+    return [...profiles].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }, [collectionNiche, data.competitors])
+  const comparisonProfiles = useMemo(() => collectionProfiles
+    .filter(profile => collectionProfileIds.includes(profile.id) && profile.latestSnapshot)
+    .sort((a, b) => Number(b.latestSnapshot.engagementRate || 0) - Number(a.latestSnapshot.engagementRate || 0)), [collectionProfileIds, collectionProfiles])
+  const networkComparison = useMemo(() => PLATFORMS.map(([platform, label]) => {
+    const profiles = comparisonProfiles.filter(profile => profile.platform === platform)
+    if (!profiles.length) return null
+    const totalPosts = profiles.reduce((sum, profile) => sum + Number(profile.latestSnapshot.postsLast30Days || 0), 0)
+    return { platform, label, profiles: profiles.length, totalPosts, averagePosts: totalPosts / profiles.length }
+  }).filter(Boolean), [comparisonProfiles])
+  const pairComparisons = useMemo(() => comparisonProfiles.flatMap((profile, index) => comparisonProfiles.slice(index + 1).map(other => {
+    const profileRate = Number(profile.latestSnapshot.engagementRate || 0)
+    const otherRate = Number(other.latestSnapshot.engagementRate || 0)
+    if (profileRate === otherRate) {
+      return { id: `${profile.id}-${other.id}`, text: `Empate entre ${profile.name} e ${other.name}: ${fmtPercent(profileRate)} de engajamento.` }
+    }
+    const winner = profileRate > otherRate ? profile : other
+    const loser = winner.id === profile.id ? other : profile
+    return {
+      id: `${profile.id}-${other.id}`,
+      text: `${winner.name} está melhor que ${loser.name} em engajamento (${fmtPercent(winner.latestSnapshot.engagementRate)} contra ${fmtPercent(loser.latestSnapshot.engagementRate)}).`
+    }
+  })), [comparisonProfiles])
   const selectedProfile = data.competitors.find(item => item.id === selectedId) || null
+
+  useEffect(() => {
+    setCollectionProfileIds(current => {
+      const validIds = new Set(collectionProfiles.map(profile => profile.id))
+      const keptIds = current.filter(id => validIds.has(id))
+      return keptIds.length ? keptIds : collectionProfiles.map(profile => profile.id)
+    })
+    if (collectionProfiles.length && !collectionProfiles.some(profile => profile.id === selectedId)) {
+      setSelectedId(collectionProfiles[0].id)
+    }
+  }, [collectionProfiles, selectedId])
 
   function updateProfileField(event) {
     setProfileForm(current => ({ ...current, [event.target.name]: event.target.value }))
@@ -87,11 +132,40 @@ export function BenchmarkingPage() {
     setSnapshotForm(current => ({ ...current, [event.target.name]: event.target.value }))
   }
 
+  function toggleCollectionProfile(profileId) {
+    setCollectionProfileIds(current => current.includes(profileId) ? current.filter(id => id !== profileId) : [...current, profileId])
+  }
+
+  async function collectSelectedProfiles() {
+    const selectedIds = collectionProfileIds.filter(id => collectionProfiles.some(profile => profile.id === id))
+    if (!selectedIds.length) {
+      notify('Selecione pelo menos um perfil público do nicho.', 'error')
+      return
+    }
+    setCollectingBatch(true)
+    try {
+      const result = await apiFetch('/api/competitors/collect', { method: 'POST', body: JSON.stringify({ profileIds: selectedIds }) })
+      await load(selectedId)
+      const active = (result.results || []).filter(item => item.status === 'active').length
+      const unavailable = (result.results || []).filter(item => item.status === 'unsupported').length
+      const failed = (result.results || []).filter(item => item.status === 'error').length
+      const details = [active && `${active} coletado(s)`, unavailable && `${unavailable} sem conta Zernio autorizada`, failed && `${failed} com erro`].filter(Boolean).join(' · ')
+      notify(details || 'Nenhum perfil foi coletado.', unavailable || failed ? 'error' : undefined)
+    } catch (error) {
+      notify(error.message, 'error')
+    } finally {
+      setCollectingBatch(false)
+    }
+  }
+
   async function createProfile(event) {
     event.preventDefault()
     setSavingProfile(true)
     try {
       const result = await apiFetch('/api/competitors', { method: 'POST', body: JSON.stringify({ ...profileForm, publicProfile: true }) })
+      const createdNiche = profileForm.niche.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR')
+      setCollectionNiche(createdNiche || ALL_NICHES)
+      setNicheFilter(createdNiche || ALL_NICHES)
       setProfileForm(emptyProfileForm())
       await load(result.id)
       notify('Perfil público adicionado ao benchmark.')
@@ -194,9 +268,19 @@ export function BenchmarkingPage() {
       <section className="panel benchmark-form-panel">
         <div className="benchmark-section-heading"><div><p className="eyebrow">02 · COLETA PÚBLICA</p><h3>Registrar snapshot</h3></div><span className="benchmark-lock">{selectedProfile ? PLATFORM_LABELS[selectedProfile.platform] : 'Selecione um perfil'}</span></div>
         {selectedProfile ? <>
+          <p className="benchmark-help">Escolha um nicho para trazer todos os perfis públicos cadastrados nele. Você pode selecionar mais de um para comparar e registrar os snapshots individualmente.</p>
+          <div className="benchmark-public-collection-picker">
+            <label>Nicho da coleta pública<select value={collectionNiche} onChange={event => setCollectionNiche(event.target.value)}>{niches.map(niche => <option key={niche} value={niche}>{niche}</option>)}</select></label>
+            <div className="benchmark-collection-list">
+              {collectionProfiles.length ? collectionProfiles.map(profile => <label className="benchmark-collection-item" key={profile.id}><input type="checkbox" checked={collectionProfileIds.includes(profile.id)} onChange={() => toggleCollectionProfile(profile.id)} /><span><strong>{profile.name}</strong><small>@{profile.handle} · {PLATFORM_LABELS[profile.platform]} · {profile.latestSnapshot ? `${fmtPercent(profile.latestSnapshot.engagementRate)} de engajamento` : 'sem snapshot'}</small></span></label>) : <p>Nenhum perfil público cadastrado neste nicho.</p>}
+            </div>
+            <small className="benchmark-selection-hint">{collectionProfileIds.length} perfil(is) selecionado(s) para a comparação pública.</small>
+            <button type="button" className="action-button benchmark-batch-collect" onClick={collectSelectedProfiles} disabled={collectingBatch || !collectionProfileIds.length}>{collectingBatch ? 'Coletando via Zernio...' : 'Ativar Zernio e coletar agora'}</button>
+            <small className="benchmark-selection-hint">Os selecionados serão atualizados automaticamente a cada 15 minutos pelo monitor.</small>
+          </div>
           <p className="benchmark-help">Informe as médias dos últimos conteúdos públicos observados em <strong>{selectedProfile.name}</strong>. Repetir a data atualiza a coleta.</p>
           <form className="benchmark-form snapshot-form" onSubmit={saveSnapshot}>
-            <label>Perfil<select value={selectedId || ''} onChange={event => { setSelectedId(Number(event.target.value)); setHistory(null) }}>{data.competitors.map(profile => <option key={profile.id} value={profile.id}>{profile.name} · {profile.niche}</option>)}</select></label>
+            <label>Perfil da coleta<select value={selectedId || ''} onChange={event => { setSelectedId(Number(event.target.value)); setHistory(null) }}>{collectionProfiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name} · {profile.niche}</option>)}</select></label>
             <label>Data da coleta<input type="date" name="capturedOn" value={snapshotForm.capturedOn} onChange={updateSnapshotField} required /></label>
             <label>Seguidores<input type="number" min="0" name="followers" value={snapshotForm.followers} onChange={updateSnapshotField} placeholder="0" required /></label>
             <label>Posts em 30 dias<input type="number" min="0" name="postsLast30Days" value={snapshotForm.postsLast30Days} onChange={updateSnapshotField} placeholder="0" required /></label>
@@ -215,12 +299,20 @@ export function BenchmarkingPage() {
 
     <section className="panel benchmark-results-panel">
       <div className="benchmark-results-heading"><div><p className="eyebrow">03 · LEITURA COMPARATIVA</p><h3>Ranking por engajamento</h3><p>Perfis com snapshot aparecem ordenados pelo mesmo indicador, independentemente da rede.</p></div><label className="benchmark-filter">Filtrar por nicho<select value={nicheFilter} onChange={event => setNicheFilter(event.target.value)}><option value="all">Todos os nichos</option>{niches.map(niche => <option key={niche} value={niche}>{niche}</option>)}</select></label></div>
+      <div className="benchmark-comparison-box">
+        <div className="benchmark-comparison-heading"><div><p className="eyebrow">COLETA PÚBLICA SELECIONADA</p><h4>Comparação entre perfis do mesmo nicho</h4></div><span>{comparisonProfiles.length} com snapshot</span></div>
+        {comparisonProfiles.length >= 2 ? <>
+          <div className="benchmark-network-comparison">{networkComparison.map(item => <div className="benchmark-network-card" key={item.platform}><span className={platformClass(item.platform)}>{item.platform.slice(0, 1).toUpperCase()}</span><div><strong>{item.label}</strong><small>{item.profiles} perfil(is) · {fmtNumber(item.totalPosts)} posts/30d no total</small></div><b>{fmtNumber(item.averagePosts)}<small>média posts</small></b></div>)}</div>
+          <div className="benchmark-compare-table" role="table" aria-label="Números comparados dos perfis selecionados"><div className="benchmark-compare-row benchmark-compare-header" role="row"><span>Perfil</span><span>Rede</span><span>Engajamento</span><span>Seguidores</span><span>Posts / 30d</span></div>{comparisonProfiles.map(profile => <div className="benchmark-compare-row" role="row" key={profile.id}><strong>{profile.name}<small>@{profile.handle} · {profile.niche}</small></strong><span>{PLATFORM_LABELS[profile.platform]}</span><b>{fmtPercent(profile.latestSnapshot.engagementRate)}</b><span>{fmtNumber(profile.latestSnapshot.followers)}</span><span>{fmtNumber(profile.latestSnapshot.postsLast30Days)}</span></div>)}</div>
+          <div className="benchmark-verdicts"><strong>Veredito</strong>{pairComparisons.map(item => <p key={item.id}>↗ {item.text}</p>)}</div>
+        </> : <p className="benchmark-comparison-empty">Selecione pelo menos dois perfis do mesmo nicho e registre um snapshot público em cada um para gerar a comparação.</p>}
+      </div>
       {loading ? <p className="empty-state">Carregando referências...</p> : visibleProfiles.length ? <div className="benchmark-profile-list">{visibleProfiles.map((profile, index) => {
         const snapshot = profile.latestSnapshot
         const isHistoryOpen = history?.profileId === profile.id
         return <div className="benchmark-profile-wrap" key={profile.id}>
           <article className={`benchmark-profile-card${selectedId === profile.id ? ' is-selected' : ''}`}>
-            <button type="button" className="benchmark-profile-main" onClick={() => { setSelectedId(profile.id); setHistory(null) }}>
+            <button type="button" className="benchmark-profile-main" onClick={() => { setSelectedId(profile.id); setCollectionNiche(profile.niche); setNicheFilter(profile.niche); setHistory(null) }}>
               <span className="benchmark-rank">{snapshot ? `#${index + 1}` : '—'}</span><span className={platformClass(profile.platform)}>{profile.platform.slice(0, 1).toUpperCase()}</span><span className="benchmark-profile-copy"><strong>{profile.name}</strong><small>@{profile.handle} · {profile.niche} · <i className={`benchmark-monitor-dot benchmark-monitor-${profile.monitor?.status || 'idle'}`} />{monitorLabel(profile.monitor)}</small></span>
             </button>
             <div className="benchmark-profile-stats">{snapshot ? <><Metric label="Engajamento" value={fmtPercent(snapshot.engagementRate)} /><Metric label="Seguidores" value={fmtNumber(snapshot.followers)} /><Metric label="Posts / 30d" value={fmtNumber(snapshot.postsLast30Days)} /></> : <span className="benchmark-no-snapshot">Sem snapshot ainda</span>}</div>

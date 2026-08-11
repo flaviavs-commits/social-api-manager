@@ -204,4 +204,51 @@ async function observarBenchmarks(userId = null) {
   return { selected: rows.length, results }
 }
 
-module.exports = { observarBenchmarks, observeProfile, collectYouTube, collectZernio }
+async function coletarBenchmarksSelecionados(userId, profileIds) {
+  const ids = [...new Set(profileIds.map(Number).filter(Number.isInteger))]
+  if (!ids.length) return { selected: 0, results: [] }
+
+  const { rows } = await pool.query(`
+    SELECT cp.id, cp.user_id, cp.platform, cp.handle, cp.profile_url,
+           cp.niche, cp.monitor_provider, cp.monitor_interval_minutes,
+           z.zernio_account_id
+      FROM competitor_profiles cp
+      LEFT JOIN LATERAL (
+        SELECT c.zernio_account_id
+          FROM contas c
+         WHERE c.user_id = cp.user_id
+           AND c.platform = cp.platform
+           AND lower(regexp_replace(c.handle, '^@', '')) = lower(regexp_replace(cp.handle, '^@', ''))
+           AND c.zernio_account_id IS NOT NULL
+         ORDER BY c.id DESC
+         LIMIT 1
+      ) z ON TRUE
+     WHERE cp.user_id = $1
+       AND cp.id = ANY($2::int[])
+       AND cp.public_only = TRUE
+  `, [userId, ids])
+
+  if (!rows.length) return { selected: 0, results: [] }
+
+  const niches = [...new Set(rows.map(profile => profile.niche).filter(Boolean))]
+  if (niches.length > 1) {
+    const error = new Error('Selecione perfis de um único nicho para a coleta Zernio.')
+    error.statusCode = 400
+    throw error
+  }
+
+  await pool.query(`
+    UPDATE competitor_profiles
+       SET monitor_enabled=TRUE,
+           monitor_provider='zernio',
+           monitor_interval_minutes=15,
+           monitor_status='idle',
+           monitor_error=NULL
+     WHERE user_id=$1 AND id=ANY($2::int[]) AND public_only=TRUE
+  `, [userId, rows.map(profile => profile.id)])
+
+  const results = await mapWithConcurrency(rows, observeProfile, 2)
+  return { selected: rows.length, results, niche: niches[0] || null }
+}
+
+module.exports = { observarBenchmarks, coletarBenchmarksSelecionados, observeProfile, collectYouTube, collectZernio }
