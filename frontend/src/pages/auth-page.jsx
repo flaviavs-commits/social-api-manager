@@ -98,15 +98,23 @@ export function LoginPage() {
     } finally { setBusy(false) }
   }
 
-  const startReset = event => {
+  const startReset = async event => {
     event.preventDefault()
     if (!validEmail(email)) return setMessage({ type: 'error', text: 'Informe um e-mail válido.' })
-    setFlow('forgot-2fa')
-    setCode('')
+    setBusy(true)
     setMessage(null)
+    try {
+      const data = await publicApiFetch('/auth/login/forgot-password', { method: 'POST', body: JSON.stringify({ email: email.trim() }) })
+      setFlow('forgot-sent')
+      setMessage({ type: 'success', text: data?.mensagem || 'Se esse e-mail tiver uma conta, enviaremos um link de redefinição.' })
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Não foi possível enviar o link agora.' })
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const title = register ? 'Criar conta' : flow === 'login-2fa' ? 'Confirmar acesso' : 'Bem-vindo de volta'
+  const title = register ? 'Criar conta' : flow === 'login-2fa' ? 'Confirmar acesso' : flow === 'forgot-email' ? 'Redefinir senha' : flow === 'forgot-sent' ? 'Verifique seu e-mail' : 'Bem-vindo de volta'
 
   return <AuthCard>
     <h1 className="auth-title">{title}</h1>
@@ -129,8 +137,13 @@ export function LoginPage() {
     {flow === 'forgot-email' && <form onSubmit={startReset} className="auth-form">
       <label className="auth-label" htmlFor="forgot-email">Informe seu e-mail</label>
       <input id="forgot-email" className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} autoFocus required />
-      <button className="auth-button">Continuar</button>
+      <button className="auth-button" disabled={busy}>{busy ? 'Enviando…' : 'Enviar link de redefinição'}</button>
     </form>}
+
+    {flow === 'forgot-sent' && <div className="auth-form">
+      <p className="auth-help">Se o endereço <strong>{maskEmail(email)}</strong> estiver cadastrado, enviamos um link para criar uma nova senha. Verifique também a pasta de spam.</p>
+      <button type="button" className="auth-button auth-button--secondary" onClick={() => { setFlow('forgot-email'); setMessage(null) }}>Usar outro e-mail</button>
+    </div>}
 
     {flow === 'login' && <>
       <form onSubmit={submitCredentials} className="auth-form">
@@ -147,8 +160,8 @@ export function LoginPage() {
       <a className="auth-button auth-button--google" href={`${API_URL}/auth/login/google`}>Continuar com o Google</a>
     </>}
 
-    {flow !== 'login-2fa' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" className="auth-link" onClick={() => { setRegister(value => !value); setFlow('login'); setMessage(null) }}>{register ? 'Entrar' : 'Criar conta'}</button></p>}
-    {flow === 'forgot-email' || flow === 'forgot-2fa' ? <p className="auth-switch"><button type="button" className="auth-link" onClick={() => { setFlow('login'); setMessage(null) }}>Voltar para o login</button></p> : null}
+    {flow === 'login' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" className="auth-link" onClick={() => { setRegister(value => !value); setFlow('login'); setMessage(null) }}>{register ? 'Entrar' : 'Criar conta'}</button></p>}
+    {flow === 'forgot-email' || flow === 'forgot-2fa' || flow === 'forgot-sent' ? <p className="auth-switch"><button type="button" className="auth-link" onClick={() => { setFlow('login'); setMessage(null) }}>Voltar para o login</button></p> : null}
     <p className="auth-legal"><a href="/privacy-policy">Política de Privacidade</a><a href="/terms-of-service">Termos de Uso</a></p>
   </AuthCard>
 }
