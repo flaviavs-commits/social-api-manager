@@ -1207,3 +1207,109 @@ html[data-theme='light'] .analytics-profile-card {
   background: rgb(var(--surface-3-rgb) / 0.86);
 }
 
+/* These panels set `background: linear-gradient(..., #hex)` in the base
+ * stylesheet — a shorthand that bakes the color stop into the same
+ * property as the gradient itself. Earlier bridge rules only set
+ * `background-color`, which a later `background:` shorthand in the same
+ * cascade layer still overrides (color stop and all), so the gradient's
+ * dark endpoint kept winning. Re-declaring the full `background` shorthand
+ * here — plain color, no gradient — is what actually replaces it. Same
+ * symptom as the Criador de Posts bar: a dark panel floating in an
+ * otherwise light page (here: "Criar conteúdo" and "Inteligência de
+ * performance" on the Assistente IA page). */
+html[data-theme='light'] .ai-generator-panel,
+html[data-theme='light'] .ai-analytics-insights-panel,
+html[data-theme='light'] .drafts-editor-panel,
+html[data-theme='light'] .app-shell-modern .drafts-v2-editor-panel,
+html[data-theme='light'] .inbox-conversation-pane {
+  background: var(--surface);
+}
+
+html[data-theme='light'] .app-shell-modern .drafts-v2-media-empty {
+  background: var(--surface-2);
+}
+
+html[data-theme='light'] .inbox-item.is-active {
+  border-color: rgb(var(--accent-rgb) / 0.62);
+  background: var(--accent-glow);
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-theme='light'] .publish-now-card.is-active {
+  border-color: rgb(var(--accent-rgb) / 0.72);
+  background: var(--accent-glow);
+}
+
+html[data-theme='light'] .inbox-platform-filter-card.is-active {
+  border-color: var(--accent-bright);
+  background: var(--accent-glow);
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.12), var(--shadow-sm);
+}
+
+/* Same gradient-shorthand gap, second wave — these had a `color`- or
+ * `background-color`-only bridge rule elsewhere in this file that a later
+ * `background: linear-gradient(...)` in the base stylesheet still beat. */
+html[data-theme='light'] .analytics-executive-overview,
+html[data-theme='light'] .analytics-profiles-section,
+html[data-theme='light'] .media-ai-assistant,
+html[data-theme='light'] .media-ai-generator,
+html[data-theme='light'] .onboarding-card,
+html[data-theme='light'] .publish-now-card,
+html[data-theme='light'] .is-gold {
+  background: var(--surface);
+}
+
+html[data-theme='light'] .upload-picker,
+html[data-theme='light'] .upload-picker:hover,
+html[data-theme='light'] .upload-picker:focus-within {
+  background: var(--surface-2);
+}
+
+/* Third wave, found by instantiating every remaining candidate as a real
+ * DOM node and reading getComputedStyle() instead of trusting text
+ * analysis of the cascade — ~70% of the earlier text-based candidates
+ * turned out to already resolve correctly once loaded live; these 15 were
+ * the confirmed real ones (all `background:` shorthand, same pattern). */
+html[data-theme='light'] .sched-section,
+html[data-theme='light'] .media-preview-card,
+html[data-theme='light'] .comments-post-preview,
+html[data-theme='light'] .ai-niche-comparison-card,
+html[data-theme='light'] .platform-text-editor {
+  background: var(--surface);
+}
+
+html[data-theme='light'] .onboarding-step {
+  background: rgb(var(--surface-3-rgb) / 0.82);
+}
+
+html[data-theme='light'] .upload-field {
+  background: rgb(var(--surface-2-rgb) / 0.45);
+}
+
+html[data-theme='light'] .media-ai-generator-state,
+html[data-theme='light'] .ai-analytics-controls {
+  background: rgb(var(--app-bg-rgb) / 0.42);
+}
+
+html[data-theme='light'] .ai-analytics-empty {
+  background: rgb(var(--app-bg-rgb) / 0.3);
+}
+
+html[data-theme='light'] .analytics-executive-kpi,
+html[data-theme='light'] .analytics-executive-highlight,
+html[data-theme='light'] .analytics-executive-table-wrap,
+html[data-theme='light'] .ai-analytics-highlight-card,
+html[data-theme='light'] .ai-analytics-block {
+  background: rgb(var(--surface-3-rgb) / 0.72);
+}
+
+/* Dimming overlays behind modals/command palette/shortcut help — the
+ * bridge only had rules for stale class names (.overlay/.modal-backdrop/
+ * .command-palette-backdrop) nothing in JSX still uses; these are the
+ * real ones, mapped to the same --overlay token those dead rules intended. */
+html[data-theme='light'] .command-palette-overlay,
+html[data-theme='light'] .modal-overlay,
+html[data-theme='light'] .shortcut-help-overlay {
+  background-color: var(--overlay);
+}
+
