@@ -1,0 +1,1 @@
+import{j as s}from"./index-Ddy-W-1-.js";function i({number:e,title:c,children:n}){return s.jsxs("fieldset",{className:"sched-section",children:[s.jsxs("legend",{className:"sched-section-title",children:[s.jsx("span",{className:"sched-section-num",children:e})," ",c]}),n]})}export{i as S};

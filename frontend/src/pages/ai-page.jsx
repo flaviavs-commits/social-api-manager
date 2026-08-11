@@ -30,7 +30,7 @@ export function AiPage() {
     event.preventDefault(); setLoading(true); setError('')
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
-      setPosts((data.posts || []).map(post => ({ ...post, text: post.text || post.caption || '' })))
+      setPosts((data.posts || []).map(post => ({ ...post, text: post.texto || post.text || post.caption || '' })))
       setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }
