@@ -13,7 +13,7 @@ export function SecurityPage({ user }) {
   async function startSetup() {
     setBusy(true)
     setError('')
-    try { setSetup(await apiFetch('/api/me/2fa/setup')); setCode(''); notify('QR Code gerado. Confirme para ativar o 2FA.') }
+    try { setSetup(await apiFetch('/api/me/2fa/setup', { method: 'POST' })); setCode(''); notify('QR Code gerado. Confirme para ativar o 2FA.') }
     catch (caught) { setError(caught.message); notify(caught.message, 'error') }
     finally { setBusy(false) }
   }
