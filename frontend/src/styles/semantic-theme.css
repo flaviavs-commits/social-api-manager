@@ -1186,3 +1186,24 @@ html[data-theme='light'] .tiktok-description-field>span:first-child {
   color: var(--text-secondary);
 }
 
+/* Backgrounds set with a literal rgba(...) instead of hex — the earlier
+ * passes only scanned for #hex, so these three slipped through (the
+ * sticky "Agendar / Salvar como modelo" bar on the Criador de Posts page
+ * was the visible symptom: an opaque near-black bar over an otherwise
+ * light page). Same rationale as everywhere else: reuse the token's own
+ * -rgb channel so opacity/blur behavior is preserved. */
+html[data-theme='light'] .scheduler-submit-actions {
+  border-color: var(--border);
+  background: rgb(var(--surface-3-rgb) / 0.94);
+}
+
+html[data-theme='light'] .media-ai-result {
+  border-color: var(--border-hover);
+  background: rgb(var(--app-bg-rgb) / 0.7);
+}
+
+html[data-theme='light'] .analytics-profile-card {
+  border-color: var(--border);
+  background: rgb(var(--surface-3-rgb) / 0.86);
+}
+
