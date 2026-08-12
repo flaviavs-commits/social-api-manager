@@ -201,6 +201,11 @@ function facebookPageSelection(pendingId, pages, target) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Escolha a Página</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:520px;margin:auto;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 8px;font-size:22px}p{color:#aeb6c7;line-height:1.5;overflow-wrap:anywhere}form{display:grid;gap:10px;margin-top:20px}button{display:grid;gap:4px;padding:13px 15px;border:1px solid #3b4352;border-radius:10px;background:#202530;color:#f3f4f6;text-align:left;cursor:pointer}button:hover{border-color:#d1993e;background:#29251d}small{color:#aeb6c7}strong{font-size:14px}</style></head><body><main><h1>Escolha a Página do Facebook</h1>${targetHint}<p>Selecione qual Página você deseja conectar ao Meu Ecoo Mídia.</p><form method="post" action="/auth/meta/zernio-select"><input type="hidden" name="pendingId" value="${escapeHtml(pendingId)}">${options}</form></main></body></html>`
 }
 
+function facebookNoPages() {
+  const frontendUrl = `${process.env.FRONTEND_URL || ''}/app/integracoes`
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Crie uma Página do Facebook</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:560px;margin:auto;padding:28px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 10px;font-size:23px}p{color:#aeb6c7;line-height:1.55}a,button{display:inline-block;margin-top:12px;padding:11px 15px;border-radius:10px;border:1px solid #d1993e;background:#d1993e;color:#17130d;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}button{margin-left:8px;border-color:#4a5364;background:#252b36;color:#f3f4f6;font-weight:500}</style></head><body><main><h1>Nenhuma Página do Facebook encontrada</h1><p>Para publicar no Facebook, você precisa administrar pelo menos uma Página. Perfis pessoais não podem ser conectados para publicação.</p><p>Crie uma Página no Facebook e, depois, volte ao Meu Ecoo Mídia para iniciar a conexão novamente.</p><a href="https://www.facebook.com/pages/create/" target="_blank" rel="noopener noreferrer">Criar uma Página</a><button type="button" onclick="window.close()">Fechar janela</button><p><a href="${escapeHtml(frontendUrl)}" style="margin-top:18px;border:0;background:transparent;color:#e2b65c;padding:0;font-weight:500">Voltar às integrações</a></p></main></body></html>`
+}
+
 // Verifica se uma credencial obrigatória foi preenchida no .env.
 // Retorna o erro (formato esperado pelo front-end) ou null se estiver tudo ok.
 function checkEnv(vars, platform) {
@@ -390,7 +395,10 @@ router.get('/meta/zernio-return', async (req, res) => {
         tempToken,
         connectToken || alternateConnectToken
       )
-      if (!pages.length) throw new Error('Nenhuma Página do Facebook disponível para este usuário')
+      if (!pages.length) {
+        await pool.query('DELETE FROM zernio_oauth_pending WHERE id = $1', [pendingId])
+        return res.send(facebookNoPages())
+      }
       return res.send(facebookPageSelection(pendingId, pages, meta.accountName))
     } catch (err) {
       addLog('err', `Falha ao listar Páginas do Facebook: ${err.message}`, platform, null, meta.userId)
