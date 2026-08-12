@@ -347,7 +347,10 @@ async function generateImageResilient({ descricao, userId, preferredModel = 'aut
 // nativo do seu SDK. O navegador envia um frame comprimido para vídeo; quando
 // ele não está disponível, o modelo ainda consegue gerar uma sugestão usando o
 // contexto textual informado.
-async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo }) {
+async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, mediaItems = [], userKey, isVideo }) {
+  const imagens = (mediaItems.length ? mediaItems : [{ mediaBase64, mimeType }])
+    .filter(item => item?.mediaBase64)
+    .map(item => ({ data: item.mediaBase64, mimeType: item.mimeType || mimeType || 'image/jpeg' }))
   if (isVideo && !mediaBase64) {
     const promptVideo = `${prompt}\n\n(Nota: o usuário enviou um vídeo. Crie sugestões com base no contexto disponível.)`
     if (OPENAI_MODEL_IDS[modelo])          return generateWithOpenAI(promptVideo, userKey, modelo)
@@ -358,7 +361,9 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
 
   const promptForModel = isVideo
     ? `${prompt}\n\n(Nota: esta é uma sugestão para um vídeo. A imagem recebida é um frame representativo; considere também a linguagem audiovisual, o ritmo e uma chamada para assistir até o final.)`
-    : prompt
+    : imagens.length > 1
+      ? `${prompt}\n\n(Nota: estas imagens formam um carrossel na ordem enviada. Analise o conjunto, a progressão visual, a coerência entre as fotos e a primeira imagem como capa. A legenda deve conversar com o conjunto, não apenas com uma foto.)`
+      : prompt
 
   if (OPENAI_MODEL_IDS[modelo]) {
     const key = userKey || process.env.OPENAI_API_KEY
@@ -372,7 +377,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
         role: 'user',
         content: [
           { type: 'text', text: promptForModel },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
+          ...imagens.map(image => ({ type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } })),
         ],
       }],
     })
@@ -391,7 +396,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
         role: 'user',
         content: [
           { type: 'text', text: promptForModel },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${mediaBase64}` } },
+          ...imagens.map(image => ({ type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } })),
         ],
       }],
     })
@@ -409,7 +414,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: mediaBase64 } },
+          ...imagens.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.data } })),
           { type: 'text', text: promptForModel },
         ],
       }],
@@ -433,7 +438,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, u
   const result = await client.models.generateContent({
     model: geminiModel,
     contents: [
-      { inlineData: { mimeType, data: mediaBase64 } },
+      ...imagens.map(image => ({ inlineData: { mimeType: image.mimeType, data: image.data } })),
       { text: promptForModel },
     ],
   })
@@ -772,7 +777,7 @@ router.get('/demo-status', async (req, res) => {
 // POST /api/ai/generate
 router.post('/generate', async (req, res) => {
   try {
-    const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo = 'gemini' } = req.body
+    const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo = 'openrouter' } = req.body
     const plataformas = normalizarPlataformasSelecionadas(plataformasRaw)
 
     if (!instrucao || !instrucao.trim()) return res.status(400).json({ erro: 'Instrução é obrigatória' })
@@ -1445,9 +1450,15 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, mediaKind, plataformas: plataformasRaw, contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, mediaItems: mediaItemsRaw, carousel = false, plataformas: plataformasRaw, contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
+    const mediaItems = Array.isArray(mediaItemsRaw) ? mediaItemsRaw.slice(0, 35) : []
+    const primeiroItem = mediaItems[0] || {}
+    const mediaBase64Resolvido = mediaBase64 || primeiroItem.mediaBase64
+    const mimeTypeResolvido = mimeType || primeiroItem.mimeType
+    const mediaKindResolvido = mediaKind || primeiroItem.mediaKind
     const plataformas = normalizarPlataformasSelecionadas(plataformasRaw)
-    if (!mimeType) return res.status(400).json({ erro: 'mimeType é obrigatório' })
+    if (!mimeTypeResolvido) return res.status(400).json({ erro: 'mimeType é obrigatório' })
+    if (mediaItems.some(item => !item?.mediaBase64 || !item?.mimeType)) return res.status(400).json({ erro: 'Todas as imagens do carrossel precisam ser válidas.' })
     const erroPlataformas = validarPlataformasSelecionadas(plataformasRaw, plataformas)
     if (erroPlataformas) return res.status(400).json({ erro: erroPlataformas })
     if (modelo === 'local') return res.status(422).json({ erro: 'O Assistente Rápido não analisa imagens. O agendador usa o OpenRouter para interpretar a mídia.' })
@@ -1459,7 +1470,7 @@ router.post('/analyze-media', async (req, res) => {
     const melhoriaHint = melhorar && contexto?.trim()
       ? '\n\nO usuário não aprovou a descrição anterior. Reescreva-a de forma claramente melhor: mais natural, específica, envolvente e adequada à mídia, sem apenas trocar algumas palavras.'
       : ''
-    const prompt = `Você é um especialista em marketing digital e social media. Analise a mídia e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
+    const prompt = `Você é um especialista em marketing digital e social media. Analise a mídia${carousel || mediaItems.length > 1 ? ' e todas as imagens do carrossel na ordem enviada' : ''} e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
 
 Não responda com uma descrição técnica da imagem. Escreva o texto de publicação pronto para o público, relacionado ao que aparece na mídia e ao contexto informado. Se já existir texto no campo do post, melhore e complete esse texto em vez de ignorá-lo.${melhoriaHint}
 
@@ -1474,6 +1485,8 @@ Para cada plataforma, forneça:
 - Hashtags com potencial de descoberta neste momento, usando somente tendências que você realmente conheça; não invente volumes, rankings ou dados de popularidade
 - Hashtags de nicho, mais precisas e menos genéricas
 - Um título (só para YouTube)
+
+${carousel || mediaItems.length > 1 ? '- Para o carrossel, avalie a força da primeira imagem como capa, a sequência visual e a coerência de formato. Inclua em "analise_carrossel.recomendacoes" de 2 a 4 recomendações práticas para melhorar o resultado.' : ''}
 
 Adapte de verdade o texto e a seleção de hashtags para cada plataforma. Não copie a mesma legenda entre redes. Para vídeo, crie uma chamada que combine com o conteúdo audiovisual. Evite hashtags banidas, genéricas demais ou que não tenham relação com a mídia.
 
@@ -1490,12 +1503,13 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
       "observacaoTendencias": "Explique em uma frase que as hashtags são sugestões e devem ser conferidas antes da publicação.",
       "titulo": ""
     }
-  ]
+  ],
+  "analise_carrossel": { "recomendacoes": ["..."], "capa_indice": 0 }
 }`
 
-    const isVideo = mediaKind === 'video' || !mediaBase64
+    const isVideo = mediaKindResolvido === 'video' || !mediaBase64Resolvido
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
-    const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, userKey, isVideo })
+    const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64: mediaBase64Resolvido, mimeType: mimeTypeResolvido, mediaItems, userKey, isVideo })
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
 
@@ -1510,13 +1524,17 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
     }
     registrarAtividadeIA({
       userId: req.user.id, acao: 'analyze-media', status: 'sucesso', modelo,
-      detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : 'imagem'} · plataformas: ${plataformas.join(',')}`,
+      detalhes: `${sugestoes.length} sugestão(ões) · ${isVideo ? 'vídeo' : mediaItems.length > 1 ? `carrossel com ${mediaItems.length} imagens` : 'imagem'} · plataformas: ${plataformas.join(',')}`,
     })
     res.json({
       descricao_midia: parsed.descricao_midia || '',
       sugestoes,
       plataformas,
       modelo,
+      analise_carrossel: mediaItems.length > 1 ? {
+        ...(parsed.analise_carrossel || {}),
+        recomendacoes: Array.isArray(parsed.analise_carrossel?.recomendacoes) ? parsed.analise_carrossel.recomendacoes.slice(0, 4) : [],
+      } : null,
     })
   } catch (err) {
     const msg = err.message || ''
@@ -1754,9 +1772,16 @@ router.post('/schedule', async (req, res) => {
 
     for (const p of posts) {
       const querPublicarAgora = p.publishNow === true || req.body.publishNow === true
-      const temMidia = !!p.mediaPath
-      if (temMidia && !isBlobUrl(p.mediaPath)) {
+      const mediaItems = Array.isArray(p.mediaItems)
+        ? p.mediaItems.filter(item => item && item.path)
+        : []
+      const mediaPath = p.mediaPath || mediaItems[0]?.path || null
+      const temMidia = !!mediaPath || mediaItems.length > 0
+      if (temMidia && mediaPath && !isBlobUrl(mediaPath)) {
         return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload oficial do aplicativo.' })
+      }
+      if (mediaItems.some(item => !isBlobUrl(item.path))) {
+        return res.status(400).json({ erro: 'Todas as imagens do carrossel precisam ser enviadas pelo upload oficial do aplicativo.' })
       }
       const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
       const publishNow = querPublicarAgora && (temMidia || !exigeMidia)
@@ -1782,9 +1807,9 @@ router.post('/schedule', async (req, res) => {
         platforms:         p.plataformas,
         scheduledAt:       publishNow ? new Date() : new Date(p.horario),
         repeat:            'none',
-        mediaPath:         p.mediaPath || null,
+        mediaPath,
         mediaType:         p.mediaType || null,
-        mediaItems:        null,
+        mediaItems:        mediaItems.length > 1 ? mediaItems : null,
         youtubeTitle:      p.titulo || null,
         youtubeVisibility: 'public',
         youtubeIsShort:    null,
@@ -1802,7 +1827,7 @@ router.post('/schedule', async (req, res) => {
         continue
       }
 
-      const results = await publishPost({ ...post, mediaPath: p.mediaPath || null, mediaType: p.mediaType || null, mediaItems: null, accounts: postAccounts, userId: req.user.id, userRole: req.user.role })
+      const results = await publishPost({ ...post, mediaPath, mediaType: p.mediaType || null, mediaItems: mediaItems.length > 1 ? mediaItems : null, accounts: postAccounts, userId: req.user.id, userRole: req.user.role })
       // Instagram devolve "pending" (container ainda processando) — o cron
       // finaliza depois; não é sucesso nem erro ainda nesse momento.
       const status = results.some(r => r.success === 'pending') ? 'processing'

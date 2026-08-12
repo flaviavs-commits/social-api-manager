@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
-import { AiModelPicker } from '../components/ai/ai-model-picker.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 import '../styles/ai-page-publish.css'
 
@@ -17,18 +16,20 @@ const PUBLISH_PLATFORMS = [
 
 export function AiPage() {
   const [instruction, setInstruction] = useState('')
+  const [visualFormat, setVisualFormat] = useState('single')
+  const [carouselCount, setCarouselCount] = useState(5)
   const [posts, setPosts] = useState([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [activityLogs, setActivityLogs] = useState([])
-  const [modelo, setModelo] = useState('local')
   const [analyticsInsights, setAnalyticsInsights] = useState(null)
   const [analyticsDays, setAnalyticsDays] = useState(30)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsError, setAnalyticsError] = useState('')
   const [imageLoadingIndex, setImageLoadingIndex] = useState(null)
+  const [imageLoadingProgress, setImageLoadingProgress] = useState(null)
   const [publishingIndex, setPublishingIndex] = useState(null)
   const [connectedAccounts, setConnectedAccounts] = useState([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
@@ -53,8 +54,9 @@ export function AiPage() {
   async function generate(event) {
     event.preventDefault(); setLoading(true); setError('')
     try {
-      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
-      setPosts((data.posts || []).map(post => normalizePost(post)))
+      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
+      const requestedFormat = requestedVisualFormat()
+      setPosts((data.posts || []).map(post => normalizePost(post, requestedFormat)))
       setEditingIndex(null)
     } catch (e) { setError(e.message) } finally { setLoading(false) }
   }
@@ -66,14 +68,31 @@ export function AiPage() {
   async function generateMore() {
     setLoadingMore(true); setError('')
     try {
-      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional', modelo }) })
-      const novos = (data.posts || []).map(post => normalizePost(post))
+      const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
+      const novos = (data.posts || []).map(post => normalizePost(post, requestedVisualFormat()))
       setPosts(current => [...current, ...novos])
     } catch (e) { setError(e.message) } finally { setLoadingMore(false) }
   }
 
-  function normalizePost(post) {
-    return { ...post, text: post.texto || post.text || post.caption || '', imageUrl: null, mediaPath: null, imageError: '', publishStatus: '', publishPlatform: null }
+  function requestedVisualFormat() {
+    const instructionRequestsCarousel = /\b(carrossel|carousel|slides?|sequência de imagens)\b/i.test(instruction)
+    return visualFormat === 'carousel' || instructionRequestsCarousel ? 'carousel' : 'single'
+  }
+
+  function normalizePost(post, format = visualFormat) {
+    return {
+      ...post,
+      text: post.texto || post.text || post.caption || '',
+      visualFormat: format,
+      carouselCount: format === 'carousel' ? carouselCount : 5,
+      imageUrl: null,
+      carouselImages: [],
+      mediaPath: null,
+      mediaItems: null,
+      imageError: '',
+      publishStatus: '',
+      publishPlatform: null,
+    }
   }
 
   function updatePost(index, patch) {
@@ -84,49 +103,87 @@ export function AiPage() {
     return `Crie uma imagem original, profissional e visualmente atraente para acompanhar esta publicação. Escolha a composição mais adequada ao tema e ao ângulo do conteúdo, em formato quadrado ou vertical para feed. Não inclua textos, letras, logotipos, marcas d'água ou interfaces na imagem. A referência abaixo serve apenas para entender a ideia: não copie a legenda nem transforme a instrução em texto dentro da arte.\n\nLegenda da publicação:\n${post.text}\n\nÂngulo da publicação:\n${post.angulo || 'conteúdo educativo e relevante'}`
   }
 
-  async function requestImage(post) {
+  function carouselSlideDescription(post, slideIndex, total) {
+    const slideRole = slideIndex === 0
+      ? 'capa visual, com uma composição forte e simples'
+      : slideIndex === total - 1
+        ? 'encerramento visual, transmitindo conclusão e convite à ação sem escrever texto'
+        : `desenvolvimento visual do ponto ${slideIndex} da sequência`
+    return `Crie o slide ${slideIndex + 1} de ${total} de um carrossel profissional para Instagram, em formato vertical 4:5. Todos os slides precisam parecer parte da mesma série: mantenha a mesma paleta de cores, iluminação, estilo fotográfico ou ilustrado e elementos visuais coerentes. Este slide deve ser uma ${slideRole}. Não inclua textos, letras, logotipos, marcas d'água ou interfaces na imagem. A referência abaixo serve apenas para entender a ideia: não copie a legenda nem transforme a instrução em texto dentro da arte.
+
+Legenda da publicação:
+${post.text}
+
+Ângulo da publicação:
+${post.angulo || 'conteúdo educativo e relevante'}`
+  }
+
+  async function requestImage(post, description = imageDescription(post)) {
     const data = await apiFetch('/api/ai/image/generate', {
       method: 'POST',
       timeoutMs: 60_000,
-      body: JSON.stringify({ modelo: 'auto', descricao: imageDescription(post) }),
+      body: JSON.stringify({ modelo: 'auto', descricao: description }),
     })
     if (!data?.image) throw new Error('O gerador não retornou uma imagem válida.')
     return { imageUrl: data.image, imageModel: data.modelo || 'auto' }
   }
 
+  async function requestCarousel(post, total, onProgress) {
+    let completed = 0
+    const images = await Promise.all(Array.from({ length: total }, (_, index) => requestImage(post, carouselSlideDescription(post, index, total)).then(result => {
+      completed += 1
+      onProgress?.(completed)
+      return result
+    })))
+    return {
+      carouselImages: images.map(item => item.imageUrl),
+      imageModel: images[0]?.imageModel || 'auto',
+    }
+  }
+
   async function generateImage(index) {
     const post = posts[index]
     if (!post) return
+    const isCarousel = post.visualFormat === 'carousel'
+    const total = isCarousel ? Math.min(Math.max(Number(post.carouselCount) || 5, 3), 8) : 1
     setImageLoadingIndex(index)
+    setImageLoadingProgress(isCarousel ? { current: 0, total } : null)
     updatePost(index, { imageError: '', publishStatus: '' })
     try {
-      const generated = await requestImage(post)
-      updatePost(index, { ...generated, mediaPath: null, imageError: '' })
-      notify('Imagem gerada para a ideia selecionada.')
+      const generated = isCarousel
+        ? await requestCarousel(post, total, current => setImageLoadingProgress({ current, total }))
+        : await requestImage(post)
+      updatePost(index, { ...generated, imageUrl: isCarousel ? null : generated.imageUrl, mediaPath: null, mediaItems: null, imageError: '' })
+      notify(isCarousel ? `Carrossel com ${total} imagens gerado para a ideia selecionada.` : 'Imagem gerada para a ideia selecionada.')
     } catch (error) {
       updatePost(index, { imageError: error.message || 'Não foi possível gerar a imagem.' })
     } finally {
       setImageLoadingIndex(null)
+      setImageLoadingProgress(null)
     }
   }
 
-  async function uploadGeneratedImage(post) {
-    if (post.mediaPath) return post.mediaPath
-    if (!post.imageUrl) throw new Error('Gere uma imagem antes de publicar.')
-    const imageBlob = await fetch(post.imageUrl).then(response => {
-      if (!response.ok) throw new Error('Não foi possível preparar a imagem gerada.')
-      return response.blob()
-    })
-    const mimeType = imageBlob.type || 'image/png'
-    const signed = await apiFetch('/api/posts/upload-url', {
-      method: 'POST',
-      body: JSON.stringify({ filename: `ia-${Date.now()}.png`, mimetype: mimeType }),
-    })
-    const uploadResponse = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob })
-    if (!uploadResponse.ok) throw new Error('Não foi possível enviar a imagem para publicação.')
-    const uploaded = await uploadResponse.json().catch(() => null)
-    if (!uploaded?.url) throw new Error('O upload da imagem não retornou uma URL válida.')
-    return uploaded.url
+  async function uploadGeneratedMedia(post) {
+    const sourceImages = post.carouselImages?.length ? post.carouselImages : (post.imageUrl ? [post.imageUrl] : [])
+    if (!sourceImages.length) throw new Error('Gere uma imagem antes de publicar.')
+    if (post.mediaItems?.length) return { mediaPath: post.mediaPath || post.mediaItems[0].path, mediaItems: post.mediaItems }
+    const uploadedItems = await Promise.all(sourceImages.map(async (source, index) => {
+      const imageBlob = await fetch(source).then(response => {
+        if (!response.ok) throw new Error('Não foi possível preparar uma imagem gerada.')
+        return response.blob()
+      })
+      const mimeType = imageBlob.type || 'image/png'
+      const signed = await apiFetch('/api/posts/upload-url', {
+        method: 'POST',
+        body: JSON.stringify({ filename: `ia-${Date.now()}-${index + 1}.png`, mimetype: mimeType }),
+      })
+      const uploadResponse = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob })
+      if (!uploadResponse.ok) throw new Error('Não foi possível enviar uma imagem para publicação.')
+      const uploaded = await uploadResponse.json().catch(() => null)
+      if (!uploaded?.url) throw new Error('O upload de uma imagem não retornou uma URL válida.')
+      return { path: uploaded.url, type: 'image' }
+    }))
+    return { mediaPath: uploadedItems[0].path, mediaItems: uploadedItems.length > 1 ? uploadedItems : null }
   }
 
   function accountsForPlatform(platform) {
@@ -137,9 +194,10 @@ export function AiPage() {
     return account.handle || account.name || account.accountName || `Conta ${account.id}`
   }
 
-  function isPublishPlatformAvailable(platform) {
+  function isPublishPlatformAvailable(platform, targetPost = null) {
     const option = PUBLISH_PLATFORMS.find(item => item.id === platform)
     if (!option || option.videoOnly) return false
+    if (targetPost?.visualFormat === 'carousel' && platform !== 'instagram') return false
     if (!accountsLoaded || accountsLoadError) return true
     return accountsForPlatform(platform).length > 0
   }
@@ -148,8 +206,8 @@ export function AiPage() {
     const post = posts[index]
     if (!post) return
     const currentPlatform = post.publishPlatform || post.plataformas?.[0]
-    const firstAvailable = PUBLISH_PLATFORMS.find(option => isPublishPlatformAvailable(option.id))
-    setPublishPlatform(isPublishPlatformAvailable(currentPlatform) ? currentPlatform : firstAvailable?.id || 'instagram')
+    const firstAvailable = PUBLISH_PLATFORMS.find(option => isPublishPlatformAvailable(option.id, post))
+    setPublishPlatform(isPublishPlatformAvailable(currentPlatform, post) ? currentPlatform : firstAvailable?.id || 'instagram')
     setPublishModalIndex(index)
   }
 
@@ -158,7 +216,7 @@ export function AiPage() {
   }
 
   function confirmPublishPlatform() {
-    if (publishModalIndex === null || !isPublishPlatformAvailable(publishPlatform)) return
+    if (publishModalIndex === null || !isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])) return
     const index = publishModalIndex
     setPublishModalIndex(null)
     publishWithGeneratedImage(index, publishPlatform)
@@ -173,26 +231,33 @@ export function AiPage() {
       const platform = selectedPlatform || post.publishPlatform || post.plataformas?.[0] || 'instagram'
       const platforms = [platform]
       if (platforms.includes('youtube')) throw new Error('O YouTube exige vídeo. Escolha uma ideia para Instagram, Facebook ou TikTok.')
+      const isCarousel = post.visualFormat === 'carousel' && platform === 'instagram'
+      if (post.visualFormat === 'carousel' && platform !== 'instagram') throw new Error('O carrossel pode ser publicado somente no Instagram.')
       updatePost(index, { publishPlatform: platform, plataformas: platforms })
       let postWithImage = post
-      if (!postWithImage.imageUrl) {
-        const generated = await requestImage(postWithImage)
-        postWithImage = { ...postWithImage, ...generated }
-        updatePost(index, { ...generated })
+      const hasGeneratedMedia = isCarousel ? postWithImage.carouselImages?.length > 1 : !!postWithImage.imageUrl
+      if (!hasGeneratedMedia) {
+        const generated = isCarousel
+          ? await requestCarousel(postWithImage, Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8), current => setImageLoadingProgress({ current, total: Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8) }))
+          : await requestImage(postWithImage)
+        postWithImage = { ...postWithImage, ...generated, imageUrl: isCarousel ? null : generated.imageUrl }
+        updatePost(index, { ...generated, imageUrl: isCarousel ? null : generated.imageUrl })
       }
-      const mediaPath = await uploadGeneratedImage(postWithImage)
-      updatePost(index, { mediaPath, imageUrl: postWithImage.imageUrl, imageModel: postWithImage.imageModel })
+      const uploadedMedia = await uploadGeneratedMedia(postWithImage)
+      updatePost(index, { ...uploadedMedia, imageUrl: postWithImage.imageUrl, carouselImages: postWithImage.carouselImages || [], imageModel: postWithImage.imageModel })
       const data = await apiFetch('/api/ai/schedule', {
         method: 'POST',
         timeoutMs: 60_000,
         body: JSON.stringify({
           publishNow: true,
-          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas, horario: new Date().toISOString(), mediaPath, mediaType: 'image' }],
+          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image' }],
         }),
       })
       const status = data.posts?.[0]?.status || 'processing'
       updatePost(index, { publishStatus: status })
-      notify(status === 'published' ? 'Post publicado com a imagem gerada.' : 'Post enviado para publicação. A rede ainda está processando a mídia.')
+      notify(status === 'published'
+        ? (isCarousel ? 'Carrossel publicado no Instagram.' : 'Post publicado com a imagem gerada.')
+        : 'Post enviado para publicação. A rede ainda está processando a mídia.')
     } catch (error) {
       updatePost(index, { imageError: error.message || 'Não foi possível publicar esta ideia.' })
     } finally {
@@ -226,13 +291,21 @@ export function AiPage() {
       <SchedSection number={1} title="Instrução">
         <textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Inclua tema, público, objetivo, tom de voz ou rede social.</span>
       </SchedSection>
-      <AiModelPicker value={modelo} onChange={setModelo} />
+      <fieldset className="ai-visual-format-picker">
+        <legend>Formato visual opcional</legend>
+        <div className="ai-visual-format-options">
+          <label className={visualFormat === 'single' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} /><span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span></label>
+          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel do Instagram</strong><small>Uma sequência visual coerente para navegar.</small></span></label>
+        </div>
+        {visualFormat === 'carousel' && <label className="ai-carousel-count">Quantidade de slides<select value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>{[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}</select></label>}
+        <p>O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
+      </fieldset>
       <button className="action-button ai-generate-button" disabled={loading || loadingMore}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
     </form>
     {error && <p className="error-message" role="alert">{error}</p>}
   </section>
   {posts.length > 0 && <section className="panel ai-suggestions-panel">
-    <div className="ai-panel-heading"><div><p className="eyebrow">RESULTADOS</p><h2>Sugestões para você</h2><p>Revise o texto, gere uma imagem quando fizer sentido e publique a ideia escolhida.</p></div><span className="ai-result-count">{posts.length} ideias</span></div>
+    <div className="ai-panel-heading"><div><p className="eyebrow">RESULTADOS</p><h2>Sugestões para você</h2><p>Revise o texto, gere uma imagem única ou um carrossel e publique a ideia escolhida.</p></div><span className="ai-result-count">{posts.length} ideias</span></div>
     <div className="ai-suggestion-list">{posts.map((post, index) => <article className="ai-suggestion-card" key={post.id || index}><span className="ai-suggestion-number">{String(index + 1).padStart(2, '0')}</span><div className="ai-suggestion-body">
       {editingIndex === index
         ? <textarea className="ai-suggestion-editor" value={post.text} onChange={event => setPosts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} aria-label={`Editar sugestão ${index + 1}`} />
@@ -240,11 +313,13 @@ export function AiPage() {
       <div className="ai-suggestion-actions" aria-label={`Ações da sugestão ${index + 1}`}>
         <div className="ai-suggestion-secondary-actions">
           <button type="button" className="ai-suggestion-action-button ai-edit-button" onClick={() => setEditingIndex(editingIndex === index ? null : index)}><span className="ai-suggestion-action-icon" aria-hidden="true">✎</span><span>{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</span></button>
-          <button type="button" className="ai-suggestion-action-button ai-image-button" onClick={() => generateImage(index)} disabled={imageLoadingIndex !== null || publishingIndex !== null}><span className="ai-suggestion-action-icon" aria-hidden="true">✦</span><span>{imageLoadingIndex === index ? 'Gerando imagem...' : post.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem'}</span></button>
+          <button type="button" className="ai-suggestion-action-button ai-image-button" onClick={() => generateImage(index)} disabled={imageLoadingIndex !== null || publishingIndex !== null}><span className="ai-suggestion-action-icon" aria-hidden="true">✦</span><span>{imageLoadingIndex === index ? (post.visualFormat === 'carousel' ? `Gerando carrossel ${imageLoadingProgress?.current || 0}/${imageLoadingProgress?.total || post.carouselCount}...` : 'Gerando imagem...') : post.visualFormat === 'carousel' ? (post.carouselImages?.length ? 'Gerar outro carrossel' : 'Gerar carrossel') : post.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem'}</span></button>
         </div>
-        <button type="button" className="ai-suggestion-action-button ai-publish-image-button ai-suggestion-primary-action" onClick={() => openPublishPlatformModal(index)} disabled={publishingIndex !== null || imageLoadingIndex !== null || post.publishStatus === 'published'}><span className="ai-suggestion-action-icon" aria-hidden="true">↗</span><span>{publishingIndex === index ? (post.imageUrl ? 'Publicando...' : 'Gerando e publicando...') : post.publishStatus === 'published' ? 'Publicado' : post.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</span></button>
+        <button type="button" className="ai-suggestion-action-button ai-publish-image-button ai-suggestion-primary-action" onClick={() => openPublishPlatformModal(index)} disabled={publishingIndex !== null || imageLoadingIndex !== null || post.publishStatus === 'published'}><span className="ai-suggestion-action-icon" aria-hidden="true">↗</span><span>{publishingIndex === index ? (post.visualFormat === 'carousel' ? 'Gerando e publicando carrossel...' : post.imageUrl ? 'Publicando...' : 'Gerando e publicando...') : post.publishStatus === 'published' ? 'Publicado' : post.visualFormat === 'carousel' ? (post.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : post.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</span></button>
       </div>
-      {post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pela IA.'}</small></div>}
+      {post.carouselImages?.length > 0
+        ? <div className="ai-generated-media ai-generated-carousel"><div className="ai-carousel-grid">{post.carouselImages.map((image, imageIndex) => <img key={`${image}-${imageIndex}`} src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} />)}</div><small>Carrossel com {post.carouselImages.length} slides{post.imageModel ? ` · criado com ${post.imageModel}.` : ' · gerado pela IA.'}</small></div>
+        : post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pela IA.'}</small></div>}
       {post.imageError && <p className="ai-image-error" role="alert">{post.imageError}</p>}
       {post.publishStatus && post.publishStatus !== 'published' && <p className="ai-publish-status">Status da publicação: {post.publishStatus === 'processing' ? 'processando pela rede' : post.publishStatus}.</p>}
     </div></article>)}</div>
@@ -257,7 +332,8 @@ export function AiPage() {
       <div className="platform-options ai-publish-platform-options" role="radiogroup" aria-label="Rede social para publicação">
         {PUBLISH_PLATFORMS.map(option => {
           const accounts = accountsForPlatform(option.id)
-          const unavailable = !isPublishPlatformAvailable(option.id)
+          const targetPost = posts[publishModalIndex]
+          const unavailable = !isPublishPlatformAvailable(option.id, targetPost)
           const accountText = accounts.length
             ? accounts.slice(0, 2).map(accountLabel).join(', ')
             : accountsLoaded && !accountsLoadError ? 'Nenhuma conta conectada' : 'Verificando contas conectadas...'
@@ -267,7 +343,8 @@ export function AiPage() {
           </label>
         })}
       </div>
-      <div className="ai-publish-platform-actions"><button type="button" className="secondary-button" onClick={closePublishPlatformModal}>Cancelar</button><button type="button" className="action-button" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform)}>{posts[publishModalIndex]?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</button></div>
+      {posts[publishModalIndex]?.visualFormat === 'carousel' && <p className="ai-carousel-publish-note">Carrosséis são publicados como uma única publicação no Instagram, mantendo a ordem dos slides.</p>}
+      <div className="ai-publish-platform-actions"><button type="button" className="secondary-button" onClick={closePublishPlatformModal}>Cancelar</button><button type="button" className="action-button" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])}>{posts[publishModalIndex]?.visualFormat === 'carousel' ? (posts[publishModalIndex]?.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : posts[publishModalIndex]?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</button></div>
     </section>
   </div>}
   <section className="panel ai-analytics-insights-panel">
