@@ -101,6 +101,7 @@ app.use(express.json({ limit: '1mb' }))
 app.use((req, res, next) => {
   const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
   const protectedPath = ['/api/', '/auth/', '/oauth/'].some(prefix => req.path.startsWith(prefix))
+  const facebookPageSelectionPath = ['/auth/meta/zernio-select', '/oauth/meta/zernio-select'].includes(req.path)
   const origin = req.headers.origin
   // A seleção de Página do Facebook é um formulário POST renderizado pelo
   // próprio callback OAuth. Quando a aplicação está em um domínio Railway,
@@ -110,7 +111,10 @@ app.use((req, res, next) => {
   // POSTs vindos de sites terceiros.
   const requestOrigin = `${req.protocol}://${req.get('host')}`
   const sameOrigin = origin === requestOrigin
-  if (mutating && protectedPath && origin && !config.allowedOrigins.includes(origin) && !sameOrigin) {
+  // Esta etapa recebe um formulário navegado após o redirect do provedor.
+  // O vínculo é protegido pelo pendingId aleatório, válido por 15 minutos,
+  // e pelo próprio token temporário do Zernio; não depende de sessão/cookie.
+  if (mutating && protectedPath && !facebookPageSelectionPath && origin && !config.allowedOrigins.includes(origin) && !sameOrigin) {
     return res.status(403).json({ erro: 'Origem não autorizada' })
   }
   next()

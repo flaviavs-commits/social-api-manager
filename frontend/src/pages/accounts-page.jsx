@@ -6,7 +6,7 @@ import { useToast } from '../components/ui/toast.jsx'
 import { LoadingState } from '../components/ui/loading-state.jsx'
 
 const providers = [
-  { platform: 'facebook', provider: 'meta', label: 'Facebook', description: 'Páginas e perfis comerciais' },
+  { platform: 'facebook', provider: 'meta', label: 'Facebook', description: 'Páginas do Facebook' },
   { platform: 'instagram', provider: 'instagram', label: 'Instagram', description: 'Contas profissionais' },
   { platform: 'youtube', provider: 'google', label: 'YouTube', description: 'Canais de vídeo' },
   { platform: 'tiktok', provider: 'tiktok', label: 'TikTok', description: 'Contas de criador' },
@@ -29,6 +29,16 @@ function tokenExpiryText(account) {
   return Number.isNaN(date.getTime()) ? '' : `até ${date.toLocaleDateString('pt-BR')}`
 }
 
+function accountProfileUrl(account) {
+  const value = account.profileUrl || account.profile_url || account.handle || ''
+  try {
+    const url = new URL(value)
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : ''
+  } catch {
+    return ''
+  }
+}
+
 export function AccountsPage({ onNavigate }) {
   const load = useCallback(() => apiFetch('/api/accounts').then(data => data.data || []), [])
   const { value: accounts, loading, error, setError, reload } = useApiResource(load, [])
@@ -43,7 +53,8 @@ export function AccountsPage({ onNavigate }) {
   const accountInputRef = useRef(null)
   const notify = useToast()
   const accountsByPlatform = platformName => accounts.filter(account => account.platform === platformName)
-  const visibleAccounts = accounts.filter(account => {
+  const selectedAccounts = accountsByPlatform(platform)
+  const visibleAccounts = selectedAccounts.filter(account => {
     const query = accountSearch.trim().toLowerCase()
     const label = `${account.name || ''} ${account.handle || ''} ${account.platform || ''}`.toLowerCase()
     const tokenStatus = accountTokenStatus(account)
@@ -68,10 +79,6 @@ export function AccountsPage({ onNavigate }) {
 
   async function connect() {
     const name = accountName.trim()
-    if (!name) {
-      setError('Informe o nome ou link da conta antes de conectar.')
-      return
-    }
 
     const selected = providers.find(item => item.platform === platform)
     const popup = window.open('', `oauth_${Date.now()}`, 'width=640,height=720')
@@ -140,14 +147,14 @@ export function AccountsPage({ onNavigate }) {
         <select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Plataforma" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100">
           {providers.map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
         </select>
-        <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Nome de usuário ou link do perfil" aria-label="Nome ou link da conta" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
+        <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Cole o link da Página (opcional)" aria-label="Link da Página (opcional)" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
         <button type="button" onClick={connect} disabled={connecting} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{connecting ? 'Abrindo…' : 'Conectar'}</button>
       </div>
-      <p className="mt-2 text-xs text-zinc-500">Você será levado à página oficial de autorização da plataforma.</p>
+      <p className="mt-2 text-xs text-zinc-500">No Facebook, conecte somente uma Página que você administra. Depois da autorização, escolha a Página correspondente.</p>
     </div>
-    <div className="accounts-list-heading"><div><p className="eyebrow">CONTAS AUTORIZADAS</p><h3>{accounts.length} {accounts.length === 1 ? 'conta conectada' : 'contas conectadas'}</h3></div><span>{visibleAccounts.length} exibida{visibleAccounts.length === 1 ? '' : 's'}</span></div>
+    <div className="accounts-list-heading"><div><p className="eyebrow">CONTAS AUTORIZADAS · {providers.find(item => item.platform === platform)?.label}</p><h3>{selectedAccounts.length} {selectedAccounts.length === 1 ? 'conta conectada' : 'contas conectadas'}</h3></div><span>{visibleAccounts.length} exibida{visibleAccounts.length === 1 ? '' : 's'}</span></div>
     <div className="accounts-filter-toolbar"><input value={accountSearch} onChange={event => setAccountSearch(event.target.value)} placeholder="Buscar por nome ou rede..." aria-label="Buscar conta"/><select value={accountStatusFilter} onChange={event => setAccountStatusFilter(event.target.value)} aria-label="Filtrar status das contas"><option value="all">Todos os status</option><option value="healthy">Saudáveis</option><option value="attention">Precisam de atenção</option></select></div>
     <div className="accounts-table-heading" aria-hidden="true"><span>Conta e sincronização</span><span>Status do token</span><span>Ações</span></div>
-    {loading ? <LoadingState>Carregando contas...</LoadingState> : visibleAccounts.length ? visibleAccounts.map(account => { const tokenStatus = accountTokenStatus(account); return <div className={`data-row account-row${tokenStatus === 'error' ? ' account-row-warning' : ''}`} key={account.id}><span className="account-row-name"><span className={`account-platform-icon account-platform-icon-${account.platform}`} aria-hidden="true"><PlatformIcon platform={account.platform} className="h-4 w-4" /></span><span><strong>{account.name || account.handle || account.platform}</strong><small>{account.handle || account.platform}</small><small className="account-row-sync">{account.lastSyncAt || account.last_sync_at ? `Última sincronização: ${new Date(account.lastSyncAt || account.last_sync_at).toLocaleString('pt-BR')}` : 'Sincronização ainda não registrada'}</small></span></span><span className={`account-token-status account-token-${tokenStatus}`}>{TOKEN_STATUS_LABELS[tokenStatus] || 'Sem token'}<small>{tokenExpiryText(account)}</small></span><span className="account-row-actions">{tokenStatus !== 'valid' && <button className="link-button" onClick={() => onNavigate?.('tokens')}>{tokenStatus === 'missing' ? 'Configurar token' : 'Renovar token'}</button>}<button className="link-button" onClick={() => remove(account.id)}>Desconectar</button></span></div> }) : <div className="accounts-empty"><span aria-hidden="true">◎</span><p>{accounts.length ? 'Nenhuma conta corresponde aos filtros.' : 'Nenhuma conta conectada.'}</p>{accounts.length > 0 && <button className="link-button" onClick={() => { setAccountSearch(''); setAccountStatusFilter('all') }}>Limpar filtros</button>}</div>}
+    {loading ? <LoadingState>Carregando contas...</LoadingState> : visibleAccounts.length ? visibleAccounts.map(account => { const tokenStatus = accountTokenStatus(account); const profileUrl = accountProfileUrl(account); return <div className={`data-row account-row${tokenStatus === 'error' ? ' account-row-warning' : ''}`} key={account.id}><span className="account-row-name"><span className={`account-platform-icon account-platform-icon-${account.platform}`} aria-hidden="true"><PlatformIcon platform={account.platform} className="h-4 w-4" /></span><span><strong>{account.name || account.handle || account.platform}</strong><small>{profileUrl ? <a href={profileUrl} target="_blank" rel="noreferrer" className="account-profile-link">{profileUrl}</a> : account.handle || account.platform}</small><small className="account-row-sync">{account.lastSyncAt || account.last_sync_at ? `Última sincronização: ${new Date(account.lastSyncAt || account.last_sync_at).toLocaleString('pt-BR')}` : 'Sincronização ainda não registrada'}</small></span></span><span className={`account-token-status account-token-${tokenStatus}`}>{TOKEN_STATUS_LABELS[tokenStatus] || 'Sem token'}<small>{tokenExpiryText(account)}</small></span><span className="account-row-actions">{tokenStatus !== 'valid' && <button className="link-button" onClick={() => onNavigate?.('tokens')}>{tokenStatus === 'missing' ? 'Configurar token' : 'Renovar token'}</button>}<button className="link-button" onClick={() => remove(account.id)}>Desconectar</button></span></div> }) : <div className="accounts-empty"><span aria-hidden="true">◎</span><p>{selectedAccounts.length ? 'Nenhuma conta corresponde aos filtros.' : `Nenhuma conta ${providers.find(item => item.platform === platform)?.label || ''} conectada.`}</p>{selectedAccounts.length > 0 && <button className="link-button" onClick={() => { setAccountSearch(''); setAccountStatusFilter('all') }}>Limpar filtros</button>}</div>}
   </section></section>
 }

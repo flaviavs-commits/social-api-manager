@@ -58,11 +58,11 @@ test('orienta quando a etapa interna de seleção do Facebook é aberta diretame
   expect(response.text).toMatch(/etapa interna do OAuth/i)
 })
 
-test('aceita o POST same-origin da seleção do Facebook na Railway', async () => {
+test('aceita o POST da etapa de seleção após o redirect OAuth', async () => {
   const response = await request(app)
     .post('/auth/meta/zernio-select')
     .set('Host', 'railway.test')
-    .set('Origin', 'http://railway.test')
+    .set('Origin', 'https://zernio.com')
     .type('form')
     .send({ pendingId: 'inexistente', pageId: 'inexistente' })
 
