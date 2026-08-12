@@ -102,7 +102,15 @@ app.use((req, res, next) => {
   const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
   const protectedPath = ['/api/', '/auth/', '/oauth/'].some(prefix => req.path.startsWith(prefix))
   const origin = req.headers.origin
-  if (mutating && protectedPath && origin && !config.allowedOrigins.includes(origin)) {
+  // A seleção de Página do Facebook é um formulário POST renderizado pelo
+  // próprio callback OAuth. Quando a aplicação está em um domínio Railway,
+  // o navegador envia a origem da própria Railway, que não precisa estar na
+  // lista de origens do frontend (e nem deve ser confundida com CORS externo).
+  // Permitir somente a origem exata da requisição mantém a proteção contra
+  // POSTs vindos de sites terceiros.
+  const requestOrigin = `${req.protocol}://${req.get('host')}`
+  const sameOrigin = origin === requestOrigin
+  if (mutating && protectedPath && origin && !config.allowedOrigins.includes(origin) && !sameOrigin) {
     return res.status(403).json({ erro: 'Origem não autorizada' })
   }
   next()
