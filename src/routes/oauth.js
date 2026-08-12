@@ -154,32 +154,51 @@ function parseZernioUserProfile(value) {
   return null
 }
 
-async function savePendingFacebookConnection({ userId, profileId, tempToken, userProfile, connectToken }) {
+async function savePendingFacebookConnection({ userId, profileId, tempToken, userProfile, connectToken, accountName }) {
   const id = crypto.randomBytes(32).toString('hex')
   await pool.query("DELETE FROM zernio_oauth_pending WHERE criado_em < NOW() - INTERVAL '15 minutes'")
   await pool.query(`
-    INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token)
-    VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6)
-  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null])
+    INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token, account_name)
+    VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6, $7)
+  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null, accountName || null])
   return id
 }
 
 async function getPendingFacebookConnection(id) {
   const { rows: [pending] } = await pool.query(`
-    SELECT id, user_id AS "userId", profile_id AS "profileId", temp_token AS "tempToken", user_profile AS "userProfile", connect_token AS "connectToken"
+    SELECT id, user_id AS "userId", profile_id AS "profileId", temp_token AS "tempToken", user_profile AS "userProfile", connect_token AS "connectToken", account_name AS "accountName"
     FROM zernio_oauth_pending
     WHERE id = $1 AND platform = 'facebook' AND criado_em >= NOW() - INTERVAL '15 minutes'
   `, [id])
   return pending || null
 }
 
-function facebookPageSelection(pendingId, pages) {
-  const options = pages.map(page => {
+function facebookPageMatchesTarget(page, target) {
+  if (!target) return false
+  try {
+    const targetUrl = new URL(target)
+    const targetId = targetUrl.searchParams.get('id')
+    const pageId = page.id || page.pageId
+    if (targetId && pageId && String(targetId) === String(pageId)) return true
+    const targetPath = targetUrl.pathname.replace(/\/$/, '').toLowerCase()
+    return [page.profileUrl, page.url, page.link].filter(Boolean).some(value => {
+      try { return new URL(value).pathname.replace(/\/$/, '').toLowerCase() === targetPath } catch { return false }
+    }) || [page.username, page.name, page.displayName].filter(Boolean).some(value => targetPath.endsWith(`/${String(value).replace(/^@/, '').toLowerCase()}`))
+  } catch {
+    return false
+  }
+}
+
+function facebookPageSelection(pendingId, pages, target) {
+  const orderedPages = [...pages].sort((a, b) => Number(facebookPageMatchesTarget(b, target)) - Number(facebookPageMatchesTarget(a, target)))
+  const options = orderedPages.map(page => {
     const pageId = page.id || page.pageId
     const pageName = page.name || page.displayName || `Página ${pageId}`
-    return `<button type="submit" name="pageId" value="${escapeHtml(pageId)}"><strong>${escapeHtml(pageName)}</strong><small>${escapeHtml(page.category || 'Página do Facebook')}</small></button>`
+    const matchesTarget = facebookPageMatchesTarget(page, target)
+    return `<button type="submit" name="pageId" value="${escapeHtml(pageId)}"${matchesTarget ? ' style="border-color:#d1993e;background:#29251d"' : ''}><strong>${escapeHtml(pageName)}${matchesTarget ? ' · corresponde ao link informado' : ''}</strong><small>${escapeHtml(page.category || 'Página do Facebook')}</small></button>`
   }).join('')
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Escolha a Página</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:520px;margin:auto;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 8px;font-size:22px}p{color:#aeb6c7;line-height:1.5}form{display:grid;gap:10px;margin-top:20px}button{display:grid;gap:4px;padding:13px 15px;border:1px solid #3b4352;border-radius:10px;background:#202530;color:#f3f4f6;text-align:left;cursor:pointer}button:hover{border-color:#d1993e;background:#29251d}small{color:#aeb6c7}strong{font-size:14px}</style></head><body><main><h1>Escolha a Página do Facebook</h1><p>Selecione qual Página você deseja conectar ao Meu Ecoo Mídia.</p><form method="post" action="/auth/meta/zernio-select"><input type="hidden" name="pendingId" value="${escapeHtml(pendingId)}">${options}</form></main></body></html>`
+  const targetHint = target ? `<p>Link informado: <strong>${escapeHtml(target)}</strong>. A opção destacada é a correspondência encontrada.</p>` : ''
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Escolha a Página</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:520px;margin:auto;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 8px;font-size:22px}p{color:#aeb6c7;line-height:1.5;overflow-wrap:anywhere}form{display:grid;gap:10px;margin-top:20px}button{display:grid;gap:4px;padding:13px 15px;border:1px solid #3b4352;border-radius:10px;background:#202530;color:#f3f4f6;text-align:left;cursor:pointer}button:hover{border-color:#d1993e;background:#29251d}small{color:#aeb6c7}strong{font-size:14px}</style></head><body><main><h1>Escolha a Página do Facebook</h1>${targetHint}<p>Selecione qual Página você deseja conectar ao Meu Ecoo Mídia.</p><form method="post" action="/auth/meta/zernio-select"><input type="hidden" name="pendingId" value="${escapeHtml(pendingId)}">${options}</form></main></body></html>`
 }
 
 // Verifica se uma credencial obrigatória foi preenchida no .env.
@@ -283,7 +302,9 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
   }
   if (!escolhida) throw new Error(`Nenhuma conta do ${ZERNIO_PLATFORM_LABELS[platform] || platform} encontrada no Zernio após a conexão`);
 
-  const nomeFinal = accountName || escolhida.username || escolhida.displayName || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
+  const zernioAccountId = escolhida._id || escolhida.accountId || escolhida.id;
+  if (!zernioAccountId) throw new Error('A Zernio não retornou o identificador da conta conectada');
+  const nomeFinal = accountName || escolhida.profileUrl || escolhida.username || escolhida.displayName || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
   // O campo com a foto de perfil na resposta do Zernio é "profilePicture"
   // (confirmado em teste real, 2026-08-03 — GET /v1/accounts e /v1/analytics).
   const conta = await contasRepo.criarContaRapida({
@@ -291,10 +312,10 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
     platform,
     userId,
     avatarUrl: escolhida.profilePicture || null,
-    externalUserId: escolhida._id || escolhida.accountId || escolhida.id
+    externalUserId: zernioAccountId
   });
 
-  await contasRepo.definirZernioAccountId(conta.id, escolhida._id || escolhida.accountId || escolhida.id);
+  await contasRepo.definirZernioAccountId(conta.id, zernioAccountId);
 
   // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
   // accountId do Zernio no lugar do access_token (já é uma string opaca) e
@@ -303,7 +324,7 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
   await tokensRepo.salvarToken({
     accountId: conta.id,
     platform,
-    accessToken: escolhida._id || escolhida.accountId || escolhida.id,
+    accessToken: zernioAccountId,
     expiresAt: null,
     accountName: nomeFinal
   });
@@ -361,7 +382,8 @@ router.get('/meta/zernio-return', async (req, res) => {
         profileId: profileId || process.env.ZERNIO_PROFILE_ID,
         tempToken,
         userProfile: parsedUserProfile,
-        connectToken: connectToken || alternateConnectToken
+        connectToken: connectToken || alternateConnectToken,
+        accountName: meta.accountName
       })
       const { pages = [] } = await zernioClient.listFacebookPages(
         profileId || process.env.ZERNIO_PROFILE_ID,
@@ -369,7 +391,7 @@ router.get('/meta/zernio-return', async (req, res) => {
         connectToken || alternateConnectToken
       )
       if (!pages.length) throw new Error('Nenhuma Página do Facebook disponível para este usuário')
-      return res.send(facebookPageSelection(pendingId, pages))
+      return res.send(facebookPageSelection(pendingId, pages, meta.accountName))
     } catch (err) {
       addLog('err', `Falha ao listar Páginas do Facebook: ${err.message}`, platform, null, meta.userId)
       return res.send(popupError('oauth_failed'))
@@ -392,6 +414,22 @@ router.get('/meta/zernio-return', async (req, res) => {
   }
 });
 
+router.get('/meta/zernio-select', async (req, res) => {
+  const pending = await getPendingFacebookConnection(req.query?.pendingId)
+  if (!pending) {
+    return res.status(400).send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conexão do Facebook</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:520px;margin:auto;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 8px;font-size:22px}p{color:#aeb6c7;line-height:1.5}a{color:#e2b65c}</style></head><body><main><h1>Etapa de conexão do Facebook</h1><p>Este endereço é uma etapa interna do OAuth e só funciona durante uma conexão iniciada pelo Meu Ecoo Mídia. Volte para a tela de Contas e inicie a conexão novamente.</p><p><a href="${escapeHtml(process.env.FRONTEND_URL || '/')}">Voltar ao Meu Ecoo Mídia</a></p></main></body></html>`)
+  }
+
+  try {
+    const { pages = [] } = await zernioClient.listFacebookPages(pending.profileId, pending.tempToken, pending.connectToken)
+    if (!pages.length) throw new Error('Nenhuma Página do Facebook disponível para este usuário')
+    return res.send(facebookPageSelection(pending.id, pages, pending.accountName))
+  } catch (err) {
+    addLog('err', `Falha ao reabrir seleção de Páginas do Facebook: ${err.message}`, 'facebook', null, pending.userId)
+    return res.send(popupError('oauth_failed'))
+  }
+})
+
 router.post('/meta/zernio-select', express.urlencoded({ extended: false }), async (req, res) => {
   const pending = await getPendingFacebookConnection(req.body?.pendingId)
   if (!pending || !req.body?.pageId) return res.send(popupError('oauth_failed'))
@@ -404,7 +442,7 @@ router.post('/meta/zernio-select', express.urlencoded({ extended: false }), asyn
       userProfile: pending.userProfile
     }, pending.connectToken)
     const account = result?.account || null
-    const conta = await syncZernioAccount('facebook', pending.userId, null, {
+    const conta = await syncZernioAccount('facebook', pending.userId, pending.accountName, {
       profileId: pending.profileId,
       account,
       accountId: result?.accountId || account?.accountId || account?._id || account?.id,

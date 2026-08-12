@@ -50,3 +50,10 @@ test('usa o host atual no retorno do Facebook durante o desenvolvimento', async 
   expect(parsedRedirect.pathname).toBe('/auth/meta/zernio-return')
   expect(parsedRedirect.searchParams.get('state')).toBeTruthy()
 })
+
+test('orienta quando a etapa interna de seleção do Facebook é aberta diretamente', async () => {
+  const response = await request(app).get('/auth/meta/zernio-select')
+
+  expect(response.status).toBe(400)
+  expect(response.text).toMatch(/etapa interna do OAuth/i)
+})
