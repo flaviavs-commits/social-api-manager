@@ -27,7 +27,7 @@ import './styles/semantic-theme.css'
 
 applyTheme(getStoredTheme())
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe', 'automacoes'])
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe'])
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
@@ -38,6 +38,9 @@ function App() {
   const [page, setPage] = useState(() => pageFromLocation())
   const [user, setUser] = useState(null)
   const updateUser = patch => setUser(current => ({ ...(current || {}), ...patch }))
+  useEffect(() => {
+    if (window.location.pathname === '/app/automacoes') window.history.replaceState({}, '', '/app/dashboard')
+  }, [])
   useEffect(() => {
     let active = true
     apiFetch('/api/me').then(currentUser => { if (active) setUser(currentUser) }).catch(() => {})

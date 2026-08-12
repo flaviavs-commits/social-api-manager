@@ -77,6 +77,19 @@ export function AccountsPage({ onNavigate }) {
     return () => window.removeEventListener('focus', refreshAfterAuthorization)
   }, [reload, loadHealth])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connected') === 'true') {
+      setConnectionNotice('Conta conectada e sincronizada com o dashboard do Zernio.')
+      notify('Conta sincronizada com o Zernio.')
+    } else if (params.get('error')) {
+      setConnectionNotice('A autorização não foi concluída. Nenhuma conta foi sincronizada com o Zernio.')
+    }
+    if (params.has('connected') || params.has('error')) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [notify])
+
   async function connect() {
     const name = accountName.trim()
 
@@ -85,7 +98,7 @@ export function AccountsPage({ onNavigate }) {
     setConnecting(true)
     setError('')
     try {
-      const params = new URLSearchParams({ accountName: name, platform })
+      const params = new URLSearchParams({ accountName: name, platform, returnTo: window.location.pathname })
       const data = await apiFetch(`/auth/${selected.provider}?${params}`)
       if (popup && !popup.closed) popup.location.href = data.authUrl
       else window.open(data.authUrl, '_blank', 'width=640,height=720')

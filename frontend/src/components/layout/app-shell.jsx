@@ -38,7 +38,6 @@ const navigation = [
   ['filas', 'Filas recorrentes']
   ,['smartlinks', 'Smartlinks']
   ,['equipe', 'Equipe']
-  ,['automacoes', 'Automações']
 ]
 
 function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {

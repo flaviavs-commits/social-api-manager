@@ -171,6 +171,7 @@ export function DashboardPage({ onNavigate }) {
     ? `Nos conteúdos com mais interação, o horário observado foi ${bestHour}. Teste essa janela em novos posts e compare o resultado.`
     : 'Ainda não há dados suficientes para sugerir um horário de postagem com segurança.'
   const onboardingIncomplete = !accountsLoading && !postsLoading && (data.accounts.length === 0 || data.posts.length === 0 || !data.posts.some(post => ['published', 'publicado', 'scheduled', 'agendado'].includes(post.status)))
+  const isEmptyWorkspace = !accountsLoading && !postsLoading && !postsError && !accountsError && data.accounts.length === 0 && data.posts.length === 0
   const recentPosts = useMemo(() => {
     const query = activitySearch.trim().toLowerCase()
     return data.posts
@@ -194,21 +195,36 @@ export function DashboardPage({ onNavigate }) {
         <h2>Seu painel de conteúdo</h2>
         <p>Tenha uma visão rápida das publicações, agendamentos e redes conectadas.</p>
       </div>
-      <div className="dashboard-actions">
-        <button className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
-        <button className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
-        <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
+      <div className="dashboard-hero-tools">
+        <div className="dashboard-live-status"><span className="dashboard-live-dot" aria-hidden="true"/><div><strong>{accountsLoading ? 'Verificando redes' : connectedPlatforms ? 'Operação conectada' : 'Conecte sua primeira rede'}</strong><small>{accountsLoading ? 'Aguarde um instante...' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes com acesso`}</small></div></div>
+        <div className="dashboard-actions">
+          <button className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
+          <button className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
+          <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
+        </div>
       </div>
     </header>
 
     {dashboardError && <p className="dashboard-error-banner" role="alert">{dashboardError}</p>}
     {onboardingIncomplete && <OnboardingChecklist accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />}
 
+    {isEmptyWorkspace ? <section className="panel dashboard-empty-state" aria-labelledby="dashboard-empty-title">
+      <div className="dashboard-empty-state-icon" aria-hidden="true">＋</div>
+      <div>
+        <p className="eyebrow">SEU ESPAÇO</p>
+        <h2 id="dashboard-empty-title">Seu dashboard ainda está vazio</h2>
+        <p>Nenhuma conta, publicação ou métrica aparece aqui até você começar a usar a plataforma.</p>
+        <div className="dashboard-empty-state-actions">
+          <button type="button" className="action-button" onClick={() => onNavigate('integracoes')}>Conectar primeira conta</button>
+          <button type="button" className="secondary-button" onClick={() => onNavigate('agendador')}>Criar primeira publicação</button>
+        </div>
+      </div>
+    </section> : <>
     <div className="metric-grid dashboard-metrics">
-      <article><span>Publicações</span><strong>{postsLoading ? '—' : data.posts.length}</strong><small>Total criado na conta</small></article>
-      <article><span>Agendadas</span><strong>{postsLoading ? '—' : scheduled}</strong><small>{scheduledWithoutDate ? `${scheduledWithoutDate} sem horário definido` : 'Prontas para publicação'}</small></article>
-      <article><span>Falhas</span><strong className={failedCount ? 'metric-warning' : ''}>{postsLoading ? '—' : failedCount}</strong><small>{failedCount ? 'Precisam de revisão' : 'Nenhuma pendência'}</small></article>
-      <article><span>Contas conectadas</span><strong>{accountsLoading ? '—' : data.accounts.length}</strong><small>{connectedPlatforms} de {DASHBOARD_PLATFORMS.length} redes ativas</small></article>
+      <article className="dashboard-metric-card dashboard-metric-publications"><div className="dashboard-metric-heading"><span>Publicações</span><i aria-hidden="true">✦</i></div><strong>{postsLoading ? '—' : data.posts.length}</strong><small>Total criado na conta</small></article>
+      <article className="dashboard-metric-card dashboard-metric-scheduled"><div className="dashboard-metric-heading"><span>Agendadas</span><i aria-hidden="true">◷</i></div><strong>{postsLoading ? '—' : scheduled}</strong><small>{scheduledWithoutDate ? `${scheduledWithoutDate} sem horário definido` : 'Prontas para publicação'}</small></article>
+      <article className={`dashboard-metric-card dashboard-metric-failures${failedCount ? ' has-warning' : ''}`}><div className="dashboard-metric-heading"><span>Falhas</span><i aria-hidden="true">!</i></div><strong className={failedCount ? 'metric-warning' : ''}>{postsLoading ? '—' : failedCount}</strong><small>{failedCount ? 'Precisam de revisão' : 'Nenhuma pendência'}</small></article>
+      <article className="dashboard-metric-card dashboard-metric-accounts"><div className="dashboard-metric-heading"><span>Contas conectadas</span><i aria-hidden="true">⌁</i></div><strong>{accountsLoading ? '—' : data.accounts.length}</strong><small>{connectedPlatforms} de {DASHBOARD_PLATFORMS.length} redes ativas</small></article>
     </div>
 
     {failures.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
@@ -248,9 +264,9 @@ export function DashboardPage({ onNavigate }) {
 
     <div className="dashboard-grid">
       <section className="panel">
-      <div className="panel-heading">
-        <div><p className="eyebrow">ATIVIDADE</p><h2>Publicações recentes</h2><p className="panel-subtitle">Acompanhe o que foi publicado e o que está em andamento.</p></div>
-      </div>
+       <div className="panel-heading">
+         <div><p className="eyebrow">ATIVIDADE</p><h2>Publicações recentes</h2><p className="panel-subtitle">Acompanhe o que foi publicado e o que está em andamento.</p></div><button type="button" className="link-button" onClick={() => onNavigate('atividade')}>Ver histórico</button>
+       </div>
       <div className="dashboard-activity-toolbar"><input value={activitySearch} onChange={event => setActivitySearch(event.target.value)} placeholder="Buscar publicação..." aria-label="Buscar publicação no dashboard"/><div className="dashboard-filter-buttons" role="group" aria-label="Filtrar publicações"><button type="button" className={activityFilter === 'all' ? 'active' : ''} onClick={() => setActivityFilter('all')}>Todas</button><button type="button" className={activityFilter === 'published' ? 'active' : ''} onClick={() => setActivityFilter('published')}>Publicadas</button><button type="button" className={activityFilter === 'scheduled' ? 'active' : ''} onClick={() => setActivityFilter('scheduled')}>Agendadas</button><button type="button" className={activityFilter === 'failed' ? 'active' : ''} onClick={() => setActivityFilter('failed')}>Falhas</button></div></div>
       {postsError
         ? <p className="error-message" aria-live="polite">Não foi possível carregar as publicações.</p>
@@ -280,6 +296,7 @@ export function DashboardPage({ onNavigate }) {
         : <div className="dashboard-platform-list">{DASHBOARD_PLATFORMS.map(([platform, label]) => { const platformAccounts = data.accounts.filter(item => item.platform === platform); const account = platformAccounts[0]; const count = platformAccounts.length; return <button type="button" className={`dashboard-platform-card${count ? ' is-connected' : ''}`} key={platform} onClick={() => onNavigate('integracoes')}><span className={`account-platform-icon account-platform-icon-${platform}`}><PlatformIcon platform={platform} className="h-4 w-4" /></span><span><strong>{count > 1 ? `${count} contas ${label}` : account?.name || account?.handle || label}</strong><small>{count ? `${count} conta${count === 1 ? '' : 's'} conectada${count === 1 ? '' : 's'}` : 'Não conectada'}</small></span><span className="dashboard-platform-state" aria-hidden="true">{count ? '✓' : '+'}</span></button> })}</div>}
       {accountsError && <p className="dashboard-inline-error" aria-live="polite">Não foi possível verificar o status das contas.</p>}
     </section>
+    </>}
 
   </section>
 }
