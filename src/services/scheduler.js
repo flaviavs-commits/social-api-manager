@@ -10,7 +10,6 @@ const { comentarYoutube } = require('../infra/social/youtubePublisher')
 const { mapWithConcurrency } = require('../utils/concurrency')
 const { processarFilasRecorrentes, processarRelatoriosAgendados } = require('./prioritySchedulers')
 const { dispatchWebhook } = require('./webhookService')
-const benchmarkObserver = require('./benchmarkObserver')
 
 const POST_CONCURRENCY = 4
 
@@ -247,15 +246,6 @@ function start() {
   cron.schedule('* * * * *', verificarSaudePlataformas)
   verificarSaudePlataformas()
 
-  // O worker de benchmarking respeita o intervalo individual de cada perfil.
-  // O tick de 5 minutos mantém o monitor automático responsivo sem consultar
-  // perfis que ainda não venceram o próprio intervalo.
-  cron.schedule('*/5 * * * *', () => benchmarkObserver.observarBenchmarks().catch(err => {
-    console.error('Falha ao observar benchmarks:', err?.message || err)
-  }))
-  benchmarkObserver.observarBenchmarks().catch(err => {
-    console.error('Falha ao iniciar observação de benchmarks:', err?.message || err)
-  })
 }
 
 module.exports = { start, processarPost, processarPendentes, renovarTokensProativamente, verificarSaudePlataformas }

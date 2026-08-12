@@ -1,6 +1,5 @@
 const { Router } = require('express')
 const scheduler = require('../services/scheduler')
-const benchmarkObserver = require('../services/benchmarkObserver')
 const logsRepo = require('../repositories/logsRepository')
 const { safeMessage } = require('../utils/redact')
 
@@ -51,16 +50,6 @@ router.get('/health-check', async (req, res) => {
   } catch (err) {
     console.error('Falha no cron health-check:', safeMessage(err?.stack || err?.message || err))
     res.status(500).json({ ok: false, erro: 'Falha ao verificar plataformas.' })
-  }
-})
-
-router.get('/benchmarking', async (req, res) => {
-  try {
-    const result = await benchmarkObserver.observarBenchmarks()
-    res.json({ ok: true, ...result })
-  } catch (err) {
-    console.error('Falha no cron benchmarking:', safeMessage(err?.stack || err?.message || err))
-    res.status(500).json({ ok: false, erro: 'Falha ao sincronizar benchmarking.' })
   }
 })
 

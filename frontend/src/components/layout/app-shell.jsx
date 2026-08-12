@@ -20,7 +20,6 @@ const icons = {
   filas: 'M5 4h14v16H5V4Zm3 0v3m8-3v3M8 11h8M8 15h5'
   ,smartlinks: 'M10 13a5 5 0 0 0 7.1.1l1.4-1.4a5 5 0 0 0-7.1-7.1l-.8.8m3.4 5.4a5 5 0 0 0-7.1-.1l-1.4 1.4a5 5 0 0 0 7.1 7.1l.8-.8',
   equipe: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm9 2v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
-  benchmarking: 'M4 19V5m0 14h16M8 16v-4m4 4V8m4 8V5m4 11V3'
 }
 
 const navigation = [
@@ -39,7 +38,6 @@ const navigation = [
   ['filas', 'Filas recorrentes']
   ,['smartlinks', 'Smartlinks']
   ,['equipe', 'Equipe']
-  ,['benchmarking', 'Benchmarking']
   ,['automacoes', 'Automações']
 ]
 

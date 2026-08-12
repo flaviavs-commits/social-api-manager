@@ -23,12 +23,11 @@ import './styles/scheduler-theme.css'
 import './styles/drafts-theme.css'
 import './styles/theme.css'
 import './styles/light-theme.css'
-import './styles/benchmarking.css'
 import './styles/semantic-theme.css'
 
 applyTheme(getStoredTheme())
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe', 'benchmarking', 'automacoes'])
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe', 'automacoes'])
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''

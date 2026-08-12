@@ -522,7 +522,6 @@ As migrations `045_priority_features.sql` a `048_api_keys.sql` adicionam:
 - Relatórios por e-mail configuráveis dentro de Relatórios (`/api/report-schedules`). O envio exige `GMAIL_USER` e `GMAIL_APP_PASSWORD`.
 - Smartlinks em `/app/smartlinks` (`/api/smartlinks`), com páginas públicas em `/go/:slug` e contagem de cliques.
 - Espaços de trabalho, membros, identidade visual e aprovação de posts em `/app/equipe` (`/api/workspaces`).
-- Cadastro de perfis para benchmarking em `/api/competitors`. A coleta de métricas de concorrentes depende das permissões oficiais de cada rede e não é simulada pelo produto.
 - Webhooks assinados em `/app/automacoes` (`/api/webhooks`) para eventos `post_published` e `approval_updated`.
 - API somente leitura por chave em `/api/v1/posts`, `/api/v1/accounts` e `/api/v1/health`. As chaves são criadas e revogadas em `/api/api-keys`; o valor completo é exibido apenas uma vez.
 

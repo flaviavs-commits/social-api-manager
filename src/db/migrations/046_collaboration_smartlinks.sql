@@ -46,15 +46,3 @@ CREATE TABLE IF NOT EXISTS smartlink_items (
   clicks INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_smartlinks_slug ON smartlinks(slug);
-
-CREATE TABLE IF NOT EXISTS competitor_profiles (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  platform TEXT NOT NULL,
-  handle TEXT NOT NULL,
-  profile_url TEXT,
-  active BOOLEAN NOT NULL DEFAULT TRUE,
-  criado_em TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_competitor_profiles_user ON competitor_profiles(user_id, criado_em DESC);

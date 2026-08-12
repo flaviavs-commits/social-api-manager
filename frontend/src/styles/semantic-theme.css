@@ -27,7 +27,6 @@ html[data-theme='light'] .app-page,
 html[data-theme='light'] .page-content,
 html[data-theme='light'] .module-page,
 html[data-theme='light'] .dashboard-page,
-html[data-theme='light'] .benchmarking-page,
 html[data-theme='light'] .tokens-page {
   color: var(--text);
   background-color: var(--app-bg);
@@ -610,8 +609,6 @@ html[data-theme='light'] .app-shell-modern .ai-performance-comparison > p {
   color: var(--text);
 }
 
-html[data-theme='light'] .app-shell-modern .benchmark-summary-grid > .benchmark-metric:hover,
-html[data-theme='light'] .app-shell-modern .benchmark-profile-card:hover,
 html[data-theme='light'] .app-shell-modern .token-row:hover,
 html[data-theme='light'] .app-shell-modern .analytics-net-item:hover,
 html[data-theme='light'] .app-shell-modern .inbox-item:hover,
@@ -626,21 +623,17 @@ html[data-theme='light'] .app-shell-modern .app-sidebar {
   box-shadow: 0 1px 0 rgb(var(--shadow-rgb) / 0.04);
 }
 
-html[data-theme='light'] .benchmarking-hero,
 html[data-theme='light'] .tokens-hero {
   color: var(--text);
   background: linear-gradient(135deg, var(--surface), var(--surface-2));
   border-color: var(--border);
 }
 
-html[data-theme='light'] .benchmarking-hero h1,
-html[data-theme='light'] .benchmarking-hero h2,
 html[data-theme='light'] .tokens-hero h1,
 html[data-theme='light'] .tokens-hero h2 {
   color: var(--text);
 }
 
-html[data-theme='light'] .benchmarking-hero p,
 html[data-theme='light'] .tokens-hero p,
 html[data-theme='light'] .tokens-hero-copy {
   color: var(--text-muted);

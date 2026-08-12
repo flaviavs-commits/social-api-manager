@@ -16,7 +16,6 @@ const MediaLibraryPage = lazy(() => import('./media-library-page.jsx').then(modu
 const ContentQueuesPage = lazy(() => import('./content-queues-page.jsx').then(module => ({ default: module.ContentQueuesPage })))
 const SmartlinksPage = lazy(() => import('./smartlinks-page.jsx').then(module => ({ default: module.SmartlinksPage })))
 const WorkspacePage = lazy(() => import('./workspace-page.jsx').then(module => ({ default: module.WorkspacePage })))
-const BenchmarkingPage = lazy(() => import('./benchmarking-page.jsx').then(module => ({ default: module.BenchmarkingPage })))
 const AutomationsPage = lazy(() => import('./automations-page.jsx').then(module => ({ default: module.AutomationsPage })))
 
 const PAGES_BY_TYPE = {
@@ -35,7 +34,6 @@ const PAGES_BY_TYPE = {
   filas: ContentQueuesPage,
   smartlinks: SmartlinksPage,
   equipe: WorkspacePage,
-  benchmarking: BenchmarkingPage,
   automacoes: AutomationsPage,
 }
 
@@ -54,7 +52,6 @@ const descriptions = {
   filas: ['Filas recorrentes', 'Automatize publicações que se repetem.'],
   smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],
   equipe: ['Equipe', 'Aprove conteúdos e organize sua operação.'],
-  benchmarking: ['Benchmarking', 'Compare perfis públicos por rede e nicho.'],
   automacoes: ['Automações', 'Conecte webhooks e sistemas externos.'],
 }
 
