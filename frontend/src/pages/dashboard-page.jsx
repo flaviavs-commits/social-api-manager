@@ -195,6 +195,7 @@ export function DashboardPage({ onNavigate }) {
         <p>Tenha uma visão rápida das publicações, agendamentos e redes conectadas.</p>
       </div>
       <div className="dashboard-actions">
+        <button className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
         <button className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
         <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
       </div>
