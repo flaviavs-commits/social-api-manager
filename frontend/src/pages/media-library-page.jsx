@@ -2,11 +2,33 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 
+const platforms = [
+  ['instagram', 'Instagram', '◎'],
+  ['facebook', 'Facebook', 'f'],
+  ['youtube', 'YouTube', '▶'],
+  ['tiktok', 'TikTok', '♪'],
+]
+
 function formatSize(value) {
   const bytes = Number(value || 0)
   if (!bytes) return ''
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function platformLabel(platform) {
+  return platforms.find(([id]) => id === platform)?.[1] || platform
+}
+
+function inferNicheFromInsights(insights) {
+  return insights?.nicheComparisons?.[0]?.niche
+    || insights?.performanceAnalysis?.comparisons?.find(item => item.topPost?.niche && item.topPost.niche !== 'não identificado')?.topPost?.niche
+    || insights?.profileComparison?.find(item => item.niche && item.niche !== 'não identificado')?.niche
+    || ''
+}
+
+function suggestionText(post) {
+  return post?.texto || post?.text || post?.caption || ''
 }
 
 export function MediaLibraryPage() {
@@ -15,9 +37,21 @@ export function MediaLibraryPage() {
   const [folder, setFolder] = useState('')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [suggestionNiche, setSuggestionNiche] = useState('')
+  const [suggestionDays, setSuggestionDays] = useState(30)
+  const [suggestionPlatforms, setSuggestionPlatforms] = useState(['instagram'])
+  const [suggestions, setSuggestions] = useState([])
+  const [suggestionInsights, setSuggestionInsights] = useState(null)
+  const [suggestionLoading, setSuggestionLoading] = useState(false)
+  const [savedSuggestions, setSavedSuggestions] = useState([])
   const notify = useToast()
+
   const load = useCallback(() => apiFetch(`/api/media-assets?search=${encodeURIComponent(search)}&folder=${encodeURIComponent(folder)}`).then(data => setAssets(data.assets || [])), [folder, search])
-  useEffect(() => { setLoading(true); load().catch(error => notify(error.message, 'error')).finally(() => setLoading(false)) }, [load, notify])
+
+  useEffect(() => {
+    setLoading(true)
+    load().catch(error => notify(error.message, 'error')).finally(() => setLoading(false))
+  }, [load, notify])
 
   async function upload(event) {
     const files = [...(event.target.files || [])]
@@ -44,8 +78,78 @@ export function MediaLibraryPage() {
     catch (error) { notify(error.message, 'error') }
   }
 
-  return <section className="page-view">
-    <header className="panel-heading"><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Biblioteca de mídia</h2><p className="panel-subtitle">Centralize fotos e vídeos para reutilizar em novos posts.</p></div><label className="action-button">{uploading ? 'Enviando…' : 'Adicionar mídia'}<input type="file" hidden multiple accept="image/*,video/*" onChange={upload} disabled={uploading}/></label></header>
-    <section className="panel"><div className="flex flex-wrap items-center gap-3"><input className="min-w-[220px] flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia"/><input className="w-44 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={folder} onChange={event => setFolder(event.target.value)} placeholder="Pasta (opcional)" aria-label="Filtrar pasta"/></div>{loading ? <p className="empty-state">Carregando biblioteca…</p> : assets.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{assets.map(asset => <article className="overflow-hidden rounded-xl border border-subtle bg-app" key={asset.id}><div className="flex h-40 items-center justify-center bg-black/20">{asset.mimeType?.startsWith('video/') ? <video className="h-full w-full object-cover" src={asset.url} muted controls preload="metadata"/> : <img className="h-full w-full object-cover" src={asset.url} alt={asset.name}/>}</div><div className="p-3"><strong className="block truncate text-sm text-zinc-100" title={asset.name}>{asset.name}</strong><small className="mt-1 block text-zinc-500">{asset.folder}{asset.sizeBytes ? ` · ${formatSize(asset.sizeBytes)}` : ''}</small>{asset.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{asset.tags.map(tag => <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[11px] text-gold" key={tag}>#{tag}</span>)}</div> : null}<button type="button" className="mt-3 text-xs text-red-400 hover:text-red-300" onClick={() => remove(asset)}>Remover da biblioteca</button></div></article>)}</div> : <div className="empty-state mt-5"><strong>Nenhuma mídia encontrada</strong><p>Adicione fotos ou vídeos para montar seu acervo reutilizável.</p></div>}</section>
+  function toggleSuggestionPlatform(platform) {
+    setSuggestionPlatforms(current => current.includes(platform) ? current.filter(item => item !== platform) : [...current, platform])
+  }
+
+  function buildSuggestionInstruction(insights, niche) {
+    const comparisons = insights?.performanceAnalysis?.comparisons || []
+    const signals = comparisons.flatMap(item => (item.signals || []).slice(0, 2).map(signal => `${item.platformLabel}: ${signal}`)).slice(0, 6)
+    const recommendations = (insights?.recommendations || []).slice(0, 3)
+    const dataNote = insights?.dataQuality?.hasEnoughData
+      ? 'Use estes sinais como referência prática, sem repetir as mesmas publicações.'
+      : 'Os dados ainda são limitados; trate os sinais como hipóteses de teste, não como certezas.'
+
+    return [
+      `Crie 3 sugestões de posts originais para o nicho ${niche || 'identificado a partir do histórico da conta'}.`,
+      `Adapte cada ideia para ${suggestionPlatforms.map(platformLabel).join(', ')}.`,
+      'Priorize ganchos claros, utilidade para o público, potencial de comentários, salvamentos ou compartilhamentos e uma chamada para ação natural.',
+      'Varie os formatos: uma ideia educativa, uma ideia de conversa/comunidade e uma ideia de prova, bastidor ou aplicação prática.',
+      'Não invente tendências, números, notícias, resultados ou referências externas. Não copie nenhum post anterior.',
+      dataNote,
+      signals.length ? `Sinais observados no histórico: ${signals.join(' | ')}` : 'Não há sinais de conteúdo suficientes no histórico para sustentar uma conclusão forte.',
+      recommendations.length ? `Recomendações do Analytics: ${recommendations.join(' | ')}` : 'Não há recomendações de Analytics disponíveis.',
+    ].join('\n')
+  }
+
+  async function generateContentSuggestions() {
+    if (!suggestionPlatforms.length) {
+      notify('Selecione pelo menos uma rede social.', 'error')
+      return
+    }
+    setSuggestionLoading(true)
+    try {
+      const analyticsData = await apiFetch(`/api/ai/analytics-insights?days=${suggestionDays}`)
+      const insights = analyticsData.insights || null
+      setSuggestionInsights(insights)
+      const inferredNiche = suggestionNiche.trim() || inferNicheFromInsights(insights) || 'o seu nicho'
+      if (!suggestionNiche.trim() && inferredNiche !== 'o seu nicho') setSuggestionNiche(inferredNiche)
+      const generated = await apiFetch('/api/ai/generate', {
+        method: 'POST',
+        timeoutMs: 60_000,
+        body: JSON.stringify({ instrucao: buildSuggestionInstruction(insights, inferredNiche), plataformas: suggestionPlatforms, quantidade: 3, tom: 'profissional', modelo: 'local' }),
+      })
+      const nextSuggestions = (generated.posts || []).map((post, index) => ({ ...post, suggestionId: `${Date.now()}-${index}`, text: suggestionText(post) }))
+      setSuggestions(nextSuggestions)
+      if (!nextSuggestions.length) notify('A IA não retornou sugestões desta vez.', 'error')
+    } catch (error) {
+      notify(error.message || 'Não foi possível gerar sugestões agora.', 'error')
+    } finally { setSuggestionLoading(false) }
+  }
+
+  async function saveSuggestionAsDraft(suggestion) {
+    const text = suggestionText(suggestion)
+    if (!text.trim()) return
+    try {
+      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: suggestion.titulo || `Ideia IA · ${suggestionNiche || 'novo conteúdo'}`, text, platforms: suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms }) })
+      setSavedSuggestions(current => [...current, suggestion.suggestionId])
+      notify('Sugestão salva nos rascunhos.')
+    } catch (error) { notify(error.message, 'error') }
+  }
+
+  const quality = suggestionInsights?.dataQuality
+  const inferredNiche = suggestionNiche || inferNicheFromInsights(suggestionInsights)
+
+  return <section className="page-view media-library-page">
+    <header className="media-library-heading"><div className="media-library-heading-copy"><span className="media-library-heading-icon" aria-hidden="true">▧</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Biblioteca de mídia</h2><p>Centralize fotos e vídeos e descubra novas ideias a partir do que já funciona nas suas redes.</p></div></div><label className="action-button media-library-upload-button">{uploading ? 'Enviando…' : 'Adicionar mídia'}<input type="file" hidden multiple accept="image/*,video/*" onChange={upload} disabled={uploading} /></label></header>
+
+    <section className="media-ai-opportunities" aria-labelledby="media-ai-opportunities-title">
+      <div className="media-ai-opportunities-heading"><div className="media-ai-opportunities-title"><span className="media-ai-opportunities-icon" aria-hidden="true">✦</span><div><p className="eyebrow">ASSISTENTE DE CONTEÚDO</p><h3 id="media-ai-opportunities-title">Encontre sua próxima oportunidade</h3><p>A IA cruza seu nicho com os sinais disponíveis no Analytics e sugere ideias para testar.</p></div></div><span className="media-ai-data-badge">Baseado no seu histórico</span></div>
+      <div className="media-ai-opportunities-controls"><label><span>Nicho ou tema principal</span><input value={suggestionNiche} onChange={event => setSuggestionNiche(event.target.value)} placeholder="Ex.: educação financeira" /></label><label><span>Período analisado</span><select value={suggestionDays} onChange={event => setSuggestionDays(Number(event.target.value))}><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label><div className="media-ai-platform-picker"><span>Redes</span><div>{platforms.map(([id, label, icon]) => <button type="button" className={suggestionPlatforms.includes(id) ? 'is-selected' : ''} onClick={() => toggleSuggestionPlatform(id)} key={id} aria-pressed={suggestionPlatforms.includes(id)}><b aria-hidden="true">{icon}</b>{label}</button>)}</div></div><button type="button" className="action-button media-ai-generate-button" onClick={generateContentSuggestions} disabled={suggestionLoading}>{suggestionLoading ? 'Analisando e criando…' : suggestions.length ? 'Gerar novas ideias' : 'Gerar sugestões'}</button></div>
+      {suggestionInsights && <div className="media-ai-insight-summary"><div className="media-ai-insight-metrics"><span><strong>{quality?.publications || 0}</strong> publicações analisadas</span><span><strong>{quality?.profiles || 0}</strong> perfis com dados</span><span><strong>{inferredNiche || 'Nicho aberto'}</strong> nicho de referência</span></div><p>{suggestionInsights.summary}</p>{suggestionInsights.recommendations?.length ? <div className="media-ai-insight-tips">{suggestionInsights.recommendations.slice(0, 2).map((tip, index) => <span key={index}><b>{index + 1}</b>{tip}</span>)}</div> : null}</div>}
+      {suggestions.length ? <div className="media-ai-suggestions" aria-live="polite">{suggestions.map((suggestion, index) => <article className="media-ai-suggestion-card" key={suggestion.suggestionId}><div className="media-ai-suggestion-card-heading"><span className="media-ai-suggestion-number">{String(index + 1).padStart(2, '0')}</span><div><span className="media-ai-card-kicker">IDEIA PARA TESTAR</span><h4>{suggestion.titulo || `Sugestão ${index + 1}`}</h4></div></div><p className="media-ai-suggestion-text">{suggestion.text}</p><div className="media-ai-suggestion-reason"><b>Por que vale testar</b><span>{suggestionInsights?.recommendations?.[index % (suggestionInsights.recommendations?.length || 1)] || 'A ideia combina o nicho informado com um formato de conteúdo fácil de testar e comparar.'}</span></div><footer><span>{(suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms).map(platformLabel).join(' · ')}</span><button type="button" className="secondary-button" onClick={() => saveSuggestionAsDraft(suggestion)} disabled={savedSuggestions.includes(suggestion.suggestionId)}>{savedSuggestions.includes(suggestion.suggestionId) ? 'Salvo nos rascunhos' : 'Salvar como rascunho'}</button></footer></article>)}</div> : !suggestionLoading && <div className="media-ai-opportunities-empty"><span aria-hidden="true">◌</span><div><strong>Gere ideias guiadas pelos seus dados</strong><p>Informe o nicho se quiser direcionar a análise. Com pouco histórico, as sugestões serão apresentadas como hipóteses para validar.</p></div></div>}
+    </section>
+
+    <section className="panel media-library-assets-panel"><div className="media-library-assets-toolbar"><div><p className="eyebrow">SEU ACERVO</p><h3>Mídias salvas</h3></div><div className="media-library-filters"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" /><input value={folder} onChange={event => setFolder(event.target.value)} placeholder="Pasta (opcional)" aria-label="Filtrar pasta" /></div></div>{loading ? <p className="empty-state">Carregando biblioteca…</p> : assets.length ? <div className="media-library-grid">{assets.map(asset => <article className="media-library-asset-card" key={asset.id}><div className="media-library-asset-preview">{asset.mimeType?.startsWith('video/') ? <video src={asset.url} muted controls preload="metadata" /> : <img src={asset.url} alt={asset.name} />}</div><div className="media-library-asset-body"><strong title={asset.name}>{asset.name}</strong><small>{asset.folder}{asset.sizeBytes ? ` · ${formatSize(asset.sizeBytes)}` : ''}</small>{asset.tags?.length ? <div className="media-library-tags">{asset.tags.map(tag => <span key={tag}>#{tag}</span>)}</div> : null}<button type="button" className="media-library-remove-button" onClick={() => remove(asset)}>Remover da biblioteca</button></div></article>)}</div> : <div className="empty-state media-library-empty"><strong>Nenhuma mídia encontrada</strong><p>Adicione fotos ou vídeos para montar seu acervo reutilizável.</p></div>}</section>
   </section>
 }
