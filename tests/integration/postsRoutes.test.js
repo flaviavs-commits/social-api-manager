@@ -139,10 +139,18 @@ describe('GET /api/posts/calendar', () => {
 // ── DELETE /api/posts/:id ─────────────────────────────────────────────────────
 
 describe('DELETE /api/posts/:id', () => {
-  test('405 não permite excluir publicações pela aplicação', async () => {
+  test('200 cancela publicação agendada ou com falha', async () => {
+    postsRepo.deletarPost.mockResolvedValue(true)
     const res = await request(app).delete('/api/posts/1').set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(405)
-    expect(res.body.erro).toMatch(/não exclui publicações/i)
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ ok: true })
+  })
+
+  test('404 protege publicações que não podem ser excluídas', async () => {
+    postsRepo.deletarPost.mockResolvedValue(false)
+    const res = await request(app).delete('/api/posts/1').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(404)
+    expect(res.body.erro).toMatch(/já publicadas/i)
   })
 })
 

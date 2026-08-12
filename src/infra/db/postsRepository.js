@@ -81,7 +81,7 @@ async function deletarPost(id, userId, isAdmin) {
   const post = await buscarPostPorId(id, userId, isAdmin)
   if (!post) return false
   const { rowCount } = await pool.query(
-    `UPDATE posts SET status='cancelled' WHERE id=$1 AND status='scheduled'`, [id]
+    `UPDATE posts SET status='cancelled' WHERE id=$1 AND status IN ('scheduled', 'error', 'erro', 'failed', 'partial')`, [id]
   )
   return rowCount > 0
 }
@@ -217,7 +217,7 @@ async function reagendarParaRetry(id, nextRetryAt) {
 // não é mais um access_token real da Graph API/Content Posting API.
 const PLATAFORMAS_COM_COMENTARIO = ['youtube']
 
-async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt, accountId = null }) {
+async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, publishedAt, accountId = null, firstCommentHandled = false }) {
   // accountId sempre vem preenchido no fluxo atual (publisher.js resolve a
   // conta antes de chamar isto) — o índice único parcial em post_publications
   // só cobre account_id IS NOT NULL, então esse é o caminho de conflito real.
@@ -253,7 +253,7 @@ async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, p
   // Programa o primeiro comentário automático para esta publicação
   // específica, se o post tiver um texto definido e a rede suportar
   // comentário via API — o cron (services/scheduler.js) executa de fato.
-  if (publicationId && PLATAFORMAS_COM_COMENTARIO.includes(externalPlatform)) {
+  if (publicationId && PLATAFORMAS_COM_COMENTARIO.includes(externalPlatform) && !firstCommentHandled) {
     const { rows: [post] } = await pool.query(`SELECT first_comment FROM posts WHERE id = $1`, [id])
     if (post?.first_comment) {
       await pool.query(

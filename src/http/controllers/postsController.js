@@ -12,6 +12,7 @@ const { buscarTiktokCreatorInfo } = require('../../use-cases/posts/buscarTiktokC
 const { buscarLocaisFacebook } = require('../../use-cases/posts/buscarLocaisFacebook')
 const { criarPost } = require('../../use-cases/posts/criarPost')
 const { reagendarPost } = require('../../use-cases/posts/reagendarPost')
+const { deletarPost } = require('../../use-cases/posts/deletarPost')
 
 function ctx(req) {
   return { userId: req.user.id, userRole: req.user.role, isAdmin: isAdminRole(req.user.role) }
@@ -207,8 +208,20 @@ async function patchPost(req, res) {
   }
 }
 
+async function deletePost(req, res) {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const deleted = await deletarPost({ id, ...ctx(req) })
+    if (!deleted) return res.status(404).json({ erro: 'Publicação não encontrada ou não pode ser excluída. Publicações já publicadas são mantidas no histórico.' })
+    res.json({ ok: true })
+  } catch (e) {
+    serverError(res, e)
+  }
+}
+
 module.exports = {
   postUploadUrl, getInboxUnread, postCommentSeen, postInboxSeen, getInbox, getCalendar, getPosts,
   getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
-  postCommentReply, patchPost
+  postCommentReply, patchPost, deletePost
 }

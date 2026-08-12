@@ -109,6 +109,7 @@ export function DashboardPage({ onNavigate }) {
   const [analyticsLoading, setAnalyticsLoading] = useState(true)
   const [activityFilter, setActivityFilter] = useState(() => localStorage.getItem(ACTIVITY_FILTER_KEY) || 'all')
   const [activitySearch, setActivitySearch] = useState('')
+  const [deletingPostId, setDeletingPostId] = useState(null)
 
   useEffect(() => { localStorage.setItem(ACTIVITY_FILTER_KEY, activityFilter) }, [activityFilter])
 
@@ -188,6 +189,20 @@ export function DashboardPage({ onNavigate }) {
     onNavigate('agendador')
   }
 
+  async function deleteFailure(post) {
+    const label = post.text || post.title || `Publicação #${post.id}`
+    if (!window.confirm(`Excluir esta publicação com falha?\n\n${label}\n\nEla será removida da lista do dashboard e não poderá ser reenviada.`)) return
+    setDeletingPostId(post.id)
+    try {
+      await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      setData(current => ({ ...current, posts: current.posts.filter(item => item.id !== post.id) }))
+    } catch (error) {
+      setPostsError(error.message)
+    } finally {
+      setDeletingPostId(null)
+    }
+  }
+
   return <section className="page-view dashboard-page">
     <header className="dashboard-hero">
       <div>
@@ -230,7 +245,7 @@ export function DashboardPage({ onNavigate }) {
     {failures.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
       <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Publicações que precisam de revisão</h2><p className="panel-subtitle">Cada falha mostra sua origem provável para não atribuir automaticamente o problema ao programa.</p></div><span className="dashboard-failure-count">{failedCount} {failedCount === 1 ? 'falha' : 'falhas'}</span></div>
       <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> falha do sistema só é indicada quando o registro aponta erro interno. Token, limite, permissão e formato são responsabilidade da conexão, da rede ou da configuração do conteúdo.</div>
-      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><button className="link-button" onClick={() => reviewFailure(post)}>Revisar no editor</button></article> })}</div>
+      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions"><button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar no editor</button><button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
     </section>}
 
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
