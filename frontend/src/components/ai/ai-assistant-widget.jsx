@@ -57,7 +57,7 @@ function summarizeData(data) {
 
 function RobotAvatar({ size = 'small' }) {
   return <span className={`ai-robot-avatar ai-robot-avatar--${size}`} aria-hidden="true">
-    <img src="/logo.png" alt="" />
+    <img src="/logo-icon.png" alt="" />
   </span>
 }
 
