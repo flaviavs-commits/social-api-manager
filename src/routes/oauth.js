@@ -136,6 +136,52 @@ function popupError(msg) {
   </script></body></html>`;
 }
 
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character])
+}
+
+function parseZernioUserProfile(value) {
+  if (!value) return null
+  let candidate = String(value)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const parsed = JSON.parse(candidate)
+      return parsed && typeof parsed === 'object' ? parsed : null
+    } catch {
+      try { candidate = decodeURIComponent(candidate) } catch { return null }
+    }
+  }
+  return null
+}
+
+async function savePendingFacebookConnection({ userId, profileId, tempToken, userProfile, connectToken }) {
+  const id = crypto.randomBytes(32).toString('hex')
+  await pool.query("DELETE FROM zernio_oauth_pending WHERE criado_em < NOW() - INTERVAL '15 minutes'")
+  await pool.query(`
+    INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token)
+    VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6)
+  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null])
+  return id
+}
+
+async function getPendingFacebookConnection(id) {
+  const { rows: [pending] } = await pool.query(`
+    SELECT id, user_id AS "userId", profile_id AS "profileId", temp_token AS "tempToken", user_profile AS "userProfile", connect_token AS "connectToken"
+    FROM zernio_oauth_pending
+    WHERE id = $1 AND platform = 'facebook' AND criado_em >= NOW() - INTERVAL '15 minutes'
+  `, [id])
+  return pending || null
+}
+
+function facebookPageSelection(pendingId, pages) {
+  const options = pages.map(page => {
+    const pageId = page.id || page.pageId
+    const pageName = page.name || page.displayName || `Página ${pageId}`
+    return `<button type="submit" name="pageId" value="${escapeHtml(pageId)}"><strong>${escapeHtml(pageName)}</strong><small>${escapeHtml(page.category || 'Página do Facebook')}</small></button>`
+  }).join('')
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Escolha a Página</title><style>body{margin:0;padding:32px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:520px;margin:auto;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;box-shadow:0 18px 50px #0006}h1{margin:0 0 8px;font-size:22px}p{color:#aeb6c7;line-height:1.5}form{display:grid;gap:10px;margin-top:20px}button{display:grid;gap:4px;padding:13px 15px;border:1px solid #3b4352;border-radius:10px;background:#202530;color:#f3f4f6;text-align:left;cursor:pointer}button:hover{border-color:#d1993e;background:#29251d}small{color:#aeb6c7}strong{font-size:14px}</style></head><body><main><h1>Escolha a Página do Facebook</h1><p>Selecione qual Página você deseja conectar ao Meu Ecoo Mídia.</p><form method="post" action="/auth/meta/zernio-select"><input type="hidden" name="pendingId" value="${escapeHtml(pendingId)}">${options}</form></main></body></html>`
+}
+
 // Verifica se uma credencial obrigatória foi preenchida no .env.
 // Retorna o erro (formato esperado pelo front-end) ou null se estiver tudo ok.
 function checkEnv(vars, platform) {
@@ -157,6 +203,43 @@ function checkEnv(vars, platform) {
   return null;
 }
 
+const LOCAL_OAUTH_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+// Em desenvolvimento é comum o .env ficar com o endereço de um túnel ngrok
+// que já expirou, enquanto o usuário abre a aplicação em localhost. Nesse
+// caso, o provedor conclui o OAuth mas redireciona para um destino inacessível
+// ou para outra execução da aplicação. A requisição atual é a fonte correta
+// para o endereço local; em produção, o BASE_URL configurado continua tendo
+// precedência.
+function getOAuthBaseUrl(req) {
+  const configured = String(process.env.BASE_URL || '').trim().replace(/\/$/, '');
+  const requestHost = req.get('host');
+  const requestOrigin = `${req.protocol}://${requestHost}`;
+
+  if (!configured) return requestOrigin;
+
+  // Em desenvolvimento o host da requisição representa o túnel/porta que o
+  // usuário realmente abriu. Isso também corrige automaticamente um ngrok
+  // trocado sem exigir editar o .env a cada reinício.
+  if (process.env.NODE_ENV !== 'production') return requestOrigin;
+
+  try {
+    const configuredUrl = new URL(configured);
+    const requestUrl = new URL(requestOrigin);
+    const requestIsLocal = LOCAL_OAUTH_HOSTS.has(requestUrl.hostname);
+    const configuredIsLocal = LOCAL_OAUTH_HOSTS.has(configuredUrl.hostname);
+
+    if (requestIsLocal && !configuredIsLocal) return requestUrl.origin;
+    return configuredUrl.origin;
+  } catch {
+    return requestOrigin;
+  }
+}
+
+function zernioRedirectUrl(req, route, state) {
+  return `${getOAuthBaseUrl(req)}/auth/${route}/zernio-return?state=${encodeURIComponent(state)}`;
+}
+
 function connectionStartError(res, err, platform, providerLabel, userId) {
   const label = providerLabel || platform;
   const prefix = `Falha ao iniciar OAuth ${label}`;
@@ -174,22 +257,30 @@ function connectionStartError(res, err, platform, providerLabel, userId) {
   return res.status(502).json({ error: `Não foi possível iniciar a conexão com o ${label} no momento.` });
 }
 
-const ZERNIO_PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+const ZERNIO_PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' };
 
 // O Zernio (docs.zernio.com) processa o OAuth inteiro sozinho para
-// Facebook/Instagram/TikTok — não manda nenhum "code" pra gente processar,
+// Facebook/Instagram/TikTok/YouTube — não manda nenhum "code" pra gente processar,
 // quando o navegador chega no nosso /*/zernio-return a conta JÁ está
 // conectada do lado deles. Só precisamos descobrir QUAL conta foi essa (o
 // Zernio não sabe nada sobre nosso userId) e espelhar em contas/tokens. A
 // heurística é a mesma já usada em contasRepository.criarContaRapida para
 // outras redes: como não há um ID de correlação direto, casamos pela conta
-// mais recente daquela plataforma — suficiente para o uso atual (uma
-// conexão por vez), mas pode casar errado se o usuário conectar 2 contas da
-// mesma rede em abas paralelas.
-async function syncZernioAccount(platform, userId, accountName) {
-  const { accounts } = await zernioClient.listAccounts();
-  const daPlataforma = accounts.filter(a => a.platform === platform);
-  const escolhida = daPlataforma[daPlataforma.length - 1];
+// mais recente daquela plataforma. Quando o retorno traz accountId/username,
+// usamos esses dados antes do fallback para a conta mais recente, evitando
+// associar a conta errada em conexões paralelas.
+async function syncZernioAccount(platform, userId, accountName, remoteHint = {}) {
+  const profileId = remoteHint.profileId || process.env.ZERNIO_PROFILE_ID;
+  const remoteAccount = remoteHint.account && typeof remoteHint.account === 'object' ? remoteHint.account : null;
+  const remoteAccountId = remoteHint.accountId || remoteHint.id || remoteAccount?._id || remoteAccount?.accountId || remoteAccount?.id;
+  const remoteUsername = remoteHint.username || remoteHint.userName;
+  let escolhida = remoteAccount?.platform === platform ? remoteAccount : null;
+  if (!escolhida) {
+    const { accounts = [] } = await zernioClient.listAccounts({ profileId, platform, includeOverLimit: true });
+    escolhida = accounts.find(a => remoteAccountId && String(a._id || a.accountId || a.id) === String(remoteAccountId))
+      || accounts.find(a => remoteUsername && [a.username, a.userName, a.displayName].filter(Boolean).some(value => String(value).toLowerCase() === String(remoteUsername).toLowerCase()))
+      || accounts[accounts.length - 1];
+  }
   if (!escolhida) throw new Error(`Nenhuma conta do ${ZERNIO_PLATFORM_LABELS[platform] || platform} encontrada no Zernio após a conexão`);
 
   const nomeFinal = accountName || escolhida.username || escolhida.displayName || `Nova Conta ${ZERNIO_PLATFORM_LABELS[platform] || platform}`;
@@ -200,10 +291,10 @@ async function syncZernioAccount(platform, userId, accountName) {
     platform,
     userId,
     avatarUrl: escolhida.profilePicture || null,
-    externalUserId: escolhida._id
+    externalUserId: escolhida._id || escolhida.accountId || escolhida.id
   });
 
-  await contasRepo.definirZernioAccountId(conta.id, escolhida._id);
+  await contasRepo.definirZernioAccountId(conta.id, escolhida._id || escolhida.accountId || escolhida.id);
 
   // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
   // accountId do Zernio no lugar do access_token (já é uma string opaca) e
@@ -212,7 +303,7 @@ async function syncZernioAccount(platform, userId, accountName) {
   await tokensRepo.salvarToken({
     accountId: conta.id,
     platform,
-    accessToken: escolhida._id,
+    accessToken: escolhida._id || escolhida.accountId || escolhida.id,
     expiresAt: null,
     accountName: nomeFinal
   });
@@ -234,10 +325,10 @@ router.get('/meta', requireAuth, async (req, res) => {
   const { accountName } = req.query;
   const platform = 'facebook';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/meta/zernio-return?state=${encodeURIComponent(state)}`;
+  const redirectUrl = zernioRedirectUrl(req, 'meta', state);
 
   try {
-    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl, { headless: true });
     addLog('info', `OAuth Facebook (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
@@ -246,7 +337,7 @@ router.get('/meta', requireAuth, async (req, res) => {
 });
 
 router.get('/meta/zernio-return', async (req, res) => {
-  const { state } = req.query;
+  const { state, step, tempToken, userProfile, profileId, connect_token: connectToken, connectToken: alternateConnectToken, accountId, account_id, id, username, userName, displayName } = req.query;
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
@@ -258,8 +349,41 @@ router.get('/meta/zernio-return', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
+  if (step === 'select_page') {
+    const parsedUserProfile = parseZernioUserProfile(userProfile)
+    if (!tempToken || !parsedUserProfile) {
+      addLog('err', 'Retorno do Facebook sem dados suficientes para selecionar a Página', platform, null, meta.userId)
+      return res.send(popupError('oauth_failed'))
+    }
+    try {
+      const pendingId = await savePendingFacebookConnection({
+        userId: meta.userId,
+        profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+        tempToken,
+        userProfile: parsedUserProfile,
+        connectToken: connectToken || alternateConnectToken
+      })
+      const { pages = [] } = await zernioClient.listFacebookPages(
+        profileId || process.env.ZERNIO_PROFILE_ID,
+        tempToken,
+        connectToken || alternateConnectToken
+      )
+      if (!pages.length) throw new Error('Nenhuma Página do Facebook disponível para este usuário')
+      return res.send(facebookPageSelection(pendingId, pages))
+    } catch (err) {
+      addLog('err', `Falha ao listar Páginas do Facebook: ${err.message}`, platform, null, meta.userId)
+      return res.send(popupError('oauth_failed'))
+    }
+  }
+
   try {
-    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
+      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      accountId: accountId || account_id,
+      id,
+      username: username || userName,
+      displayName
+    });
     addLog('ok', `Conta Facebook conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
     res.send(popupSuccess());
   } catch (err) {
@@ -267,6 +391,34 @@ router.get('/meta/zernio-return', async (req, res) => {
     res.send(popupError('oauth_failed'));
   }
 });
+
+router.post('/meta/zernio-select', express.urlencoded({ extended: false }), async (req, res) => {
+  const pending = await getPendingFacebookConnection(req.body?.pendingId)
+  if (!pending || !req.body?.pageId) return res.send(popupError('oauth_failed'))
+
+  try {
+    const result = await zernioClient.selectFacebookPage({
+      profileId: pending.profileId,
+      pageId: req.body.pageId,
+      tempToken: pending.tempToken,
+      userProfile: pending.userProfile
+    }, pending.connectToken)
+    const account = result?.account || null
+    const conta = await syncZernioAccount('facebook', pending.userId, null, {
+      profileId: pending.profileId,
+      account,
+      accountId: result?.accountId || account?.accountId || account?._id || account?.id,
+      username: account?.username,
+      displayName: account?.displayName
+    })
+    await pool.query('DELETE FROM zernio_oauth_pending WHERE id = $1', [pending.id])
+    addLog('ok', `Conta Facebook conectada via Zernio: "${conta.handle}"`, 'facebook', conta.id, pending.userId)
+    res.send(popupSuccess())
+  } catch (err) {
+    addLog('err', `Falha ao selecionar Página do Facebook: ${err.message}`, 'facebook', null, pending.userId)
+    res.send(popupError('oauth_failed'))
+  }
+})
 
 // Troca um access_token de usuário do Facebook (curta ou já longa duração)
 // por um long-lived token (60 dias), busca o perfil e salva a conta —
@@ -387,7 +539,7 @@ router.get('/instagram', requireAuth, async (req, res) => {
   const { accountName } = req.query;
   const platform = 'instagram';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/instagram/zernio-return?state=${encodeURIComponent(state)}`;
+  const redirectUrl = zernioRedirectUrl(req, 'instagram', state);
 
   try {
     const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
@@ -421,9 +573,61 @@ router.get('/instagram/zernio-return', async (req, res) => {
   }
 });
 
-// ─── Google / YouTube ──────────────────────────────────────────────────────────
+// ─── YouTube via Zernio ────────────────────────────────────────────────────────
 
-router.get('/google', requireAuth, (req, res) => {
+// O YouTube é conectado pelo OAuth hospedado da Zernio. A rota antiga
+// /google/callback permanece abaixo apenas para não quebrar instalações com
+// contas legadas; novas conexões passam sempre por estas duas rotas.
+router.get('/google', requireAuth, async (req, res) => {
+  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'youtube');
+  if (configError) return res.status(400).json(configError);
+
+  const { accountName } = req.query;
+  const platform = 'youtube';
+  const state = signState({ accountName, platform, userId: req.user.id });
+  const redirectUrl = zernioRedirectUrl(req, 'google', state);
+
+  try {
+    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    addLog('info', `OAuth YouTube (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
+    return res.json({ authUrl });
+  } catch (err) {
+    return connectionStartError(res, err, platform, 'YouTube', req.user.id);
+  }
+});
+
+router.get('/google/zernio-return', async (req, res) => {
+  const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
+  let meta = {};
+  try { meta = verifyState(state); } catch {}
+
+  const platform = 'youtube';
+  if (!meta.userId) {
+    addLog('err', 'Falha no retorno do Zernio (YouTube): state inválido ou sem usuário associado', platform);
+    return res.send(popupError('oauth_failed'));
+  }
+
+  try {
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
+      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      accountId: accountId || account_id,
+      id,
+      username: username || userName,
+      displayName
+    });
+    addLog('ok', `Canal YouTube conectado via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
+    res.send(popupSuccess());
+  } catch (err) {
+    addLog('err', `Falha ao sincronizar canal YouTube do Zernio: ${err.message}`, platform, null, meta.userId);
+    res.send(popupError('oauth_failed'));
+  }
+});
+
+// ─── Google / YouTube legado ───────────────────────────────────────────────────
+
+// Mantém somente a rota de callback para instalações antigas; a rota de início
+// legada fica fora do caminho público para que novas conexões usem Zernio.
+router.get('/google/legacy', requireAuth, (req, res) => {
   const configError = checkEnv(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
@@ -593,7 +797,7 @@ router.get('/tiktok', requireAuth, async (req, res) => {
   const { accountName } = req.query;
   const platform = 'tiktok';
   const state = signState({ accountName, platform, userId: req.user.id });
-  const redirectUrl = `${(process.env.BASE_URL || '').replace(/\/$/, '')}/auth/tiktok/zernio-return?state=${encodeURIComponent(state)}`;
+  const redirectUrl = zernioRedirectUrl(req, 'tiktok', state);
 
   try {
     const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);

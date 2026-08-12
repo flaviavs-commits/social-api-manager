@@ -1,5 +1,5 @@
 // Cliente para a API do Zernio (docs.zernio.com) — API unificada de terceiros
-// usada para Facebook/Instagram/TikTok no lugar da integração OAuth direta
+// usada para Facebook/Instagram/TikTok/YouTube no lugar da integração OAuth direta
 // com cada plataforma. O Zernio detém o token OAuth real; aqui só chamamos a
 // API deles com nossa própria API key.
 //
@@ -29,7 +29,7 @@ function apiKey() {
 // Retry em 5xx/429 — mesmo espírito do fetchJsonWithRetry usado em
 // src/routes/oauth.js para as outras redes. Respeita Retry-After quando
 // presente (documentado pelo Zernio nos headers de rate limit).
-async function zernioFetch(path, { method = 'GET', body, query, timeoutMs = 10_000, retries = 2, delayMs = 600 } = {}) {
+async function zernioFetch(path, { method = 'GET', body, query, headers = {}, timeoutMs = 10_000, retries = 2, delayMs = 600 } = {}) {
   const url = new URL(ZERNIO_BASE_URL + path)
   try {
     return await requestJson(url, {
@@ -37,7 +37,7 @@ async function zernioFetch(path, { method = 'GET', body, query, timeoutMs = 10_0
       query,
       body,
       timeoutMs,
-      headers: { Authorization: `Bearer ${apiKey()}` },
+      headers: { Authorization: `Bearer ${apiKey()}`, ...headers },
       retries,
       retryDelayMs: delayMs
     })
@@ -54,17 +54,35 @@ async function zernioFetch(path, { method = 'GET', body, query, timeoutMs = 10_0
 }
 
 // Devolve a URL de autorização OAuth para o usuário conectar uma conta —
-// platform: 'facebook' | 'instagram' | 'tiktok' (confirmado em teste real,
+// platform: 'facebook' | 'instagram' | 'tiktok' | 'youtube' (confirmado em teste real,
 // minúsculo, mesmos nomes usados internamente em contas.platform).
 // redirectUrl: parâmetro NÃO documentado publicamente mas confirmado
 // funcional em teste real — sem ele, o Zernio manda o usuário de volta para
 // o próprio dashboard deles ao final do OAuth, não para o nosso site.
-async function connectUrl(platform, profileId, redirectUrl) {
-  return zernioFetch(`/connect/${platform}`, { query: { profileId, redirectUrl } })
+async function connectUrl(platform, profileId, redirectUrl, { headless = false } = {}) {
+  // A documentação atual usa redirect_url. Enviar também o nome antigo
+  // (redirectUrl) pode fazer versões diferentes da API escolherem destinos
+  // distintos; usamos apenas o parâmetro oficial.
+  return zernioFetch(`/connect/${platform}`, { query: { profileId, redirect_url: redirectUrl, ...(headless ? { headless: true } : {}) } })
 }
 
-async function listAccounts() {
-  return zernioFetch('/accounts')
+async function listAccounts({ profileId, platform, includeOverLimit = false } = {}) {
+  return zernioFetch('/accounts', { query: { profileId, platform, ...(includeOverLimit ? { includeOverLimit: true } : {}) } })
+}
+
+async function listFacebookPages(profileId, tempToken, connectToken) {
+  return zernioFetch('/connect/facebook/select-page', {
+    query: { profileId, tempToken },
+    headers: connectToken ? { 'X-Connect-Token': connectToken } : {}
+  })
+}
+
+async function selectFacebookPage(body, connectToken) {
+  return zernioFetch('/connect/facebook/select-page', {
+    method: 'POST',
+    body,
+    headers: connectToken ? { 'X-Connect-Token': connectToken } : {}
+  })
 }
 
 async function getAccountHealth(accountId) {
@@ -162,13 +180,17 @@ async function getFacebookPostReactions(accountId, query) {
   return zernioFetch(`/accounts/${encodeURIComponent(accountId)}/facebook-post-reactions`, { query })
 }
 
+async function getYoutubePlaylists(accountId) {
+  return zernioFetch(`/accounts/${encodeURIComponent(accountId)}/youtube-playlists`)
+}
+
 module.exports = {
   ZernioError,
-  connectUrl, listAccounts, getAccountHealth, disconnectAccount, listProfiles,
+  connectUrl, listAccounts, listFacebookPages, selectFacebookPage, getAccountHealth, disconnectAccount, listProfiles,
   createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
   getPostComments, replyToComment,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
   getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,
   getYoutubeDailyViews, getYoutubeVideoRetention, getYoutubeDemographics,
-  getFacebookPostReactions
+  getFacebookPostReactions, getYoutubePlaylists
 }

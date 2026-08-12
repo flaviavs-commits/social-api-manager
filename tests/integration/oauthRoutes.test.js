@@ -32,3 +32,21 @@ test('exibe a orientação do limite do Zernio ao adicionar uma conta', async ()
   expect(response.body.error).toMatch(/método de pagamento/i)
   expect(response.body.detail).toMatch(/nenhuma conta foi adicionada/i)
 })
+
+test('usa o host atual no retorno do Facebook durante o desenvolvimento', async () => {
+  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@test.com', role: 'user' })
+  zernioClient.connectUrl.mockResolvedValue({ authUrl: 'https://www.facebook.com/oauth' })
+  process.env.NODE_ENV = 'development'
+
+  const response = await request(app)
+    .get('/auth/meta')
+    .set('Authorization', `Bearer ${gerarTokenSessao(7)}`)
+
+  expect(response.status).toBe(200)
+  const [, , redirectUrl, options] = zernioClient.connectUrl.mock.calls.at(-1)
+  expect(options).toEqual({ headless: true })
+  const parsedRedirect = new URL(redirectUrl)
+  expect(parsedRedirect.hostname).toBe('127.0.0.1')
+  expect(parsedRedirect.pathname).toBe('/auth/meta/zernio-return')
+  expect(parsedRedirect.searchParams.get('state')).toBeTruthy()
+})
