@@ -9,12 +9,12 @@ const FAIL_THRESHOLD = 2
 
 const PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
 
-// Facebook/Instagram/TikTok publicam via Zernio agora — o access_token
+// Facebook/Instagram/TikTok/YouTube publicam via Zernio agora — o access_token
 // guardado para essas contas não é mais um token real da Graph API/Content
 // Posting API, é o accountId do Zernio (ver src/routes/oauth.js,
 // syncZernioAccount), então a sonda de saúde chama a API deles em vez de
 // bater direto na rede social.
-const PLATAFORMAS_VIA_ZERNIO = ['instagram', 'facebook', 'tiktok']
+const PLATAFORMAS_VIA_ZERNIO = ['instagram', 'facebook', 'tiktok', 'youtube']
 
 // Chamada leve (não conta como publicação) só para verificar se a API da
 // plataforma está respondendo, usando o token/accountId de uma conta
@@ -118,13 +118,24 @@ async function atualizarStatus(platform, ok, message) {
   }
 }
 
+async function limparStatusSemConta(platform) {
+  await pool.query(`
+    UPDATE platform_health
+    SET status = 'unknown', fail_count = 0, message = NULL, checked_at = NOW()
+    WHERE platform = $1 AND status <> 'unknown'
+  `, [platform])
+}
+
 // Verifica a disponibilidade de cada plataforma que tenha ao menos uma conta
 // conectada. Chamado a cada minuto pelo scheduler.
 async function verificarSaudePlataformas() {
   for (const platform of PLATFORMS) {
     try {
       const token = await buscarTokenSonda(platform)
-      if (!token) continue // sem conta conectada nessa plataforma, nada a verificar
+      if (!token) {
+        await limparStatusSemConta(platform)
+        continue // sem conta conectada nessa plataforma, nada a verificar
+      }
 
       const { ok, message } = await pingPlatform(platform, token)
       await atualizarStatus(platform, ok, message)
@@ -137,10 +148,14 @@ async function verificarSaudePlataformas() {
 }
 
 async function getStatusMap() {
-  const { rows } = await pool.query(`SELECT platform, status, checked_at AS "checkedAt" FROM platform_health`)
+  const { rows } = await pool.query(`
+    SELECT ph.platform, ph.status, ph.checked_at AS "checkedAt",
+           EXISTS (SELECT 1 FROM contas c WHERE c.platform = ph.platform) AS "hasAccount"
+    FROM platform_health ph
+  `)
   const map = {}
   for (const p of PLATFORMS) map[p] = 'unknown'
-  for (const r of rows) map[r.platform] = r.status
+  for (const r of rows) map[r.platform] = r.hasAccount ? r.status : 'unknown'
   return map
 }
 
