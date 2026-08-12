@@ -108,7 +108,12 @@ async function fetchJsonWithRetry(url, options, { retries = 2, delayMs = 600 } =
   return lastData;
 }
 
-function popupSuccess(tiktokUser) {
+function safeFrontendReturnPath(value) {
+  const path = String(value || '')
+  return /^\/app(?:\/[a-z0-9-]+)?$/i.test(path) ? path : '/app/integracoes'
+}
+
+function popupSuccess(tiktokUser, returnPath) {
   // tiktokUser vem do username retornado pela API do TikTok (input externo) —
   // interpolá-lo direto na string JS permitiria XSS via username malicioso
   // (ex: "');alert(document.cookie);('"). JSON.stringify escapa o valor com
@@ -116,8 +121,9 @@ function popupSuccess(tiktokUser) {
   const profileScript = tiktokUser
     ? `window.open('https://www.tiktok.com/@' + encodeURIComponent(${JSON.stringify(String(tiktokUser))}), '_blank');`
     : '';
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  const successUrl = JSON.stringify(`${frontendUrl}/?connected=true`)
+  const frontendUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  const targetPath = safeFrontendReturnPath(returnPath)
+  const successUrl = JSON.stringify(`${frontendUrl}${targetPath}?connected=true`)
   return `<!DOCTYPE html><html><body><script>
     if (window.opener) {
       window.opener.location.href = ${successUrl};
@@ -127,9 +133,10 @@ function popupSuccess(tiktokUser) {
   </script></body></html>`;
 }
 
-function popupError(msg) {
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  const errorUrl = JSON.stringify(`${frontendUrl}/?error=${encodeURIComponent(String(msg || 'oauth_failed').slice(0, 64))}`)
+function popupError(msg, returnPath) {
+  const frontendUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  const targetPath = safeFrontendReturnPath(returnPath)
+  const errorUrl = JSON.stringify(`${frontendUrl}${targetPath}?error=${encodeURIComponent(String(msg || 'oauth_failed').slice(0, 64))}`)
   return `<!DOCTYPE html><html><body><script>
     if (window.opener) { window.opener.location.href = ${errorUrl}; window.close(); }
     else { window.location.href = ${errorUrl}; }
@@ -154,19 +161,19 @@ function parseZernioUserProfile(value) {
   return null
 }
 
-async function savePendingFacebookConnection({ userId, profileId, tempToken, userProfile, connectToken, accountName }) {
+async function savePendingFacebookConnection({ userId, profileId, tempToken, userProfile, connectToken, accountName, returnTo }) {
   const id = crypto.randomBytes(32).toString('hex')
   await pool.query("DELETE FROM zernio_oauth_pending WHERE criado_em < NOW() - INTERVAL '15 minutes'")
   await pool.query(`
-    INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token, account_name)
-    VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6, $7)
-  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null, accountName || null])
+    INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token, account_name, return_to)
+    VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6, $7, $8)
+  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null, accountName || null, safeFrontendReturnPath(returnTo)])
   return id
 }
 
 async function getPendingFacebookConnection(id) {
   const { rows: [pending] } = await pool.query(`
-    SELECT id, user_id AS "userId", profile_id AS "profileId", temp_token AS "tempToken", user_profile AS "userProfile", connect_token AS "connectToken", account_name AS "accountName"
+    SELECT id, user_id AS "userId", profile_id AS "profileId", temp_token AS "tempToken", user_profile AS "userProfile", connect_token AS "connectToken", account_name AS "accountName", return_to AS "returnTo"
     FROM zernio_oauth_pending
     WHERE id = $1 AND platform = 'facebook' AND criado_em >= NOW() - INTERVAL '15 minutes'
   `, [id])
@@ -348,9 +355,9 @@ router.get('/meta', requireAuth, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName } = req.query;
+  const { accountName, returnTo } = req.query;
   const platform = 'facebook';
-  const state = signState({ accountName, platform, userId: req.user.id });
+  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'meta', state);
 
   try {
@@ -388,7 +395,8 @@ router.get('/meta/zernio-return', async (req, res) => {
         tempToken,
         userProfile: parsedUserProfile,
         connectToken: connectToken || alternateConnectToken,
-        accountName: meta.accountName
+        accountName: meta.accountName,
+        returnTo: meta.returnTo
       })
       const { pages = [] } = await zernioClient.listFacebookPages(
         profileId || process.env.ZERNIO_PROFILE_ID,
@@ -415,10 +423,10 @@ router.get('/meta/zernio-return', async (req, res) => {
       displayName
     });
     addLog('ok', `Conta Facebook conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
-    res.send(popupSuccess());
+    res.send(popupSuccess(null, meta.returnTo));
   } catch (err) {
     addLog('err', `Falha ao sincronizar conta Facebook do Zernio: ${err.message}`, platform, null, meta.userId);
-    res.send(popupError('oauth_failed'));
+    res.send(popupError('oauth_failed', meta.returnTo));
   }
 });
 
@@ -459,10 +467,10 @@ router.post('/meta/zernio-select', express.urlencoded({ extended: false }), asyn
     })
     await pool.query('DELETE FROM zernio_oauth_pending WHERE id = $1', [pending.id])
     addLog('ok', `Conta Facebook conectada via Zernio: "${conta.handle}"`, 'facebook', conta.id, pending.userId)
-    res.send(popupSuccess())
+    res.send(popupSuccess(null, pending.returnTo))
   } catch (err) {
     addLog('err', `Falha ao selecionar Página do Facebook: ${err.message}`, 'facebook', null, pending.userId)
-    res.send(popupError('oauth_failed'))
+    res.send(popupError('oauth_failed', pending.returnTo))
   }
 })
 
@@ -537,10 +545,10 @@ router.get('/meta/callback', async (req, res) => {
 
     // 2. Troca o token de curta duração, busca o perfil e salva a conta
     await finalizarConexaoFacebook(tokenData.access_token, { accountName: meta.accountName, userId: meta.userId });
-    res.send(popupSuccess());
+    res.send(popupSuccess(null, meta.returnTo));
   } catch (err) {
     addLog('err', `Falha no callback Facebook: ${err.message}`, null, null, meta.userId);
-    res.send(popupError('oauth_failed'));
+    res.send(popupError('oauth_failed', meta.returnTo));
   }
 });
 
@@ -582,9 +590,9 @@ router.get('/instagram', requireAuth, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'instagram');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName } = req.query;
+  const { accountName, returnTo } = req.query;
   const platform = 'instagram';
-  const state = signState({ accountName, platform, userId: req.user.id });
+  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'instagram', state);
 
   try {
@@ -597,7 +605,7 @@ router.get('/instagram', requireAuth, async (req, res) => {
 });
 
 router.get('/instagram/zernio-return', async (req, res) => {
-  const { state } = req.query;
+  const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
@@ -610,12 +618,18 @@ router.get('/instagram/zernio-return', async (req, res) => {
   }
 
   try {
-    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
+      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      accountId: accountId || account_id,
+      id,
+      username: username || userName,
+      displayName
+    });
     addLog('ok', `Conta Instagram conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
-    res.send(popupSuccess());
+    res.send(popupSuccess(null, meta.returnTo));
   } catch (err) {
     addLog('err', `Falha ao sincronizar conta Instagram do Zernio: ${err.message}`, platform, null, meta.userId);
-    res.send(popupError('oauth_failed'));
+    res.send(popupError('oauth_failed', meta.returnTo));
   }
 });
 
@@ -628,9 +642,9 @@ router.get('/google', requireAuth, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName } = req.query;
+  const { accountName, returnTo } = req.query;
   const platform = 'youtube';
-  const state = signState({ accountName, platform, userId: req.user.id });
+  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'google', state);
 
   try {
@@ -662,10 +676,10 @@ router.get('/google/zernio-return', async (req, res) => {
       displayName
     });
     addLog('ok', `Canal YouTube conectado via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
-    res.send(popupSuccess());
+    res.send(popupSuccess(null, meta.returnTo));
   } catch (err) {
     addLog('err', `Falha ao sincronizar canal YouTube do Zernio: ${err.message}`, platform, null, meta.userId);
-    res.send(popupError('oauth_failed'));
+    res.send(popupError('oauth_failed', meta.returnTo));
   }
 });
 
@@ -840,9 +854,9 @@ router.get('/tiktok', requireAuth, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
-  const { accountName } = req.query;
+  const { accountName, returnTo } = req.query;
   const platform = 'tiktok';
-  const state = signState({ accountName, platform, userId: req.user.id });
+  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'tiktok', state);
 
   try {
@@ -855,7 +869,7 @@ router.get('/tiktok', requireAuth, async (req, res) => {
 });
 
 router.get('/tiktok/zernio-return', async (req, res) => {
-  const { state } = req.query;
+  const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
 
   let meta = {};
   try { meta = verifyState(state); } catch {}
@@ -868,12 +882,18 @@ router.get('/tiktok/zernio-return', async (req, res) => {
   }
 
   try {
-    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName);
+    const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
+      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      accountId: accountId || account_id,
+      id,
+      username: username || userName,
+      displayName
+    });
     addLog('ok', `Conta TikTok conectada via Zernio: "${conta.handle}"`, platform, conta.id, meta.userId);
-    res.send(popupSuccess());
+    res.send(popupSuccess(null, meta.returnTo));
   } catch (err) {
     addLog('err', `Falha ao sincronizar conta TikTok do Zernio: ${err.message}`, platform, null, meta.userId);
-    res.send(popupError('oauth_failed'));
+    res.send(popupError('oauth_failed', meta.returnTo));
   }
 });
 

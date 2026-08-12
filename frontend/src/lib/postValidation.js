@@ -7,6 +7,8 @@ import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from './platformTextLimits
 
 const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
+export const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
+export const TIKTOK_CAROUSEL_MAX_ITEMS = 35
 
 export function mediaFileKey(file) {
   return `${file.name}-${file.lastModified}-${file.size}`
@@ -92,6 +94,12 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
   if (platforms.includes('tiktok')) {
     if (!hasMedia)
       issues.push({ platform: 'tiktok', message: 'Falta mídia para publicar no TikTok — anexe um vídeo ou imagem.' })
+    if (files.length > 1) {
+      if (files.some(file => !file.type.startsWith('image/')))
+        issues.push({ platform: 'tiktok', message: 'O carrossel do TikTok aceita somente fotos. Remova os vídeos ou publique uma mídia única.' })
+      if (files.length > TIKTOK_CAROUSEL_MAX_ITEMS)
+        issues.push({ platform: 'tiktok', message: `O carrossel do TikTok aceita no máximo ${TIKTOK_CAROUSEL_MAX_ITEMS} fotos.` })
+    }
     const meta = videoFiles[0] && videoMetaByKey[mediaFileKey(videoFiles[0])]
     if (meta && !isAspectRatioValidForTiktok(meta))
       issues.push({ platform: 'tiktok', message: 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.' })
@@ -103,7 +111,15 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
     if (!hasMedia)
       issues.push({ platform: 'instagram', message: 'Falta imagem ou vídeo para publicar no Instagram — anexe uma mídia ou desmarque o Instagram.' })
     if (igFormat === 'story' && files.length > 1)
-      issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Post ou Reel, ou remova os itens extras.' })
+      issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Feed ou remova os itens extras.' })
+    if (files.length > 1) {
+      if (igFormat && igFormat !== 'post')
+        issues.push({ platform: 'instagram', message: 'O carrossel do Instagram está disponível no Feed — escolha Feed ou remova as fotos extras.' })
+      if (files.some(file => !file.type.startsWith('image/')))
+        issues.push({ platform: 'instagram', message: 'O carrossel do Instagram aceita somente fotos neste agendador. Remova os vídeos ou publique uma mídia única.' })
+      if (files.length > INSTAGRAM_CAROUSEL_MAX_ITEMS)
+        issues.push({ platform: 'instagram', message: `O carrossel do Instagram aceita no máximo ${INSTAGRAM_CAROUSEL_MAX_ITEMS} fotos.` })
+    }
     if (!publishNow && scheduledAt) {
       const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000
       if (minutosAteAgendamento < INSTAGRAM_MIN_ANTECEDENCIA_MIN)

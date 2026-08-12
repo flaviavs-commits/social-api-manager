@@ -48,7 +48,24 @@ test('usa o host atual no retorno do Facebook durante o desenvolvimento', async 
   const parsedRedirect = new URL(redirectUrl)
   expect(parsedRedirect.hostname).toBe('127.0.0.1')
   expect(parsedRedirect.pathname).toBe('/auth/meta/zernio-return')
-  expect(parsedRedirect.searchParams.get('state')).toBeTruthy()
+  const state = parsedRedirect.searchParams.get('state')
+  expect(state).toBeTruthy()
+  const statePayload = JSON.parse(Buffer.from(state, 'base64').toString())
+  expect(statePayload.returnTo).toBeUndefined()
+})
+
+test('preserva a página de integrações no retorno do OAuth', async () => {
+  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@test.com', role: 'user' })
+  zernioClient.connectUrl.mockResolvedValue({ authUrl: 'https://www.instagram.com/oauth' })
+
+  const response = await request(app)
+    .get('/auth/instagram?returnTo=%2Fapp%2Fintegracoes')
+    .set('Authorization', `Bearer ${gerarTokenSessao(7)}`)
+
+  const [, , redirectUrl] = zernioClient.connectUrl.mock.calls.at(-1)
+  const state = JSON.parse(Buffer.from(new URL(redirectUrl).searchParams.get('state'), 'base64').toString())
+  expect(state.returnTo).toBe('/app/integracoes')
+  expect(response.status).toBe(200)
 })
 
 test('orienta quando a etapa interna de seleção do Facebook é aberta diretamente', async () => {

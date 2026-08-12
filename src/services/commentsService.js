@@ -212,7 +212,7 @@ async function buscarTokenPost(post) {
 async function listarComentariosPost(post) {
   const token = await buscarTokenPost(post)
   try {
-    if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) {
+    if (token.zernioAccountId && ['facebook', 'instagram', 'youtube'].includes(post.externalPlatform)) {
       const comments = await listarComentariosZernio(token, post.externalPostId)
       return { comments, replySupported: true }
     }
@@ -244,7 +244,7 @@ async function responderComentario(post, commentId, text) {
   const token = await buscarTokenPost(post)
 
   try {
-    if (token.zernioAccountId && ['facebook', 'instagram'].includes(post.externalPlatform)) {
+    if (token.zernioAccountId && ['facebook', 'instagram', 'youtube'].includes(post.externalPlatform)) {
       return await responderComentarioZernio(token, post.externalPostId, commentId, text)
     }
 

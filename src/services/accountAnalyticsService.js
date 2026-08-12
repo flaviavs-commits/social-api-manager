@@ -4,7 +4,7 @@ const metricsService = require('./metricsService')
 const { ACCOUNT_METRICS, UNAVAILABLE_METRICS } = require('../domain/analytics/analyticsCatalog')
 const { normalizeInsight } = require('../domain/analytics/normalizeAnalytics')
 
-const ZERNIO_PLATFORMS = ['facebook', 'instagram', 'tiktok']
+const ZERNIO_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'youtube']
 const MAX_DAYS = 90
 
 function dateOnly(date) {
@@ -41,7 +41,8 @@ function insightMethod(platform) {
   return {
     facebook: zernioClient.getFacebookPageInsights,
     instagram: zernioClient.getInstagramAccountInsights,
-    tiktok: zernioClient.getTiktokAccountInsights
+    tiktok: zernioClient.getTiktokAccountInsights,
+    youtube: zernioClient.getYoutubeChannelInsights
   }[platform]
 }
 
@@ -117,6 +118,16 @@ async function collectAccount(token, range) {
     if (engaged.error) base.errors.push({ scope: 'engaged_audience_demographics', ...engaged.error })
   }
 
+  if (token.platform === 'youtube') {
+    const demographics = await settledCall(() => zernioClient.getYoutubeDemographics({
+      accountId: token.zernioAccountId,
+      fromDate: range.since,
+      toDate: range.until
+    }))
+    base.demographics = demographics.data?.demographics || demographics.data || null
+    if (demographics.error) base.errors.push({ scope: 'demographics', ...demographics.error })
+  }
+
   return base
 }
 
@@ -156,9 +167,9 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     platform: account.platform
   }).then(data => ({ ...account, data })))))
 
-  const byPlatform = Object.fromEntries([...ZERNIO_PLATFORMS, 'youtube'].map(platform => [
+  const byPlatform = Object.fromEntries(ZERNIO_PLATFORMS.map(platform => [
     platform,
-    platform === 'youtube' ? (youtubeResult.data?.accounts || []) : accounts.filter(account => account.platform === platform)
+    accounts.filter(account => account.platform === platform)
   ]))
 
   return {

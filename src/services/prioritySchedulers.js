@@ -6,9 +6,9 @@ const { nextOccurrence } = require('../routes/contentQueues')
 const { nextRun } = require('../routes/reportSchedules')
 
 async function processarFilasRecorrentes() {
-  const { rows } = await pool.query('SELECT * FROM content_queues WHERE active=true AND next_run_at IS NOT NULL AND next_run_at <= NOW() ORDER BY next_run_at ASC LIMIT 25')
+  const { rows } = await pool.query('SELECT cq.*, COALESCE(u.timezone, \'America/Sao_Paulo\') AS user_timezone FROM content_queues cq JOIN users u ON u.id = cq.user_id WHERE cq.active=true AND cq.next_run_at IS NOT NULL AND cq.next_run_at <= NOW() ORDER BY cq.next_run_at ASC LIMIT 25')
   for (const queue of rows) {
-    const claim = await pool.query('UPDATE content_queues SET next_run_at=$1, atualizado_em=NOW() WHERE id=$2 AND active=true AND next_run_at <= NOW()', [nextOccurrence(queue.recurrence), queue.id])
+    const claim = await pool.query('UPDATE content_queues SET next_run_at=$1, atualizado_em=NOW() WHERE id=$2 AND active=true AND next_run_at <= NOW()', [nextOccurrence(queue.recurrence, new Date(), queue.user_timezone), queue.id])
     if (!claim.rowCount) continue
     try {
       const content = queue.content || {}
@@ -21,6 +21,12 @@ async function processarFilasRecorrentes() {
         platforms,
         scheduledAt: new Date(Date.now() + 60 * 1000),
         repeat: 'none',
+        mediaPath: content.mediaPath || null,
+        // content_queues stores the upload MIME (e.g. video/mp4), while the
+        // publication pipeline expects the normalized kind (video/image).
+        mediaType: content.mediaPath
+          ? (String(content.mediaType || '').toLowerCase().startsWith('video/') ? 'video' : 'image')
+          : null,
         youtubeTitle: content.youtubeTitle || null,
         youtubeVisibility: content.youtubeVisibility || 'public',
         igFormat: content.igFormat || null,

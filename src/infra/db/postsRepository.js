@@ -64,10 +64,11 @@ async function listarPosts({ status, userId, isAdmin } = {}) {
 
   const { rows } = await pool.query(`
     SELECT
-      id, text, platforms,
+      id, text, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform", platforms,
       scheduled_at AS "scheduledAt", repeat, status, error_message AS "errorMessage", retry_count AS "retryCount", next_retry_at AS "nextRetryAt", criado_em, user_id AS "userId",
       media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
-      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_is_short AS "youtubeIsShort",
+      youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_category_id AS "youtubeCategoryId", youtube_format AS "youtubeFormat", youtube_is_short AS "youtubeIsShort", youtube_made_for_kids AS "youtubeMadeForKids",
+      ig_format AS "igFormat", tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment", tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
       account_id AS "accountId",
       external_post_id AS "externalPostId", external_platform AS "externalPlatform", published_at AS "publishedAt"
     FROM posts

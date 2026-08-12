@@ -152,7 +152,7 @@ async function renovarTokensProativamente() {
 
 // Publishers de comentário por rede — só as que têm endpoint de comentário
 // na API oficial (ver postsRepository.js, PLATAFORMAS_COM_COMENTARIO).
-// Facebook/Instagram/TikTok não entram mais aqui: migraram para o Zernio,
+// Facebook/Instagram/TikTok/YouTube não entram mais aqui: migraram para o Zernio,
 // que posta o firstComment nativamente na publicação (ver zernioPublisher.js).
 const COMENTAR_POR_PLATAFORMA = {
   youtube: comentarYoutube

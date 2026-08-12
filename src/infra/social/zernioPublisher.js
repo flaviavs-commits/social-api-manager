@@ -97,6 +97,36 @@ async function publicarZernioFacebook(token, post) {
   return extrairDadosDaPlataforma(created, 'facebook')
 }
 
+async function publicarZernioYoutube(token, post) {
+  const items = post.mediaItems?.length
+    ? post.mediaItems
+    : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
+  const videos = items.filter(item => item.type === 'video')
+  if (videos.length !== 1 || items.length !== 1) throw new Error('YouTube exige exatamente um vídeo para publicar')
+
+  const platformSpecificData = {
+    title: (post.youtubeTitle || post.text || 'Novo vídeo').slice(0, 100),
+    visibility: post.youtubeVisibility || 'public',
+    madeForKids: post.youtubeMadeForKids === true
+  }
+  if (post.youtubeCategoryId) platformSpecificData.categoryId = post.youtubeCategoryId
+  if (post.firstComment) platformSpecificData.firstComment = post.firstComment
+
+  const response = await zernioClient.createPost({
+    content: post.text || '',
+    publishNow: true,
+    mediaItems: [{ type: 'video', url: mediaUrl(videos[0].path) }],
+    platforms: [{
+      platform: 'youtube',
+      accountId: token.accessToken,
+      platformSpecificData
+    }]
+  })
+
+  const { post: created } = response
+  return extrairDadosDaPlataforma(created, 'youtube')
+}
+
 async function publicarZernioTiktok(token, post) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('TikTok exige um vídeo ou imagem para publicar')
 
@@ -124,4 +154,4 @@ async function publicarZernioTiktok(token, post) {
   return extrairDadosDaPlataforma(created, 'tiktok')
 }
 
-module.exports = { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok }
+module.exports = { publicarZernioInstagram, publicarZernioFacebook, publicarZernioYoutube, publicarZernioTiktok }

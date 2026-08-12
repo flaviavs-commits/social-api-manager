@@ -131,6 +131,64 @@
   background: rgb(37 244 238 / 0.1);
 }
 
+.media-order-actions {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 9px;
+}
+
+.media-order-actions button {
+  width: 25px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-hover);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.media-order-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.media-order-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .35;
+}
+
+.social-preview-carousel-dots small {
+  margin-left: 5px;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.media-ai-generator-notes {
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.carousel-quality-panel {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(226 174 72 / .26);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  background: rgb(226 174 72 / .07);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.carousel-quality-panel strong {
+  color: var(--accent);
+  font-size: 11px;
+}
+
 .platform-composer-content {
   display: grid;
   gap: 10px;

@@ -147,7 +147,9 @@ const METRIC_FETCHERS = {
   facebook: metricsZernio,
   instagram: metricsZernio,
   tiktok: metricsZernio,
-  youtube: metricsYoutube
+  youtube: (token, externalPostId) => token.zernioAccountId
+    ? metricsZernio(token, externalPostId)
+    : metricsYoutube(token, externalPostId)
 }
 
 // Busca likes/comentários reais de um post já publicado. Retorna null
@@ -333,6 +335,18 @@ async function metricsInscritosAtuaisYoutube(token) {
   return stats?.subscriberCount != null ? Number(stats.subscriberCount) : null
 }
 
+async function metricsInscritosAtuaisYoutubeZernio(zernioAccountId) {
+  const { accounts } = await zernioClient.listAccounts()
+  const conta = accounts.find(a => a._id === zernioAccountId)
+  if (!conta) throw new Error('Canal YouTube não encontrado no Zernio')
+  return conta.subscriberCount
+    ?? conta.subscribersCount
+    ?? conta.followersCount
+    ?? conta.metadata?.profileData?.subscriberCount
+    ?? conta.metadata?.profileData?.subscribersCount
+    ?? null
+}
+
 async function youtubeReport(token, { metrics, dimensions, filters, since, until }) {
   const params = new URLSearchParams({
     ids: 'channel==MINE',
@@ -398,6 +412,7 @@ async function buscarInsightsYoutube(userId, isAdmin, { since, until }) {
 
     await Promise.all(Object.entries(reports).map(async ([name, config]) => {
       try {
+        if (token.zernioAccountId) return
         const result = await youtubeReport(token, { ...config, since, until })
         base.reports[name] = { headers: result.columnHeaders || [], rows: reportRows(result) }
         const metricMap = reportMetricMap(result, config.dateDimension)
@@ -498,7 +513,9 @@ async function buscarSeriesInscritosYoutube(userId, isAdmin) {
   const tokens = await listarContasToken('youtube', userId, isAdmin)
 
   await Promise.allSettled(tokens.map(async t => {
-    const subscriberCount = await metricsInscritosAtuaisYoutube({ accessToken: t.accessToken })
+    const subscriberCount = t.zernioAccountId
+      ? await metricsInscritosAtuaisYoutubeZernio(t.zernioAccountId)
+      : await metricsInscritosAtuaisYoutube({ accessToken: t.accessToken })
     if (subscriberCount != null) await contasRepo.registrarSnapshotSeguidoresYoutube(t.contaId, subscriberCount)
   }))
 
@@ -603,7 +620,7 @@ async function buscarVideosTiktok(userId, isAdmin) {
 // redes que não usam Zernio.
 async function buscarHistoricoPostZernio(publications, userId, isAdmin) {
   const results = await Promise.allSettled(publications.map(async publication => {
-    if (!['facebook', 'instagram', 'tiktok'].includes(publication.platform)) return null
+    if (!['facebook', 'instagram', 'tiktok', 'youtube'].includes(publication.platform)) return null
     const token = await buscarContaToken(publication.platform, userId, isAdmin, publication.accountId)
     if (!token?.zernioAccountId) return null
     const timeline = await zernioClient.getPostTimeline({

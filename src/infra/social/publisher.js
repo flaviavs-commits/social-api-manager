@@ -7,7 +7,7 @@ const tokensRepo = require('../../repositories/tokensRepository')
 const postsRepo = require('../db/postsRepository')
 const { decrypt } = require('../../services/tokenCrypto')
 const { statusContainerInstagram, finalizarPublicacaoInstagram } = require('./instagramPublisher')
-const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('./zernioPublisher')
+const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioYoutube, publicarZernioTiktok } = require('./zernioPublisher')
 const zernioClient = require('./zernioClient')
 const { publicarYoutube } = require('./youtubePublisher')
 const { mapWithConcurrency } = require('../../utils/concurrency')
@@ -102,13 +102,18 @@ function extrairExternalId(platform, data) {
   return null
 }
 
-// Facebook/Instagram/TikTok publicam via Zernio agora (docs.zernio.com) —
+// Facebook/Instagram/TikTok/YouTube publicam via Zernio agora (docs.zernio.com) —
 // ver src/infra/social/zernioPublisher.js e src/routes/oauth.js
-// (syncZernioAccount). YouTube continua na integração direta.
+// (syncZernioAccount). A função do YouTube mantém fallback para contas antigas
+// conectadas diretamente ao Google.
+async function publicarYoutubePorProvedor(token, post) {
+  return token.zernioAccountId ? publicarZernioYoutube(token, post) : publicarYoutube(token, post)
+}
+
 const PUBLISHERS = {
   facebook: publicarZernioFacebook,
   instagram: publicarZernioInstagram,
-  youtube: publicarYoutube,
+  youtube: publicarYoutubePorProvedor,
   tiktok: publicarZernioTiktok
 }
 
@@ -213,7 +218,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     if (data?.pending) {
       const isZernio = data.provider === 'zernio'
       await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
-      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
       const tipoPost = data.stage === 'carousel_children' ? 'Carrossel' : 'Post'
       await registrarLog({
         type: 'info',
@@ -233,7 +238,8 @@ async function publicarNaConta(account, post, isSuperAdmin) {
         externalPostId: externalId,
         externalPlatform: platform,
         publishedAt: new Date().toISOString(),
-        accountId: account.accountId
+        accountId: account.accountId,
+        firstCommentHandled: data?.provider === 'zernio'
       })
     }
 
@@ -349,7 +355,7 @@ async function finalizarInstagramPendentes() {
 const ZERNIO_PENDING_TIMEOUT_MS = 15 * 60 * 1000
 
 // Equivalente a finalizarInstagramPendentes(), mas para posts publicados
-// via Zernio (Facebook/Instagram/TikTok) cujo platformPostId não veio na
+// via Zernio (Facebook/Instagram/TikTok/YouTube) cujo platformPostId não veio na
 // resposta imediata do createPost — ver zernioPublisher.js/
 // extrairDadosDaPlataforma. Consulta GET /v1/posts/{id} de novo a cada
 // tick do cron até status virar "published" (extrai o platformPostId real)
@@ -381,10 +387,16 @@ async function finalizarZernioPendentes() {
       }
 
       const externalId = entrada.platformPostId
-      await postsRepo.salvarPublicacaoExterna(postId, { externalPostId: externalId, externalPlatform: platform, publishedAt: new Date().toISOString(), accountId: linha.accountId })
+      await postsRepo.salvarPublicacaoExterna(postId, {
+        externalPostId: externalId,
+        externalPlatform: platform,
+        publishedAt: new Date().toISOString(),
+        accountId: linha.accountId,
+        firstCommentHandled: true
+      })
       await postsRepo.limparInstagramPending(linha.postAccountId)
 
-      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
+      const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
       await registrarLog({ type: 'ok', message: `Post publicado no ${platLabel} na conta "${pending.accountName}" com sucesso! ✓`, platform, conta_id: pending.contaId, user_id: linha.userId })
       await fecharStatusSeSemPendencias(postId, linha)
     } catch (err) {

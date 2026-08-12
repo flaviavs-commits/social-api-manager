@@ -35,7 +35,7 @@ const navigation = [
   ['atividade', 'Atividades'],
   ['ai', 'Assistente IA'],
   ['biblioteca', 'Biblioteca'],
-  ['filas', 'Filas recorrentes']
+  ['filas', 'Rotinas de publicação']
   ,['smartlinks', 'Smartlinks']
   ,['equipe', 'Equipe']
 ]

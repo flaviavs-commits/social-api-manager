@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { buildValidationIssues, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
+import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, mediaFileKey, readVideoMeta, TIKTOK_CAROUSEL_MAX_ITEMS } from '../lib/postValidation.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
@@ -48,7 +48,7 @@ const MEDIA_AI_MODEL = 'openrouter'
 const MEDIA_HASHTAG_LIMITS = { instagram: 5, facebook: 2, youtube: 3, tiktok: 2 }
 const MEDIA_TEXT_LIMITS = { tiktok: 4000 }
 function canvasToAnalysisData(canvas) {
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.72)
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.62)
   return { mediaBase64: dataUrl.split(',')[1], mimeType: 'image/jpeg' }
 }
 
@@ -58,7 +58,7 @@ function compressImageForAnalysis(file) {
     const image = new Image()
     image.onload = () => {
       try {
-        const maxDimension = 1024
+        const maxDimension = 768
         const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight))
         const canvas = document.createElement('canvas')
         canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
@@ -148,6 +148,8 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   const [busy, setBusy] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [analysisNotes, setAnalysisNotes] = useState([])
+  const analysisLimit = selected.includes('instagram') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_CAROUSEL_MAX_ITEMS
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
@@ -159,35 +161,42 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     setBusy(true)
     setAnalysisError('')
     setSuccessMessage('')
-    const targets = files.slice(0, 6)
-    const settled = await Promise.allSettled(targets.map(async file => {
-      const media = await buildMediaAnalysisPayload(file)
+    setAnalysisNotes([])
+    try {
+      // Envia a sequência inteira em uma única análise para a IA entender a
+      // narrativa do carrossel, escolher a melhor capa e evitar uma legenda
+      // baseada apenas na primeira foto.
+      const targets = files.slice(0, analysisLimit)
+      const mediaItems = await Promise.all(targets.map(buildMediaAnalysisPayload))
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
-        body: JSON.stringify({ ...media, plataformas: requestedPlatforms, contexto, melhorar: Boolean(contexto.trim()), modelo: MEDIA_AI_MODEL }),
+        body: JSON.stringify({
+          mediaItems,
+          mediaKind: mediaItems[0]?.mediaKind,
+          mediaCount: mediaItems.length,
+          carousel: mediaItems.length > 1,
+          plataformas: requestedPlatforms,
+          contexto,
+          melhorar: Boolean(contexto.trim()),
+          modelo: MEDIA_AI_MODEL,
+        }),
       })
-      return { key: mediaFileKey(file), fileName: file.name, mediaType: media.mediaKind, previewUrl: previews.find(item => item.key === mediaFileKey(file))?.url, ...response }
-    }))
-    const successful = settled.filter(item => item.status === 'fulfilled').map(item => item.value)
-    const failures = settled.filter(item => item.status === 'rejected')
-    if (failures.length) {
-      const firstMessage = failures[0].reason?.message || ''
-      setAnalysisError(firstMessage.includes('limite') || firstMessage.includes('429')
-        ? 'O OpenRouter atingiu o limite de requisições. Tente novamente em instantes.'
-        : `${failures.length} mídia(s) não puderam ser analisadas. Confira o arquivo e tente novamente.`)
-    }
-    if (successful.length) {
-      const firstResult = successful[0]
       const suggestions = requestedPlatforms
-        .map(platform => firstResult.sugestoes?.find(item => item.plataforma === platform))
+        .map(platform => response.sugestoes?.find(item => item.plataforma === platform))
         .filter(Boolean)
       const missingPlatforms = requestedPlatforms.filter(platform => !suggestions.some(suggestion => suggestion.plataforma === platform))
       if (missingPlatforms.length) {
         setAnalysisError(`A IA não retornou uma sugestão para: ${missingPlatforms.join(', ')}. Tente novamente.`)
       } else {
         onApply(suggestions, { silent: true })
-        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} para ${suggestions.length} rede(s) selecionada(s).`)
+        setAnalysisNotes(response.analise_carrossel?.recomendacoes || [])
+        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaItems.length} ${mediaItems.length === 1 ? 'mídia' : 'fotos'} para ${suggestions.length} rede(s).`)
       }
+    } catch (caught) {
+      const message = caught?.message || ''
+      setAnalysisError(message.includes('limite') || message.includes('429')
+        ? 'O modelo de IA atingiu o limite de requisições. Tente novamente em instantes.'
+        : 'As imagens não puderam ser analisadas. Confira os arquivos e tente novamente.')
     }
     setBusy(false)
   }
@@ -211,10 +220,11 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
         <div className="media-ai-generator-hints" aria-live="polite">
           {!files.length && <span><b>1</b> Selecione uma imagem ou vídeo</span>}
           {!selected.length && <span><b>2</b> Selecione ao menos uma rede social</span>}
-          {files.length > 6 && <span>As primeiras 6 mídias serão analisadas.</span>}
+          {files.length > analysisLimit && <span>As primeiras {analysisLimit} mídias serão analisadas.</span>}
           {ready && !analysisError && !successMessage && <span className="media-ai-generator-ready">Pronto para analisar sua mídia.</span>}
           {analysisError && <span className="media-ai-generator-error" role="alert">{analysisError}</span>}
           {successMessage && <span className="media-ai-generator-success" role="status">✓ {successMessage}</span>}
+          {analysisNotes.length > 0 && <span className="media-ai-generator-notes">{analysisNotes.slice(0, 2).join(' · ')}</span>}
         </div>
         <button type="button" className="media-ai-generator-button" onClick={analyzeMedia} disabled={busy || !ready}>
           <span aria-hidden="true">{busy ? '◌' : '✦'}</span>{busy ? 'Analisando mídia…' : contexto.trim() ? 'Melhorar descrição' : 'Gerar descrição'}
@@ -278,7 +288,7 @@ function PreviewMedia({ platform, previews, igFormat, aspectRequest, mediaProfil
   const media = isVideo
     ? <div className="social-preview-video"><video src={item.url} controls muted playsInline preload="metadata" aria-label="Prévia do vídeo selecionado"/><span className="social-preview-video-badge">Vídeo detectado</span></div>
     : <img src={item.url} alt="Prévia da publicação"/>
-  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>{media}{platform === 'instagram' && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} mídias em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}</div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
+  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>{media}{['instagram', 'tiktok'].includes(platform) && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} fotos em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}<small>{previews.length} fotos</small></div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
 }
 
 function PostPreview({ textByPlatform, titleByPlatform, selected, files, previews, publishNow, date, youtubeTitle, igFormat, igAspect, tiktokAspect, mediaProfile, accounts }) {
@@ -499,12 +509,33 @@ export function SchedulerPage() {
     if (incoming.length !== valid.length) setError('Alguns arquivos foram ignorados. Selecione somente imagens ou vídeos.')
     setFiles(current => {
       const merged = [...current, ...valid]
-      return merged.filter((file, index, list) => list.findIndex(item => mediaFileKey(item) === mediaFileKey(file)) === index)
+      const unique = merged.filter((file, index, list) => list.findIndex(item => mediaFileKey(item) === mediaFileKey(file)) === index)
+      const carouselLimit = selected.includes('instagram') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_CAROUSEL_MAX_ITEMS
+      if (unique.length > carouselLimit) {
+        setError(`Este carrossel pode ter no máximo ${carouselLimit} fotos para as redes selecionadas.`)
+        return current
+      }
+      if (unique.length > 1 && unique.some(file => file.type.startsWith('video/'))) {
+        setError('Carrosséis usam somente fotos. Remova o vídeo antes de adicionar outras imagens.')
+        return current
+      }
+      if (unique.length > 1 && selected.includes('instagram') && igFormat !== 'post') setIgFormat('post')
+      return unique
     })
   }
   function selectFiles(event) { addFiles(event.target.files); event.target.value = '' }
   function dropFiles(event) { event.preventDefault(); addFiles(event.dataTransfer.files) }
   function removeFile(key) { setFiles(current => current.filter(file => mediaFileKey(file) !== key)) }
+  function moveFile(index, direction) {
+    setFiles(current => {
+      const target = index + direction
+      if (target < 0 || target >= current.length) return current
+      const next = [...current]
+      const [item] = next.splice(index, 1)
+      next.splice(target, 0, item)
+      return next
+    })
+  }
   useEffect(() => {
     let draft = window.__socialAiPostDraft || null
     try {
@@ -580,6 +611,24 @@ export function SchedulerPage() {
     }
   }, [files, mediaMetaByKey])
 
+  const carouselQualityNotes = useMemo(() => {
+    if (files.length < 2 || files.some(file => !file.type.startsWith('image/'))) return []
+    const metas = files.map(file => mediaMetaByKey[mediaFileKey(file)]).filter(Boolean)
+    if (metas.length !== files.length) return ['Estamos lendo as dimensões de todas as fotos antes de recomendar ajustes.']
+    const ratios = metas.map(meta => meta.width / meta.height).filter(Number.isFinite)
+    const notes = []
+    if (selected.includes('instagram') && ratios.some(ratio => ratio < 0.8 || ratio > 1.91)) {
+      notes.push('Uma ou mais fotos estão fora da faixa segura do Feed do Instagram (4:5 a 1,91:1).')
+    }
+    if (ratios.length > 1 && Math.max(...ratios) - Math.min(...ratios) > 0.18) {
+      notes.push('As fotos têm proporções diferentes; padronizar o enquadramento deixa o carrossel mais uniforme.')
+    }
+    if (metas.some(meta => Math.min(meta.width, meta.height) < 600)) {
+      notes.push('Uma ou mais fotos têm baixa resolução e podem perder nitidez após o processamento da rede.')
+    }
+    return notes
+  }, [files, mediaMetaByKey, selected])
+
   const validationInput = {
     textByPlatform, titleByPlatform, tiktokDescription: textByPlatform.tiktokDescription || '', platforms: selected, files: files.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type })),
     publishNow, scheduledAt: date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey
@@ -643,6 +692,9 @@ export function SchedulerPage() {
   }).filter(Boolean).join('\n\n')
 
   const tiktokPreviewAspect = resolvePreviewAspect({ platform: 'tiktok', mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: tiktokAspect, instagramFormat: igFormat })
+  const carouselPlatforms = selected.filter(platform => ['instagram', 'tiktok'].includes(platform))
+  const carouselLimit = selected.includes('instagram') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_CAROUSEL_MAX_ITEMS
+  const isPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
 
   return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
 
@@ -664,17 +716,19 @@ export function SchedulerPage() {
 
     <SchedSection number={2} title="Mídia e conteúdo">
       <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
-        <div className="upload-field-heading"><div><p className="eyebrow">{mediaProfile?.kind === 'video' ? 'VÍDEO' : mediaProfile?.kind === 'image' ? 'FOTO' : selected.includes('tiktok') ? 'FOTOS' : 'MÍDIAS'}</p><strong>{mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : selected.includes('tiktok') ? 'Fotos' : 'Escolha os arquivos da publicação'}</strong></div><span aria-hidden="true">▧</span></div>
-        <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>{selected.includes('tiktok') ? 'Adicionar fotos' : 'Escolher arquivo'}</strong><small>Imagem ou vídeo · você pode selecionar mais de um</small></span><input className="upload-picker-input" type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Selecionar imagens ou vídeos"/></label>
-        <p className="upload-drop-hint">ou arraste os arquivos até aqui · PNG, JPG, WEBP, MP4 e MOV</p>
+        <div className="upload-field-heading"><div><p className="eyebrow">{isPhotoCarousel ? 'CARROSSEL' : mediaProfile?.kind === 'video' ? 'VÍDEO' : mediaProfile?.kind === 'image' ? 'FOTO' : 'MÍDIAS'}</p><strong>{isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Escolha os arquivos da publicação'}</strong></div><span aria-hidden="true">▧</span></div>
+        <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>{carouselPlatforms.length ? 'Adicionar fotos ao carrossel' : 'Escolher arquivo'}</strong><small>{carouselPlatforms.length ? `Feed do Instagram e publicação de fotos do TikTok · até ${carouselLimit} fotos` : 'Imagem ou vídeo · você pode selecionar mais de um'}</small></span><input className="upload-picker-input" type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Selecionar imagens ou vídeos"/></label>
+        <p className="upload-drop-hint">ou arraste os arquivos até aqui · a ordem das fotos será mantida na publicação</p>
       </div>
       {files.length > 0 && <div className={`media-preview-grid${selected.includes('tiktok') ? ' media-preview-grid-tiktok' : ''}`} aria-label="Arquivos selecionados">{mediaPreviews.map((item, index) => <article className="media-preview-card" key={item.key}>
-        {selected.includes('tiktok') && index === 0 && <span className="media-cover-badge">Capa</span>}
+        {isPhotoCarousel && index === 0 && <span className="media-cover-badge">Capa</span>}
         {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <video className="media-video-thumb" src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} />}
-        <div className="media-preview-info"><strong title={item.file.name}>{item.file.name}</strong><small>{item.file.type.startsWith('video/') ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</small></div>
+        <div className="media-preview-info"><strong title={item.file.name}>{isPhotoCarousel ? `${index + 1}. ${item.file.name}` : item.file.name}</strong><small>{item.file.type.startsWith('video/') ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</small></div>
+        {isPhotoCarousel && <div className="media-order-actions"><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Mover ${item.file.name} para a esquerda`}>←</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === files.length - 1} aria-label={`Mover ${item.file.name} para a direita`}>→</button></div>}
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
-      </article>)}{selected.includes('tiktok') && <label className="media-add-card"><span aria-hidden="true">＋</span><small>Adicionar</small><input className="upload-picker-input" type="file" multiple accept="image/*,video/*" onChange={selectFiles} aria-label="Adicionar fotos ao TikTok"/></label>}</div>}
+      </article>)}{carouselPlatforms.length > 0 && <label className="media-add-card"><span aria-hidden="true">＋</span><small>Adicionar fotos</small><input className="upload-picker-input" type="file" multiple accept="image/*" onChange={selectFiles} aria-label="Adicionar fotos ao carrossel"/></label>}</div>}
       {mediaProfile && <div className="media-detection-panel" role="status"><div><strong>{mediaKindLabel(mediaProfile.kind)}</strong><span>{mediaProfile.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'Lendo a proporção original…'}</span></div><small>{mediaProfile.width && mediaProfile.height ? `${mediaProfile.width} × ${mediaProfile.height}px` : 'A prévia será ajustada automaticamente.'}</small></div>}
+      {isPhotoCarousel && carouselQualityNotes.length > 0 && <div className="carousel-quality-panel" role="status"><strong>Revisão visual do carrossel</strong>{carouselQualityNotes.map(note => <span key={note}>• {note}</span>)}</div>}
       {selected.length > 0 && <div className="platform-text-editors" aria-label="Textos e configurações específicas por rede"><div className="platform-text-editors-heading"><strong>Texto de cada rede</strong><span>Cada cartão reúne o conteúdo e as configurações da própria rede.</span></div><div className="platform-composer-list">{selected.map(platform => {
         const platformLabel = PLATFORM_TEXT_LIMITS[platform]?.label || aiPlatformLabels[platform] || platform
         const connectedAccount = connectedAccounts.find(account => account.platform === platform)

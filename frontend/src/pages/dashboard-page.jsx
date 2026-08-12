@@ -44,26 +44,44 @@ function compactNumber(value) {
 function failureDiagnosis(post) {
   const message = String(post.errorMessage || post.error_message || '').trim()
   const normalized = message.toLowerCase()
-  if (/exception|stack|cannot read|undefined|internal|database|sql|500|programa/.test(normalized)) {
+  const isTransientNetworkFailure = /respondeu\s+(408|425|429|500|502|503|504|529)|(?:http|status|c[oó]digo)\s*[=:]?\s*(408|425|429|500|502|503|504|529)\b|rate.?limit|too many requests|timeout|timed out|econnreset|etimedout|enotfound|fetch failed|network|networkerror|conex[aã]o.*(?:interromp|falh|indispon)|temporariamente indispon[ií]vel|service unavailable|gateway timeout|zernio.*(?:indispon|falh)/.test(normalized)
+  if (isTransientNetworkFailure) {
+    const reason = /rate.?limit|too many requests|\b429\b/.test(normalized)
+      ? 'A rede social limitou temporariamente as publicações desta conta.'
+      : /timeout|timed out|econnreset|etimedout|enotfound|fetch failed|network|networkerror|conex[aã]o/.test(normalized)
+        ? 'A conexão com a rede social foi interrompida antes da confirmação.'
+        : 'A rede social está temporariamente instável ou indisponível.'
+    return {
+      label: 'Falha temporária',
+      className: 'is-network',
+      retryable: true,
+      reason,
+      nextStep: 'Revise o conteúdo se quiser e publique novamente quando a conexão ou a rede voltar ao normal.'
+    }
+  }
+  if (/token|autoriz|permiss|access|\b401\b|\b403\b|reconect/.test(normalized)) {
+    return {
+      label: 'Conta precisa de atenção',
+      className: 'is-system',
+      retryable: false,
+      reason: 'A conta não autorizou esta publicação ou perdeu o acesso à rede social.',
+      nextStep: 'Reconecte ou renove a conta em Integrações antes de tentar publicar novamente.'
+    }
+  }
+  if (/exception|stack|cannot read|undefined|internal|database|sql|programa|servidor/.test(normalized)) {
     return {
       label: 'Possível falha do sistema',
       className: 'is-system',
+      retryable: false,
       reason: message || 'O processamento interno não conseguiu concluir a publicação.',
-      nextStep: 'Envie novamente. Se persistir sem alteração no conteúdo ou na conexão, abra um chamado com este diagnóstico.'
-    }
-  }
-  if (/token|autoriz|permiss|access|401|403|429|rate.?limit|instagram|facebook|youtube|tiktok|api|timeout|conex|network|fetch/.test(normalized)) {
-    return {
-      label: 'Rede social ou conexão',
-      className: 'is-network',
-      reason: message || 'A rede social ou a conexão não confirmou a publicação.',
-      nextStep: 'Verifique a conexão da conta e reconecte a rede se o acesso tiver expirado.'
+      nextStep: 'Aguarde e tente novamente mais tarde. Se persistir, envie este registro ao suporte.'
     }
   }
   if (/imagem|image|vídeo|video|mídia|media|formato|tamanho|caract|caption|texto|obrigat|conteúdo|content/.test(normalized)) {
     return {
       label: 'Conteúdo ou configuração',
       className: 'is-content',
+      retryable: false,
       reason: message || 'O conteúdo ou alguma configuração não atende aos requisitos da rede.',
       nextStep: 'Revise mídia, texto e configurações específicas da plataforma antes de publicar novamente.'
     }
@@ -71,8 +89,9 @@ function failureDiagnosis(post) {
   return {
     label: 'Origem não conclusiva',
     className: 'is-unknown',
+    retryable: false,
     reason: message || 'A publicação foi marcada como falha, mas não há detalhes suficientes no registro.',
-    nextStep: 'Tente publicar novamente. Se a falha se repetir, o registro detalhado ajudará a identificar a origem.'
+    nextStep: 'Confira Integrações e o histórico da publicação. O editor só fica disponível quando a falha for identificada como transitória.'
   }
 }
 
@@ -185,8 +204,45 @@ export function DashboardPage({ onNavigate }) {
 
   function reviewFailure(post) {
     const selected = Array.isArray(post.platforms) && post.platforms.length ? post.platforms : ['instagram']
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({ text: post.text || '', selected, publishNow: false, date: '', savedAt: new Date().toISOString() }))
+    const textByPlatform = post.textByPlatform && typeof post.textByPlatform === 'object'
+      ? post.textByPlatform
+      : Object.fromEntries(selected.map(platform => [platform, post.text || '']))
+    const titleByPlatform = post.titleByPlatform && typeof post.titleByPlatform === 'object' ? post.titleByPlatform : {}
+    const mediaItems = Array.isArray(post.mediaItems) ? post.mediaItems : []
+    const media = mediaItems[0]
+    const mediaPath = media?.path || media?.url || post.mediaPath
+    if (mediaPath) {
+      sessionStorage.setItem('meu-ecoo:media-library-selection', JSON.stringify({
+        url: mediaPath,
+        name: media?.name || 'Mídia da publicação',
+        mimeType: media?.type || media?.mimetype || post.mediaType || 'application/octet-stream'
+      }))
+    } else sessionStorage.removeItem('meu-ecoo:media-library-selection')
+    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
+      text: post.text || '',
+      textByPlatform,
+      titleByPlatform,
+      selected,
+      publishNow: true,
+      date: '',
+      youtubeTitle: post.youtubeTitle || '',
+      youtubeVisibility: post.youtubeVisibility || 'public',
+      youtubeMadeForKids: post.youtubeMadeForKids == null ? '' : String(post.youtubeMadeForKids),
+      youtubeCategoryId: post.youtubeCategoryId || '',
+      youtubeFormat: post.youtubeFormat || '',
+      igFormat: post.igFormat || 'post',
+      tiktokPrivacyLevel: post.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
+      tiktokDisableComment: Boolean(post.tiktokDisableComment),
+      tiktokDisableDuet: Boolean(post.tiktokDisableDuet),
+      tiktokDisableStitch: Boolean(post.tiktokDisableStitch),
+      savedAt: new Date().toISOString()
+    }))
     onNavigate('agendador')
+  }
+
+  function openFailure(post) {
+    if (failureDiagnosis(post).retryable) return reviewFailure(post)
+    onNavigate('atividade')
   }
 
   async function deleteFailure(post) {
@@ -213,6 +269,7 @@ export function DashboardPage({ onNavigate }) {
       <div className="dashboard-hero-tools">
         <div className="dashboard-live-status"><span className="dashboard-live-dot" aria-hidden="true"/><div><strong>{accountsLoading ? 'Verificando redes' : connectedPlatforms ? 'Operação conectada' : 'Conecte sua primeira rede'}</strong><small>{accountsLoading ? 'Aguarde um instante...' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes com acesso`}</small></div></div>
         <div className="dashboard-actions">
+          <button type="button" className="secondary-button dashboard-ai-button" onClick={() => onNavigate('ai')}><span aria-hidden="true">✦</span> Assistente IA</button>
           <button className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
           <button className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
           <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
@@ -238,14 +295,14 @@ export function DashboardPage({ onNavigate }) {
     <div className="metric-grid dashboard-metrics">
       <article className="dashboard-metric-card dashboard-metric-publications"><div className="dashboard-metric-heading"><span>Publicações</span><i aria-hidden="true">✦</i></div><strong>{postsLoading ? '—' : data.posts.length}</strong><small>Total criado na conta</small></article>
       <article className="dashboard-metric-card dashboard-metric-scheduled"><div className="dashboard-metric-heading"><span>Agendadas</span><i aria-hidden="true">◷</i></div><strong>{postsLoading ? '—' : scheduled}</strong><small>{scheduledWithoutDate ? `${scheduledWithoutDate} sem horário definido` : 'Prontas para publicação'}</small></article>
-      <article className={`dashboard-metric-card dashboard-metric-failures${failedCount ? ' has-warning' : ''}`}><div className="dashboard-metric-heading"><span>Falhas</span><i aria-hidden="true">!</i></div><strong className={failedCount ? 'metric-warning' : ''}>{postsLoading ? '—' : failedCount}</strong><small>{failedCount ? 'Precisam de revisão' : 'Nenhuma pendência'}</small></article>
+      <article className={`dashboard-metric-card dashboard-metric-failures${failedCount ? ' has-warning' : ''}`}><div className="dashboard-metric-heading"><span>Falhas</span><i aria-hidden="true">!</i></div><strong className={failedCount ? 'metric-warning' : ''}>{postsLoading ? '—' : failedCount}</strong><small>{failedCount ? 'Precisam de atenção' : 'Nenhuma pendência'}</small></article>
       <article className="dashboard-metric-card dashboard-metric-accounts"><div className="dashboard-metric-heading"><span>Contas conectadas</span><i aria-hidden="true">⌁</i></div><strong>{accountsLoading ? '—' : data.accounts.length}</strong><small>{connectedPlatforms} de {DASHBOARD_PLATFORMS.length} redes ativas</small></article>
     </div>
 
     {failures.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
-      <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Publicações que precisam de revisão</h2><p className="panel-subtitle">Cada falha mostra sua origem provável para não atribuir automaticamente o problema ao programa.</p></div><span className="dashboard-failure-count">{failedCount} {failedCount === 1 ? 'falha' : 'falhas'}</span></div>
-      <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> falha do sistema só é indicada quando o registro aponta erro interno. Token, limite, permissão e formato são responsabilidade da conexão, da rede ou da configuração do conteúdo.</div>
-      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions"><button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar no editor</button><button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
+      <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Publicações com falha</h2><p className="panel-subtitle">Confira a origem provável e a orientação indicada para cada situação.</p></div><span className="dashboard-failure-count">{failedCount} {failedCount === 1 ? 'falha' : 'falhas'}</span></div>
+      <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> somente falhas temporárias de internet ou da API da rede liberam a opção de revisar e publicar novamente. Problemas de conta, conteúdo ou sistema precisam ser corrigidos na origem.</div>
+      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions">{diagnosis.retryable && <button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar e publicar novamente</button>}<button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
     </section>}
 
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
@@ -288,7 +345,7 @@ export function DashboardPage({ onNavigate }) {
         : postsLoading
           ? <p className="empty-state" aria-live="polite">Carregando publicações...</p>
           : recentPosts.length
-            ? <div className="data-list">{recentPosts.map(post => <div className="data-row dashboard-post-row" key={post.id}><span className="dashboard-post-platforms" aria-label={postPlatforms(post).length ? postPlatforms(post).join(', ') : 'Rede não informada'}>{postPlatforms(post).length ? postPlatforms(post).map(platform => <span className={`account-platform-icon account-platform-icon-${platform}`} key={platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <span className="dashboard-platform-missing">◎</span>}</span><span className="dashboard-post-copy"><strong>{post.text || post.title || 'Publicação sem texto'}</strong><small>{formatPostDate(postDateValue(post))}</small></span><span className={`status-text status-text-${post.status || 'unknown'}`}>{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span><button type="button" className="link-button dashboard-post-action" onClick={() => post.status === 'scheduled' || post.status === 'agendado' ? onNavigate('calendario') : post.status === 'failed' || post.status === 'error' || post.status === 'erro' || post.status === 'partial' ? reviewFailure(post) : onNavigate('atividade')}>{post.status === 'scheduled' || post.status === 'agendado' ? 'Calendário' : post.status === 'failed' || post.status === 'error' || post.status === 'erro' || post.status === 'partial' ? 'Revisar' : 'Detalhes'}</button></div>)}</div>
+            ? <div className="data-list">{recentPosts.map(post => { const isFailure = ['failed', 'error', 'erro', 'partial'].includes(post.status); const canRetry = isFailure && failureDiagnosis(post).retryable; return <div className="data-row dashboard-post-row" key={post.id}><span className="dashboard-post-platforms" aria-label={postPlatforms(post).length ? postPlatforms(post).join(', ') : 'Rede não informada'}>{postPlatforms(post).length ? postPlatforms(post).map(platform => <span className={`account-platform-icon account-platform-icon-${platform}`} key={platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <span className="dashboard-platform-missing">◎</span>}</span><span className="dashboard-post-copy"><strong>{post.text || post.title || 'Publicação sem texto'}</strong><small>{formatPostDate(postDateValue(post))}</small></span><span className={`status-text status-text-${post.status || 'unknown'}`}>{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span><button type="button" className="link-button dashboard-post-action" onClick={() => post.status === 'scheduled' || post.status === 'agendado' ? onNavigate('calendario') : isFailure ? openFailure(post) : onNavigate('atividade')}>{post.status === 'scheduled' || post.status === 'agendado' ? 'Calendário' : isFailure ? (canRetry ? 'Revisar e publicar' : 'Ver detalhes') : 'Detalhes'}</button></div> })}</div>
             : <p className="empty-state">{activitySearch || activityFilter !== 'all' ? 'Nenhuma publicação encontrada para este filtro.' : 'Nenhuma publicação encontrada.'}</p>}
       </section>
 

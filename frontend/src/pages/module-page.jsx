@@ -47,7 +47,7 @@ const descriptions = {
   atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
   biblioteca: ['Biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
-  filas: ['Filas recorrentes', 'Automatize publicações que se repetem.'],
+filas: ['Rotinas de publicação', 'Automatize publicações que se repetem.'],
   smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],
   equipe: ['Equipe', 'Aprove conteúdos e organize sua operação.'],
 }

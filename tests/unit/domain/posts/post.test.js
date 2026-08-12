@@ -224,4 +224,31 @@ describe('validarCriacaoPost — igFormat', () => {
     const items = [{ path: 'a.jpg', type: 'image', caption: '' }, { path: 'b.jpg', type: 'image', caption: '' }]
     expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toBeNull()
   })
+
+  test('rejeita carrossel do Instagram com vídeo misturado', () => {
+    const items = [{ path: 'a.jpg', type: 'image', caption: '' }, { path: 'b.mp4', type: 'video', caption: '' }]
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toMatch(/somente fotos/)
+  })
+
+  test('rejeita mais de 10 fotos no carrossel do Instagram', () => {
+    const items = Array.from({ length: 11 }, (_, index) => ({ path: `${index}.jpg`, type: 'image', caption: '' }))
+    expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toMatch(/no máximo 10 fotos/)
+  })
+
+  test('aceita carrossel de fotos do TikTok e rejeita vídeo misturado', () => {
+    const fotos = Array.from({ length: 3 }, (_, index) => ({ path: `${index}.jpg`, type: 'image', caption: '' }))
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      titleByPlatform: { tiktok: 'Título' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: fotos,
+    }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: [...fotos, { path: 'video.mp4', type: 'video', caption: '' }],
+    }))).toMatch(/somente fotos/)
+  })
 })

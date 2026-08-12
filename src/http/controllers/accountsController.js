@@ -8,8 +8,11 @@ async function reconciliarContasZernio(userId) {
   if (!locais.length) return
 
   try {
-    const resposta = await zernioClient.listAccounts()
-    const idsAtivos = (resposta.accounts || []).map(account => account._id).filter(Boolean)
+    const resposta = await zernioClient.listAccounts({
+      profileId: process.env.ZERNIO_PROFILE_ID,
+      includeOverLimit: true
+    })
+    const idsAtivos = (resposta.accounts || []).map(account => account._id || account.accountId || account.id).filter(Boolean)
     const removidas = await accounts.removerContasZernioAusentes(userId, idsAtivos)
     if (removidas) addLog('info', `${removidas} conexão(ões) removida(s) após sincronização com o Zernio`, null, null, userId)
   } catch (error) {
@@ -62,6 +65,16 @@ async function remove(req, res) {
   try {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const account = await accounts.buscarContaPorId(id, req.user.id, false)
+    if (!account) return res.status(404).json({ erro: 'Conta não encontrada' })
+
+    // A conta local e a conexão no Zernio precisam ter o mesmo ciclo de vida.
+    // Se a API externa falhar, mantemos o registro local para não criar uma
+    // conexão órfã no dashboard do Zernio.
+    if (account.zernio_account_id) {
+      await zernioClient.disconnectAccount(account.zernio_account_id)
+    }
+
     const removed = await accounts.deletarConta(id, req.user.id, false)
     if (!removed) return res.status(404).json({ erro: 'Conta não encontrada' })
     addLog('info', `Conta ID ${id} deletada`)

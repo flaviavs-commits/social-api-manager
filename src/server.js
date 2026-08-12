@@ -92,7 +92,10 @@ app.use('/oauth/tiktok/webhook', express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
 
-app.use(express.json({ limit: '1mb' }))
+// O agendador envia miniaturas comprimidas das imagens para a análise visual
+// conjunta de carrosséis. Mantém um limite explícito para não aceitar corpos
+// arbitrariamente grandes, mas permite sequências de fotos reais.
+app.use(express.json({ limit: '8mb' }))
 
 // Como a sessão é cookie HttpOnly, qualquer requisição que altera estado e
 // venha de um navegador precisa declarar uma origem permitida. Requisições
