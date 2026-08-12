@@ -23,7 +23,9 @@ router.post('/', async (req, res) => {
     if (!name?.trim() || !url?.trim()) return res.status(400).json({ erro: 'Nome e URL são obrigatórios.' })
     if (!/^https:\/\//i.test(url.trim())) return res.status(400).json({ erro: 'A mídia precisa usar uma URL HTTPS.' })
     const normalizedTags = Array.isArray(tags) ? tags.map(tag => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 20) : []
-    const { rows } = await pool.query(`INSERT INTO media_assets (user_id, name, url, mime_type, size_bytes, folder, tags) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.id, name.trim().slice(0, 255), url.trim(), mimeType || null, Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : null, folder?.trim() || 'Geral', normalizedTags])
+    const normalizedFolder = folder?.trim() || 'Geral'
+    await pool.query('INSERT INTO media_folders (user_id, name) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM media_folders WHERE user_id=$1 AND LOWER(name)=LOWER($2))', [req.user.id, normalizedFolder])
+    const { rows } = await pool.query(`INSERT INTO media_assets (user_id, name, url, mime_type, size_bytes, folder, tags) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.id, name.trim().slice(0, 255), url.trim(), mimeType || null, Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : null, normalizedFolder, normalizedTags])
     res.status(201).json({ id: rows[0].id })
   } catch (err) { serverError(res, err) }
 })

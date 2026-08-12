@@ -360,6 +360,30 @@ export function SchedulerPage() {
     apiFetch('/api/accounts').then(data => setConnectedAccounts(data.data || [])).catch(() => setConnectedAccounts([]))
   }, [])
 
+  useEffect(() => {
+    let selection = null
+    try {
+      selection = JSON.parse(sessionStorage.getItem('meu-ecoo:media-library-selection') || 'null')
+      sessionStorage.removeItem('meu-ecoo:media-library-selection')
+    } catch { selection = null }
+    if (!selection?.url) return undefined
+
+    let cancelled = false
+    fetch(selection.url).then(response => {
+      if (!response.ok) throw new Error('A mídia salva não está disponível neste momento.')
+      return response.blob()
+    }).then(blob => {
+      if (cancelled) return
+      const type = selection.mimeType || blob.type || 'application/octet-stream'
+      const file = new File([blob], selection.name || 'midia-da-biblioteca', { type, lastModified: Date.now() })
+      setFiles(current => [...current, file])
+      notify(`“${selection.name || 'Mídia'}” carregada do acervo.`)
+    }).catch(error => {
+      if (!cancelled) notify(error.message || 'Não foi possível carregar a mídia salva.', 'error')
+    })
+    return () => { cancelled = true }
+  }, [notify])
+
   useEffect(() => () => {
     validationWorker?.terminate()
     clearTimeout(publicationPollTimer.current)
