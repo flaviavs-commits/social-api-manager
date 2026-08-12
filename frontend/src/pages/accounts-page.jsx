@@ -115,7 +115,7 @@ export function AccountsPage({ onNavigate }) {
 
   async function remove(id) {
     if (!window.confirm('Deseja realmente desconectar esta conta?')) return
-    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); notify('Conta desconectada.') }
+    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); await loadHealth(); notify('Conta desconectada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 

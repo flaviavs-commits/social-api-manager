@@ -118,11 +118,11 @@ async function atualizarStatus(platform, ok, message) {
   }
 }
 
-async function limparStatusSemConta(platform) {
+async function marcarApiOperacionalSemConta(platform) {
   await pool.query(`
     UPDATE platform_health
-    SET status = 'unknown', fail_count = 0, message = NULL, checked_at = NOW()
-    WHERE platform = $1 AND status <> 'unknown'
+    SET status = 'up', fail_count = 0, message = NULL, checked_at = NOW()
+    WHERE platform = $1 AND (status <> 'up' OR fail_count <> 0 OR message IS NOT NULL)
   `, [platform])
 }
 
@@ -133,7 +133,7 @@ async function verificarSaudePlataformas() {
     try {
       const token = await buscarTokenSonda(platform)
       if (!token) {
-        await limparStatusSemConta(platform)
+        await marcarApiOperacionalSemConta(platform)
         continue // sem conta conectada nessa plataforma, nada a verificar
       }
 
@@ -154,8 +154,8 @@ async function getStatusMap() {
     FROM platform_health ph
   `)
   const map = {}
-  for (const p of PLATFORMS) map[p] = 'unknown'
-  for (const r of rows) map[r.platform] = r.hasAccount ? r.status : 'unknown'
+  for (const p of PLATFORMS) map[p] = 'up'
+  for (const r of rows) map[r.platform] = r.hasAccount ? r.status : 'up'
   return map
 }
 
