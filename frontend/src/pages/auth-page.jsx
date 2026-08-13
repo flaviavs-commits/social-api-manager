@@ -39,7 +39,9 @@ function AuthCard({ children }) {
 }
 
 export function LoginPage() {
-  const [register, setRegister] = useState(false)
+  const queryParams = useMemo(() => new URLSearchParams(window.location.search), [])
+  const selectedPlan = queryParams.get('plan')
+  const [register, setRegister] = useState(queryParams.get('register') === '1')
   const [flow, setFlow] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,7 +50,7 @@ export function LoginPage() {
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
 
-  const queryError = useMemo(() => new URLSearchParams(window.location.search).get('error'), [])
+  const queryError = queryParams.get('error')
 
   useEffect(() => {
     if (queryError) setMessage({ type: 'error', text: queryError })
@@ -114,11 +116,12 @@ export function LoginPage() {
     }
   }
 
-  const title = register ? 'Criar conta' : flow === 'login-2fa' ? 'Confirmar acesso' : flow === 'forgot-email' ? 'Redefinir senha' : flow === 'forgot-sent' ? 'Verifique seu e-mail' : 'Bem-vindo de volta'
+ const title = register ? 'Criar conta' : flow === 'login-2fa' ? 'Confirmar acesso' : flow === 'forgot-email' ? 'Redefinir senha' : flow === 'forgot-sent' ? 'Verifique seu e-mail' : 'Bem-vindo'
 
   return <AuthCard>
     <h1 className="auth-title">{title}</h1>
-    <p className="auth-subtitle">Entre para acessar o gerenciador das suas redes sociais</p>
+    <p className="auth-subtitle">{register ? 'Crie sua conta para começar a organizar suas redes sociais.' : 'Entre para acessar o gerenciador das suas redes sociais'}</p>
+    {register && selectedPlan && <p className="auth-selected-plan">Tier selecionado: <strong>{({ gratuito: 'Gratuito', criador: 'Criador', agencia: 'Agência' })[selectedPlan] || selectedPlan}</strong></p>}
     <Message message={message} />
 
     {flow === 'login-2fa' && <form onSubmit={verifyLoginCode} className="auth-form">

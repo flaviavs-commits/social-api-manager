@@ -84,8 +84,24 @@ const STEPS = [
   }
 ]
 
+// Procura, entre todos os elementos marcados com esse "page" (menu lateral
+// e menu inferior no mobile), o primeiro que está de fato visível na tela —
+// no mobile a barra lateral fica fora da tela, então é ignorada.
+function findVisibleTarget(page) {
+  if (!page || typeof document === 'undefined') return null
+  const candidates = document.querySelectorAll(`[data-tutorial-target="${page}"]`)
+  for (const el of candidates) {
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0 && rect.left > -rect.width && rect.left < window.innerWidth) {
+      return rect
+    }
+  }
+  return null
+}
+
 export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
   const [index, setIndex] = useState(0)
+  const [spotlightRect, setSpotlightRect] = useState(null)
 
   useEffect(() => {
     if (open) setIndex(0)
@@ -96,6 +112,30 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     const step = STEPS[index]
     if (step.page) onNavigate?.(step.page)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, index])
+
+  // Localiza e acompanha o item do menu correspondente ao passo atual, para
+  // desenhar o destaque em volta dele enquanto o resto da tela escurece.
+  useEffect(() => {
+    if (!open) {
+      setSpotlightRect(null)
+      return
+    }
+    const step = STEPS[index]
+    function updateRect() {
+      setSpotlightRect(findVisibleTarget(step.page))
+    }
+    updateRect()
+    // Recalcula depois do próximo frame, já que a navegação para a página do
+    // passo pode mudar o layout (ex.: recolher a sidebar).
+    const raf = window.requestAnimationFrame(updateRect)
+    window.addEventListener('resize', updateRect)
+    window.addEventListener('scroll', updateRect, true)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.removeEventListener('resize', updateRect)
+      window.removeEventListener('scroll', updateRect, true)
+    }
   }, [open, index])
 
   useEffect(() => {
@@ -125,7 +165,21 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     setIndex(current => Math.max(current - 1, 0))
   }
 
-  return <div className="tutorial-overlay" role="presentation" onMouseDown={onClose}>
+  const spotlightPadding = 8
+
+  return <div className={`tutorial-overlay${spotlightRect ? ' has-spotlight' : ''}`} role="presentation" onMouseDown={onClose}>
+    {spotlightRect && (
+      <div
+        className="tutorial-spotlight"
+        aria-hidden="true"
+        style={{
+          top: spotlightRect.top - spotlightPadding,
+          left: spotlightRect.left - spotlightPadding,
+          width: spotlightRect.width + spotlightPadding * 2,
+          height: spotlightRect.height + spotlightPadding * 2
+        }}
+      />
+    )}
     <section
       className="tutorial-dialog"
       role="dialog"

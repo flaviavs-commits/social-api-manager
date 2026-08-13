@@ -49,6 +49,17 @@
   text-align: center;
 }
 
+.auth-selected-plan {
+  margin: -10px 0 20px;
+  padding: 9px 12px;
+  color: var(--accent-strong);
+  background: var(--accent-glow);
+  border: 1px solid rgb(var(--accent-rgb) / 0.34);
+  border-radius: 7px;
+  font-size: 12px;
+  text-align: center;
+}
+
 .auth-form {
   display: grid;
   gap: 10px;

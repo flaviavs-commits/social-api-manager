@@ -10,12 +10,29 @@
 }
 
 .tutorial-dialog {
+  position: relative;
+  z-index: 97;
   width: min(520px, 100%);
   padding: 20px;
   border: 1px solid var(--border-hover);
   border-radius: 13px;
   background: var(--surface);
   box-shadow: var(--shadow-md);
+}
+
+/* Quando há um item de menu destacado, o escurecimento da tela vem do
+   próprio recorte do spotlight (box-shadow gigante), não do overlay. */
+.tutorial-overlay.has-spotlight {
+  background: transparent;
+}
+
+.tutorial-spotlight {
+  position: fixed;
+  z-index: 96;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 6px rgb(var(--accent-rgb) / 0.35), 0 0 0 9999px var(--overlay);
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
 }
 
 .tutorial-heading {

@@ -70,6 +70,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
           return (
             <button
               key={key}
+              data-tutorial-target={key}
               onClick={() => onNavigate(key)}
               title={collapsed ? label : undefined}
               aria-current={active ? 'page' : undefined}
@@ -127,7 +128,7 @@ function MobileBottomNav({ page, onNavigate, onOpenMenu }) {
     ['inbox', 'Inbox'],
   ]
   return <nav className="mobile-bottom-nav md:hidden" aria-label="Ações principais">
-    {items.map(([key, label]) => <button key={key} type="button" className={page === key ? 'is-active' : ''} aria-current={page === key ? 'page' : undefined} onClick={() => onNavigate(key)}><NavIcon name={key} className="h-5 w-5"/><span>{label}</span></button>)}
+    {items.map(([key, label]) => <button key={key} type="button" data-tutorial-target={key} className={page === key ? 'is-active' : ''} aria-current={page === key ? 'page' : undefined} onClick={() => onNavigate(key)}><NavIcon name={key} className="h-5 w-5"/><span>{label}</span></button>)}
     <button type="button" onClick={onOpenMenu}><span className="mobile-more-icon" aria-hidden="true">•••</span><span>Mais</span></button>
   </nav>
 }
@@ -201,7 +202,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
           + Criar Novo Post
         </button>
         <div className="profile-menu-control">
-          <button type="button" className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300" aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen(current => !current)}>
+          <button type="button" data-tutorial-target="perfil" className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300" aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen(current => !current)}>
             <span className="user-avatar flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gold text-xs font-bold text-app">{user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : userInitials(user)}</span>
             {user?.fullName || user?.name || user?.email || 'Conta'}<span className="profile-menu-chevron" aria-hidden="true">⌄</span>
           </button>
