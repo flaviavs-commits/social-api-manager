@@ -24,6 +24,7 @@ describe('media format preview', () => {
 
   it('encontra a proporção suportada mais próxima', () => {
     expect(nearestPreviewAspect(0.72).key).toBe('portrait')
+    expect(resolvePreviewAspect({ platform: 'instagram', mediaKind: 'image', sourceRatio: 1.91 }).key).toBe('instagramWide')
     expect(mediaKindLabel('video')).toBe('Vídeo detectado')
   })
 })

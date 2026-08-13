@@ -42,4 +42,21 @@ describe('DashboardPage', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha de rede'))
   })
+
+  it('opens content failures in the editor with the original post attached', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 262, text: 'Meu post', platforms: ['instagram'], status: 'failed', errorMessage: 'This exact content is already scheduled.' }] })
+      if (path === '/api/accounts') return Promise.resolve({ accounts: [] })
+      return Promise.resolve({ metrics: [] })
+    })
+    const onNavigate = vi.fn()
+
+    render(<DashboardPage onNavigate={onNavigate} />)
+
+    const [button] = await screen.findAllByRole('button', { name: 'Revisar no editor' })
+    button.click()
+
+    expect(onNavigate).toHaveBeenCalledWith('agendador')
+    expect(JSON.parse(localStorage.getItem('meu-ecoo:scheduler-autosave'))).toMatchObject({ sourceFailureId: 262, publishNow: true, selected: ['instagram'] })
+  })
 })

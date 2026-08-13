@@ -77,13 +77,13 @@ function failureDiagnosis(post) {
       nextStep: 'Aguarde e tente novamente mais tarde. Se persistir, envie este registro ao suporte.'
     }
   }
-  if (/imagem|image|vídeo|video|mídia|media|formato|tamanho|caract|caption|texto|obrigat|conteúdo|content/.test(normalized)) {
+  if (/imagem|image|vídeo|video|mídia|media|formato|tamanho|caract|caption|texto|obrigat|conteúdo|content|already\s+(?:scheduled|published|posted)|already.*(?:publish|schedule)|exact\s+content|same\s+content|duplicate|duplicad|já\s+(?:está|foi)\s+(?:agendad|publicad)|conteúdo\s+duplicado/.test(normalized)) {
     return {
       label: 'Conteúdo ou configuração',
       className: 'is-content',
-      retryable: false,
+      retryable: true,
       reason: message || 'O conteúdo ou alguma configuração não atende aos requisitos da rede.',
-      nextStep: 'Revise mídia, texto e configurações específicas da plataforma antes de publicar novamente.'
+      nextStep: 'Abra o editor, corrija mídia, texto ou configurações específicas da plataforma e publique novamente.'
     }
   }
   return {
@@ -91,7 +91,7 @@ function failureDiagnosis(post) {
     className: 'is-unknown',
     retryable: false,
     reason: message || 'A publicação foi marcada como falha, mas não há detalhes suficientes no registro.',
-    nextStep: 'Confira Integrações e o histórico da publicação. O editor só fica disponível quando a falha for identificada como transitória.'
+    nextStep: 'Confira Integrações e o histórico da publicação. O editor só fica disponível quando a falha puder ser corrigida no conteúdo.'
   }
 }
 
@@ -235,6 +235,7 @@ export function DashboardPage({ onNavigate }) {
       tiktokDisableComment: Boolean(post.tiktokDisableComment),
       tiktokDisableDuet: Boolean(post.tiktokDisableDuet),
       tiktokDisableStitch: Boolean(post.tiktokDisableStitch),
+      sourceFailureId: post.id,
       savedAt: new Date().toISOString()
     }))
     onNavigate('agendador')
@@ -301,8 +302,8 @@ export function DashboardPage({ onNavigate }) {
 
     {failures.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
       <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Publicações com falha</h2><p className="panel-subtitle">Confira a origem provável e a orientação indicada para cada situação.</p></div><span className="dashboard-failure-count">{failedCount} {failedCount === 1 ? 'falha' : 'falhas'}</span></div>
-      <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> somente falhas temporárias de internet ou da API da rede liberam a opção de revisar e publicar novamente. Problemas de conta, conteúdo ou sistema precisam ser corrigidos na origem.</div>
-      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions">{diagnosis.retryable && <button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar e publicar novamente</button>}<button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
+      <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> falhas temporárias e problemas de conteúdo ou configuração podem ser revisados no editor. Problemas de conta ou sistema precisam ser corrigidos na origem antes de uma nova tentativa.</div>
+      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions">{diagnosis.retryable && <button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar no editor</button>}<button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
     </section>}
 
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
@@ -345,7 +346,7 @@ export function DashboardPage({ onNavigate }) {
         : postsLoading
           ? <p className="empty-state" aria-live="polite">Carregando publicações...</p>
           : recentPosts.length
-            ? <div className="data-list">{recentPosts.map(post => { const isFailure = ['failed', 'error', 'erro', 'partial'].includes(post.status); const canRetry = isFailure && failureDiagnosis(post).retryable; return <div className="data-row dashboard-post-row" key={post.id}><span className="dashboard-post-platforms" aria-label={postPlatforms(post).length ? postPlatforms(post).join(', ') : 'Rede não informada'}>{postPlatforms(post).length ? postPlatforms(post).map(platform => <span className={`account-platform-icon account-platform-icon-${platform}`} key={platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <span className="dashboard-platform-missing">◎</span>}</span><span className="dashboard-post-copy"><strong>{post.text || post.title || 'Publicação sem texto'}</strong><small>{formatPostDate(postDateValue(post))}</small></span><span className={`status-text status-text-${post.status || 'unknown'}`}>{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span><button type="button" className="link-button dashboard-post-action" onClick={() => post.status === 'scheduled' || post.status === 'agendado' ? onNavigate('calendario') : isFailure ? openFailure(post) : onNavigate('atividade')}>{post.status === 'scheduled' || post.status === 'agendado' ? 'Calendário' : isFailure ? (canRetry ? 'Revisar e publicar' : 'Ver detalhes') : 'Detalhes'}</button></div> })}</div>
+            ? <div className="data-list">{recentPosts.map(post => { const isFailure = ['failed', 'error', 'erro', 'partial'].includes(post.status); const canRetry = isFailure && failureDiagnosis(post).retryable; return <div className="data-row dashboard-post-row" key={post.id}><span className="dashboard-post-platforms" aria-label={postPlatforms(post).length ? postPlatforms(post).join(', ') : 'Rede não informada'}>{postPlatforms(post).length ? postPlatforms(post).map(platform => <span className={`account-platform-icon account-platform-icon-${platform}`} key={platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <span className="dashboard-platform-missing">◎</span>}</span><span className="dashboard-post-copy"><strong>{post.text || post.title || 'Publicação sem texto'}</strong><small>{formatPostDate(postDateValue(post))}</small></span><span className={`status-text status-text-${post.status || 'unknown'}`}>{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span><button type="button" className="link-button dashboard-post-action" onClick={() => post.status === 'scheduled' || post.status === 'agendado' ? onNavigate('calendario') : isFailure ? openFailure(post) : onNavigate('atividade')}>{post.status === 'scheduled' || post.status === 'agendado' ? 'Calendário' : isFailure ? (canRetry ? 'Revisar no editor' : 'Ver detalhes') : 'Detalhes'}</button></div> })}</div>
             : <p className="empty-state">{activitySearch || activityFilter !== 'all' ? 'Nenhuma publicação encontrada para este filtro.' : 'Nenhuma publicação encontrada.'}</p>}
       </section>
 

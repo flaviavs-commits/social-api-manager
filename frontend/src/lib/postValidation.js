@@ -9,6 +9,11 @@ const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'S
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 export const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
 export const TIKTOK_CAROUSEL_MAX_ITEMS = 35
+const INSTAGRAM_ASPECT_RATIO_RANGES = {
+  post: [4 / 5, 1.91],
+  reel: [0.5625 * 0.98, 0.5625 * 1.02],
+  story: [0.5625 * 0.98, 0.5625 * 1.02],
+}
 
 export function mediaFileKey(file) {
   return `${file.name}-${file.lastModified}-${file.size}`
@@ -18,6 +23,13 @@ export function isAspectRatioValidForTiktok({ width, height }) {
   if (!width || !height) return false
   const ratio = width / height
   return ratio >= 9 / 16 && ratio <= 16 / 9
+}
+
+export function isAspectRatioValidForInstagram({ width, height }, format = 'post') {
+  if (!width || !height) return false
+  const ratio = width / height
+  const [min, max] = INSTAGRAM_ASPECT_RATIO_RANGES[format] || INSTAGRAM_ASPECT_RATIO_RANGES.post
+  return ratio >= min && ratio <= max
 }
 
 // Lê largura/altura/duração de um vídeo sem enviá-lo — usado só para a
@@ -42,7 +54,7 @@ export function readVideoMeta(file) {
 // Retorna a lista de pendências para o post atual. `youtubeMadeForKids` é a
 // string do <select> ('', 'true' ou 'false'), não um boolean — mesmo padrão
 // já usado por youtubeVisibility/igFormat/tiktokPrivacyLevel neste formulário.
-export function buildValidationIssues({ text = '', textByPlatform = {}, titleByPlatform = {}, tiktokDescription = '', platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey }) {
+export function buildValidationIssues({ text = '', textByPlatform = {}, titleByPlatform = {}, tiktokDescription = '', platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey = {}, mediaMetaByKey = {} }) {
   const issues = []
   const hasMedia = files.length > 0
   const videoFiles = files.filter(file => file.type.startsWith('video/'))
@@ -119,6 +131,16 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
         issues.push({ platform: 'instagram', message: 'O carrossel do Instagram aceita somente fotos neste agendador. Remova os vídeos ou publique uma mídia única.' })
       if (files.length > INSTAGRAM_CAROUSEL_MAX_ITEMS)
         issues.push({ platform: 'instagram', message: `O carrossel do Instagram aceita no máximo ${INSTAGRAM_CAROUSEL_MAX_ITEMS} fotos.` })
+    }
+    if (files.length === 1) {
+      const file = files[0]
+      const meta = mediaMetaByKey[mediaFileKey(file)]
+      if (meta && !isAspectRatioValidForInstagram(meta, igFormat)) {
+        const faixaLabel = igFormat === 'reel' || igFormat === 'story'
+          ? '9:16 (vertical)'
+          : 'entre 4:5 (vertical) e 1,91:1 (horizontal)'
+        issues.push({ platform: 'instagram', message: `A imagem/vídeo precisa ter proporção ${faixaLabel} para publicar no Instagram${igFormat ? ` como ${igFormat}` : ''}.` })
+      }
     }
     if (!publishNow && scheduledAt) {
       const minutosAteAgendamento = (new Date(scheduledAt).getTime() - Date.now()) / 60000

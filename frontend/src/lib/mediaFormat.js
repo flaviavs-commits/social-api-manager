@@ -3,6 +3,7 @@ export const PREVIEW_ASPECTS = {
   portrait: { key: 'portrait', label: '3:4', ratio: 3 / 4 },
   vertical: { key: 'vertical', label: '9:16', ratio: 9 / 16 },
   landscape: { key: 'landscape', label: '16:9', ratio: 16 / 9 },
+  instagramWide: { key: 'instagramWide', label: '1,91:1', ratio: 1.91 },
 }
 
 export const PREVIEW_ASPECT_OPTIONS = [
@@ -35,7 +36,7 @@ export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, request
   if (requested !== 'auto' && PREVIEW_ASPECTS[requested]) return PREVIEW_ASPECTS[requested]
 
   if (platform === 'tiktok' && mediaKind === 'video') return PREVIEW_ASPECTS.vertical
-  if (platform === 'instagram') return nearestPreviewAspect(sourceRatio, [PREVIEW_ASPECTS.square, PREVIEW_ASPECTS.portrait])
+  if (platform === 'instagram') return nearestPreviewAspect(sourceRatio, [PREVIEW_ASPECTS.square, PREVIEW_ASPECTS.portrait, PREVIEW_ASPECTS.instagramWide])
   if (platform === 'tiktok') return nearestPreviewAspect(sourceRatio, PREVIEW_ASPECT_OPTIONS)
   return nearestPreviewAspect(sourceRatio, Object.values(PREVIEW_ASPECTS))
 }

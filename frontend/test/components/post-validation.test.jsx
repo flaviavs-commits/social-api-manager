@@ -1,4 +1,4 @@
-import { buildValidationIssues, isAspectRatioValidForTiktok } from '../../src/lib/postValidation.js'
+import { buildValidationIssues, isAspectRatioValidForInstagram, isAspectRatioValidForTiktok } from '../../src/lib/postValidation.js'
 
 function baseArgs(overrides = {}) {
   return {
@@ -12,6 +12,7 @@ function baseArgs(overrides = {}) {
     igFormat: 'post',
     tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
     videoMetaByKey: {},
+    mediaMetaByKey: {},
     ...overrides
   }
 }
@@ -103,6 +104,24 @@ describe('buildValidationIssues', () => {
     }))
     expect(issues.some(i => i.message.includes('proporção entre 9:16'))).toBe(true)
   })
+
+  it('accepts a wide Instagram Feed image up to 1.91:1', () => {
+    const file = { type: 'image/jpeg', name: 'wide.jpg', lastModified: 1, size: 10 }
+    const issues = buildValidationIssues(baseArgs({
+      files: [file],
+      mediaMetaByKey: { 'wide.jpg-1-10': { width: 1910, height: 1000 } }
+    }))
+    expect(issues.filter(i => i.platform === 'instagram')).toHaveLength(0)
+  })
+
+  it('rejects an Instagram Feed image outside 4:5..1.91:1', () => {
+    const file = { type: 'image/jpeg', name: 'too-wide.jpg', lastModified: 1, size: 10 }
+    const issues = buildValidationIssues(baseArgs({
+      files: [file],
+      mediaMetaByKey: { 'too-wide.jpg-1-10': { width: 2000, height: 1000 } }
+    }))
+    expect(issues.some(i => i.message.includes('4:5 (vertical)') && i.message.includes('1,91:1'))).toBe(true)
+  })
 })
 
 describe('isAspectRatioValidForTiktok', () => {
@@ -115,5 +134,18 @@ describe('isAspectRatioValidForTiktok', () => {
   it('rejects extreme ratios or missing dimensions', () => {
     expect(isAspectRatioValidForTiktok({ width: 3000, height: 100 })).toBe(false)
     expect(isAspectRatioValidForTiktok({ width: 0, height: 0 })).toBe(false)
+  })
+})
+
+describe('isAspectRatioValidForInstagram', () => {
+  it('accepts the complete Feed range, including wide landscape', () => {
+    expect(isAspectRatioValidForInstagram({ width: 800, height: 1000 })).toBe(true)
+    expect(isAspectRatioValidForInstagram({ width: 1910, height: 1000 })).toBe(true)
+    expect(isAspectRatioValidForInstagram({ width: 1920, height: 1080 })).toBe(true)
+  })
+
+  it('rejects ratios outside the Feed range', () => {
+    expect(isAspectRatioValidForInstagram({ width: 700, height: 1000 })).toBe(false)
+    expect(isAspectRatioValidForInstagram({ width: 2000, height: 1000 })).toBe(false)
   })
 })
