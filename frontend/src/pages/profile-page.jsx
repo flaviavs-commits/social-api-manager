@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { apiFetch, logout } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { getTutorialStatus, requestTutorialOpen, TUTORIAL_STATUS_EVENT } from '../lib/tutorial.js'
+
+function formatDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
 
 const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
@@ -26,7 +33,14 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [error, setError] = useState('')
+  const [tutorialStatus, setTutorialStatus] = useState(() => getTutorialStatus())
   const notify = useToast()
+
+  useEffect(() => {
+    const handleStatusChange = event => setTutorialStatus(event.detail || getTutorialStatus())
+    window.addEventListener(TUTORIAL_STATUS_EVENT, handleStatusChange)
+    return () => window.removeEventListener(TUTORIAL_STATUS_EVENT, handleStatusChange)
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -156,6 +170,8 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">SEGURANÇA</p><h3>Proteja sua conta</h3></div><span className={`profile-status-dot${current.totpEnabled ? ' is-on' : ''}`}>{current.totpEnabled ? 'Ativo' : 'Recomendado'}</span></div><div className="profile-security-row"><span className="profile-card-icon">⌁</span><div><strong>Autenticação em 2 fatores</strong><small>{current.totpEnabled ? 'Sua conta pede um código extra no login.' : 'Adicione uma camada extra de proteção.'}</small></div><button type="button" className="link-button" onClick={() => onNavigate?.('seguranca')}>{current.totpEnabled ? 'Gerenciar' : 'Configurar'}</button></div><form className="profile-password-form" onSubmit={changePassword}><h4>Alterar senha</h4><label>Senha atual<input type="password" value={password.currentPassword} onChange={event => setPassword(current => ({ ...current, currentPassword: event.target.value }))} autoComplete="current-password" placeholder="Digite sua senha atual" /></label><label>Nova senha<input type="password" value={password.newPassword} onChange={event => setPassword(current => ({ ...current, newPassword: event.target.value }))} autoComplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Confirmar nova senha<input type="password" value={password.confirmation} onChange={event => setPassword(current => ({ ...current, confirmation: event.target.value }))} autoComplete="new-password" placeholder="Repita a nova senha" /></label><button type="submit" className="secondary-button" disabled={passwordSaving}>{passwordSaving ? 'Alterando…' : 'Alterar senha'}</button></form></section>
       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">USO DA APLICAÇÃO</p><h3>Seu plano e consumo</h3></div><span className="profile-status-dot is-on">Ativo</span></div><div className="profile-usage-card"><span className="profile-card-icon">✦</span><div><strong>Plano atual: Gratuito</strong><small>Gerações de IA incluídas no limite diário do aplicativo.</small></div><b>{usage ? `${usage.restantes}/${usage.limite}` : '—'}</b></div><p className="profile-help-text">Tokens, contas conectadas e integrações ficam organizados nos módulos próprios para manter suas credenciais protegidas.</p><div className="profile-quick-links"><button type="button" onClick={() => onNavigate?.('integracoes')}>Gerenciar contas <span>→</span></button><button type="button" onClick={() => onNavigate?.('tokens')}>Ver tokens <span>→</span></button><button type="button" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades <span>→</span></button></div></section>
     </div>
+
+    <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">AJUDA</p><h3>Tutorial guiado</h3></div><span className={`profile-status-dot${tutorialStatus.completed ? ' is-on' : ''}`}>{tutorialStatus.completed ? 'Concluído' : 'Pendente'}</span></div><div className="tutorial-status-card"><span className={`tutorial-status-check${tutorialStatus.completed ? ' is-done' : ''}`} aria-hidden="true">{tutorialStatus.completed ? '✓' : '○'}</span><div><strong>{tutorialStatus.completed ? 'Você já completou o tutorial' : 'Você ainda não completou o tutorial'}</strong><small>{tutorialStatus.completed && tutorialStatus.completedAt ? `Concluído em ${formatDateTime(tutorialStatus.completedAt)}. Pode rever quando quiser.` : 'Um tour rápido pelas principais telas da plataforma.'}</small></div><button type="button" className="link-button" onClick={requestTutorialOpen}>{tutorialStatus.completed ? 'Rever tutorial' : 'Iniciar tutorial'}</button></div></section>
 
     <section className="profile-section profile-session-section"><div className="profile-section-heading"><div><p className="eyebrow">SESSÕES E DISPOSITIVOS</p><h3>Sessão atual</h3></div><span className="profile-status-dot is-on">Conectado</span></div><div className="profile-session-row"><span className="profile-card-icon">⌘</span><div><strong>Navegador atual</strong><small>Esta sessão usa um token seguro e permanece ativa por até 30 dias.</small></div><button type="button" className="link-button danger-link" onClick={logout}>Sair desta conta</button></div><div className="profile-session-actions"><p>Se você acessou a conta em outro computador, encerre todas as sessões por segurança.</p><button type="button" className="secondary-button" onClick={logoutAll}>Sair de todos os dispositivos</button></div></section>
 

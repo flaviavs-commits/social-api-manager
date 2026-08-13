@@ -26,6 +26,7 @@ import './styles/theme.css'
 import './styles/light-theme.css'
 import './styles/semantic-theme.css'
 import './styles/smartlinks.css'
+import './styles/tutorial.css'
 
 applyTheme(getStoredTheme())
 

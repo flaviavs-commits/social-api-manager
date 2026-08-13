@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
 import { apiFetch, logout } from '../../lib/api.js'
-import { ToastProvider } from '../ui/toast.jsx'
+import { ToastProvider, useToast } from '../ui/toast.jsx'
 import { ThemeSelector } from '../ui/theme-selector.jsx'
+import { AppTutorial } from '../ui/app-tutorial.jsx'
+import { getTutorialStatus, markTutorialCompleted, markTutorialSeen, TUTORIAL_OPEN_EVENT } from '../../lib/tutorial.js'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -134,7 +136,7 @@ function userIsAdmin(user) {
   return user?.role === 'admin' || user?.role === 'super_admin'
 }
 
-function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp }) {
+function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -172,6 +174,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
 
       <div className="flex items-center gap-3">
         <ThemeSelector />
+        <button type="button" aria-label="Rever o tutorial guiado" title="Rever o tutorial guiado" onClick={onOpenTutorial} className="tutorial-trigger hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">🎓</button>
         <button type="button" aria-label="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">?</button>
         <button aria-label="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
@@ -238,10 +241,20 @@ function ShortcutHelp({ open, onClose }) {
 }
 
 export function AppShell({ page, onPageChange, children, user }) {
+  return (
+    <ToastProvider>
+      <AppShellBody page={page} onPageChange={onPageChange} user={user}>{children}</AppShellBody>
+    </ToastProvider>
+  )
+}
+
+function AppShellBody({ page, onPageChange, children, user }) {
   const [open, setOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meu-ecoo:sidebar-collapsed') === '1')
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
   const currentLabel = page === 'perfil' ? 'Meu perfil' : navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
+  const notify = useToast()
 
   function toggleSidebarCollapsed() {
     setSidebarCollapsed(current => {
@@ -249,6 +262,32 @@ export function AppShell({ page, onPageChange, children, user }) {
       localStorage.setItem('meu-ecoo:sidebar-collapsed', next ? '1' : '0')
       return next
     })
+  }
+
+  // Mostra o tutorial sozinho na primeira vez que a pessoa acessa o app.
+  // Depois disso, só reaparece quando alguém pedir explicitamente (botão 🎓
+  // no topo ou "Rever tutorial" no Perfil).
+  useEffect(() => {
+    if (getTutorialStatus().seen) return
+    const timer = window.setTimeout(() => setTutorialOpen(true), 500)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const openTutorial = () => setTutorialOpen(true)
+    window.addEventListener(TUTORIAL_OPEN_EVENT, openTutorial)
+    return () => window.removeEventListener(TUTORIAL_OPEN_EVENT, openTutorial)
+  }, [])
+
+  function closeTutorial() {
+    markTutorialSeen()
+    setTutorialOpen(false)
+  }
+
+  function completeTutorial() {
+    markTutorialCompleted()
+    setTutorialOpen(false)
+    notify('Tutorial concluído! Você pode revê-lo quando quiser pelo ícone 🎓.')
   }
 
   useEffect(() => {
@@ -268,17 +307,18 @@ export function AppShell({ page, onPageChange, children, user }) {
   }, [onPageChange])
 
   return (
-    <ToastProvider><div className="app-shell-modern flex min-h-screen bg-app text-zinc-100">
+    <div className="app-shell-modern flex min-h-screen bg-app text-zinc-100">
       <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} />
+        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
         <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
       </div>
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
       <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
+      <AppTutorial open={tutorialOpen} onNavigate={onPageChange} onClose={closeTutorial} onComplete={completeTutorial} />
       <MobileBottomNav page={page} onNavigate={onPageChange} onOpenMenu={() => setOpen(true)} />
-    </div></ToastProvider>
+    </div>
   )
 }
