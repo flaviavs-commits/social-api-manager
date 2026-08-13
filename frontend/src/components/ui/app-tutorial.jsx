@@ -3,93 +3,139 @@ import { useEffect, useState } from 'react'
 // Passos do tour guiado. Cada passo com "page" navega o app de verdade para
 // aquela tela enquanto a caixa do tutorial explica o que está sendo mostrado
 // — por isso a experiência é a de "caminhar pela aplicação" e não apenas ler
-// uma lista de dicas.
+// uma lista de dicas. Passos com "target" (sem "page") destacam um elemento
+// fixo do topo do app (ex.: botão de criar post) sem trocar de tela.
+// A lista cobre todos os itens do menu, então serve tanto de primeiro
+// contato quanto de referência completa para quem quiser revê-la depois.
 const STEPS = [
   {
     eyebrow: 'BEM-VINDO(A)',
     title: 'Vamos conhecer o Meu Ecoo Mídia',
-    body: 'Este tour rápido mostra as principais áreas da plataforma, uma de cada vez. Leva menos de 2 minutos e você pode revê-lo quando quiser.'
+    body: 'Este tour mostra todas as áreas da plataforma, uma de cada vez. Leva poucos minutos e você pode revê-lo quando quiser, pelo ícone 🎓 no topo da tela.'
   },
   {
     page: 'dashboard',
-    eyebrow: 'PASSO 1',
+    eyebrow: 'PASSO 1 DE 18',
     title: 'Seu painel principal',
     body: 'O Dashboard reúne publicações, agendamentos, falhas recentes e quantas redes sociais já estão conectadas — sua visão geral do dia a dia.'
   },
   {
+    target: 'criar-post',
+    eyebrow: 'PASSO 2 DE 18',
+    title: 'Criar um post de qualquer tela',
+    body: 'Este botão fica sempre visível no topo do app. Clique nele a qualquer momento para começar uma publicação nova, sem precisar navegar até o Criador de Posts.'
+  },
+  {
     page: 'agendador',
-    eyebrow: 'PASSO 2',
+    eyebrow: 'PASSO 3 DE 18',
     title: 'Criador de Posts',
     body: 'Escreva o conteúdo, anexe fotos ou vídeos e escolha em quais redes publicar. Você pode publicar na hora ou agendar para o melhor momento.'
   },
   {
     page: 'calendario',
-    eyebrow: 'PASSO 3',
+    eyebrow: 'PASSO 4 DE 18',
     title: 'Calendário',
     body: 'Veja tudo o que está agendado ou já foi publicado, organizado por dia, semana ou mês, para nunca perder o ritmo das postagens.'
   },
   {
     page: 'rascunhos',
-    eyebrow: 'PASSO 4',
-    title: 'Rascunhos',
+    eyebrow: 'PASSO 5 DE 18',
+    title: 'Baú de Ideias',
     body: 'Ideias que ainda não estão prontas ficam salvas aqui, sem se perder, até você decidir publicar ou agendar.'
   },
   {
-    page: 'biblioteca',
-    eyebrow: 'PASSO 5',
-    title: 'Biblioteca de mídia',
-    body: 'Centralize fotos e vídeos já enviados para reutilizar em novas publicações sem precisar subir os arquivos de novo.'
-  },
-  {
     page: 'analytics',
-    eyebrow: 'PASSO 6',
+    eyebrow: 'PASSO 6 DE 18',
     title: 'Relatórios',
     body: 'Acompanhe alcance, engajamento e o desempenho de cada publicação, separado por rede social.'
   },
   {
     page: 'inbox',
-    eyebrow: 'PASSO 7',
+    eyebrow: 'PASSO 7 DE 18',
     title: 'Inbox',
     body: 'Comentários e mensagens das suas redes conectadas chegam até aqui, para você responder sem sair da plataforma.'
   },
   {
+    target: 'notificacoes',
+    eyebrow: 'PASSO 8 DE 18',
+    title: 'Notificações',
+    body: 'O sino avisa sobre falhas de publicação e outros eventos recentes, com acesso rápido ao histórico completo de atividades.'
+  },
+  {
     page: 'integracoes',
-    eyebrow: 'PASSO 8',
+    eyebrow: 'PASSO 9 DE 18',
     title: 'Contas conectadas',
     body: 'Conecte Instagram, Facebook, YouTube e TikTok por aqui — é o primeiro passo para publicar direto pela plataforma.'
   },
   {
-    page: 'ai',
-    eyebrow: 'PASSO 9',
-    title: 'Assistente de IA',
-    body: 'Peça legendas, ideias de conteúdo e sugestões de horário de publicação para o Assistente de IA a qualquer momento.'
+    page: 'tokens',
+    eyebrow: 'PASSO 10 DE 18',
+    title: 'Tokens',
+    body: 'Gerencie os tokens de acesso usados nas integrações com cada rede social, incluindo renovação e revogação quando necessário.'
   },
   {
     page: 'seguranca',
-    eyebrow: 'PASSO 10',
+    eyebrow: 'PASSO 11 DE 18',
     title: 'Segurança',
     body: 'Ative a autenticação em dois fatores e acompanhe as sessões ativas da sua conta por aqui.'
   },
   {
+    page: 'atividade',
+    eyebrow: 'PASSO 12 DE 18',
+    title: 'Atividades',
+    body: 'Consulte o histórico recente da sua conta: publicações, logins e outras ações importantes, tudo em ordem cronológica.'
+  },
+  {
+    page: 'ai',
+    eyebrow: 'PASSO 13 DE 18',
+    title: 'Assistente de IA',
+    body: 'Peça legendas, ideias de conteúdo e sugestões de horário de publicação para o Assistente de IA a qualquer momento.'
+  },
+  {
+    page: 'biblioteca',
+    eyebrow: 'PASSO 14 DE 18',
+    title: 'Biblioteca de mídia',
+    body: 'Centralize fotos e vídeos já enviados para reutilizar em novas publicações sem precisar subir os arquivos de novo.'
+  },
+  {
+    page: 'filas',
+    eyebrow: 'PASSO 15 DE 18',
+    title: 'Repetidor de posts',
+    body: 'Automatize publicações que se repetem em intervalos regulares, sem precisar recriar o mesmo conteúdo toda vez.'
+  },
+  {
+    page: 'smartlinks',
+    eyebrow: 'PASSO 16 DE 18',
+    title: 'Smartlinks',
+    body: 'Crie um link único na bio que reúne vários destinos e converta cliques em oportunidades reais para o seu negócio.'
+  },
+  {
+    page: 'equipe',
+    eyebrow: 'PASSO 17 DE 18',
+    title: 'Equipe',
+    body: 'Aprove conteúdos antes da publicação e organize quem faz o quê na sua operação, com papéis diferentes para cada pessoa.'
+  },
+  {
     page: 'perfil',
-    eyebrow: 'PASSO 11',
+    eyebrow: 'PASSO 18 DE 18',
     title: 'Seu perfil',
     body: 'Atualize seus dados, preferências de notificação e veja seu plano de uso. É também aqui que você encontra este tutorial para rever quando quiser.'
   },
   {
     eyebrow: 'TUDO PRONTO',
-    title: 'Você já conhece o essencial! 🎉',
-    body: 'Agora é só começar a criar. Se precisar rever qualquer passo, o tutorial fica sempre disponível pelo ícone de tutorial no topo da tela.',
+    title: 'Você já conhece toda a plataforma! 🎉',
+    body: 'Agora é só começar a criar. Se precisar rever qualquer passo, o tutorial fica sempre disponível pelo ícone 🎓 no topo da tela.',
     final: true
   }
 ]
 
-// Procura, entre todos os elementos marcados com esse "page" (menu lateral
-// e menu inferior no mobile), o primeiro que está de fato visível na tela —
-// no mobile a barra lateral fica fora da tela, então é ignorada.
-function findVisibleTarget(page) {
-  if (!page || typeof document === 'undefined') return null
-  const candidates = document.querySelectorAll(`[data-tutorial-target="${page}"]`)
+// Procura, entre todos os elementos marcados com esse alvo (menu lateral,
+// menu inferior no mobile ou ações fixas do topo), o primeiro que está de
+// fato visível na tela — no mobile a barra lateral fica fora da tela, então
+// é ignorada.
+function findVisibleTarget(target) {
+  if (!target || typeof document === 'undefined') return null
+  const candidates = document.querySelectorAll(`[data-tutorial-target="${target}"]`)
   for (const el of candidates) {
     const rect = el.getBoundingClientRect()
     if (rect.width > 0 && rect.height > 0 && rect.left > -rect.width && rect.left < window.innerWidth) {
@@ -123,7 +169,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     }
     const step = STEPS[index]
     function updateRect() {
-      setSpotlightRect(findVisibleTarget(step.page))
+      setSpotlightRect(findVisibleTarget(step.target || step.page))
     }
     updateRect()
     // Recalcula depois do próximo frame, já que a navegação para a página do

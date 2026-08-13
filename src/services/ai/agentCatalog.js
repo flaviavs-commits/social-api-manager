@@ -67,8 +67,8 @@ const CAPABILITIES = [
     description: 'Mostra as publicações de um mês no calendário.', parameters: ['year', 'month'], examples: ['o que tenho agendado este mês?'],
   },
   {
-    id: 'list_drafts', label: 'Listar rascunhos', category: 'conteúdo', mode: 'read',
-    description: 'Lista os rascunhos salvos.', examples: ['mostre meus rascunhos'],
+    id: 'list_drafts', label: 'Consultar Baú de Ideias', category: 'conteúdo', mode: 'read',
+    description: 'Lista as ideias e rascunhos salvos no Baú de Ideias.', examples: ['mostre meu Baú de Ideias', 'busque minhas ideias salvas'],
   },
   {
     id: 'create_draft', label: 'Criar rascunho', category: 'conteúdo', mode: 'write', confirmation: true,

@@ -19,9 +19,13 @@
 
 .ai-publish-platform-options .platform-option.is-disabled {
   cursor: not-allowed;
-  opacity: .48;
+  opacity: 1;
   transform: none;
 }
+
+.ai-publish-platform-options .platform-option.is-disabled .platform-option-name { color: #c6cad5; }
+.ai-publish-platform-options .platform-option.is-disabled .platform-option-hint,
+.ai-publish-platform-options .platform-option.is-disabled .platform-option-account { color: #969cab; }
 
 .ai-publish-platform-options .platform-option.is-disabled:hover {
   border-color: #3a3e4a;

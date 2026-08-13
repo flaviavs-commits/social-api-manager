@@ -146,11 +146,11 @@ describe('DELETE /api/posts/:id', () => {
     expect(res.body).toEqual({ ok: true })
   })
 
-  test('404 protege publicações que não podem ser excluídas', async () => {
+  test('404 quando a publicação não pode ser excluída', async () => {
     postsRepo.deletarPost.mockResolvedValue(false)
     const res = await request(app).delete('/api/posts/1').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(404)
-    expect(res.body.erro).toMatch(/já publicadas/i)
+    expect(res.body.erro).toMatch(/não pode ser excluída/i)
   })
 })
 

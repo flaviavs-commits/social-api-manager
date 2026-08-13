@@ -27,13 +27,14 @@ router.get('/facebook-places', controller.getFacebookPlaces)
 router.get('/:id/metrics-history', controller.getMetricsHistory)
 
 router.post('/', controller.postCreate)
+router.post('/:id/repeat', controller.postRepeat)
 
 router.get('/:id/comments', controller.getComments)
 router.post('/:id/comments/:commentId/reply', controller.postCommentReply)
 
 router.patch('/:id', controller.patchPost)
-// Remove apenas itens que ainda não foram publicados ou que terminaram em falha.
-// Publicações já enviadas para as redes permanecem no histórico.
+// Remove o registro do calendário. Em posts já publicados, a publicação nas
+// redes sociais não é apagada — apenas o registro local deixa de aparecer.
 router.delete('/:id', controller.deletePost)
 
 module.exports = router

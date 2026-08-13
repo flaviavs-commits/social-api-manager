@@ -11,7 +11,7 @@ describe('AppShell', () => {
   it('calls onPageChange with the clicked nav key', () => {
     const onPageChange = vi.fn()
     render(<AppShell page="dashboard" onPageChange={onPageChange}>conteúdo</AppShell>)
-    fireEvent.click(screen.getByRole('button', { name: /Rascunhos/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Baú de Ideias/ }))
     expect(onPageChange).toHaveBeenCalledWith('rascunhos')
   })
 

@@ -117,6 +117,17 @@ describe('DELETE /api/drafts/:id', () => {
   })
 })
 
+describe('DELETE /api/drafts', () => {
+  test('esvazia as ideias do usuário e retorna 204', async () => {
+    pool.query.mockResolvedValue({ rows: [] })
+    const res = await request(app)
+      .delete('/api/drafts')
+      .set('Authorization', 'Bearer fake')
+    expect(res.status).toBe(204)
+    expect(pool.query).toHaveBeenCalledWith('DELETE FROM drafts WHERE user_id=$1', [1])
+  })
+})
+
 describe('Autenticação', () => {
   test('sem token retorna 401', async () => {
     // Remonta app sem mock de requireAuth para este teste

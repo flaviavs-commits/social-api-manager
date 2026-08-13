@@ -101,11 +101,14 @@ ${toneHint}
 ${idiomaHint}
 
 REGRAS IMPORTANTES:
-- A instrução do usuário é apenas um briefing interno: nunca a copie literalmente como texto do post e nunca responda apenas repetindo o tema.
-- Não use frases de comando do briefing (por exemplo, "crie 3 dicas para...") no post. Extraia somente o assunto, o público e o objetivo e escreva uma abordagem nova.
-- Transforme até mesmo um tema curto em uma publicação completa, com uma ideia útil, contexto suficiente para o público e uma chamada para ação natural.
+- Leia o briefing inteiro antes de escrever. Extraia e respeite todos os elementos que o usuário informar: tema, intenção, ação desejada, público, local, ocasião, produto, estilo, formato, plataforma, tom, quantidade, restrições e palavras importantes.
+- A instrução do usuário é um briefing interno: não a copie literalmente como texto do post, mas preserve seu sentido e suas informações. "Viajar para praia", por exemplo, deve gerar conteúdo sobre viagem de praia, não uma legenda genérica sobre resultados ou produtividade.
+- Entenda linguagem natural, frases curtas, abreviações, erros de digitação e pedidos incompletos. Quando o usuário escrever apenas um tema, transforme esse tema em ideias concretas diretamente relacionadas a ele; não peça esclarecimentos e não troque o assunto por um modelo pronto.
+- Não use frases de comando do briefing (por exemplo, "crie 3 dicas para...") no post. Extraia o assunto, o público e o objetivo e escreva uma abordagem nova, específica e útil.
+- Cada sugestão deve responder ao que a pessoa quer fazer. Para um pedido de viagem, use ângulos de viagem; para comida, use ângulos gastronômicos; para negócios, use ângulos de negócios. Não aplique um nicho diferente só porque ele está no template.
+- Transforme até mesmo um tema curto em uma publicação completa, com contexto suficiente para o público, detalhes coerentes com o tema e uma chamada para ação natural.
 - Cada post deve ser independente (não referencie "post anterior" ou "próxima semana")
-- Varie o ângulo e abordagem entre os posts para não ficar repetitivo
+- Gere exatamente ${qtd} opções realmente diferentes entre si, variando o ângulo, o gancho e a abordagem, mas mantendo o mesmo briefing do usuário.
 - Para YouTube, sempre inclua um campo "titulo" separado do corpo
 - Não invente dados, estatísticas ou citações falsas
 - Não use marcação markdown no texto do post (sem **, ##, etc)
@@ -559,6 +562,13 @@ const LOCAL_NICHO_CORPOS = {
     tema => `Revisar assinaturas, tarifas e gastos automáticos é uma forma simples de recuperar dinheiro sem aumentar a renda. Pequenas economias recorrentes criam espaço para prioridades maiores.`,
     tema => `Não existe uma decisão financeira perfeita para todo mundo. O melhor caminho é aquele que considera sua renda, seus compromissos e o objetivo que você quer alcançar.`,
     tema => `Falar sobre dinheiro também é falar sobre escolhas. Quanto mais cedo você entende seus hábitos, mais autonomia ganha para planejar o futuro.`,
+  ],
+  viagem: [
+    tema => `Planejar uma viagem para a praia fica mais leve quando você define o estilo do passeio: descanso, aventura ou dias para explorar. Escolha o destino, organize o orçamento e deixe espaço para aproveitar sem pressa.`,
+    tema => `Uma viagem para a praia começa antes de fazer as malas: confira a previsão do tempo, escolha roupas confortáveis, leve proteção solar e monte um roteiro flexível para curtir cada momento.`,
+    tema => `Quer viajar para a praia? Pense além da paisagem: pesquise a melhor época, compare hospedagens e descubra experiências locais que transformem alguns dias de descanso em uma memória especial.`,
+    tema => `O melhor roteiro de praia combina lugares para conhecer com tempo para simplesmente relaxar. Separe os passeios essenciais, mas não preencha todos os horários — a espontaneidade também faz parte da viagem.`,
+    tema => `Antes de viajar para a praia, defina quanto pode gastar, reserve o essencial e escolha o que realmente combina com seu ritmo. Assim, você aproveita o destino sem transformar o descanso em preocupação.`,
   ],
 }
 
@@ -1376,6 +1386,14 @@ router.post('/image/generate-openrouter', async (req, res) => {
   const body = { ...req.body, modelo: 'openrouter' }
   req.body = body
   return generateImageEndpoint(req, res)
+})
+
+// DELETE /api/ai/activity-log — limpa somente o diagnóstico do usuário atual.
+router.delete('/activity-log', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM ai_activity_log WHERE user_id = $1', [req.user.id])
+    res.status(204).send()
+  } catch (err) { serverError(res, err) }
 })
 
 // POST /api/ai/image/lead — salva lead de usuário interessado em geração de imagem

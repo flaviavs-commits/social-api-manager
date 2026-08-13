@@ -100,8 +100,55 @@
   white-space: nowrap;
 }
 
+.calendar-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 10px 0 0 58px;
+}
+
+.calendar-repeat-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.calendar-repeat-form p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.calendar-repeat-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.calendar-repeat-form input {
+  width: min(100%, 260px);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--app-bg);
+  color: var(--text);
+}
+
+.calendar-repeat-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 @media (max-width: 767px) {
   .calendar-detail-preview { margin-left: 0; }
+  .calendar-detail-actions { margin-left: 0; }
   .calendar-media-preview { max-height: 220px; }
   .calendar-list-copy strong,
   .calendar-list-copy .calendar-post-warning { white-space: normal; }

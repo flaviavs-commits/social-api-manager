@@ -13,6 +13,7 @@ const { buscarLocaisFacebook } = require('../../use-cases/posts/buscarLocaisFace
 const { criarPost } = require('../../use-cases/posts/criarPost')
 const { reagendarPost } = require('../../use-cases/posts/reagendarPost')
 const { deletarPost } = require('../../use-cases/posts/deletarPost')
+const { repetirPost } = require('../../use-cases/posts/repetirPost')
 
 function ctx(req) {
   return { userId: req.user.id, userRole: req.user.role, isAdmin: isAdminRole(req.user.role) }
@@ -213,15 +214,30 @@ async function deletePost(req, res) {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
     const deleted = await deletarPost({ id, ...ctx(req) })
-    if (!deleted) return res.status(404).json({ erro: 'Publicação não encontrada ou não pode ser excluída. Publicações já publicadas são mantidas no histórico.' })
+    if (!deleted) return res.status(404).json({ erro: 'Publicação não encontrada ou não pode ser excluída.' })
     res.json({ ok: true })
   } catch (e) {
     serverError(res, e)
   }
 }
 
+async function postRepeat(req, res) {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const { scheduledAt } = req.body || {}
+    if (!scheduledAt || Number.isNaN(Date.parse(scheduledAt))) return res.status(400).json({ erro: 'scheduledAt inválido' })
+    const post = await repetirPost({ id, scheduledAt, ...ctx(req) })
+    if (!post) return res.status(404).json({ erro: 'Publicação não encontrada' })
+    res.status(201).json(post)
+  } catch (e) {
+    if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })
+    serverError(res, e, 'Não foi possível repetir a publicação')
+  }
+}
+
 module.exports = {
   postUploadUrl, getInboxUnread, postCommentSeen, postInboxSeen, getInbox, getCalendar, getPosts,
   getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
-  postCommentReply, patchPost, deletePost
+  postCommentReply, patchPost, deletePost, postRepeat
 }

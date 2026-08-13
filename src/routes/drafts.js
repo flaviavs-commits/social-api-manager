@@ -53,6 +53,16 @@ router.post('/', async (req, res) => {
   }
 })
 
+// DELETE /api/drafts — esvazia o Baú de Ideias do usuário autenticado.
+router.delete('/', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM drafts WHERE user_id=$1', [req.user.id])
+    res.status(204).send()
+  } catch (err) {
+    serverError(res, err)
+  }
+})
+
 // PATCH /api/drafts/:id — autosave do editor sem criar vários rascunhos.
 router.patch('/:id', async (req, res) => {
   try {

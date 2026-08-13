@@ -1631,3 +1631,8 @@ html[data-theme='light'] .scheduler-page .social-preview-media.is-empty {
   }
 }
 
+/* Contraste adicional do Assistente IA no tema claro. */
+html[data-theme='light'] .ai-page-intro-badge{border-color:rgb(var(--accent-rgb)/.42);background:rgb(var(--accent-rgb)/.13);color:#704d0b}
+html[data-theme='light'] .ai-publish-platform-options .platform-option.is-disabled .platform-option-name{color:#454b58}
+html[data-theme='light'] .ai-publish-platform-options .platform-option.is-disabled .platform-option-hint,
+html[data-theme='light'] .ai-publish-platform-options .platform-option.is-disabled .platform-option-account{color:#687080}

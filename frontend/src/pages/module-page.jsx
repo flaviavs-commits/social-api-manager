@@ -38,7 +38,7 @@ const PAGES_BY_TYPE = {
 const descriptions = {
   agendador: ['Novo post', 'Crie uma publicação para suas redes conectadas.'],
   calendario: ['Calendário', 'Visualize suas publicações agendadas.'],
-  rascunhos: ['Rascunhos', 'Continue trabalhando nas publicações salvas.'],
+  rascunhos: ['Baú de Ideias', 'Gere e continue trabalhando nas ideias de publicações salvas.'],
   analytics: ['Analytics', 'Acompanhe o desempenho das suas publicações.'],
   inbox: ['Inbox', 'Gerencie comentários e interações em um só lugar.'],
   integracoes: ['Contas conectadas', 'Conecte e gerencie suas redes sociais.'],
@@ -47,7 +47,7 @@ const descriptions = {
   atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
   biblioteca: ['Biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
-filas: ['Rotinas de publicação', 'Automatize publicações que se repetem.'],
+ filas: ['Repetidor de posts', 'Automatize publicações que se repetem.'],
   smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],
   equipe: ['Equipe', 'Aprove conteúdos e organize sua operação.'],
 }

@@ -28,7 +28,7 @@ const navigation = [
   ['dashboard', 'Dashboard'],
   ['agendador', 'Criador de Posts'],
   ['calendario', 'Calendário'],
-  ['rascunhos', 'Rascunhos'],
+  ['rascunhos', 'Baú de Ideias'],
   ['analytics', 'Relatórios'],
   ['inbox', 'Inbox'],
   ['integracoes', 'Contas'],
@@ -37,7 +37,7 @@ const navigation = [
   ['atividade', 'Atividades'],
   ['ai', 'Assistente IA'],
   ['biblioteca', 'Biblioteca'],
-  ['filas', 'Rotinas de publicação']
+  ['filas', 'Repetidor de posts']
   ,['smartlinks', 'Smartlinks']
   ,['equipe', 'Equipe']
 ]
@@ -181,7 +181,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
         </button>
         <div className="notification-control">
-          <button aria-label="Abrir notificações" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+          <button aria-label="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
             {notifications.length > 0 && <span className="notification-dot" aria-label={`${notifications.length} notificações`} />}
           </button>
@@ -197,6 +197,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         </div>
         <button
           onClick={onCreatePost}
+          data-tutorial-target="criar-post"
           className="create-post-button inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
         >
           + Criar Novo Post

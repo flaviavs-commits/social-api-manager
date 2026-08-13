@@ -273,6 +273,18 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     } catch (e) { setAnalyticsError(e.message || 'Não foi possível analisar o Analytics.') } finally { setAnalyticsLoading(false) }
   }
 
+  async function clearActivityLogs() {
+    if (!activityLogs.length) return
+    if (!window.confirm('Limpar o diagnóstico do Assistente de IA?')) return
+    try {
+      await apiFetch('/api/ai/activity-log', { method: 'DELETE' })
+      setActivityLogs([])
+      notify('Diagnóstico limpo.')
+    } catch (e) {
+      notify(e.message || 'Não foi possível limpar o diagnóstico.', 'error')
+    }
+  }
+
   function formatMetric(value) {
     return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value) || 0)
   }
@@ -368,7 +380,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     </div>}
   </section>
   <section className="panel ai-logs-panel">
-    <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente IA.</p></div><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button></div>
+    <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente IA.</p></div><div className="ai-logs-actions"><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button><button type="button" className="ai-clear-button link-button" onClick={clearActivityLogs} disabled={!activityLogs.length}>Limpar</button></div></div>
     {activityLogs.length ? <div className="ai-log-list">{activityLogs.map(log => <div className="ai-log-row" key={log.id}><span className={`ai-log-status ai-log-status-${log.status === 'success' || log.status === 'ok' ? 'ok' : 'info'}`} aria-hidden="true">{log.status === 'success' || log.status === 'ok' ? '✓' : '·'}</span><div><strong>{log.acao}{log.modelo ? ` · ${log.modelo}` : ''}</strong><small>{log.detalhes || 'Sem detalhes'} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></div><span className="ai-log-status-label">{log.status}</span></div>)}</div> : <p className="empty-state">Nenhum registro do agente ainda.</p>}
   </section>
   </section>

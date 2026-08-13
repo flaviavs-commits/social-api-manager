@@ -107,7 +107,7 @@ export function ContentQueuesPage() {
         <span className="queues-hero-icon" aria-hidden="true">↻</span>
         <div>
           <p className="eyebrow">AUTOMAÇÃO DE CONTEÚDO</p>
-        <h2>Rotinas de publicação</h2>
+ <h2>Repetidor de posts</h2>
           <p>Crie rotinas que mantêm suas redes ativas com publicações consistentes, sem precisar refazer o mesmo agendamento.</p>
         </div>
       </div>

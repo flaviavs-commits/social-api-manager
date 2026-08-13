@@ -82,7 +82,7 @@ async function deletarPost(id, userId, isAdmin) {
   const post = await buscarPostPorId(id, userId, isAdmin)
   if (!post) return false
   const { rowCount } = await pool.query(
-    `UPDATE posts SET status='cancelled' WHERE id=$1 AND status IN ('scheduled', 'error', 'erro', 'failed', 'partial')`, [id]
+    `UPDATE posts SET status='cancelled' WHERE id=$1 AND status IN ('scheduled', 'published', 'error', 'erro', 'failed', 'partial')`, [id]
   )
   return rowCount > 0
 }

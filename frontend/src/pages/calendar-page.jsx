@@ -74,10 +74,11 @@ function CalendarMediaPreview({ post, compact = false }) {
   return <img className={`calendar-media-preview${compact ? ' is-compact' : ''}`} src={source} alt="Prévia do conteúdo publicado" onError={() => setFailed(true)} />
 }
 
-function CalendarDayPost({ post, onEdit }) {
+function CalendarDayPost({ post, onEdit, onDelete, onRepeat }) {
   const platforms = platformsOf(post)
   const primaryPlatform = platforms[0]
   const error = friendlyPostError(post)
+  const canRepeat = ['published', 'partial'].includes(post.status)
   return (
     <article className="calendar-detail-post">
       <div className="flex items-center gap-2">
@@ -87,7 +88,11 @@ function CalendarDayPost({ post, onEdit }) {
         <span className={`calendar-detail-status calendar-detail-status-${post.status || 'unknown'}`}>{postStatusLabel[post.status] || post.status || 'Sem status'}</span>
       </div>
       <div className="calendar-detail-preview"><CalendarMediaPreview post={post}/>{error && <p className="calendar-post-warning" role="alert">{error}</p>}</div>
-      {isScheduled(post) && <div className="calendar-detail-actions"><button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button></div>}
+      <div className="calendar-detail-actions">
+        {isScheduled(post) && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button>}
+        {canRepeat && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRepeat}>Reagendar este post</button>}
+        {canRepeat && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir post publicado</button>}
+      </div>
     </article>
   )
 }
@@ -97,8 +102,10 @@ export function CalendarPage({ onNavigate }) {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year, setYear] = useState(now.getFullYear())
   const [editing, setEditing] = useState(null)
+  const [repeating, setRepeating] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
   const [date, setDate] = useState('')
+  const [repeatDate, setRepeatDate] = useState('')
   const [platformFilter, setPlatformFilter] = useState(() => localStorage.getItem(`${CALENDAR_VIEW_KEY}:platform`) || 'all')
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(CALENDAR_VIEW_KEY) || 'calendar')
   const [draggedPost, setDraggedPost] = useState(null)
@@ -134,6 +141,30 @@ export function CalendarPage({ onNavigate }) {
     event.preventDefault()
     try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); await reload(); notify('Publicação reagendada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
+  }
+
+  async function repeatPost(event) {
+    event.preventDefault()
+    try {
+      await apiFetch(`/api/posts/${repeating.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: repeatDate }) })
+      setRepeating(null)
+      setSelectedDay(null)
+      setMessage('Nova publicação agendada.')
+      await reload()
+      notify('O mesmo post foi agendado para o novo dia e horário.')
+    } catch (e) { setError(e.message); notify(e.message, 'error') }
+  }
+
+  async function deletePublished(post) {
+    const label = postText(post)
+    if (!window.confirm(`Excluir “${label}” do calendário?\n\nO registro será removido do Meu Ecoo, mas a publicação original continuará nas redes sociais.`)) return
+    try {
+      await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      setSelectedDay(null)
+      setMessage('Publicação removida do calendário.')
+      await reload()
+      notify('Publicação removida do calendário.')
+    } catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 
   async function dropPost(event, day) {
@@ -176,6 +207,14 @@ export function CalendarPage({ onNavigate }) {
     setEditing(post)
     setDate(postDateValue(post)?.slice(0, 16) || '')
     setSelectedDay(null)
+  }
+
+  function openRepeat(post) {
+    const next = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    next.setSeconds(0, 0)
+    const localValue = new Date(next.getTime() - next.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    setRepeating(post)
+    setRepeatDate(localValue)
   }
 
   return (
@@ -242,7 +281,15 @@ export function CalendarPage({ onNavigate }) {
             </div>
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
-          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onRepeat={() => openRepeat(post)} onDelete={() => deletePublished(post)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          {repeating && <form className="calendar-repeat-form" onSubmit={repeatPost}>
+            <div>
+              <strong>Repetir publicação</strong>
+              <p>O post original continuará publicado. Escolha quando criar uma nova publicação com o mesmo conteúdo.</p>
+            </div>
+            <label>Novo dia e horário<input required type="datetime-local" value={repeatDate} onChange={event => setRepeatDate(event.target.value)}/></label>
+            <div className="calendar-repeat-actions"><button type="submit" className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Agendar novo post</button><button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setRepeating(null)}>Cancelar</button></div>
+          </form>}
         </section>
       </div>}
 
