@@ -44,4 +44,17 @@ describe('analyticsInsights', () => {
     expect(comparison.solution).toMatch(/referência|replicar/i)
     expect(comparison.alternativeApproach).toMatch(/teste A\/B/i)
   })
+
+  test('respeita a rede solicitada ao escolher o melhor horário', () => {
+    const insights = buildAnalyticsInsights({
+      accountAnalytics: {
+        bestTimeToPost: [
+          { platform: 'instagram', data: { slots: [{ day_of_week: 2, hour: 19, avg_engagement: 20, post_count: 3 }] } },
+          { platform: 'youtube', data: { slots: [{ day_of_week: 5, hour: 22, avg_engagement: 99, post_count: 8 }] } },
+        ],
+      },
+    }, 30, 'instagram')
+
+    expect(insights.bestTime).toMatchObject({ platform: 'instagram', hour: 19 })
+  })
 })

@@ -84,7 +84,7 @@ const CAPABILITIES = [
   },
   {
     id: 'analytics_insight', label: 'Interpretar métricas', category: 'desempenho', mode: 'read',
-    description: 'Analisa os dados reais de desempenho e sugere próximos passos de conteúdo.', examples: ['analise minhas métricas e diga o que melhorar', 'qual rede está performando melhor?'],
+    description: 'Analisa os dados reais de desempenho, identifica o melhor dia e horário para publicar e sugere próximos passos de conteúdo.', examples: ['analise minhas métricas e diga o que melhorar', 'qual rede está performando melhor?', 'qual o melhor horário para postar no Instagram?'],
   },
   {
     id: 'list_inbox', label: 'Consultar inbox', category: 'relacionamento', mode: 'read',

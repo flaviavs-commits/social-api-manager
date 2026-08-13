@@ -147,10 +147,10 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
       let insight = ''
       if (typeof generateText === 'function') {
         const prompt = `Você é um estrategista de conteúdo. Analise SOMENTE a análise estruturada e os dados reais abaixo e responda em português do Brasil.
-O usuário quer entender por que uma publicação teve mais visualizações que outra. Explique a diferença usando os posts e sinais observados, deixando claro quando é apenas associação e quando faltam dados para concluir.
+O usuário quer interpretar o desempenho do perfil e pode estar perguntando especialmente qual é o melhor dia e horário para publicar. Explique os sinais observados usando os posts, métricas e horários disponíveis. Se houver um melhor horário estruturado, destaque-o; se não houver dados suficientes, diga isso claramente e explique quais dados precisam ser acumulados.
 Sua resposta DEVE conter exatamente estes blocos:
-DIAGNÓSTICO: explique o que provavelmente diferenciou os resultados.
-SOLUÇÃO RECOMENDADA: dê uma ação prática para a próxima publicação.
+DIAGNÓSTICO: explique o desempenho observado e, quando possível, indique o melhor dia e horário.
+SOLUÇÃO RECOMENDADA: dê uma ação prática para a próxima publicação, incluindo a janela de horário quando houver evidência.
 OUTRA ABORDAGEM: proponha um teste ou estratégia alternativa para buscar mais visualizações.
 PRÓXIMA MEDIÇÃO: diga quais métricas e período comparar.
 Não invente números, benchmarks, causas ou informações que não estejam nos dados. Se houver pouca amostra, diga isso claramente.${platform ? ` Dê prioridade à plataforma ${platform}.` : ''}
@@ -164,12 +164,22 @@ ${JSON.stringify(data.metrics || []).slice(0, 10000)}
 Responda em texto simples. Não use JSON.`
         insight = String(await generateText(prompt) || '').trim().slice(0, 4000)
       }
-      const fallbackInsight = structuredInsights.performanceAnalysis.comparisons.map(item => [
+      const comparisonFallback = structuredInsights.performanceAnalysis.comparisons.map(item => [
         `DIAGNÓSTICO: ${item.diagnosis}`,
         `SOLUÇÃO RECOMENDADA: ${item.solution}`,
         `OUTRA ABORDAGEM: ${item.alternativeApproach}`,
         `PRÓXIMA MEDIÇÃO: Compare visualizações, interações e taxa de interação após o mesmo período de coleta. Amostra atual: ${item.sampleSize} publicação(ões); confiança ${item.confidence}.`,
-      ].join('\n')).join('\n\n') || 'DIAGNÓSTICO: Ainda não há métricas suficientes.\nSOLUÇÃO RECOMENDADA: Publique mais variações do mesmo tema e registre horário, formato e objetivo de cada uma.\nOUTRA ABORDAGEM: Faça um teste A/B alterando somente o gancho inicial.\nPRÓXIMA MEDIÇÃO: Compare visualizações e interações após o mesmo período de coleta.'
+      ].join('\n')).join('\n\n')
+      const bestTimeFallback = structuredInsights.bestTime
+        ? `DIAGNÓSTICO: O melhor horário observado foi ${structuredInsights.bestTime.day}, às ${String(structuredInsights.bestTime.hour).padStart(2, '0')}h, no ${structuredInsights.bestTime.platformLabel}, com ${structuredInsights.bestTime.postCount || 0} publicação(ões) na amostra.`
+          + `\nSOLUÇÃO RECOMENDADA: Teste essa janela na próxima publicação e mantenha o mesmo tema e formato para comparar o resultado.`
+          + '\nOUTRA ABORDAGEM: Faça um teste A/B publicando uma versão nessa janela e outra em um horário diferente, alterando somente o horário.'
+          + '\nPRÓXIMA MEDIÇÃO: Compare alcance, visualizações, curtidas, comentários, compartilhamentos e salvamentos após o mesmo período de coleta.'
+        : 'DIAGNÓSTICO: Ainda não há dados suficientes para identificar o melhor horário de publicação.'
+          + '\nSOLUÇÃO RECOMENDADA: Publique mais variações do mesmo tema e registre o dia, horário, formato e métricas de cada publicação.'
+          + '\nOUTRA ABORDAGEM: Faça um teste A/B em horários diferentes, alterando somente o horário.'
+          + '\nPRÓXIMA MEDIÇÃO: Compare alcance, visualizações e interações após o mesmo período de coleta.'
+      const fallbackInsight = comparisonFallback || bestTimeFallback
       return {
         message: insight || fallbackInsight,
         data: { ...data, insight: insight || null, performanceAnalysis: structuredInsights.performanceAnalysis },

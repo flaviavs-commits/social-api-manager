@@ -254,9 +254,10 @@ function profileStats(data) {
   return result.sort((a, b) => b.engagementRate - a.engagementRate || b.interactions - a.interactions)
 }
 
-function bestTimeSlots(data) {
+function bestTimeSlots(data, focusPlatform = null) {
   const slots = []
   for (const item of data?.accountAnalytics?.bestTimeToPost || []) {
+    if (focusPlatform && item.platform !== focusPlatform) continue
     for (const slot of item.data?.slots || []) {
       const hour = numberValue(slot.hour)
       slots.push({
@@ -291,7 +292,7 @@ function buildNicheComparisons(profiles) {
 
 function buildAnalyticsInsights(data, days = 30, focusPlatform = null) {
   const profiles = profileStats(data)
-  const slots = bestTimeSlots(data)
+  const slots = bestTimeSlots(data, focusPlatform)
   const performanceAnalysis = buildPerformanceAnalysis(data, focusPlatform)
   const bestTime = slots[0] || null
   const bestProfile = profiles[0] || null

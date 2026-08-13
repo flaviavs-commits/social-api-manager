@@ -37,6 +37,15 @@ const WORD_ALIASES = {
 
 const FUZZY_WORDS = Object.keys(WORD_ALIASES)
 
+// Verbos e construções que significam "consulte os dados da aplicação".
+// Mantemos esse vocabulário em um único lugar para que cada módulo aceite
+// pedidos naturais sem obrigar o usuário a conhecer o nome da ação interna.
+const DATA_QUERY_PATTERN = /\b(?:buscar|busque|busca|procure|procurar|localize|localizar|encontre|encontrar|consultar|consulte|consulta|mostrar|mostre|mostra|ver|veja|verificar|verifique|confira|conferir|checar|cheque|listar|liste|qual|quais|me diga|me mostre|quero saber|gostaria de saber|tem como ver|como esta|como estao)\b/
+
+function asksForData(value) {
+  return DATA_QUERY_PATTERN.test(normalize(value))
+}
+
 function editDistance(a, b) {
   const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
   for (let i = 1; i <= a.length; i++) {
@@ -220,8 +229,9 @@ function inferFromContext(message, currentPage, history = []) {
   const performanceReference = /visualiza|views|alcance|desempenho|perform/.test(normalized)
     && /post|publica|conteudo|compar|outro|diferenc|por que|porque/.test(normalized)
   if (performanceReference) return basePlan('analytics_insight', { platform }, 'Vou comparar as publicações, explicar os sinais de desempenho e sugerir uma solução com uma abordagem alternativa.')
+  const bestTimeRequest = /melhor\s+(?:horario|hora|momento)|horario.*(?:postar|publicar)|(?:postar|publicar).*horario|quando.*(?:postar|publicar)|que horas.*(?:postar|publicar)/.test(normalized)
   const explicitRequest = /^(mostre|mostrar|ver|veja|consultar|consulte|abra|abrir|listar|liste|crie|criar|gere|gerar|faça|faca|escreva|escrever|quero|preciso|gostaria|pode|poderia|salve|salvar|agende|agendar|publique|publicar)\b/.test(normalized)
-  const startsAsReference = /^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
+  const startsAsReference = !bestTimeRequest && /^(e\b|esse\b|essa\b|isso\b|tambem\b|mais\b|detalhe\b|detalha\b|explica\b|me explica\b|por que\b|porque\b|o que acha\b|qual\b|quais\b)/.test(normalized)
   const words = normalized.split(/\s+/).filter(Boolean)
   const shortReference = words.length <= 3 && !explicitRequest
     && (platform || /^(isso|esse|essa|aqui|ali|tambem|mais|detalhe|melhor|continuar|continua|sim|nao)\b/.test(normalized))
@@ -291,8 +301,9 @@ function interpretWithRules(message, currentPage, history = []) {
   }
 
   const page = Object.keys(PAGE_ALIASES).find(alias => normalized.includes(alias))
-  const asksAnalyticsData = page === 'analytics' && /analytics|metricas|relatorio|desempenho/.test(normalized) && /mostrar|mostre|ver|consultar|consulta|dados|como/.test(normalized)
-  if (/^(abra|abrir|ir para|va para|mostrar|mostre|acessar|quero ver)/i.test(normalized) && page && !asksAnalyticsData) {
+  const asksAnalyticsData = page === 'analytics' && /analytics|metricas|relatorio|desempenho|estatistica|performance|engajamento|alcance|visualizacoes|seguidores/.test(normalized) && (asksForData(normalized) || /dados|como/.test(normalized))
+  const dataTarget = /post|publica|rascunho|conta|token|credencial|inbox|comentario|mensagem|texto salvo|preset|modelo salvo|log|memoria/.test(normalized)
+  if (/^(abra|abrir|ir para|va para|mostrar|mostre|acessar|quero ver)/i.test(normalized) && page && !asksAnalyticsData && !(asksForData(normalized) && dataTarget)) {
     const pageId = PAGE_ALIASES[page]
     return { ...basePlan('navigate', { page: pageId }), navigation: pageId, answer: `Abrindo ${APP_PAGES[pageId]}.` }
   }
@@ -306,7 +317,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const id = extractId(text, ['conta', 'account'])
     return { ...basePlan('disconnect_account', { id }), missingFields: id ? [] : ['id'], answer: id ? 'Posso desconectar essa conta. Confirme para continuar.' : 'Informe o ID da conta que deseja desconectar.' }
   }
-  if (/token|credencial/.test(normalized) && /expir|valid|status|listar|mostrar|quais/.test(normalized)) {
+  if (/token|credencial/.test(normalized) && (/expir|valid|status/.test(normalized) || asksForData(normalized))) {
     const status = Object.keys(STATUS_ALIASES).find(alias => normalized.includes(alias))
     return basePlan('list_tokens', { platform: extractPlatforms(text)[0] || null, status: status ? STATUS_ALIASES[status] : null }, 'Vou consultar o estado dos seus tokens.')
   }
@@ -348,7 +359,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
     return { ...basePlan('list_comments', { postId }), missingFields: postId ? [] : ['postId'], answer: postId ? 'Vou carregar os comentários desse post.' : 'Informe o ID do post para eu carregar os comentários.' }
   }
-  if (/inbox|comentarios novos|comentários novos|interacoes|interações/.test(normalized)) return basePlan('list_inbox', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seu inbox.')
+  if (/inbox|caixa de entrada|mensagens|atendimento|comentarios novos|interacoes|interações/.test(normalized)) return basePlan('list_inbox', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seu inbox.')
   if (/(?:nao lido|não lido|nao vistos|não vistos|novos comentarios|novos comentários)/.test(normalized)) return basePlan('unread_inbox', {}, 'Vou verificar seus comentários não lidos.')
   if (/(?:marcar|marque)/.test(normalized) && /coment/.test(normalized)) {
     const postId = extractId(text, ['post', 'publicacao', 'publicação'])
@@ -381,17 +392,25 @@ function interpretWithRules(message, currentPage, history = []) {
   }
   const performanceComparisonIntent = /visualiza|views|alcance|desempenho|perform/.test(normalized)
     && /post|publica|conteudo|compar|outro|diferenc|por que|porque|solucao|abordagem|entend/.test(normalized)
-  if (!contentIntent && (performanceComparisonIntent || (/metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo|por que|porque/.test(normalized)))) {
-    return basePlan('analytics_insight', { platform: extractPlatforms(text)[0] || null }, 'Vou comparar as publicações, explicar os sinais de desempenho e sugerir uma solução com uma abordagem alternativa.')
+  // Pedidos de melhor horário são uma análise de desempenho, mesmo quando o
+  // usuário não usa as palavras "métricas" ou "analytics". Sem esta regra,
+  // frases naturais como "analisa meu Instagram e verifica o melhor horário
+  // para postar" caíam em conversa aberta ou geração de conteúdo.
+  const bestTimeIntent = /melhor\s+(?:horario|hora|momento)|horario.*(?:postar|publicar)|(?:postar|publicar).*horario|quando.*(?:postar|publicar)|que horas.*(?:postar|publicar)/.test(normalized)
+  if (!contentIntent && (bestTimeIntent || performanceComparisonIntent || (/metric|analytics|relatorio|desempenho|resultado/.test(normalized) && /analise|melhorar|recomend|insight|perform|o que fazer|proximo passo|por que|porque/.test(normalized)))) {
+    const answer = bestTimeIntent
+      ? 'Vou analisar o histórico real do Instagram e verificar o melhor dia e horário para publicar.'
+      : 'Vou comparar as publicações, explicar os sinais de desempenho e sugerir uma solução com uma abordagem alternativa.'
+    return basePlan('analytics_insight', { platform: extractPlatforms(text)[0] || null }, answer)
   }
-  if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado/.test(normalized)) return basePlan('analytics', {}, 'Vou consultar seus relatórios.')
+  if (!contentIntent && /metric|analytics|relatorio|relatório|desempenho|resultado|estatistica|performance|engajamento|alcance|visualizacoes|seguidores/.test(normalized)) return basePlan('analytics', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seus relatórios.')
   if (/calendario|calendário|o que tenho agendado|publicacoes.*mes|publicações.*mês/.test(normalized)) return basePlan('calendar', extractMonth(text), 'Vou consultar o calendário desse período.')
-  if (/requisit|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
-  if (/contas conect|quais contas|listar contas|minhas redes/.test(normalized)) return basePlan('list_accounts', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar suas contas conectadas.')
+  if (/requisit|o que preciso.*public|exige.*(instagram|facebook|youtube|tiktok)|limite.*(instagram|facebook|youtube|tiktok)/.test(normalized)) return basePlan('requirements', { platforms: extractPlatforms(text) }, 'Vou explicar os requisitos de publicação.')
+  if (/contas conect|quais contas|listar contas|minhas redes|minhas integracoes|minhas integrações|contas vinculadas|contas ligadas/.test(normalized)) return basePlan('list_accounts', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar suas contas conectadas.')
   if (/painel|dashboard|resumo.*conta|quantas contas/.test(normalized)) return basePlan('dashboard_summary', {}, 'Vou consultar o resumo do seu painel.')
-  if (/(?:video|vídeo)s?.*tiktok|tiktok.*(?:video|vídeo)s?/.test(normalized) && /listar|mostrar|ver|meus|quais/.test(normalized)) return basePlan('tiktok_videos', {}, 'Vou consultar seus vídeos do TikTok.')
+  if (/(?:video|vídeo)s?.*tiktok|tiktok.*(?:video|vídeo)s?/.test(normalized) && (asksForData(normalized) || /meus/.test(normalized))) return basePlan('tiktok_videos', {}, 'Vou consultar seus vídeos do TikTok.')
   if (/opcoes|opções|creator|criador/.test(normalized) && /tiktok/.test(normalized)) return basePlan('tiktok_creator_info', {}, 'Vou consultar as opções disponíveis no TikTok.')
-  if (/texto[s]? salvo|textos reutilizaveis|textos reutilizáveis/.test(normalized) && /listar|mostrar|quais|meus|ver/.test(normalized)) return basePlan('list_saved_texts', {}, 'Vou consultar seus textos salvos.')
+  if (/texto[s]? salvo|textos reutilizaveis|textos reutilizáveis|frases salvas|legendas salvas/.test(normalized) && (asksForData(normalized) || /meus|salvos|salvas/.test(normalized))) return basePlan('list_saved_texts', {}, 'Vou consultar seus textos salvos.')
   if (/(?:salvar|salve|guardar|guarde).*(?:texto|frase)/.test(normalized)) {
     const body = extractContent(text)
     return { ...basePlan('save_text', { title: 'Texto salvo', body }), missingFields: body ? [] : ['body'], answer: body ? 'Posso salvar esse texto para reutilização. Confirme para continuar.' : 'Envie o texto que deseja salvar.' }
@@ -400,7 +419,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const id = extractId(text, ['texto salvo', 'texto'])
     return { ...basePlan('delete_saved_text', { id }), missingFields: id ? [] : ['id'], answer: id ? 'Posso excluir esse texto salvo. Confirme para continuar.' : 'Informe o ID do texto salvo.' }
   }
-  if (/preset|predefin|configuracoes salvas|configurações salvas/.test(normalized) && /listar|mostrar|quais|meus|ver/.test(normalized)) return basePlan('list_presets', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seus presets.')
+  if (/preset|predefin|configuracoes salvas|configurações salvas|modelos salvos/.test(normalized) && (asksForData(normalized) || /meus|salvos|salvas/.test(normalized))) return basePlan('list_presets', { platform: extractPlatforms(text)[0] || null }, 'Vou consultar seus presets.')
   if (/(?:saude|saúde|disponibilidade).*(?:rede|plataforma|instagram|facebook|youtube|tiktok)/.test(normalized) || /(?:redes|plataformas).*funcionando/.test(normalized) || /status das plataformas/.test(normalized)) return basePlan('platform_health', {}, 'Vou consultar a saúde das plataformas.')
   if (/(?:logs|historico de atividades|histórico de atividades|ultimos erros|últimos erros)/.test(normalized)) return basePlan('list_logs', { limit: 50 }, 'Vou consultar as atividades recentes.')
   if (/(?:lembra|memoria|memória|preferencia|preferência).*(?:mim|minhas|sobre)/.test(normalized)) return basePlan('list_memories', {}, 'Vou consultar o que está salvo na memória da IA.')
@@ -414,7 +433,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const tone = /profissional|formal/.test(normalized) ? 'profissional' : /motiv/.test(normalized) ? 'motivacional' : /inform/.test(normalized) ? 'informativo' : /humor|engrac|engraç/.test(normalized) ? 'humoristico' : 'casual'
     return basePlan('generate_posts', { instruction: text, platforms: platforms.length ? platforms : ['instagram'], quantity: 1, tone }, 'Vou gerar uma sugestão de conteúdo.')
   }
-  if (/publica|post|agendad/.test(normalized) && /listar|mostrar|quais|ver/.test(normalized)) {
+  if (/publica|post|agendad/.test(normalized) && (asksForData(normalized) || /meus|publicados|publicadas|agendados|agendadas/.test(normalized))) {
     const status = Object.keys(STATUS_ALIASES).find(alias => normalized.includes(alias))
     return basePlan('list_posts', { status: status ? STATUS_ALIASES[status] : null }, 'Vou consultar suas publicações.')
   }
@@ -434,10 +453,13 @@ function buildAgentPrompt({ message, history = [], currentPage = null, pendingPl
 COMO RACIOCINAR:
 - Trate cada mensagem como um requisito independente. Uma nova intenção explícita sempre vence o histórico; nunca copie a ação ou a resposta anterior só porque o pedido é curto.
 - Aceite requisitos livres em texto, linguagem informal, abreviações, erros de digitação, listas e várias condições. Preserve detalhes, restrições, público, prazo e formato informados pelo usuário nos arguments ou no topic.
+- Entenda sinônimos e variações de consulta: "busque", "procure", "localize", "encontre", "consulte", "confira", "cheque", "verifique", "liste", "me mostre", "me diga", "quero saber" e "como estão" podem significar que a pessoa quer buscar dados dentro da aplicação.
+- Quando o pedido mencionar publicações, métricas, contas, calendário, inbox, comentários, tokens, presets, textos salvos, saúde das plataformas, logs ou memórias, escolha a ação de leitura correspondente no catálogo e execute a consulta real. Não responda apenas com uma explicação genérica se houver uma ação disponível.
 - Para estratégia, ideias, explicações, diagnóstico conceitual ou dúvidas gerais, use actionId "conversation" e escreva uma resposta útil, específica e acionável em answer.
 - Para pedidos de conteúdo, entenda objetivo, público, formato, tom e rede; use generate_posts quando o usuário quer textos prontos.
 - Interprete linguagem cotidiana para conteúdo: "quero um post sobre ônibus", "preciso de uma legenda", "pode fazer um carrossel?", "me ajuda com ideias" e pedidos com erros de digitação devem virar generate_posts quando o usuário quer algo pronto.
 - Para pedidos de imagem, use create_image. Preserve a descrição visual do usuário e deixe model como "auto" para permitir fallback entre provedores. Nunca responda que a imagem foi criada sem receber uma imagem válida do executor.
+- Quando o usuário pedir o melhor horário, melhor dia ou melhor momento para postar/publicar em uma rede, use analytics_insight, consulte os dados reais e informe claramente quando não houver horários ou métricas suficientes. Não trate esse pedido como geração de conteúdo.
 - Para pedidos compostos, responda a parte que puder e indique a próxima etapa mais segura; não execute várias escritas escondidas.
 - Diferencie uma pergunta sobre a palavra "analytics" de uma consulta dos dados reais da conta.
 - Corrija mentalmente erros de digitação, abreviações e variações fonéticas (por exemplo: "analitcs" = analytics, "instagran" = Instagram, "tiktk" = TikTok).

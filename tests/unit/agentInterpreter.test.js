@@ -89,6 +89,17 @@ describe('agente operacional — interpretação de pedidos', () => {
     expect(plan.actionId).toBe('analytics_insight')
   })
 
+  test.each([
+    'analisa meu Instagram e verifica o melhor horário para postar algo',
+    'qual o melhor horário para postar no Instagram?',
+    'quando devo publicar no insta?',
+  ])('entende pedido natural de melhor horário: %s', pedido => {
+    const plan = interpretWithRules(pedido, 'ai')
+
+    expect(plan.actionId).toBe('analytics_insight')
+    expect(plan.arguments.platform).toBe('instagram')
+  })
+
   test('entende pedido de comparação entre posts por visualizações', () => {
     const plan = interpretWithRules('por que um post teve boas visualizações e outro não? me dê uma solução e outra abordagem', 'ai')
 
@@ -106,6 +117,17 @@ describe('agente operacional — interpretação de pedidos', () => {
   test('corrige erros comuns de digitação em analytics e plataformas', () => {
     expect(interpretWithRules('mostre meu analitcs', 'analytics').actionId).toBe('analytics')
     expect(interpretWithRules('crie um post para o instagran e o tiktk', 'ai').arguments.platforms).toEqual(['instagram', 'tiktok'])
+  })
+
+  test.each([
+    ['busque minhas publicações do Instagram', 'list_posts'],
+    ['procure meus posts publicados', 'list_posts'],
+    ['me mostre as contas vinculadas', 'list_accounts'],
+    ['confira minhas mensagens', 'list_inbox'],
+    ['quero saber quais textos salvos eu tenho', 'list_saved_texts'],
+    ['verifique meus modelos salvos', 'list_presets'],
+  ])('entende sinônimos de consulta: %s', (pedido, actionId) => {
+    expect(interpretWithRules(pedido, 'ai').actionId).toBe(actionId)
   })
 
   test('usa o contexto anterior para entender uma referência curta', () => {
