@@ -199,17 +199,74 @@ function demographicRows(value, prefix = '') {
   return Object.entries(value).flatMap(([key, child]) => demographicRows(child, prefix ? `${prefix} · ${key}` : key))
 }
 
+const demographicCategoryDefinitions = [
+  { key: 'age', label: 'Idade', icon: '◷' },
+  { key: 'gender', label: 'Gênero', icon: '◉' },
+  { key: 'city', label: 'Cidades', icon: '⌖' },
+  { key: 'country', label: 'Países', icon: '◎' }
+]
+
+function normalizeDemographicText(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function demographicCategoryFor(groupName, rowLabel) {
+  const text = normalizeDemographicText(`${groupName} ${rowLabel}`)
+  if (/(^|[\s·:_-])(age|idade|faixa etaria|age range)(?=$|[\s·:_-])/.test(text)) return 'age'
+  if (/(^|[\s·:_-])(gender|genero|sexo|sex)(?=$|[\s·:_-])/.test(text)) return 'gender'
+  if (/(^|[\s·:_-])(city|cidade|municipio)(?=$|[\s·:_-])/.test(text)) return 'city'
+  if (/(^|[\s·:_-])(country|pais|nation)(?=$|[\s·:_-])/.test(text)) return 'country'
+  return null
+}
+
+function cleanDemographicLabel(label, category) {
+  const categoryWords = {
+    age: ['age', 'idade', 'faixa etaria', 'age range'],
+    gender: ['gender', 'genero', 'sexo', 'sex'],
+    city: ['city', 'cidade', 'municipio'],
+    country: ['country', 'pais', 'nation']
+  }
+  const words = new Set(categoryWords[category] || [])
+  const parts = String(label || '').split(' · ').filter(Boolean)
+  while (parts.length > 1 && words.has(normalizeDemographicText(parts[0]))) parts.shift()
+  return parts.join(' · ') || String(label || 'Valor')
+}
+
+function collectDemographicCategories(accounts) {
+  const buckets = Object.fromEntries(demographicCategoryDefinitions.map(category => [category.key, new Map()]))
+  accounts.forEach(account => {
+    Object.entries(account.demographics || {}).forEach(([groupName, value]) => {
+      demographicRows(value).forEach(row => {
+        const category = demographicCategoryFor(groupName, row.label)
+        if (!category) return
+        const label = cleanDemographicLabel(row.label, category)
+        const current = buckets[category].get(label) || 0
+        buckets[category].set(label, current + Number(row.value))
+      })
+    })
+  })
+  return demographicCategoryDefinitions.map(category => ({
+    ...category,
+    rows: [...buckets[category.key].entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 45)
+  }))
+}
+
 function InsightDemographics({ accounts }) {
-  const groups = accounts.flatMap(account => Object.entries(account.demographics || {}).map(([name, value]) => ({ name, rows: demographicRows(value) })))
-    .filter(group => group.rows.length)
-  if (!groups.length) return null
+  const categories = collectDemographicCategories(accounts)
+  if (!categories.some(category => category.rows.length)) return null
   return <div className="analytics-account-demographics">
     <div className="analytics-section-title">Demografia e audiência</div>
-    <p className="analytics-insights-subtitle">Dimensões de público devolvidas pela integração da conta.</p>
-    <div className="analytics-demographic-detail-grid">{groups.map((group, index) => <div className="analytics-demographic-detail" key={`${group.name}-${index}`}>
-      <strong>{labelForMetric(group.name)}</strong>
-      <div className="analytics-demographic-detail-list">{group.rows.slice(0, 45).map((row, rowIndex) => <span key={`${row.label}-${rowIndex}`}><b>{row.label}</b><em>{fmtNum(row.value)}</em></span>)}</div>
-    </div>)}</div>
+    <p className="analytics-insights-subtitle">Dimensões de público devolvidas pela integração da conta, organizadas por categoria.</p>
+    <div className="analytics-demographic-category-grid">{categories.map(category => <section className={`analytics-demographic-category is-${category.key}`} key={category.key}>
+      <div className="analytics-demographic-category-heading">
+        <span className="analytics-demographic-category-icon" aria-hidden="true">{category.icon}</span>
+        <div><strong>{category.label}</strong><small>{category.rows.length ? `${category.rows.length} dimensões` : 'Sem dados disponíveis'}</small></div>
+      </div>
+      {category.rows.length ? <div className="analytics-demographic-category-list">{category.rows.map(row => <span key={row.label}><b title={row.label}>{row.label}</b><em>{fmtNum(row.value)}</em></span>)}</div> : <p className="analytics-demographic-category-empty">A integração não retornou dados de {category.label.toLowerCase()}.</p>}
+    </section>)}</div>
   </div>
 }
 

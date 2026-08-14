@@ -1,7 +1,6 @@
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, PLATFORMS, serverError } = require('../utils/http')
-const { enviarRelatorioAgendado } = require('../services/reportService')
 
 const router = Router()
 const frequencies = new Set(['weekly', 'monthly'])
@@ -41,24 +40,6 @@ router.patch('/:id', async (req, res) => {
     const { rowCount } = await pool.query('UPDATE report_schedules SET active=$1, atualizado_em=NOW() WHERE id=$2 AND user_id=$3', [active, id, req.user.id])
     if (!rowCount) return res.status(404).json({ erro: 'Relatório não encontrado.' })
     res.status(204).send()
-  } catch (err) { serverError(res, err) }
-})
-
-router.post('/:id/test', async (req, res) => {
-  try {
-    const id = parseId(req.params.id)
-    if (!id) return res.status(400).json({ erro: 'id inválido' })
-    const { rows } = await pool.query(`
-      SELECT rs.*, u.email
-        FROM report_schedules rs
-        JOIN users u ON u.id=rs.user_id
-       WHERE rs.id=$1 AND rs.user_id=$2`,
-    [id, req.user.id])
-    if (!rows.length) return res.status(404).json({ erro: 'Relatório não encontrado.' })
-
-    const result = await enviarRelatorioAgendado(rows[0])
-    await pool.query('UPDATE report_schedules SET last_sent_at=NOW(), atualizado_em=NOW() WHERE id=$1 AND user_id=$2', [id, req.user.id])
-    res.json({ enviado: true, sentAt: new Date().toISOString(), recipientCount: result.recipientCount })
   } catch (err) { serverError(res, err) }
 })
 

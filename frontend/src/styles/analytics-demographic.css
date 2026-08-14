@@ -1,0 +1,21 @@
+.analytics-demographic-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.analytics-demographic-category{min-width:0;padding:13px;border:1px solid #30343e;border-radius:10px;background:linear-gradient(145deg,rgba(209,153,62,.06),#1c1e25 58%)}
+.analytics-demographic-category-heading{display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid #2a2d36}
+.analytics-demographic-category-icon{display:inline-flex;width:27px;height:27px;align-items:center;justify-content:center;border:1px solid rgba(240,199,119,.3);border-radius:8px;background:rgba(209,153,62,.12);color:#f0c877;font-size:16px}
+.analytics-demographic-category-heading>div{display:grid;gap:2px;min-width:0}
+.analytics-demographic-category-heading strong{color:#eef0f6;font-size:12px}
+.analytics-demographic-category-heading small{color:#707687;font-size:10px}
+.analytics-demographic-category-list{display:grid;gap:6px;max-height:220px;margin-top:10px;overflow:auto}
+.analytics-demographic-category-list span{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#b4bacc;font-size:10px}
+.analytics-demographic-category-list b{overflow:hidden;font-weight:400;text-overflow:ellipsis;white-space:nowrap}
+.analytics-demographic-category-list em{flex:0 0 auto;color:#f0c877;font-family:var(--mono,monospace);font-size:10px;font-style:normal}
+.analytics-demographic-category-empty{margin:12px 0 1px;color:#707687;font-size:10px;line-height:1.45}
+.analytics-demographic-category.is-age .analytics-demographic-category-icon{color:#8eb5ff;border-color:rgba(142,181,255,.3);background:rgba(91,141,239,.12)}
+.analytics-demographic-category.is-gender .analytics-demographic-category-icon{color:#d0a8ff;border-color:rgba(208,168,255,.3);background:rgba(156,105,220,.12)}
+.analytics-demographic-category.is-city .analytics-demographic-category-icon{color:#7ed9b0;border-color:rgba(126,217,176,.3);background:rgba(59,166,117,.12)}
+.analytics-demographic-category.is-country .analytics-demographic-category-icon{color:#f0c877}
+html[data-theme='light'] .analytics-demographic-category{border-color:var(--border,#dfe3ea);background:var(--surface-3,#fff)}
+html[data-theme='light'] .analytics-demographic-category-heading{border-bottom-color:var(--border,#dfe3ea)}
+html[data-theme='light'] .analytics-demographic-category-heading strong{color:var(--text,#20242c)}
+html[data-theme='light'] .analytics-demographic-category-list span{color:var(--muted,#626b7b)}
+@media(max-width:760px){.analytics-demographic-category-grid{grid-template-columns:1fr}}

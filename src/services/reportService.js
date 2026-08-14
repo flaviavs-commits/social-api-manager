@@ -29,9 +29,25 @@ async function buscarDadosRelatorio({ userId, periodDays, platform }) {
   if (platform) params.push(platform)
 
   const { rows } = await pool.query(
-    `SELECT status, COUNT(*)::int AS count
-       FROM posts
-      WHERE user_id=$1 AND criado_em >= $2${platformFilter}
+    `WITH filtered AS (
+       SELECT id, text, status, platforms, criado_em, published_at, scheduled_at
+         FROM posts
+        WHERE user_id=$1 AND criado_em >= $2${platformFilter}
+     ), platform_counts AS (
+       SELECT platform, COUNT(*)::int AS count
+         FROM filtered, unnest(COALESCE(platforms, ARRAY[]::text[])) AS platform
+        GROUP BY platform
+     ), recent_posts AS (
+       SELECT id, COALESCE(NULLIF(text, ''), 'Publicação sem texto') AS text,
+              status, platforms,
+              COALESCE(published_at, scheduled_at, criado_em) AS occurred_at
+         FROM filtered
+        ORDER BY occurred_at DESC NULLS LAST
+     )
+     SELECT status, COUNT(*)::int AS count,
+            (SELECT COALESCE(json_agg(pc ORDER BY pc.platform), '[]'::json) FROM platform_counts pc) AS "platformRows",
+            (SELECT COALESCE(json_agg(rp ORDER BY rp.occurred_at DESC NULLS LAST), '[]'::json) FROM recent_posts rp) AS "postRows"
+       FROM filtered
       GROUP BY status
       ORDER BY status`,
     params
@@ -55,11 +71,15 @@ async function enviarRelatorioAgendado(schedule) {
   const summary = rows.length
     ? rows.map(item => `<li>${escapeHtml(item.status)}: ${item.count}</li>`).join('')
     : '<li>Nenhuma publicação no período.</li>'
+  const platformRows = rows[0]?.platformRows || []
+  const postRows = rows[0]?.postRows || []
   const pdf = await gerarRelatorioPdf({
     name: schedule.name,
     periodDays,
     platform: schedule.platform || null,
-    rows
+    rows,
+    platformRows,
+    postRows
   })
   await mailer.enviarRelatorioAgendado(recipients, schedule.name, periodDays, summary, {
     filename: `relatorio-${String(schedule.name || 'operacional').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'operacional'}.pdf`,

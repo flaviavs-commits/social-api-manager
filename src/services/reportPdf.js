@@ -35,6 +35,11 @@ function statusLabel(status) {
   return labels[status] || status
 }
 
+function platformLabel(platform) {
+  const labels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+  return labels[platform] || platform || 'Outra rede'
+}
+
 function statusColor(status) {
   if (status === 'published') return COLORS.green
   if (status === 'error') return COLORS.red
@@ -42,11 +47,27 @@ function statusColor(status) {
   return COLORS.muted
 }
 
+function normalizePlatformRows(rows = []) {
+  return rows
+    .map(row => ({ platform: String(row.platform || 'outra'), count: Number(row.count) || 0 }))
+    .filter(row => row.count > 0)
+}
+
+function normalizePostRows(rows = []) {
+  return rows.map(row => ({
+    id: row.id,
+    text: String(row.text || 'Publicação sem texto').replace(/\s+/g, ' ').trim(),
+    status: String(row.status || 'outro'),
+    platforms: Array.isArray(row.platforms) ? row.platforms : [],
+    occurredAt: row.occurred_at || row.occurredAt || null
+  }))
+}
+
 function roundedCard(doc, x, y, width, height, fill = COLORS.white) {
   doc.save().roundedRect(x, y, width, height, 10).fillAndStroke(fill, COLORS.line).restore()
 }
 
-function gerarRelatorioPdf({ name, periodDays, rows = [], generatedAt = new Date(), platform = null }) {
+function gerarRelatorioPdf({ name, periodDays, rows = [], platformRows = [], postRows = [], generatedAt = new Date(), platform = null }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: name, Author: 'Meu Ecoo Mídia', Subject: 'Relatório operacional' } })
     const chunks = []
@@ -55,11 +76,13 @@ function gerarRelatorioPdf({ name, periodDays, rows = [], generatedAt = new Date
     doc.on('error', reject)
 
     const normalizedRows = normalizeRows(rows)
+    const normalizedPlatformRows = normalizePlatformRows(platformRows)
+    const normalizedPostRows = normalizePostRows(postRows)
     const total = normalizedRows.reduce((sum, row) => sum + row.count, 0)
     const published = normalizedRows.find(row => row.status === 'published')?.count || 0
     const errors = normalizedRows.filter(row => ['error', 'partial'].includes(row.status)).reduce((sum, row) => sum + row.count, 0)
     const scheduled = normalizedRows.find(row => row.status === 'scheduled')?.count || 0
-    const platformLabel = platform ? statusLabel(platform) : 'Todas as plataformas'
+    const platformLabelText = platform ? platformLabel(platform) : 'Todas as plataformas'
     const pageWidth = doc.page.width
     const margin = 42
     const contentWidth = pageWidth - margin * 2
@@ -67,7 +90,7 @@ function gerarRelatorioPdf({ name, periodDays, rows = [], generatedAt = new Date
     doc.rect(0, 0, pageWidth, 142).fill(COLORS.ink)
     doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(11).text('MEU ECOO MÍDIA', margin, 34, { characterSpacing: 1.5 })
     doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(25).text(name || 'Relatório operacional', margin, 58, { width: contentWidth - 120 })
-    doc.fillColor('#CBD2E0').font('Helvetica').fontSize(10).text(`Gerado em ${formatDate(generatedAt)} · janela de ${periodDays} dias · ${platformLabel}`, margin, 101)
+    doc.fillColor('#CBD2E0').font('Helvetica').fontSize(10).text(`Gerado em ${formatDate(generatedAt)} · janela de ${periodDays} dias · ${platformLabelText}`, margin, 101)
     doc.circle(pageWidth - 72, 67, 25).fill(COLORS.gold)
     doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('ME', pageWidth - 88, 58, { width: 32, align: 'center' })
 
@@ -117,8 +140,65 @@ function gerarRelatorioPdf({ name, periodDays, rows = [], generatedAt = new Date
 
     doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8).text('Relatório gerado automaticamente pelo Meu Ecoo Mídia', margin, doc.page.height - 38)
     doc.text('Página 1', pageWidth - margin - 50, doc.page.height - 38, { width: 50, align: 'right' })
+
+    if (normalizedPlatformRows.length || normalizedPostRows.length) {
+      let pageNumber = 2
+      const drawDetailHeader = () => {
+        doc.rect(0, 0, pageWidth, 112).fill(COLORS.ink)
+        doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(10).text('MEU ECOO MÍDIA', margin, 28, { characterSpacing: 1.5 })
+        doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(21).text('Detalhamento operacional', margin, 51)
+        doc.fillColor('#CBD2E0').font('Helvetica').fontSize(9).text(`Informações consolidadas do período · ${periodDays} dias`, margin, 83)
+      }
+      const drawDetailFooter = () => {
+        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8).text('Relatório gerado automaticamente pelo Meu Ecoo Mídia', margin, doc.page.height - 38)
+        doc.text(`Página ${pageNumber}`, pageWidth - margin - 50, doc.page.height - 38, { width: 50, align: 'right' })
+      }
+
+      doc.addPage()
+      drawDetailHeader()
+      let detailY = 148
+
+      if (normalizedPlatformRows.length) {
+        doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Distribuição por rede', margin, detailY)
+        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('Quantidade de conteúdos associados a cada plataforma.', margin, detailY + 24)
+        detailY += 58
+        normalizedPlatformRows.forEach((row, index) => {
+          const y = detailY + index * 35
+          if (index % 2 === 0) doc.rect(margin, y, contentWidth, 35).fill('#FAFBFC')
+          doc.fillColor(COLORS.gold).circle(margin + 17, y + 17, 4)
+          doc.fillColor(COLORS.ink).font('Helvetica').fontSize(10).text(platformLabel(row.platform), margin + 30, y + 11)
+          doc.font('Helvetica-Bold').text(String(row.count), margin + contentWidth - 70, y + 11, { width: 56, align: 'right' })
+          doc.strokeColor(COLORS.line).moveTo(margin, y + 35).lineTo(margin + contentWidth, y + 35).stroke()
+        })
+        detailY += normalizedPlatformRows.length * 35 + 38
+      }
+
+      if (normalizedPostRows.length) {
+        doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Publicações do período', margin, detailY)
+        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('As publicações mais recentes aparecem com status, redes e data de referência.', margin, detailY + 24)
+        detailY += 53
+        normalizedPostRows.forEach((row, index) => {
+          const platformsText = row.platforms.map(platformLabel).join(' · ') || 'Rede não informada'
+          const dateText = row.occurredAt ? formatDate(new Date(row.occurredAt)) : 'Data não informada'
+          const body = `${row.text}\n${statusLabel(row.status)} · ${platformsText} · ${dateText}`
+          const rowHeight = Math.max(46, doc.heightOfString(body, { width: contentWidth - 30 }) + 20)
+          if (detailY + rowHeight > doc.page.height - 62) {
+            drawDetailFooter()
+            doc.addPage()
+            pageNumber += 1
+            drawDetailHeader()
+            detailY = 148
+          }
+          roundedCard(doc, margin, detailY, contentWidth, rowHeight, index % 2 === 0 ? COLORS.white : '#FAFBFC')
+          doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(10).text(row.text, margin + 15, detailY + 11, { width: contentWidth - 30 })
+          doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8.5).text(`${statusLabel(row.status)} · ${platformsText} · ${dateText}`, margin + 15, detailY + 28, { width: contentWidth - 30 })
+          detailY += rowHeight + 9
+        })
+      }
+      drawDetailFooter()
+    }
     doc.end()
   })
 }
 
-module.exports = { gerarRelatorioPdf, formatDate, normalizeRows }
+module.exports = { gerarRelatorioPdf, formatDate, normalizeRows, normalizePlatformRows, normalizePostRows }
