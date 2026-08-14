@@ -5,7 +5,7 @@ jest.mock('../../src/services/reportPdf', () => ({ gerarRelatorioPdf: jest.fn().
 const pool = require('../../src/db/pool')
 const mailer = require('../../src/services/mailer')
 const { gerarRelatorioPdf } = require('../../src/services/reportPdf')
-const { escapeHtml, gerarResumoRelatorio, enviarRelatorioAgendado } = require('../../src/services/reportService')
+const { escapeHtml, reportFilename, gerarResumoRelatorio, enviarRelatorioAgendado } = require('../../src/services/reportService')
 
 describe('reportService', () => {
   beforeEach(() => jest.clearAllMocks())
@@ -15,6 +15,10 @@ describe('reportService', () => {
     pool.query.mockResolvedValueOnce({ rows: [{ status: '<erro>', count: 2 }] })
 
     await expect(gerarResumoRelatorio({ userId: 7, periodDays: 30 })).resolves.toBe('<li>&lt;erro&gt;: 2</li>')
+  })
+
+  test('normaliza acentos no nome do arquivo PDF', () => {
+    expect(reportFilename('Relatório mensal')).toBe('relatorio-mensal.pdf')
   })
 
   test('envia o relatório para os destinatários configurados', async () => {

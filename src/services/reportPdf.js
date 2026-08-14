@@ -2,14 +2,19 @@ const PDFDocument = require('pdfkit')
 
 const COLORS = {
   ink: '#172033',
+  inkSoft: '#243149',
   muted: '#667085',
   gold: '#D9A441',
   goldLight: '#F8EFD8',
+  cream: '#FCFAF6',
   line: '#E6E8EC',
   white: '#FFFFFF',
   green: '#16805C',
+  greenLight: '#E8F5EF',
   red: '#C0392B',
-  blue: '#2F6FED'
+  redLight: '#FCECEA',
+  blue: '#2F6FED',
+  blueLight: '#EAF0FF'
 }
 
 function formatDate(value) {
@@ -17,6 +22,10 @@ function formatDate(value) {
     dateStyle: 'medium',
     timeZone: 'America/Sao_Paulo'
   }).format(value)
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('pt-BR').format(Number(value) || 0)
 }
 
 function normalizeRows(rows = []) {
@@ -47,6 +56,13 @@ function statusColor(status) {
   return COLORS.muted
 }
 
+function statusBackground(status) {
+  if (status === 'published') return COLORS.greenLight
+  if (status === 'error') return COLORS.redLight
+  if (status === 'scheduled') return COLORS.blueLight
+  return '#F1F3F6'
+}
+
 function normalizePlatformRows(rows = []) {
   return rows
     .map(row => ({ platform: String(row.platform || 'outra'), count: Number(row.count) || 0 }))
@@ -63,8 +79,46 @@ function normalizePostRows(rows = []) {
   }))
 }
 
-function roundedCard(doc, x, y, width, height, fill = COLORS.white) {
-  doc.save().roundedRect(x, y, width, height, 10).fillAndStroke(fill, COLORS.line).restore()
+function truncateText(value, maxLength = 260) {
+  const text = String(value || '').trim()
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1).trimEnd()}…` : text
+}
+
+function roundedCard(doc, x, y, width, height, fill = COLORS.white, radius = 10) {
+  doc.save().roundedRect(x, y, width, height, radius).fillAndStroke(fill, COLORS.line).restore()
+}
+
+function drawFooter(doc, pageWidth, pageHeight, margin, pageNumber) {
+  doc.strokeColor(COLORS.line).moveTo(margin, pageHeight - 55).lineTo(pageWidth - margin, pageHeight - 55).stroke()
+  doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8).text('Relatório gerado automaticamente pelo Meu Ecoo Mídia', margin, pageHeight - 40)
+  doc.text(`Página ${pageNumber}`, pageWidth - margin - 55, pageHeight - 40, { width: 55, align: 'right' })
+}
+
+function drawSectionHeading(doc, title, subtitle, x, y, width) {
+  doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text(title, x, y)
+  doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text(subtitle, x, y + 24, { width })
+}
+
+function drawStatCard(doc, card, x, y, width, height) {
+  roundedCard(doc, x, y, width, height, COLORS.white)
+  doc.save().roundedRect(x, y, width, 5, 3).fill(card.color).restore()
+  doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8.5).text(card.label, x + 13, y + 20, { width: width - 26 })
+  doc.fillColor(card.color).font('Helvetica-Bold').fontSize(25).text(formatNumber(card.value), x + 13, y + 43)
+}
+
+function drawStatusPill(doc, label, status, x, y) {
+  const color = statusColor(status)
+  doc.font('Helvetica-Bold').fontSize(8)
+  const width = Math.max(54, doc.widthOfString(label) + 18)
+  doc.save().roundedRect(x, y, width, 18, 9).fill(statusBackground(status)).restore()
+  doc.fillColor(color).font('Helvetica-Bold').fontSize(8).text(label, x + 9, y + 5, { width: width - 18, align: 'center' })
+}
+
+function drawPercentage(doc, percentage, x, y, width) {
+  const value = Math.max(0, Math.min(100, percentage))
+  doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(9).text(`${value.toFixed(1).replace('.', ',')}%`, x, y, { width, align: 'right' })
+  doc.save().roundedRect(x, y + 17, width, 4, 2).fill('#EEF0F3').restore()
+  if (value > 0) doc.save().roundedRect(x, y + 17, width * value / 100, 4, 2).fill(COLORS.gold).restore()
 }
 
 function gerarRelatorioPdf({ name, periodDays, rows = [], platformRows = [], postRows = [], generatedAt = new Date(), platform = null }) {
@@ -82,120 +136,127 @@ function gerarRelatorioPdf({ name, periodDays, rows = [], platformRows = [], pos
     const published = normalizedRows.find(row => row.status === 'published')?.count || 0
     const errors = normalizedRows.filter(row => ['error', 'partial'].includes(row.status)).reduce((sum, row) => sum + row.count, 0)
     const scheduled = normalizedRows.find(row => row.status === 'scheduled')?.count || 0
-    const platformLabelText = platform ? platformLabel(platform) : 'Todas as plataformas'
+    const platformText = platform ? platformLabel(platform) : 'Todas as plataformas'
     const pageWidth = doc.page.width
+    const pageHeight = doc.page.height
     const margin = 42
     const contentWidth = pageWidth - margin * 2
 
-    doc.rect(0, 0, pageWidth, 142).fill(COLORS.ink)
-    doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(11).text('MEU ECOO MÍDIA', margin, 34, { characterSpacing: 1.5 })
-    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(25).text(name || 'Relatório operacional', margin, 58, { width: contentWidth - 120 })
-    doc.fillColor('#CBD2E0').font('Helvetica').fontSize(10).text(`Gerado em ${formatDate(generatedAt)} · janela de ${periodDays} dias · ${platformLabelText}`, margin, 101)
-    doc.circle(pageWidth - 72, 67, 25).fill(COLORS.gold)
-    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('ME', pageWidth - 88, 58, { width: 32, align: 'center' })
+    // Página 1: resumo executivo
+    doc.rect(0, 0, pageWidth, 154).fill(COLORS.ink)
+    doc.rect(0, 0, 8, 154).fill(COLORS.gold)
+    doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(11).text('MEU ECOO MÍDIA', margin, 32, { characterSpacing: 1.5 })
+    doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(24).text(truncateText(name || 'Relatório operacional', 48), margin, 58, { width: contentWidth - 120, lineBreak: false })
+    doc.fillColor('#CBD2E0').font('Helvetica').fontSize(10).text(`Gerado em ${formatDate(generatedAt)}  ·  janela de ${periodDays} dias`, margin, 103)
+    doc.fillColor('#CBD2E0').font('Helvetica').fontSize(9).text(platformText, margin, 121)
+    doc.circle(pageWidth - 72, 72, 26).fill(COLORS.gold)
+    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('ME', pageWidth - 88, 63, { width: 32, align: 'center' })
 
-    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Visão geral', margin, 177)
-    doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('Um retrato rápido da operação no período selecionado.', margin, 201)
-
+    drawSectionHeading(doc, 'Visão geral', 'Um retrato rápido da operação no período selecionado.', margin, 188, contentWidth)
     const cards = [
-      { label: 'Conteúdos no período', value: total, color: COLORS.ink },
+      { label: 'Conteúdos no período', value: total, color: COLORS.inkSoft },
       { label: 'Publicados', value: published, color: COLORS.green },
       { label: 'Agendados', value: scheduled, color: COLORS.blue },
       { label: 'Com atenção', value: errors, color: COLORS.red }
     ]
     const gap = 10
     const cardWidth = (contentWidth - gap * 3) / 4
-    cards.forEach((card, index) => {
-      const x = margin + index * (cardWidth + gap)
-      roundedCard(doc, x, 226, cardWidth, 86)
-      doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8.5).text(card.label, x + 12, 241, { width: cardWidth - 24 })
-      doc.fillColor(card.color).font('Helvetica-Bold').fontSize(25).text(String(card.value), x + 12, 263)
-    })
+    cards.forEach((card, index) => drawStatCard(doc, card, margin + index * (cardWidth + gap), 242, cardWidth, 88))
 
-    const tableY = 352
-    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Distribuição por status', margin, tableY)
-    doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('Quantidade de publicações criadas durante a janela do relatório.', margin, tableY + 24)
-
+    const tableY = 371
+    drawSectionHeading(doc, 'Distribuição por status', 'Quantidade de publicações criadas durante a janela do relatório.', margin, tableY, contentWidth)
     const tableTop = tableY + 58
-    const statusWidth = contentWidth * 0.68
-    const countWidth = contentWidth - statusWidth
-    doc.roundedRect(margin, tableTop, contentWidth, 30, 6).fill(COLORS.goldLight)
-    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(9).text('STATUS', margin + 14, tableTop + 10)
-    doc.text('QUANTIDADE', margin + statusWidth, tableTop + 10, { width: countWidth - 14, align: 'right' })
+    const statusWidth = contentWidth * 0.51
+    const countWidth = contentWidth * 0.19
+    const shareWidth = contentWidth - statusWidth - countWidth
+    roundedCard(doc, margin, tableTop, contentWidth, 31, COLORS.goldLight, 6)
+    doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(8.5).text('STATUS', margin + 14, tableTop + 10)
+    doc.text('VOLUME', margin + statusWidth, tableTop + 10, { width: countWidth - 14, align: 'right' })
+    doc.text('PARTICIPAÇÃO', margin + statusWidth + countWidth, tableTop + 10, { width: shareWidth - 14, align: 'right' })
 
     const tableRows = normalizedRows.length ? normalizedRows : [{ status: 'none', count: 0 }]
+    const tableRowHeight = 36
     tableRows.forEach((row, index) => {
-      const y = tableTop + 30 + index * 34
-      if (index % 2 === 0) doc.rect(margin, y, contentWidth, 34).fill('#FAFBFC')
-      doc.fillColor(statusColor(row.status)).circle(margin + 17, y + 17, 4)
-      doc.fillColor(COLORS.ink).font('Helvetica').fontSize(10).text(row.status === 'none' ? 'Nenhuma publicação' : statusLabel(row.status), margin + 30, y + 11)
-      doc.font('Helvetica-Bold').text(String(row.count), margin + statusWidth, y + 11, { width: countWidth - 14, align: 'right' })
-      doc.strokeColor(COLORS.line).moveTo(margin, y + 34).lineTo(margin + contentWidth, y + 34).stroke()
+      const y = tableTop + 31 + index * tableRowHeight
+      if (index % 2 === 0) doc.rect(margin, y, contentWidth, tableRowHeight).fill(COLORS.cream)
+      const label = row.status === 'none' ? 'Nenhuma publicação' : statusLabel(row.status)
+      drawStatusPill(doc, label, row.status, margin + 14, y + 9)
+      doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(10).text(formatNumber(row.count), margin + statusWidth, y + 12, { width: countWidth - 14, align: 'right' })
+      drawPercentage(doc, total ? row.count / total * 100 : 0, margin + statusWidth + countWidth + 10, y + 6, shareWidth - 20)
+      doc.strokeColor(COLORS.line).moveTo(margin, y + tableRowHeight).lineTo(margin + contentWidth, y + tableRowHeight).stroke()
     })
 
-    const noteY = tableTop + 30 + tableRows.length * 34 + 28
-    roundedCard(doc, margin, noteY, contentWidth, 58, COLORS.ink)
-    doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(9).text('PRÓXIMO PASSO', margin + 16, noteY + 14)
-    doc.fillColor(COLORS.white).font('Helvetica').fontSize(9.5).text(errors ? 'Revise os conteúdos com erro ou status parcial antes do próximo ciclo.' : 'A operação não apresenta falhas registradas no período.', margin + 16, noteY + 30, { width: contentWidth - 32 })
-
-    doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8).text('Relatório gerado automaticamente pelo Meu Ecoo Mídia', margin, doc.page.height - 38)
-    doc.text('Página 1', pageWidth - margin - 50, doc.page.height - 38, { width: 50, align: 'right' })
+    const noteY = tableTop + 31 + tableRows.length * tableRowHeight + 24
+    roundedCard(doc, margin, noteY, contentWidth, 64, COLORS.ink, 10)
+    doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(8.5).text('PRÓXIMO PASSO', margin + 17, noteY + 15, { characterSpacing: 0.6 })
+    doc.fillColor(COLORS.white).font('Helvetica').fontSize(9.5).text(errors ? 'Revise os conteúdos com erro ou status parcial antes do próximo ciclo.' : 'A operação não apresenta falhas registradas no período.', margin + 17, noteY + 32, { width: contentWidth - 34 })
+    drawFooter(doc, pageWidth, pageHeight, margin, 1)
 
     if (normalizedPlatformRows.length || normalizedPostRows.length) {
       let pageNumber = 2
-      const drawDetailHeader = () => {
-        doc.rect(0, 0, pageWidth, 112).fill(COLORS.ink)
-        doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(10).text('MEU ECOO MÍDIA', margin, 28, { characterSpacing: 1.5 })
-        doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(21).text('Detalhamento operacional', margin, 51)
-        doc.fillColor('#CBD2E0').font('Helvetica').fontSize(9).text(`Informações consolidadas do período · ${periodDays} dias`, margin, 83)
-      }
-      const drawDetailFooter = () => {
-        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8).text('Relatório gerado automaticamente pelo Meu Ecoo Mídia', margin, doc.page.height - 38)
-        doc.text(`Página ${pageNumber}`, pageWidth - margin - 50, doc.page.height - 38, { width: 50, align: 'right' })
+      let detailY = 0
+
+      const startDetailPage = () => {
+        doc.addPage()
+        doc.rect(0, 0, pageWidth, 122).fill(COLORS.ink)
+        doc.rect(0, 0, 8, 122).fill(COLORS.gold)
+        doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(10).text('MEU ECOO MÍDIA', margin, 27, { characterSpacing: 1.5 })
+        doc.fillColor(COLORS.white).font('Helvetica-Bold').fontSize(21).text('Detalhamento operacional', margin, 50)
+        doc.fillColor('#CBD2E0').font('Helvetica').fontSize(9).text(`Informações consolidadas do período  ·  ${periodDays} dias`, margin, 84)
+        detailY = 153
       }
 
-      doc.addPage()
-      drawDetailHeader()
-      let detailY = 148
+      const finishPage = () => drawFooter(doc, pageWidth, pageHeight, margin, pageNumber)
+      const ensureSpace = (height) => {
+        if (detailY + height <= pageHeight - 76) return
+        finishPage()
+        pageNumber += 1
+        startDetailPage()
+      }
+
+      startDetailPage()
 
       if (normalizedPlatformRows.length) {
-        doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Distribuição por rede', margin, detailY)
-        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('Quantidade de conteúdos associados a cada plataforma.', margin, detailY + 24)
-        detailY += 58
+        drawSectionHeading(doc, 'Distribuição por rede', 'Quantidade de conteúdos associados a cada plataforma.', margin, detailY, contentWidth)
+        detailY += 57
+        const platformGap = 10
+        const platformWidth = (contentWidth - platformGap) / 2
         normalizedPlatformRows.forEach((row, index) => {
-          const y = detailY + index * 35
-          if (index % 2 === 0) doc.rect(margin, y, contentWidth, 35).fill('#FAFBFC')
-          doc.fillColor(COLORS.gold).circle(margin + 17, y + 17, 4)
-          doc.fillColor(COLORS.ink).font('Helvetica').fontSize(10).text(platformLabel(row.platform), margin + 30, y + 11)
-          doc.font('Helvetica-Bold').text(String(row.count), margin + contentWidth - 70, y + 11, { width: 56, align: 'right' })
-          doc.strokeColor(COLORS.line).moveTo(margin, y + 35).lineTo(margin + contentWidth, y + 35).stroke()
+          const column = index % 2
+          const line = Math.floor(index / 2)
+          const x = margin + column * (platformWidth + platformGap)
+          const y = detailY + line * 62
+          roundedCard(doc, x, y, platformWidth, 50, COLORS.white, 9)
+          doc.fillColor(COLORS.gold).circle(x + 18, y + 25, 5)
+          doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(10).text(platformLabel(row.platform), x + 32, y + 15)
+          doc.fillColor(COLORS.gold).font('Helvetica-Bold').fontSize(16).text(formatNumber(row.count), x + platformWidth - 58, y + 13, { width: 42, align: 'right' })
         })
-        detailY += normalizedPlatformRows.length * 35 + 38
+        detailY += Math.ceil(normalizedPlatformRows.length / 2) * 62 + 22
       }
 
       if (normalizedPostRows.length) {
-        doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(16).text('Publicações do período', margin, detailY)
-        doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text('As publicações mais recentes aparecem com status, redes e data de referência.', margin, detailY + 24)
-        detailY += 53
+        ensureSpace(88)
+        drawSectionHeading(doc, 'Publicações do período', 'As publicações mais recentes aparecem com status, redes e data de referência.', margin, detailY, contentWidth)
+        detailY += 57
         normalizedPostRows.forEach((row, index) => {
-          const platformsText = row.platforms.map(platformLabel).join(' · ') || 'Rede não informada'
+          const displayText = truncateText(row.text)
+          doc.font('Helvetica-Bold').fontSize(10)
+          const textHeight = doc.heightOfString(displayText, { width: contentWidth - 54 })
+          const rowHeight = Math.min(112, Math.max(64, textHeight + 43))
+          ensureSpace(rowHeight + 10)
+          const platformsText = row.platforms.map(platformLabel).join('  ·  ') || 'Rede não informada'
           const dateText = row.occurredAt ? formatDate(new Date(row.occurredAt)) : 'Data não informada'
-          const body = `${row.text}\n${statusLabel(row.status)} · ${platformsText} · ${dateText}`
-          const rowHeight = Math.max(46, doc.heightOfString(body, { width: contentWidth - 30 }) + 20)
-          if (detailY + rowHeight > doc.page.height - 62) {
-            drawDetailFooter()
-            doc.addPage()
-            pageNumber += 1
-            drawDetailHeader()
-            detailY = 148
-          }
-          roundedCard(doc, margin, detailY, contentWidth, rowHeight, index % 2 === 0 ? COLORS.white : '#FAFBFC')
-          doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(10).text(row.text, margin + 15, detailY + 11, { width: contentWidth - 30 })
-          doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8.5).text(`${statusLabel(row.status)} · ${platformsText} · ${dateText}`, margin + 15, detailY + 28, { width: contentWidth - 30 })
-          detailY += rowHeight + 9
+          const x = margin
+          const y = detailY
+          roundedCard(doc, x, y, contentWidth, rowHeight, index % 2 === 0 ? COLORS.white : COLORS.cream, 9)
+          doc.save().roundedRect(x, y, 6, rowHeight, 3).fill(statusColor(row.status)).restore()
+          doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(10).text(displayText, x + 18, y + 13, { width: contentWidth - 36, height: rowHeight - 38 })
+          drawStatusPill(doc, statusLabel(row.status), row.status, x + 18, y + rowHeight - 28)
+          doc.fillColor(COLORS.muted).font('Helvetica').fontSize(8.5).text(`${platformsText}  ·  ${dateText}`, x + 104, y + rowHeight - 23, { width: contentWidth - 122 })
+          detailY += rowHeight + 10
         })
       }
-      drawDetailFooter()
+      finishPage()
     }
     doc.end()
   })

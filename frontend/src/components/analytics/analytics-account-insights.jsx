@@ -200,10 +200,10 @@ function demographicRows(value, prefix = '') {
 }
 
 const demographicCategoryDefinitions = [
-  { key: 'age', label: 'Idade', icon: '◷' },
-  { key: 'gender', label: 'Gênero', icon: '◉' },
-  { key: 'city', label: 'Cidades', icon: '⌖' },
-  { key: 'country', label: 'Países', icon: '◎' }
+  { key: 'age', label: 'Faixas etárias', description: 'Idade dos seguidores', unit: 'faixas', icon: '◷' },
+  { key: 'gender', label: 'Gênero', description: 'Distribuição por gênero', unit: 'categorias', icon: '◉' },
+  { key: 'city', label: 'Cidades', description: 'Localização por cidade', unit: 'cidades', icon: '⌖' },
+  { key: 'country', label: 'Países', description: 'Localização por país', unit: 'países', icon: '◎' }
 ]
 
 function normalizeDemographicText(value) {
@@ -232,6 +232,30 @@ function cleanDemographicLabel(label, category) {
   return parts.join(' · ') || String(label || 'Valor')
 }
 
+function displayDemographicLabel(label, category) {
+  const value = String(label || '').trim()
+  if (category === 'age') {
+    const range = value.match(/^(\d+)\s*[-–]\s*(\d+)$/)
+    if (range) return `${range[1]}–${range[2]} anos`
+    if (/^\d+\+$/.test(value)) return `${value} anos`
+  }
+  if (category === 'gender') {
+    return { m: 'Masculino', f: 'Feminino', u: 'Não informado' }[value.toLowerCase()] || value
+  }
+  return value
+}
+
+function sortDemographicRows(category, rows) {
+  return rows.sort((a, b) => {
+    if (category.key === 'age') {
+      const ageA = Number(a.label.match(/\d+/)?.[0] || 999)
+      const ageB = Number(b.label.match(/\d+/)?.[0] || 999)
+      return ageA - ageB
+    }
+    return b.value - a.value
+  })
+}
+
 function collectDemographicCategories(accounts) {
   const buckets = Object.fromEntries(demographicCategoryDefinitions.map(category => [category.key, new Map()]))
   accounts.forEach(account => {
@@ -239,7 +263,7 @@ function collectDemographicCategories(accounts) {
       demographicRows(value).forEach(row => {
         const category = demographicCategoryFor(groupName, row.label)
         if (!category) return
-        const label = cleanDemographicLabel(row.label, category)
+        const label = displayDemographicLabel(cleanDemographicLabel(row.label, category), category)
         const current = buckets[category].get(label) || 0
         buckets[category].set(label, current + Number(row.value))
       })
@@ -247,9 +271,9 @@ function collectDemographicCategories(accounts) {
   })
   return demographicCategoryDefinitions.map(category => ({
     ...category,
-    rows: [...buckets[category.key].entries()]
+    rows: sortDemographicRows(category, [...buckets[category.key].entries()]
       .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
+      )
       .slice(0, 45)
   }))
 }
@@ -263,9 +287,10 @@ function InsightDemographics({ accounts }) {
     <div className="analytics-demographic-category-grid">{categories.map(category => <section className={`analytics-demographic-category is-${category.key}`} key={category.key}>
       <div className="analytics-demographic-category-heading">
         <span className="analytics-demographic-category-icon" aria-hidden="true">{category.icon}</span>
-        <div><strong>{category.label}</strong><small>{category.rows.length ? `${category.rows.length} dimensões` : 'Sem dados disponíveis'}</small></div>
+        <div><strong>{category.label}</strong><small>{category.description}</small></div>
+        <span className="analytics-demographic-category-count">{category.rows.length ? `${category.rows.length} ${category.unit}` : 'Sem dados'}</span>
       </div>
-      {category.rows.length ? <div className="analytics-demographic-category-list">{category.rows.map(row => <span key={row.label}><b title={row.label}>{row.label}</b><em>{fmtNum(row.value)}</em></span>)}</div> : <p className="analytics-demographic-category-empty">A integração não retornou dados de {category.label.toLowerCase()}.</p>}
+      {category.rows.length ? <div className="analytics-demographic-category-list">{category.rows.map(row => <span key={row.label}><b title={row.label}>{row.label}</b><em>{fmtNum(row.value)} seguidores</em></span>)}</div> : <p className="analytics-demographic-category-empty">A integração não retornou dados de {category.label.toLowerCase()}.</p>}
     </section>)}</div>
   </div>
 }

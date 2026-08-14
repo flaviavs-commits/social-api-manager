@@ -15,6 +15,17 @@ function normalizePeriodDays(value) {
   return Math.min(90, Math.max(1, Number(value) || 30))
 }
 
+function reportFilename(name) {
+  const slug = String(name || 'operacional')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  const filenameSlug = slug || 'operacional'
+  return `${filenameSlug.startsWith('relatorio-') ? filenameSlug : `relatorio-${filenameSlug}`}.pdf`
+}
+
 async function gerarResumoRelatorio({ userId, periodDays, platform }) {
   const rows = await buscarDadosRelatorio({ userId, periodDays, platform })
   return rows.length
@@ -82,10 +93,10 @@ async function enviarRelatorioAgendado(schedule) {
     postRows
   })
   await mailer.enviarRelatorioAgendado(recipients, schedule.name, periodDays, summary, {
-    filename: `relatorio-${String(schedule.name || 'operacional').toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'operacional'}.pdf`,
+    filename: reportFilename(schedule.name),
     pdf
   })
   return { periodDays, recipientCount: recipients.length }
 }
 
-module.exports = { escapeHtml, normalizePeriodDays, buscarDadosRelatorio, gerarResumoRelatorio, enviarRelatorioAgendado }
+module.exports = { escapeHtml, normalizePeriodDays, reportFilename, buscarDadosRelatorio, gerarResumoRelatorio, enviarRelatorioAgendado }

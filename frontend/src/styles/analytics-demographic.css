@@ -1,10 +1,11 @@
-.analytics-demographic-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.analytics-demographic-category-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .analytics-demographic-category{min-width:0;padding:13px;border:1px solid #30343e;border-radius:10px;background:linear-gradient(145deg,rgba(209,153,62,.06),#1c1e25 58%)}
 .analytics-demographic-category-heading{display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid #2a2d36}
 .analytics-demographic-category-icon{display:inline-flex;width:27px;height:27px;align-items:center;justify-content:center;border:1px solid rgba(240,199,119,.3);border-radius:8px;background:rgba(209,153,62,.12);color:#f0c877;font-size:16px}
 .analytics-demographic-category-heading>div{display:grid;gap:2px;min-width:0}
 .analytics-demographic-category-heading strong{color:#eef0f6;font-size:12px}
 .analytics-demographic-category-heading small{color:#707687;font-size:10px}
+.analytics-demographic-category-count{margin-left:auto;padding:4px 7px;border:1px solid #30343e;border-radius:999px;color:#9096a8;font-size:9px;white-space:nowrap}
 .analytics-demographic-category-list{display:grid;gap:6px;max-height:220px;margin-top:10px;overflow:auto}
 .analytics-demographic-category-list span{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#b4bacc;font-size:10px}
 .analytics-demographic-category-list b{overflow:hidden;font-weight:400;text-overflow:ellipsis;white-space:nowrap}
@@ -18,4 +19,5 @@ html[data-theme='light'] .analytics-demographic-category{border-color:var(--bord
 html[data-theme='light'] .analytics-demographic-category-heading{border-bottom-color:var(--border,#dfe3ea)}
 html[data-theme='light'] .analytics-demographic-category-heading strong{color:var(--text,#20242c)}
 html[data-theme='light'] .analytics-demographic-category-list span{color:var(--muted,#626b7b)}
+html[data-theme='light'] .analytics-demographic-category-count{border-color:var(--border,#dfe3ea);color:var(--muted,#626b7b)}
 @media(max-width:760px){.analytics-demographic-category-grid{grid-template-columns:1fr}}

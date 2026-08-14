@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, PLATFORMS, serverError } = require('../utils/http')
+const { enviarRelatorioAgendado } = require('../services/reportService')
 
 const router = Router()
 const frequencies = new Set(['weekly', 'monthly'])
@@ -27,8 +28,13 @@ router.post('/', async (req, res) => {
     const emails = Array.isArray(recipients) ? recipients.map(email => String(email).trim().toLowerCase()).filter(email => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)).slice(0, 20) : []
     if (!emails.length) return res.status(400).json({ erro: 'Informe ao menos um e-mail válido.' })
     const next = nextRun(frequency)
-    const { rows } = await pool.query('INSERT INTO report_schedules (user_id,name,period_days,platform,recipients,frequency,branding,next_run_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [req.user.id, name.trim(), Math.min(90, Math.max(1, Number(periodDays) || 30)), platform || null, emails, frequency, JSON.stringify(branding || {}), next])
-    res.status(201).json({ id: rows[0].id, nextRunAt: next })
+    const normalizedPeriodDays = Math.min(90, Math.max(1, Number(periodDays) || 30))
+    const { rows } = await pool.query('INSERT INTO report_schedules (user_id,name,period_days,platform,recipients,frequency,branding,next_run_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id', [req.user.id, name.trim(), normalizedPeriodDays, platform || null, emails, frequency, JSON.stringify(branding || {}), next])
+    const schedule = { user_id: req.user.id, name: name.trim(), period_days: normalizedPeriodDays, platform: platform || null, recipients: emails, frequency }
+    await enviarRelatorioAgendado(schedule)
+    const sentAt = new Date()
+    await pool.query('UPDATE report_schedules SET last_sent_at=$1, atualizado_em=NOW() WHERE id=$2 AND user_id=$3', [sentAt, rows[0].id, req.user.id])
+    res.status(201).json({ id: rows[0].id, nextRunAt: next, sentAt: sentAt.toISOString(), enviado: true })
   } catch (err) { serverError(res, err) }
 })
 
