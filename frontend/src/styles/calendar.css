@@ -87,6 +87,68 @@
   line-height: 1.4;
 }
 
+.calendar-post-status-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 10px 0 0 58px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+
+.calendar-post-status-icon {
+  display: grid;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, .14);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calendar-post-status-message div {
+  display: grid;
+  gap: 2px;
+}
+
+.calendar-post-status-message strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.calendar-post-status-message small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.calendar-post-status-message.is-success { border-color: rgba(74, 222, 128, .34); background: rgba(74, 222, 128, .08); }
+.calendar-post-status-message.is-success .calendar-post-status-icon { background: rgba(74, 222, 128, .16); color: #4ade80; }
+.calendar-post-status-message.is-warning { border-color: rgba(250, 204, 21, .34); background: rgba(250, 204, 21, .07); }
+.calendar-post-status-message.is-warning .calendar-post-status-icon { background: rgba(250, 204, 21, .16); color: #facc15; }
+.calendar-post-status-message.is-processing,
+.calendar-post-status-message.is-pending { border-color: rgba(209, 153, 62, .34); background: rgba(209, 153, 62, .08); }
+.calendar-post-status-message.is-processing .calendar-post-status-icon,
+.calendar-post-status-message.is-pending .calendar-post-status-icon { background: rgba(209, 153, 62, .16); color: var(--accent-strong); }
+.calendar-post-status-message.is-error { border-color: rgba(251, 113, 133, .34); background: rgba(251, 113, 133, .07); }
+.calendar-post-status-message.is-error .calendar-post-status-icon { background: rgba(251, 113, 133, .16); color: var(--danger); }
+
+.calendar-list-status {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.calendar-list-status.is-success { color: #4ade80; }
+.calendar-list-status.is-warning { color: #facc15; }
+.calendar-list-status.is-error { color: var(--danger); }
+.calendar-list-status.is-processing,
+.calendar-list-status.is-pending { color: var(--accent-strong); }
+
 .calendar-list-copy {
   display: grid;
   min-width: 0;
@@ -291,6 +353,7 @@
 
 @media (max-width: 767px) {
   .calendar-detail-preview { margin-left: 0; }
+  .calendar-post-status-message { margin-left: 0; }
   .calendar-detail-actions { margin-left: 0; }
   .calendar-repeat-form-inline { margin-left: 0; }
   .calendar-copy-notice { align-items: flex-start; flex-wrap: wrap; }

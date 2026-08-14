@@ -9,8 +9,20 @@ const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube:
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
 const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
 const postDateValue = post => post.calendarAt || post.calendar_at || post.publishedAt || post.published_at || post.scheduledAt || post.scheduled_at || post.data_agendamento
-const postStatusLabel = { scheduled: 'Agendado', published: 'Publicado', processing: 'Publicando', partial: 'Parcial', error: 'Erro' }
-const isScheduled = post => ['scheduled', 'agendado'].includes(post.status)
+const normalizePostStatus = post => String(post.status || '').trim().toLowerCase()
+const postStatusLabel = { scheduled: 'Agendado', agendado: 'Agendado', published: 'Publicado', publicado: 'Publicado', processing: 'Publicando', processando: 'Publicando', partial: 'Parcial', parcial: 'Parcial', error: 'Erro', erro: 'Erro' }
+const isScheduled = post => ['scheduled', 'agendado'].includes(normalizePostStatus(post))
+
+function postStatusMessage(post) {
+  const status = normalizePostStatus(post)
+  if (status === 'published' || status === 'publicado') return { type: 'success', title: 'Publicado com sucesso', detail: 'A publicação foi confirmada nas redes selecionadas.' }
+  if (status === 'partial' || status === 'parcial') return { type: 'warning', title: 'Publicado parcialmente', detail: 'A publicação foi confirmada em algumas redes e falhou em outra.' }
+  if (status === 'processing' || status === 'processando') return { type: 'processing', title: 'Publicação em andamento', detail: 'O sistema está enviando o conteúdo para as redes selecionadas.' }
+  if (status === 'error' || status === 'erro') return { type: 'error', title: 'Não foi possível publicar', detail: friendlyPostError(post) || 'Confira o histórico ou as conexões das redes selecionadas.' }
+  const scheduledAt = new Date(postDateValue(post))
+  if (isScheduled(post) && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() <= Date.now()) return { type: 'pending', title: 'Aguardando confirmação da publicação', detail: 'O horário agendado já passou, mas ainda não recebemos a confirmação da rede social.' }
+  return { type: 'scheduled', title: 'Publicação agendada', detail: 'Ela será enviada no dia e horário definidos.' }
+}
 
 function uniquePosts(items) {
   const seen = new Set()
@@ -79,8 +91,8 @@ function friendlyPostError(post) {
   const detail = String(post.errorMessage || '').trim()
   const unavailable = /não existe|nao existe|não encontrado|nao encontrado|remov|apag|deleted|removed|does not exist|cannot be loaded|missing permissions/i.test(detail)
   if (unavailable) return 'Esta publicação não está mais disponível na rede social. O registro foi mantido no calendário.'
-  if (post.status === 'partial') return 'A publicação foi concluída em algumas redes, mas houve uma falha em outra.'
-  if (post.status === 'error') return 'Não foi possível confirmar esta publicação na rede social. Ela pode ter sido removida ou a conta pode ter perdido acesso. O histórico foi mantido.'
+  if (['partial', 'parcial'].includes(normalizePostStatus(post))) return 'A publicação foi concluída em algumas redes, mas houve uma falha em outra.'
+  if (['error', 'erro'].includes(normalizePostStatus(post))) return 'Não foi possível confirmar esta publicação na rede social. Ela pode ter sido removida ou a conta pode ter perdido acesso. O histórico foi mantido.'
   return ''
 }
 
@@ -103,17 +115,20 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRepeat, repeating, 
   const platforms = platformsOf(post)
   const primaryPlatform = platforms[0]
   const error = friendlyPostError(post)
-  const canRepeat = ['published', 'partial'].includes(post.status)
+  const status = normalizePostStatus(post)
+  const canRepeat = ['published', 'publicado', 'partial', 'parcial'].includes(status)
   const scheduled = isScheduled(post)
+  const statusMessage = postStatusMessage(post)
   return (
     <article className="calendar-detail-post">
       <div className="flex items-center gap-2">
         <time className="calendar-detail-time">{formatPostTime(post)}</time>
         <CalendarPlatformBadges platforms={platforms} />
         <span className="calendar-detail-copy">{postText(post, primaryPlatform)}</span>
-        <span className={`calendar-detail-status calendar-detail-status-${post.status || 'unknown'}`}>{postStatusLabel[post.status] || post.status || 'Sem status'}</span>
+        <span className={`calendar-detail-status calendar-detail-status-${status || 'unknown'}`}>{postStatusLabel[status] || post.status || 'Sem status'}</span>
       </div>
       <div className="calendar-detail-preview"><CalendarMediaPreview post={post}/>{error && <p className="calendar-post-warning" role="alert">{error}</p>}</div>
+      <div className={`calendar-post-status-message is-${statusMessage.type}`} role={statusMessage.type === 'error' ? 'alert' : 'status'}><span className="calendar-post-status-icon" aria-hidden="true">{statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '!' : '•'}</span><div><strong>{statusMessage.title}</strong><small>{statusMessage.detail}</small></div></div>
       <div className="calendar-detail-actions">
         {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar data/horário</button>}
         {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onCopy}>Copiar</button>}
@@ -152,6 +167,11 @@ export function CalendarPage({ onNavigate }) {
   const [message, setMessage] = useState('')
   const load = useCallback(() => apiFetch(`/api/posts/calendar?year=${year}&month=${month}`).then(data => data.posts || []), [month, year])
   const { value: posts, loading, error, setError, reload } = useApiResource(load, [])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => { reload().catch(() => {}) }, 30_000)
+    return () => window.clearInterval(interval)
+  }, [reload])
 
   useEffect(() => { localStorage.setItem(`${CALENDAR_VIEW_KEY}:platform`, platformFilter) }, [platformFilter])
   useEffect(() => { localStorage.setItem(CALENDAR_VIEW_KEY, viewMode) }, [viewMode])
@@ -278,7 +298,7 @@ export function CalendarPage({ onNavigate }) {
   }
 
   function openDay(day) {
-    setSelectedDay({ day, posts: postsForDay(day) })
+    setSelectedDay({ day })
   }
 
   function openEditor(post) {
@@ -293,6 +313,8 @@ export function CalendarPage({ onNavigate }) {
     setRepeating(post)
     setRepeatDate(localDateTimeValue(next))
   }
+
+  const selectedDayPosts = selectedDay ? postsForDay(selectedDay.day) : []
 
   return (
     <section className="page-view calendar-page">
@@ -347,7 +369,7 @@ export function CalendarPage({ onNavigate }) {
             </button>
           )
         })}
-      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
       {pasting && copiedPost && <section className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
         <div>
@@ -370,7 +392,7 @@ export function CalendarPage({ onNavigate }) {
             </div>
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
-          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          {selectedDayPosts.length ? <div className="calendar-day-details">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
         </section>
       </div>}
 
