@@ -7,7 +7,8 @@ const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const ACTIVITY_FILTER_KEY = 'meu-ecoo:dashboard-activity-filter'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
-const ANALYTICS_PERIOD_DAYS = 30
+const PERFORMANCE_PERIODS = [7, 15, 30]
+const PLATFORM_LABELS = Object.fromEntries(DASHBOARD_PLATFORMS)
 
 function formatPostDate(value) {
   if (!value) return 'Sem data definida'
@@ -95,6 +96,21 @@ function failureDiagnosis(post) {
   }
 }
 
+function shortPostDate(post) {
+  const value = postDateValue(post)
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'data não informada' : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+function reviewAlertMessage(post, diagnosis) {
+  const platform = PLATFORM_LABELS[postPlatforms(post)[0]] || 'rede social'
+  const postLabel = `o post #${post.id} do dia ${shortPostDate(post)}`
+  if (diagnosis.className === 'is-content') {
+    return `Revisar ${postLabel}: é possível que não tenha sido publicado porque o tamanho ou formato da imagem está fora do padrão do ${platform}.`
+  }
+  return `Revisar ${postLabel}: é possível que não tenha sido publicado por uma falha no ${platform}.`
+}
+
 function bestObservedHour(rows) {
   const byHour = {}
   rows.forEach(row => {
@@ -122,6 +138,7 @@ export function DashboardPage({ onNavigate }) {
   const [postsError, setPostsError] = useState('')
   const [accountsError, setAccountsError] = useState('')
   const [analytics, setAnalytics] = useState(null)
+  const [analyticsPeriodDays, setAnalyticsPeriodDays] = useState(30)
   const [analyticsError, setAnalyticsError] = useState('')
   const [postsLoading, setPostsLoading] = useState(true)
   const [accountsLoading, setAccountsLoading] = useState(true)
@@ -144,16 +161,26 @@ export function DashboardPage({ onNavigate }) {
       .then(accounts => { if (active) setData(current => ({ ...current, accounts: accounts.accounts || accounts.data || accounts || [] })) })
       .catch(error => { if (active) setAccountsError(error.message) })
       .finally(() => { if (active) setAccountsLoading(false) })
-    apiFetch(`/api/posts/analytics?days=${ANALYTICS_PERIOD_DAYS}`)
-      .then(result => { if (active) { setAnalytics(result); setAnalyticsError('') } })
-      .catch(error => { if (active) setAnalyticsError(error.message) })
-      .finally(() => { if (active) setAnalyticsLoading(false) })
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    setAnalyticsLoading(true)
+    setAnalyticsError('')
+    apiFetch(`/api/posts/analytics?days=${analyticsPeriodDays}`)
+      .then(result => { if (active) setAnalytics(result) })
+      .catch(error => { if (active) setAnalyticsError(error.message) })
+      .finally(() => { if (active) setAnalyticsLoading(false) })
+    return () => { active = false }
+  }, [analyticsPeriodDays])
+
   const scheduled = data.posts.filter(p => p.status === 'scheduled' || p.status === 'agendado').length
-  const failedCount = data.posts.filter(post => ['error', 'erro', 'failed', 'partial'].includes(post.status)).length
-  const failures = data.posts.filter(post => ['error', 'erro', 'failed', 'partial'].includes(post.status)).slice(0, 4)
+  const reviewAlerts = data.posts
+    .filter(post => ['error', 'erro', 'failed', 'partial'].includes(post.status))
+    .map(post => ({ post, diagnosis: failureDiagnosis(post) }))
+    .filter(({ diagnosis }) => diagnosis.retryable)
+    .slice(0, 4)
   const upcoming = data.posts
     .filter(post => post.status === 'scheduled' || post.status === 'agendado')
     .filter(post => !Number.isNaN(new Date(postDateValue(post)).getTime()))
@@ -281,6 +308,14 @@ export function DashboardPage({ onNavigate }) {
     {dashboardError && <p className="dashboard-error-banner" role="alert">{dashboardError}</p>}
     {onboardingIncomplete && <OnboardingChecklist accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />}
 
+    <section className="panel dashboard-accounts-panel">
+      <div className="panel-heading"><div><p className="eyebrow">CONEXÕES</p><h2>Contas e redes</h2><p className="panel-subtitle">{accountsLoading ? 'Verificando conexões...' : `${data.accounts.length} conta${data.accounts.length === 1 ? '' : 's'} conectada${data.accounts.length === 1 ? '' : 's'} em ${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes suportadas.`}</p></div><button type="button" className="action-button dashboard-connect-button" onClick={() => onNavigate('integracoes')}>+ Conectar conta</button></div>
+      {accountsLoading
+        ? <p className="empty-state" aria-live="polite">Carregando conexões...</p>
+        : <div className="dashboard-platform-list">{DASHBOARD_PLATFORMS.map(([platform, label]) => { const platformAccounts = data.accounts.filter(item => item.platform === platform); const account = platformAccounts[0]; const count = platformAccounts.length; return <button type="button" className={`dashboard-platform-card${count ? ' is-connected' : ''}`} key={platform} onClick={() => onNavigate('integracoes')}><span className={`account-platform-icon account-platform-icon-${platform}`}><PlatformIcon platform={platform} className="h-4 w-4" /></span><span><strong>{count > 1 ? `${count} contas ${label}` : account?.name || account?.handle || label}</strong><small>{count ? `${count} conta${count === 1 ? '' : 's'} conectada${count === 1 ? '' : 's'}` : 'Não conectada'}</small></span><span className="dashboard-platform-state" aria-hidden="true">{count ? '✓' : '+'}</span></button> })}</div>}
+      {accountsError && <p className="dashboard-inline-error" aria-live="polite">Não foi possível verificar o status das contas.</p>}
+    </section>
+
     {isEmptyWorkspace ? <section className="panel dashboard-empty-state" aria-labelledby="dashboard-empty-title">
       <div className="dashboard-empty-state-icon" aria-hidden="true">＋</div>
       <div>
@@ -296,26 +331,24 @@ export function DashboardPage({ onNavigate }) {
     <div className="metric-grid dashboard-metrics">
       <article className="dashboard-metric-card dashboard-metric-publications"><div className="dashboard-metric-heading"><span>Publicações</span><i aria-hidden="true">✦</i></div><strong>{postsLoading ? '—' : data.posts.length}</strong><small>Total criado na conta</small></article>
       <article className="dashboard-metric-card dashboard-metric-scheduled"><div className="dashboard-metric-heading"><span>Agendadas</span><i aria-hidden="true">◷</i></div><strong>{postsLoading ? '—' : scheduled}</strong><small>{scheduledWithoutDate ? `${scheduledWithoutDate} sem horário definido` : 'Prontas para publicação'}</small></article>
-      <article className={`dashboard-metric-card dashboard-metric-failures${failedCount ? ' has-warning' : ''}`}><div className="dashboard-metric-heading"><span>Falhas</span><i aria-hidden="true">!</i></div><strong className={failedCount ? 'metric-warning' : ''}>{postsLoading ? '—' : failedCount}</strong><small>{failedCount ? 'Precisam de atenção' : 'Nenhuma pendência'}</small></article>
       <article className="dashboard-metric-card dashboard-metric-accounts"><div className="dashboard-metric-heading"><span>Contas conectadas</span><i aria-hidden="true">⌁</i></div><strong>{accountsLoading ? '—' : data.accounts.length}</strong><small>{connectedPlatforms} de {DASHBOARD_PLATFORMS.length} redes ativas</small></article>
     </div>
 
-    {failures.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
-      <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Publicações com falha</h2><p className="panel-subtitle">Confira a origem provável e a orientação indicada para cada situação.</p></div><span className="dashboard-failure-count">{failedCount} {failedCount === 1 ? 'falha' : 'falhas'}</span></div>
-      <div className="dashboard-failure-explainer"><strong>Como interpretar:</strong> falhas temporárias e problemas de conteúdo ou configuração podem ser revisados no editor. Problemas de conta ou sistema precisam ser corrigidos na origem antes de uma nova tentativa.</div>
-      <div className="dashboard-failures-list">{failures.map(post => { const diagnosis = failureDiagnosis(post); const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><div className="dashboard-failure-title-row"><strong>{post.text || post.title || `Publicação #${post.id}`}</strong><span className={`dashboard-failure-origin ${diagnosis.className}`}>{diagnosis.label}</span></div><p><b>O que aconteceu:</b> {diagnosis.reason}</p><small><b>Próximo passo:</b> {diagnosis.nextStep}</small>{post.retryCount > 0 && <small>{post.retryCount} tentativa{post.retryCount > 1 ? 's' : ''} automática{post.retryCount > 1 ? 's' : ''}</small>}</div><div className="dashboard-failure-actions">{diagnosis.retryable && <button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar no editor</button>}<button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir'}</button></div></article> })}</div>
+    {reviewAlerts.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
+      <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Revisar publicações</h2><p className="panel-subtitle">Alertas de publicações que podem não ter sido concluídas.</p></div><span className="dashboard-failure-count">{reviewAlerts.length} {reviewAlerts.length === 1 ? 'alerta' : 'alertas'}</span></div>
+      <div className="dashboard-failures-list">{reviewAlerts.map(({ post, diagnosis }) => { const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><p className="dashboard-review-alert">{reviewAlertMessage(post, diagnosis)}</p></div><div className="dashboard-failure-actions"><button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar publicação</button><button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir alerta'}</button></div></article> })}</div>
     </section>}
 
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
       <section className="panel dashboard-performance-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {ANALYTICS_PERIOD_DAYS} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div>
+        <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {analyticsPeriodDays} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><div className="dashboard-performance-actions"><div className="dashboard-period-switch" role="group" aria-label="Período da performance">{PERFORMANCE_PERIODS.map(days => <button type="button" className={analyticsPeriodDays === days ? 'is-active' : ''} aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}</div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div></div>
         {analyticsLoading
           ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
           : analyticsError
             ? <div className="dashboard-analytics-empty"><strong>Métricas indisponíveis no momento</strong><p>{analyticsError}</p><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Abrir Analytics</button></div>
             : <>
                 <div className="dashboard-kpi-row"><div><span>Visualizações</span><strong>{compactNumber(totalViews)}</strong></div><div><span>Interações</span><strong>{compactNumber(totalEngagement)}</strong></div><div><span>Taxa de interação</span><strong>{engagementRate.toFixed(1)}%</strong></div></div>
-                <div className="dashboard-trend-chart" role="img" aria-label="Gráfico de visualizações e interações dos últimos dias">
+                <div className="dashboard-trend-chart" role="img" aria-label={`Gráfico de visualizações e interações dos últimos ${analyticsPeriodDays} dias`}>
                   {trend.length ? trend.map(item => <div className="dashboard-chart-column" key={item.date}><div className="dashboard-chart-bars"><span className="dashboard-chart-bar is-views" style={{ height: `${Math.max((item.views / maxTrendValue) * 100, item.views ? 8 : 2)}%` }} title={`${compactNumber(item.views)} visualizações`}/><span className="dashboard-chart-bar is-engagement" style={{ height: `${Math.max((item.engagement / maxTrendValue) * 100, item.engagement ? 8 : 2)}%` }} title={`${compactNumber(item.engagement)} interações`}/></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</small></div>) : <p className="empty-state">Ainda não há série suficiente para desenhar o gráfico.</p>}
                 </div>
                 <div className="dashboard-chart-legend"><span><i className="is-views"/>Visualizações</span><span><i className="is-engagement"/>Interações</span></div>
@@ -362,13 +395,6 @@ export function DashboardPage({ onNavigate }) {
       </section>
     </div>
 
-    <section className="panel dashboard-accounts-panel">
-      <div className="panel-heading"><div><p className="eyebrow">CONEXÕES</p><h2>Contas e redes</h2><p className="panel-subtitle">{accountsLoading ? 'Verificando conexões...' : `${data.accounts.length} conta${data.accounts.length === 1 ? '' : 's'} conectada${data.accounts.length === 1 ? '' : 's'} em ${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes suportadas.`}</p></div><button className="action-button dashboard-connect-button" onClick={() => onNavigate('integracoes')}>+ Conectar conta</button></div>
-      {accountsLoading
-        ? <p className="empty-state" aria-live="polite">Carregando conexões...</p>
-        : <div className="dashboard-platform-list">{DASHBOARD_PLATFORMS.map(([platform, label]) => { const platformAccounts = data.accounts.filter(item => item.platform === platform); const account = platformAccounts[0]; const count = platformAccounts.length; return <button type="button" className={`dashboard-platform-card${count ? ' is-connected' : ''}`} key={platform} onClick={() => onNavigate('integracoes')}><span className={`account-platform-icon account-platform-icon-${platform}`}><PlatformIcon platform={platform} className="h-4 w-4" /></span><span><strong>{count > 1 ? `${count} contas ${label}` : account?.name || account?.handle || label}</strong><small>{count ? `${count} conta${count === 1 ? '' : 's'} conectada${count === 1 ? '' : 's'}` : 'Não conectada'}</small></span><span className="dashboard-platform-state" aria-hidden="true">{count ? '✓' : '+'}</span></button> })}</div>}
-      {accountsError && <p className="dashboard-inline-error" aria-live="polite">Não foi possível verificar o status das contas.</p>}
-    </section>
     </>}
 
   </section>

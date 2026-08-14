@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { AppShell } from './components/layout/app-shell.jsx'
 import { DashboardPage } from './pages/dashboard-page.jsx'
 import { ModulePage } from './pages/module-page.jsx'
-import { LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
+import { CreateAccountPage, LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
 import { AdminPage } from './pages/admin-page.jsx'
 import { apiFetch } from './lib/api.js'
 import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
@@ -66,7 +66,8 @@ function App() {
 }
 
 const pathname = window.location.pathname
-const page = pathname === '/login.html' ? <LoginPage />
+const page = pathname === '/criar-conta' ? <CreateAccountPage />
+  : pathname === '/login.html' ? <LoginPage />
   : pathname === '/reset-password.html' ? <ResetPasswordPage />
     : pathname === '/verify-2fa.html' ? <VerifyTwoFactorPage />
     : pathname === '/admin.html' ? <AdminPage />

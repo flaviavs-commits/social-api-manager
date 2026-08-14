@@ -87,6 +87,7 @@ export function ContentQueuesPage() {
   })
   const selectedDays = days.filter(([id]) => form.days.includes(id)).map(([, label]) => label)
   const selectedPlatforms = platforms.filter(([id]) => form.platforms.includes(id)).map(([, label]) => label)
+  const selectedPlatformsLabel = selectedPlatforms.length === 1 ? '1 rede selecionada' : `${selectedPlatforms.length} redes selecionadas`
   const mediaRequired = form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform))
 
   function formatQueueDays(queue) {
@@ -131,15 +132,19 @@ export function ContentQueuesPage() {
           <div className="queues-field queues-media-field"><span>Mídia da publicação {mediaRequired ? <em>obrigatória</em> : <em>opcional</em>}</span><small>A mesma imagem ou vídeo será reutilizada em cada execução da rotina.</small><label className={`queues-media-picker${media ? ' has-media' : ''}`}><input type="file" accept="image/*,video/*" onChange={selectMedia} /><span className="queues-media-picker-icon" aria-hidden="true">{media?.file.type.startsWith('video/') ? '▶' : '＋'}</span><span><strong>{media ? media.file.name : 'Escolher imagem ou vídeo'}</strong><small>{media ? `${(media.file.size / 1024 / 1024).toFixed(1)} MB · pronto para enviar` : 'JPG, PNG, WebP, MP4, MOV ou WebM · até 200 MB'}</small></span><span className="queues-media-picker-action">{media ? 'Trocar' : 'Selecionar'}</span></label>{media ? <div className="queues-media-preview">{media.file.type.startsWith('video/') ? <video src={media.previewUrl} muted controls preload="metadata" /> : <img src={media.previewUrl} alt="Prévia da mídia selecionada" />}<button type="button" className="queues-media-remove" onClick={removeMedia}>Remover mídia</button></div> : null}</div>
         </div>
 
-        <fieldset className="queues-fieldset">
-          <legend><span>Onde publicar?</span><small>{selectedPlatforms.length ? `${selectedPlatforms.length} selecionada(s)` : 'Selecione ao menos uma rede'}</small></legend>
+        <fieldset className="queues-fieldset queues-platform-fieldset">
+          <legend><span className="queues-legend-copy"><strong>Onde publicar?</strong><small>Escolha uma ou mais redes para esta rotina.</small></span><small className="queues-selection-counter">{selectedPlatforms.length ? selectedPlatformsLabel : 'Nenhuma rede selecionada'}</small></legend>
           <div className="queues-platform-options">
             {platforms.map(([id, label]) => <label className={`queues-platform-option${form.platforms.includes(id) ? ' is-selected' : ''}`} key={id}>
               <input type="checkbox" checked={form.platforms.includes(id)} onChange={() => togglePlatform(id)} />
               <span className={`queues-platform-icon queues-platform-${id}`} aria-hidden="true"><PlatformIcon platform={id} className="queues-platform-svg" /></span>
-              <span className="queues-option-copy"><strong>{label}</strong><small>{id === 'instagram' ? 'Feed e reels' : id === 'facebook' ? 'Página e perfil' : id === 'youtube' ? 'Canal de vídeos' : 'Vídeos curtos'}</small></span>
-              <span className="queues-option-check" aria-hidden="true">{form.platforms.includes(id) ? '✓' : '+'}</span>
+              <span className="queues-option-copy"><strong>{label}</strong><small>{id === 'instagram' ? 'Feed, Reels e Stories' : id === 'facebook' ? 'Página e perfil' : id === 'youtube' ? 'Canal de vídeos' : 'Vídeos curtos'}</small></span>
+              <span className="queues-option-check" aria-hidden="true">{form.platforms.includes(id) ? '✓' : ''}</span>
             </label>)}
+          </div>
+          <div className={`queues-selected-summary${selectedPlatforms.length ? '' : ' is-empty'}`} role="status">
+            <span className="queues-selected-summary-icon" aria-hidden="true">{selectedPlatforms.length ? '✓' : '!'}</span>
+            <span>{selectedPlatforms.length ? `O mesmo conteúdo será publicado em ${selectedPlatforms.join(', ')}.` : 'Selecione pelo menos uma rede para continuar.'}</span>
           </div>
         </fieldset>
 

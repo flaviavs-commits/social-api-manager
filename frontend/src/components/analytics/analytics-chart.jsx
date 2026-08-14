@@ -1,5 +1,5 @@
 import { Line, Bar } from 'react-chartjs-2'
-import { filterByPeriod, formatDiaBR, baseChartOptions, PLAT_COLORS } from '../../lib/analytics-format.js'
+import { filterByPeriod, filterTikTokVideosByPeriod, tiktokVideoToMetric, formatDiaBR, baseChartOptions, PLAT_COLORS } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function EmptyChart({ message }) {
@@ -77,9 +77,13 @@ function PostsBarChart({ net, metrics }) {
   return <Bar data={{ labels, datasets }} options={options}/>
 }
 
-export function AnalyticsChart({ net, tab, data, periodDays }) {
+export function AnalyticsChart({ net, tab, data, tiktokVideos = [], periodDays }) {
   useTheme()
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
+  const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
+  const chartMetrics = net === 'tiktok' && !metrics.some(item => item.metrics)
+    ? videos.map(tiktokVideoToMetric)
+    : metrics
   const instagramFollowers = filterByPeriod(data.instagramFollowers, periodDays)
   const tiktokStats = filterByPeriod(data.tiktokStats, periodDays)
   const youtubeSubscribers = filterByPeriod(data.youtubeSubscribers, periodDays)
@@ -90,7 +94,7 @@ export function AnalyticsChart({ net, tab, data, periodDays }) {
     <div className="analytics-chart-wrap">
       {isGrowthView
         ? <GrowthChart net={net} instagramFollowers={instagramFollowers} tiktokStats={tiktokStats} youtubeSubscribers={youtubeSubscribers}/>
-        : <PostsBarChart net={net} metrics={metrics}/>}
+        : <PostsBarChart net={net} metrics={chartMetrics}/>}
     </div>
   )
 }

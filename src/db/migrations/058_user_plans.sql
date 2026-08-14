@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'criador';
+CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan);

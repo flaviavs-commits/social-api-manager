@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { PREVIEW_ASPECTS, mediaKindLabel, nearestPreviewAspect, ratioLabel, resolvePreviewAspect } from '../src/lib/mediaFormat.js'
+import { PREVIEW_ASPECTS, SOCIAL_MEDIA_RESOLUTIONS, mediaKindLabel, nearestPreviewAspect, ratioLabel, resolvePreviewAspect, socialMediaResolutionHint } from '../src/lib/mediaFormat.js'
 
 describe('media format preview', () => {
-  it('identifica as proporções 1:1, 3:4 e 9:16', () => {
+  it('identifica as proporções 1:1, 4:5 e 9:16', () => {
     expect(ratioLabel(1080, 1080)).toBe('1:1')
-    expect(ratioLabel(1080, 1440)).toBe('3:4')
+    expect(ratioLabel(1080, 1350)).toBe('4:5')
     expect(ratioLabel(1080, 1920)).toBe('9:16')
   })
 
@@ -12,7 +12,7 @@ describe('media format preview', () => {
     expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'video', sourceRatio: 1.78 }).key).toBe('vertical')
   })
 
-  it('permite ajustar uma foto do TikTok para 1:1 ou 3:4', () => {
+  it('permite ajustar uma foto do TikTok para 1:1 ou 4:5', () => {
     expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 1, requested: 'portrait' })).toEqual(PREVIEW_ASPECTS.portrait)
     expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 0.75, requested: 'square' })).toEqual(PREVIEW_ASPECTS.square)
   })
@@ -26,5 +26,12 @@ describe('media format preview', () => {
     expect(nearestPreviewAspect(0.72).key).toBe('portrait')
     expect(resolvePreviewAspect({ platform: 'instagram', mediaKind: 'image', sourceRatio: 1.91 }).key).toBe('instagramWide')
     expect(mediaKindLabel('video')).toBe('Vídeo detectado')
+  })
+
+  it('mantém os presets de resolução das quatro redes', () => {
+    expect(SOCIAL_MEDIA_RESOLUTIONS.instagram.reel.dimensions).toBe('1080 × 1920 px')
+    expect(SOCIAL_MEDIA_RESOLUTIONS.facebook.feed[0].dimensions).toBe('1200 × 630 px')
+    expect(SOCIAL_MEDIA_RESOLUTIONS.youtube.thumbnail.dimensions).toBe('1280 × 720 px')
+    expect(socialMediaResolutionHint('tiktok', { mediaKind: 'video' })).toBe('1080 × 1920 px')
   })
 })

@@ -60,6 +60,7 @@ function DraftMedia({ draft }) {
 export function DraftsPage({ onNavigate }) {
   const [text, setText] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [expandedDraftId, setExpandedDraftId] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const load = useCallback(() => apiFetch('/api/drafts').then(data => data.drafts || []), [])
@@ -91,7 +92,7 @@ export function DraftsPage({ onNavigate }) {
       })
       const ideas = (generated.posts || [])
         .map(post => ({
-          title: post.titulo || post.title || 'Ideia gerada pela IA',
+          title: post.titulo || post.title || `Ideia sobre ${content.slice(0, 48)}${content.length > 48 ? '…' : ''}`,
           text: String(post.texto || post.text || post.caption || ''),
           platforms: Array.isArray(post.plataformas) && post.plataformas.length ? post.plataformas : ['instagram'],
         }))
@@ -154,7 +155,7 @@ export function DraftsPage({ onNavigate }) {
       <section className="panel drafts-v2-editor-panel">
         <div className="drafts-v2-editor-heading"><div><p className="eyebrow">CRIAR AGORA</p><h3>Gerar novas ideias</h3><p>Descreva um tema e use a mesma IA do Criador de Posts para criar sugestões.</p></div><span className="drafts-v2-editor-icon" aria-hidden="true">✦</span></div>
         <form className="drafts-v2-form" onSubmit={generateIdeas}>
-          <label className="drafts-v2-text-field"><span>Instrução para a IA</span><textarea value={text} onChange={event => setText(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para gerar ideias" maxLength={5000}/><span className="drafts-v2-editor-meta"><span>{text.length}/5000 caracteres</span><span>A IA gerará 3 ideias para o Instagram</span></span></label>
+          <label className="drafts-v2-text-field"><span>Minhas ideias</span><textarea value={text} onChange={event => setText(event.target.value)} placeholder="Minhas ideias" aria-label="Minhas ideias para gerar conteúdo" maxLength={5000}/><span className="drafts-v2-editor-meta"><span>{text.length}/5000 caracteres</span><span>A IA gerará 3 ideias para o Instagram</span></span></label>
           <div className="drafts-v2-form-tip"><span aria-hidden="true">✦</span><span>Descreva o tema, público, objetivo ou tom. A IA transforma seu ponto de partida em ideias prontas.</span></div>
           <button className="action-button drafts-v2-save-button" type="submit" disabled={generating}>{generating ? 'Gerando ideias...' : 'Gerar ideias'} <span aria-hidden="true">→</span></button>
         </form>
@@ -166,7 +167,10 @@ export function DraftsPage({ onNavigate }) {
         {loading ? <LoadingState>Carregando ideias...</LoadingState> : visibleDrafts.length ? <div className="drafts-v2-card-list">{visibleDrafts.map(draft => {
           const template = Boolean(draft.is_template || draft.isTemplate)
           const platforms = inferredPlatformsOf(draft)
-          return <article className="drafts-v2-card" key={draft.id}><DraftMedia draft={draft}/><div className="drafts-v2-card-body"><div className="drafts-v2-card-topline"><span className={`drafts-v2-type-badge${template ? ' is-template' : ''}`}>{template ? 'Modelo' : 'Ideia'}</span><time>{formatDraftDate(draft.criado_em || draft.createdAt)}</time></div><h4>{draft.title || 'Ideia sem título'}</h4><p>{textOf(draft) || 'Sem texto adicionado ainda.'}</p><div className="drafts-v2-card-footer"><div className="drafts-v2-card-platforms" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>{platforms.length ? platforms.map(platform => <span className={`drafts-v2-platform drafts-v2-platform-${platform}`} key={platform} title={PLATFORM_LABELS[platform] || platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <small>Nenhuma rede selecionada</small>}</div><span className="drafts-v2-card-actions"><button type="button" className="action-button drafts-v2-use-button" onClick={() => useDraft(draft)}>Criar post <span aria-hidden="true">→</span></button><button type="button" className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div></div></article>
+          const fullText = textOf(draft)
+          const expanded = expandedDraftId === draft.id
+          const typeLabel = template ? 'Modelo' : draft.title === 'Autosave' ? 'Rascunho automático' : 'Ideia gerada'
+          return <article className="drafts-v2-card" key={draft.id}><DraftMedia draft={draft}/><div className="drafts-v2-card-body"><div className="drafts-v2-card-topline"><span className={`drafts-v2-type-badge${template ? ' is-template' : ''}`}>{typeLabel}</span><time>{formatDraftDate(draft.criado_em || draft.createdAt)}</time></div><h4>{draft.title || 'Ideia sem título'}</h4><p className={expanded ? 'is-expanded' : ''}>{fullText || 'Sem texto adicionado ainda.'}</p>{fullText.length > 150 && <button type="button" className="drafts-v2-expand-button" aria-expanded={expanded} onClick={() => setExpandedDraftId(expanded ? null : draft.id)}>{expanded ? 'Mostrar menos' : 'Ver texto completo'}</button>}<div className="drafts-v2-card-footer"><div className="drafts-v2-card-platforms" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>{platforms.length ? platforms.map(platform => <span className={`drafts-v2-platform drafts-v2-platform-${platform}`} key={platform} title={PLATFORM_LABELS[platform] || platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <small>Nenhuma rede selecionada</small>}</div><span className="drafts-v2-card-actions"><button type="button" className="action-button drafts-v2-use-button" onClick={() => useDraft(draft)}>Criar post <span aria-hidden="true">→</span></button><button type="button" className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div></div></article>
         })}</div> : <div className="drafts-v2-empty"><span aria-hidden="true">✦</span><strong>{search || filter !== 'all' ? 'Nenhuma ideia encontrada' : 'Seu baú está vazio'}</strong><p>{search || filter !== 'all' ? 'Tente mudar os filtros ou a busca.' : 'Descreva um tema ao lado para gerar suas primeiras ideias.'}</p>{(search || filter !== 'all') && <button type="button" className="link-button" onClick={() => { setSearch(''); setFilter('all') }}>Limpar filtros</button>}</div>}
       </section>
     </div>

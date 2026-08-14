@@ -1,19 +1,30 @@
-// Conversão de imagem via sharp — Instagram e TikTok só aceitam JPEG (Instagram
-// bloqueia outros formatos; TikTok rejeita o post depois do envio com
-// file_format_check_failed). Converte PNG/GIF/WebP antes de publicar, em vez
-// de bloquear o post.
+// Converte formatos que as APIs não aceitam sem reduzir a imagem. A largura,
+// altura e o enquadramento originais são preservados.
 const sharp = require('sharp')
+const convertHeic = require('heic-convert')
+const ffmpeg = require('fluent-ffmpeg')
+const ffmpegPath = require('ffmpeg-static')
+const os = require('os')
+const path = require('path')
+const fs = require('fs')
+const crypto = require('crypto')
 
-// Para o TikTok, também redimensiona para 1080x1920 (9:16) — o app adiciona
-// barras pretas em fotos horizontais, então usa fit "cover" centralizado
-// para preencher a tela toda.
-async function converterParaJpeg(inputBuffer, { resizeForTiktok = false } = {}) {
+if (ffmpegPath && fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath)
+
+async function converterParaJpeg(inputBuffer, { mimetype } = {}) {
+  const normalizedType = String(mimetype || '').toLowerCase()
+  if (normalizedType === 'image/heic' || normalizedType === 'image/heif') {
+    const output = await convertHeic({ buffer: inputBuffer, format: 'JPEG', quality: 1 })
+    return Buffer.from(output)
+  }
+
   // Achata a transparência (ex: PNG/sticker com fundo transparente) sobre
   // branco antes de converter — sem isso, o sharp preenche com preto por
   // padrão ao gerar o JPEG (que não suporta canal alfa).
-  let pipeline = sharp(inputBuffer).flatten({ background: '#ffffff' })
-  if (resizeForTiktok) pipeline = pipeline.resize(1080, 1920, { fit: 'cover', position: 'centre' })
-  return pipeline.jpeg({ quality: 90 }).toBuffer()
+  return sharp(inputBuffer)
+    .flatten({ background: '#ffffff' })
+    .jpeg({ quality: 100, chromaSubsampling: '4:4:4' })
+    .toBuffer()
 }
 
 // Lê largura/altura de uma imagem sem decodificar o arquivo inteiro (sharp
@@ -25,4 +36,39 @@ async function lerDimensoesImagem(buffer) {
   return { width: width || null, height: height || null }
 }
 
-module.exports = { converterParaJpeg, lerDimensoesImagem }
+// Prepara uma cópia exclusiva para o TikTok. O arquivo final tem exatamente
+// 1080x1920, H.264/AAC e pixels yuv420p, que evita que o Zernio/TikTok tenha
+// que decidir como enquadrar vídeos de celular com dimensões diferentes.
+// O vídeo é ampliado proporcionalmente e recortado no centro, sem distorção.
+async function converterVideoParaTiktok(inputBuffer) {
+  const inputPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-tiktok-input`)
+  const outputPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-tiktok-output.mp4`)
+  await fs.promises.writeFile(inputPath, inputBuffer)
+
+  try {
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-map', '0:v:0',
+          '-map', '0:a:0?',
+          '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+          '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart',
+          '-preset', 'veryfast',
+          '-b:a', '128k'
+        ])
+        .format('mp4')
+        .on('end', resolve)
+        .on('error', reject)
+        .save(outputPath)
+    })
+    return await fs.promises.readFile(outputPath)
+  } finally {
+    await fs.promises.unlink(inputPath).catch(() => {})
+    await fs.promises.unlink(outputPath).catch(() => {})
+  }
+}
+
+module.exports = { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok }

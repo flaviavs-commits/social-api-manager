@@ -55,7 +55,7 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
           </div>
           <span className="analytics-period-context">Últimos {periodDays} dias</span>
         </div>
-        <AnalyticsChart net={net} tab={tab} data={data} periodDays={periodDays}/>
+        <AnalyticsChart net={net} tab={tab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
       </section>
 
       <AnalyticsDemographics net={net} tab={tab} data={data}/>

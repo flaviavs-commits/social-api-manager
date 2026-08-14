@@ -14,12 +14,16 @@ function parseLinkLine(line) {
   return { label: '', url: value }
 }
 
-const emptyForm = { name: '', title: '', description: '', links: '', logoUrl: '' }
+const emptyForm = { name: '', slug: '', title: '', description: '', links: '', logoUrl: '' }
+const previewSlug = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'seu-link'
 
 export function SmartlinksPage() {
   const [smartlinks, setSmartlinks] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editingSlug, setEditingSlug] = useState('')
+  const [savingSlug, setSavingSlug] = useState(false)
   const notify = useToast()
   const load = useCallback(() => apiFetch('/api/smartlinks').then(data => setSmartlinks(data.smartlinks || [])), [])
 
@@ -79,6 +83,25 @@ export function SmartlinksPage() {
     }
   }
 
+  function startSlugEdit(link) {
+    setEditingId(link.id)
+    setEditingSlug(link.slug || '')
+  }
+
+  async function saveSlug(id) {
+    setSavingSlug(true)
+    try {
+      const updated = await apiFetch(`/api/smartlinks/${id}`, { method: 'PATCH', body: JSON.stringify({ slug: editingSlug }) })
+      setSmartlinks(current => current.map(link => link.id === id ? { ...link, slug: updated.slug } : link))
+      setEditingId(null)
+      notify('URL personalizada atualizada.')
+    } catch (error) {
+      notify(error.message, 'error')
+    } finally {
+      setSavingSlug(false)
+    }
+  }
+
   return (
     <section className="page-view">
       <header className="panel-heading">
@@ -113,6 +136,7 @@ export function SmartlinksPage() {
           </div>
 
           <label className="block text-sm text-zinc-300">Nome interno<input className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Perfil principal" required /></label>
+          <label className="block text-sm text-zinc-300">URL personalizada <small className="text-zinc-500">opcional</small><div className="mt-1 flex items-center rounded-lg border border-subtle bg-app"><span className="pl-3 text-sm text-zinc-500">/go/</span><input className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-zinc-100 outline-none" value={form.slug} onChange={event => setForm(current => ({ ...current, slug: event.target.value }))} placeholder="breno-augusto" maxLength="60" /></div><small className="mt-1 block text-xs leading-5 text-zinc-500">Use letras, números e hífens.</small><small className="mt-1 block truncate text-xs text-gold">Sua URL: {window.location.origin}/go/{previewSlug(form.slug || form.name)}</small></label>
           <label className="block text-sm text-zinc-300">Título público<input className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="Nome da loja" /></label>
           <label className="block text-sm text-zinc-300">Descrição<textarea className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Uma frase sobre a loja ou sua marca" /></label>
           <label className="block text-sm text-zinc-300">Links <small className="text-zinc-500">uma URL por linha ou texto | https://endereco.com</small><textarea className="mt-1 min-h-36 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.links} onChange={event => setForm(current => ({ ...current, links: event.target.value }))} placeholder={'https://exemplo.com\nInstagram | https://instagram.com/'} required /></label>
@@ -129,7 +153,7 @@ export function SmartlinksPage() {
             </div>
             <span className="status-badge">{smartlinks.length}</span>
           </div>
-          {smartlinks.length ? <div className="space-y-3">{smartlinks.map(link => <article className="rounded-xl border border-subtle bg-app p-4" key={link.id}><div className="flex items-start justify-between gap-3"><div>{link.theme?.logoUrl && <img className="smartlink-list-logo" src={link.theme.logoUrl} alt="" />}<strong className="text-zinc-100">{link.title || link.name}</strong><p className="mt-1 text-sm text-zinc-400">/go/{link.slug} · {link.items?.length || 0} links</p><div className="mt-2 flex flex-wrap gap-2">{(link.items || []).map(item => <span className="rounded-full bg-gold/10 px-2 py-1 text-xs text-gold" key={item.id}>{item.label} · {item.clicks || 0} cliques</span>)}</div></div><button className="link-button danger-link" type="button" onClick={() => remove(link.id)}>Excluir</button></div><a className="mt-3 inline-block text-sm text-gold hover:underline" href={`/go/${link.slug}`} target="_blank" rel="noreferrer">Abrir página pública →</a></article>)}</div> : <p className="empty-state">Crie sua primeira página de links para divulgar todos os seus canais em um só lugar.</p>}
+          {smartlinks.length ? <div className="space-y-3">{smartlinks.map(link => <article className="rounded-xl border border-subtle bg-app p-4" key={link.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0">{link.theme?.logoUrl && <img className="smartlink-list-logo" src={link.theme.logoUrl} alt="" />}<strong className="text-zinc-100">{link.title || link.name}</strong>{editingId === link.id ? <div className="mt-2 flex max-w-md items-center rounded-lg border border-subtle bg-surface"><span className="pl-3 text-sm text-zinc-500">/go/</span><input className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-zinc-100 outline-none" value={editingSlug} onChange={event => setEditingSlug(event.target.value)} maxLength="60" autoFocus /><button className="px-3 py-2 text-xs font-semibold text-gold" type="button" onClick={() => saveSlug(link.id)} disabled={savingSlug}>{savingSlug ? 'Salvando…' : 'Salvar'}</button></div> : <p className="mt-1 truncate text-sm text-zinc-400">/go/{link.slug} · {link.items?.length || 0} links</p>}<div className="mt-2 flex flex-wrap gap-2">{(link.items || []).map(item => <span className="rounded-full bg-gold/10 px-2 py-1 text-xs text-gold" key={item.id}>{item.label} · {item.clicks || 0} cliques</span>)}</div></div><div className="flex shrink-0 gap-3"><button className="link-button" type="button" onClick={() => editingId === link.id ? setEditingId(null) : startSlugEdit(link)}>{editingId === link.id ? 'Cancelar' : 'Editar URL'}</button><button className="link-button danger-link" type="button" onClick={() => remove(link.id)}>Excluir</button></div></div><a className="mt-3 inline-block text-sm text-gold hover:underline" href={`/go/${link.slug}`} target="_blank" rel="noreferrer">Abrir página pública →</a></article>)}</div> : <p className="empty-state">Crie sua primeira página de links para divulgar todos os seus canais em um só lugar.</p>}
         </section>
       </div>
     </section>

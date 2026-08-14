@@ -47,7 +47,8 @@ async function listarContasDoPost(postId) {
   const { rows } = await pool.query(`
     SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle,
            c.avatar_url AS "avatarUrl",
-           pa.media_items AS "mediaItems"
+           pa.media_items AS "mediaItems",
+           pa.publication_error AS "publicationError"
     FROM post_accounts pa
     JOIN contas c ON c.id = pa.account_id
     WHERE pa.post_id = $1
@@ -55,13 +56,23 @@ async function listarContasDoPost(postId) {
   return rows
 }
 
-async function listarPosts({ status, userId, isAdmin } = {}) {
+async function listarPosts({ status, userId, isAdmin, page, limit } = {}) {
   const conds = []
   const params = []
   if (status) { params.push(status); conds.push(`status = $${params.length}`) }
   if (!isAdmin) { params.push(userId); conds.push(`user_id = $${params.length}`) }
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : ''
 
+  const paginate = page !== undefined || limit !== undefined
+  const safePage = Math.max(1, Math.min(10000, Number.parseInt(page, 10) || 1))
+  const safeLimit = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 100))
+  const paginationSql = paginate ? (() => {
+    params.push(safeLimit + 1)
+    const limitParam = `$${params.length}`
+    params.push((safePage - 1) * safeLimit)
+    const offsetParam = `$${params.length}`
+    return `LIMIT ${limitParam} OFFSET ${offsetParam}`
+  })() : ''
   const { rows } = await pool.query(`
     SELECT
       id, text, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform", platforms,
@@ -73,9 +84,10 @@ async function listarPosts({ status, userId, isAdmin } = {}) {
       external_post_id AS "externalPostId", external_platform AS "externalPlatform", published_at AS "publishedAt"
     FROM posts
     ${where}
-    ORDER BY scheduled_at ASC
+    ORDER BY scheduled_at ASC NULLS LAST, id ASC
+    ${paginationSql}
   `, params)
-  return rows
+  return paginate ? { posts: rows.slice(0, safeLimit), page: safePage, limit: safeLimit, hasMore: rows.length > safeLimit } : rows
 }
 
 async function deletarPost(id, userId, isAdmin) {
@@ -123,6 +135,11 @@ async function atualizarStatusPost(id, status, errorMessage = null) {
   // Limpa next_retry_at ao fechar o post num status final — evita confusão
   // caso o post seja reagendado manualmente depois (ver reagendarParaRetry).
   await pool.query(`UPDATE posts SET status = $1, error_message = $2, next_retry_at = NULL WHERE id = $3`, [status, errorMessage, id])
+}
+
+async function atualizarErroPublicacaoConta(postAccountId, message = null) {
+  if (!postAccountId) return
+  await pool.query('UPDATE post_accounts SET publication_error = $1 WHERE id = $2', [message, postAccountId])
 }
 
 // Marca atomicamente os posts agendados como "processing" antes de publicar,
@@ -181,6 +198,24 @@ async function reservarPostsPendentes() {
              r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format,
              r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count,
              r.location_id, r.location_name, r.first_comment, u.role
+  `)
+  return rows
+}
+
+// Recupera reservas que sobreviveram a uma queda/redeploy sem confirmação
+// externa. O limite evita que uma publicação legitimamente lenta fique presa
+// indefinidamente, mas não tenta republicar automaticamente e causar duplicata.
+async function recuperarPostsProcessingStale() {
+  const { rows } = await pool.query(`
+    UPDATE posts p
+       SET status = 'error',
+           error_message = 'Processamento interrompido; publicação precisa ser revisada.',
+           next_retry_at = NULL
+     WHERE p.status = 'processing'
+       AND p.criado_em < NOW() - INTERVAL '6 hours'
+       AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending IS NOT NULL)
+       AND NOT EXISTS (SELECT 1 FROM post_publications pp WHERE pp.post_id = p.id)
+     RETURNING p.id, p.user_id AS "userId"
   `)
   return rows
 }
@@ -449,8 +484,8 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
-  reservarPostsPendentes, reagendarParaRetry,
-  definirContasDoPost, listarContasDoPost,
+  reservarPostsPendentes, recuperarPostsProcessingStale, reagendarParaRetry,
+  definirContasDoPost, listarContasDoPost, atualizarErroPublicacaoConta,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,

@@ -5,6 +5,7 @@ import { ToastProvider, useToast } from '../ui/toast.jsx'
 import { ThemeSelector } from '../ui/theme-selector.jsx'
 import { AppTutorial } from '../ui/app-tutorial.jsx'
 import { getTutorialStatus, markTutorialCompleted, markTutorialSeen, TUTORIAL_OPEN_EVENT } from '../../lib/tutorial.js'
+import { getPlan, hasPlanModule } from '../../lib/plans.js'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -67,6 +68,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
         {navigation.map(([key, label]) => {
           const active = page === key
+          const locked = user && !hasPlanModule(user.plan, key, user.planUnrestricted)
           return (
             <button
               key={key}
@@ -74,7 +76,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
               onClick={() => onNavigate(key)}
               title={collapsed ? label : undefined}
               aria-current={active ? 'page' : undefined}
-              className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+              className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${locked ? 'opacity-60' : ''} ${
                 active
                   ? 'border-gold bg-gold/10 text-gold'
                   : 'border-transparent text-zinc-400 hover:bg-surface-soft hover:text-zinc-100'
@@ -84,9 +86,9 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
                 <NavIcon name={key} />
                 <span className="sidebar-nav-label">{label}</span>
               </span>
-              {active && (
-                <span className="sidebar-active-label rounded-full bg-green-500/10 px-2 py-0.5 text-[11px] font-semibold text-green-500">
-                  Ativo
+              {(active || locked) && (
+                <span className={`sidebar-active-label rounded-full px-2 py-0.5 text-[11px] font-semibold ${locked ? 'bg-gold/10 text-gold' : 'bg-green-500/10 text-green-500'}`}>
+                  {locked ? 'Plano' : 'Ativo'}
                 </span>
               )}
             </button>
@@ -137,6 +139,20 @@ function userIsAdmin(user) {
   return user?.role === 'admin' || user?.role === 'super_admin'
 }
 
+function notificationKind(item) {
+  const message = String(item?.message || '').toLowerCase()
+  if (item?.type === 'err' || /falhou|falha|não foi possível|não conseguiu|erro/.test(message)) return 'error'
+  if (/aguardando|processando|pendente|enviado para/.test(message)) return 'pending'
+  if (item?.type === 'warn' || /parcial|atenção/.test(message)) return 'warning'
+  return item?.type === 'ok' ? 'success' : 'info'
+}
+
+const NOTIFICATION_KIND_LABELS = { success: 'Sucesso', error: 'Erro', pending: 'Em processamento', warning: 'Atenção', info: 'Atualização' }
+
+function isPublicationNotification(item) {
+  return /post|publicaç|publicado|publicar|carrossel|comentário/.test(String(item?.message || '').toLowerCase())
+}
+
 function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -146,11 +162,11 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
   async function toggleNotifications() {
     const nextOpen = !notificationsOpen
     setNotificationsOpen(nextOpen)
-    if (!nextOpen || notifications.length) return
+    if (!nextOpen) return
     setNotificationsLoading(true)
     try {
-      const result = await apiFetch('/api/logs?limit=5')
-      setNotifications((result.logs || []).filter(item => item.type !== 'ok').slice(0, 5))
+      const result = await apiFetch('/api/logs?limit=30')
+      setNotifications((result.logs || []).filter(isPublicationNotification).slice(0, 5))
     } catch {
       setNotifications([])
     } finally {
@@ -190,7 +206,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
             {notificationsLoading
               ? <p className="notification-empty">Carregando atualizações...</p>
               : notifications.length
-                ? <div className="notification-list">{notifications.map(item => <div className="notification-item" key={item.id}><span className={`notification-mark notification-mark-${item.type || 'ok'}`} aria-hidden="true">{item.type === 'err' ? '!' : '✓'}</span><div><p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</small></div></div>)}</div>
+                ? <div className="notification-list">{notifications.map(item => { const kind = notificationKind(item); return <div className={`notification-item notification-item-${kind}`} key={item.id}><span className={`notification-mark notification-mark-${kind}`} aria-hidden="true">{kind === 'error' ? '!' : kind === 'pending' ? '…' : kind === 'warning' ? '!' : '✓'}</span><div><span className={`notification-status-label notification-status-${kind}`}>{NOTIFICATION_KIND_LABELS[kind]}</span><p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</small></div></div>})}</div>
                 : <p className="notification-empty">Nenhuma atualização recente.</p>}
             <button type="button" className="notification-see-all" onClick={() => { setNotificationsOpen(false); onNavigate('atividade') }}>Ver histórico completo</button>
           </div>}
@@ -208,7 +224,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
             {user?.fullName || user?.name || user?.email || 'Conta'}<span className="profile-menu-chevron" aria-hidden="true">⌄</span>
           </button>
           {profileOpen && <div className="profile-menu" role="menu">
-            <div className="profile-menu-heading"><strong>{user?.fullName || user?.name || 'Minha conta'}</strong><small>{user?.email || ''}</small></div>
+            <div className="profile-menu-heading"><strong>{user?.fullName || user?.name || 'Minha conta'}</strong><small>{user?.email || ''}</small><span className="mt-1 inline-flex w-fit rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-gold">Plano {getPlan(user?.plan).name}</span></div>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Meu perfil</button>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Preferências</button>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('seguranca') }}>Segurança</button>

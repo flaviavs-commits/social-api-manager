@@ -35,6 +35,12 @@ function readEnv(source = process.env) {
 function assertProductionSecrets(source = process.env) {
   if ((source.NODE_ENV || 'development') !== 'production') return
 
+  if (boolean(source.REVIEW_MODE_NO_AUTH) || boolean(source.TIKTOK_REVIEW_MODE)) {
+    const error = new Error('Modos de revisão não podem ser ativados em produção')
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+
   const required = [
     'AUTH_TOKEN_SECRET', 'SESSION_SECRET', 'TOKEN_ENCRYPTION_KEY', 'DATABASE_URL',
     'BASE_URL', 'FRONTEND_URL', 'FRONTEND_ORIGIN', 'CRON_SECRET', 'BLOB_ALLOWED_HOSTS'

@@ -5,11 +5,13 @@ const { AUTH_COOKIE, readCookie } = require('../utils/authCookie')
 async function requireAuth(req, res, next) {
   // Modo público solicitado para a demonstração: todas as requisições usam
   // somente a conta demo configurada, sem exigir login ou senha.
-  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && process.env.NODE_ENV !== 'test') {
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && !['test', 'production'].includes(process.env.NODE_ENV)) {
     req.user = {
       id: Number(process.env.REVIEW_MODE_USER_ID) || 38,
       email: 'review-tiktok@demo.local',
       role: 'user',
+      plan: 'criador',
+      planUnrestricted: true,
       fullName: 'Demonstração',
       avatarUrl: null,
       totpEnabled: false
@@ -64,7 +66,7 @@ async function requireAuth(req, res, next) {
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
-    req.user = { id: user.id, email: user.email, role: user.role, fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
+    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planUnrestricted: user.plan_unrestricted === true, fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
     next()
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })

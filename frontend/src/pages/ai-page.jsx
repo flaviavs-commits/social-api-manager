@@ -82,6 +82,9 @@ export function AiPage() {
   function normalizePost(post, format = visualFormat) {
     return {
       ...post,
+      // A resposta antiga da API podia não trazer a lista de redes. Mantenha
+      // sempre um valor seguro para a publicação gerada pela IA.
+      plataformas: Array.isArray(post.plataformas) && post.plataformas.length ? post.plataformas : ['instagram'],
       text: post.texto || post.text || post.caption || '',
       visualFormat: format,
       carouselCount: format === 'carousel' ? carouselCount : 5,

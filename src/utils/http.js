@@ -23,8 +23,8 @@ function isAdminRole(role) {
 // fiquem inconsistentes — alguém poderia burlar a regra forte usando o fluxo
 // mais fraco. Retorna a mensagem de erro ou null se a senha for válida.
 function validarComplexidadeSenha(senha) {
-  if (typeof senha !== 'string' || senha.length < 12 || senha.length > 72)
-    return 'A senha precisa ter entre 12 e 72 caracteres.'
+  if (typeof senha !== 'string' || senha.length < 8 || senha.length > 72)
+    return 'A senha precisa ter entre 8 e 72 caracteres.'
   if (!/[A-Z]/.test(senha)) return 'A senha precisa ter ao menos 1 letra maiúscula.'
   if (!/[0-9]/.test(senha)) return 'A senha precisa ter ao menos 1 número.'
   if (!/[^A-Za-z0-9]/.test(senha)) return 'A senha precisa ter ao menos 1 caractere especial.'

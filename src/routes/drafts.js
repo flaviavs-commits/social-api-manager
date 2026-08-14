@@ -6,6 +6,8 @@ const router = Router()
 // GET /api/drafts
 router.get('/', async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50))
+    const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0)
     const { rows } = await pool.query(
       `SELECT id, title, text, platforms, media_path, media_type, media_items,
               youtube_title, youtube_visibility, is_template, criado_em,
@@ -13,10 +15,10 @@ router.get('/', async (req, res) => {
               ig_format, youtube_format, youtube_category_id, youtube_made_for_kids,
               tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch,
               location_id, location_name, first_comment
-       FROM drafts WHERE user_id=$1 ORDER BY criado_em DESC`,
-      [req.user.id]
+       FROM drafts WHERE user_id=$1 ORDER BY criado_em DESC, id DESC LIMIT $2 OFFSET $3`,
+      [req.user.id, limit + 1, offset]
     )
-    res.json({ drafts: rows })
+    res.json({ drafts: rows.slice(0, limit), limit, offset, hasMore: rows.length > limit })
   } catch (err) {
     serverError(res, err)
   }

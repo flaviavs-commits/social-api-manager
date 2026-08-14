@@ -1,7 +1,7 @@
 import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
-  filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
+  filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
 } from '../../lib/analytics-format.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 import { useTheme } from '../ui/theme-selector.jsx'
@@ -18,9 +18,10 @@ function buildTrend(metrics) {
   return Object.keys(porDia).sort().slice(-7).map(dia => ({ dia, ...porDia[dia] }))
 }
 
-function buildPlatformCounts(metrics) {
+function buildPlatformCounts(metrics, tiktokVideos = []) {
   const porPlataforma = {}
   for (const m of metrics) porPlataforma[m.platform] = (porPlataforma[m.platform] || 0) + 1
+  if (tiktokVideos.length) porPlataforma.tiktok = Math.max(porPlataforma.tiktok || 0, tiktokVideos.length)
   return Object.entries(porPlataforma)
 }
 
@@ -39,12 +40,15 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
   useTheme()
   const metrics = filterByPeriod(data.metrics, periodDays)
   const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
+  const tiktokMetrics = metrics.filter(item => item.platform === 'tiktok' && item.metrics)
+  const tiktokRows = tiktokMetrics.length ? tiktokMetrics : videos.map(tiktokVideoToMetric)
+  const summaryMetrics = [...metrics.filter(item => item.platform !== 'tiktok'), ...tiktokRows]
   const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1)
   const previousVideos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, 1)
 
-  const totalViews = metrics.reduce((acc, m) => acc + (m.metrics?.views || 0), 0)
-  const totalLikes = metrics.reduce((acc, m) => acc + (m.metrics?.likes || 0), 0)
-  const totalComments = metrics.reduce((acc, m) => acc + (m.metrics?.comments || 0), 0)
+  const totalViews = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.views || 0), 0)
+  const totalLikes = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.likes || 0), 0)
+  const totalComments = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.comments || 0), 0)
   const totalShares = metrics.filter(m => m.platform !== 'tiktok').reduce((acc, m) => acc + (Number(m.metrics?.shares) || 0), 0)
     + videos.reduce((acc, v) => acc + (Number(v.shareCount) || 0), 0)
   const totalEngagement = totalLikes + totalComments + totalShares
@@ -66,14 +70,12 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
     + (latestOf(filterByPeriodOffset(data.tiktokStats, periodDays, 1))?.followerCount || 0)
     + (latestOf(filterByPeriodOffset(data.youtubeSubscribers, periodDays, 1))?.subscriberCount || 0)
 
-  const trend = buildTrend(metrics)
-  const platformCounts = buildPlatformCounts(metrics)
+  const trend = buildTrend(summaryMetrics)
+  const platformCounts = buildPlatformCounts(metrics, videos)
   const topPlatform = [...platformCounts].sort(([, a], [, b]) => b - a)[0]
   const platformEngagement = NETWORK_ORDER.map(platform => {
-    const platformMetrics = metrics.filter(item => item.platform === platform)
-    const shares = platform === 'tiktok'
-      ? Math.max(sumMetric(platformMetrics, 'shares'), videos.reduce((total, video) => total + (Number(video.shareCount) || 0), 0))
-      : sumMetric(platformMetrics, 'shares')
+    const platformMetrics = platform === 'tiktok' ? tiktokRows : metrics.filter(item => item.platform === platform)
+    const shares = sumMetric(platformMetrics, 'shares')
     return {
       platform,
       likes: sumMetric(platformMetrics, 'likes'),

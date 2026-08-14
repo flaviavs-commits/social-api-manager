@@ -12,6 +12,7 @@ const totp = require('../services/totp')
 const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
 const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, AUTH_COOKIE, PENDING_2FA_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
+const { DEFAULT_PLAN, PLANS, normalizePlan } = require('../config/plans')
 
 const BCRYPT_COST = 12
 
@@ -103,6 +104,11 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' })
     }
 
+    // Senhas antigas podem continuar válidas, mas não devem ser bloqueadas
+    // de forma inesperada. O tamanho da senha só pode ser avaliado no login,
+    // já que o banco armazena apenas o hash.
+    const passwordUpgradeRecommended = password.length < 8
+
     // O Meu Ecoo é a fonte da verdade da identidade daqui pra frente — cada
     // login certo também empurra a credencial pra lá (best-effort, nunca
     // bloqueia este login se o Meu Ecoo estiver fora).
@@ -115,14 +121,14 @@ router.post('/login', loginLimiter, async (req, res) => {
       addLog('ok', 'Senha confirmada, aguardando código 2FA', null, null, user.id)
       const pendingToken = issuePending2fa(res, user.id)
       return res.json(process.env.NODE_ENV === 'test'
-        ? { ok: true, requires2fa: true, pendingToken }
-        : { ok: true, requires2fa: true })
+        ? { ok: true, requires2fa: true, pendingToken, passwordUpgradeRecommended }
+        : { ok: true, requires2fa: true, passwordUpgradeRecommended })
     }
 
     addLog('ok', 'Login realizado com sucesso', null, null, user.id)
     await revokeSessions(user.id)
     const token = issueAuthSession(res, user.id)
-    respondAuth(res, { ok: true }, token)
+    respondAuth(res, { ok: true, passwordUpgradeRecommended }, token)
   } catch (err) {
     addLog('err', `Falha no login: ${safeMessage(err.message)}`, null, null, user?.id)
     res.status(500).json({ erro: 'Não foi possível entrar agora. Tente novamente em alguns instantes.' })
@@ -130,7 +136,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 })
 
 router.post('/register', loginLimiter, async (req, res) => {
-  const { email, password, fullName } = req.body || {}
+  const { email, password, fullName, plan: requestedPlan } = req.body || {}
   if (!email || !password) {
     return res.status(400).json({ erro: 'Preencha o e-mail e a senha.' })
   }
@@ -141,6 +147,10 @@ router.post('/register', loginLimiter, async (req, res) => {
   if (erroComplexidade) {
     return res.status(400).json({ erro: erroComplexidade })
   }
+  if (requestedPlan !== undefined && !PLANS[requestedPlan]) {
+    return res.status(400).json({ erro: 'Plano selecionado inválido.' })
+  }
+  const plan = requestedPlan ? normalizePlan(requestedPlan) : DEFAULT_PLAN
 
   try {
     const existente = await usersRepo.buscarPorEmail(email)
@@ -148,12 +158,12 @@ router.post('/register', loginLimiter, async (req, res) => {
       return res.status(409).json({ erro: 'Já existe uma conta com esse e-mail.' })
     }
 
-    const user = await usersRepo.criar({ email, fullName })
+    const user = await usersRepo.criar({ email, fullName, plan })
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
     const token = issueAuthSession(res, user.id)
-    respondAuth(res, { ok: true }, token)
+    respondAuth(res, { ok: true, plan }, token)
   } catch (err) {
     addLog('err', `Falha ao criar conta: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível criar sua conta agora. Tente novamente em alguns instantes.' })
@@ -224,7 +234,9 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
     if (!cred) return res.json(respostaPadrao)
 
     const token = await credentialsRepo.gerarTokenReset(user.id)
-    const resetLink = `${process.env.BASE_URL}/reset-password.html?token=${token}`
+    // Fragmento não é enviado ao servidor nem aparece no Referer. A página
+    // troca o fragmento por memória assim que carrega.
+    const resetLink = `${process.env.BASE_URL}/reset-password.html#token=${encodeURIComponent(token)}`
     await mailer.enviarEmailRedefinicaoSenha(user.email, resetLink)
 
     res.json(respostaPadrao)
@@ -273,6 +285,18 @@ router.get('/reset-password/validar', async (req, res) => {
   const { token } = req.query
   if (!token) return res.json({ valido: false })
 
+  try {
+    const cred = await credentialsRepo.buscarPorResetToken(token)
+    res.json({ valido: !!cred })
+  } catch (err) {
+    addLog('err', `Falha ao validar token de redefinição: ${safeMessage(err.message)}`)
+    res.json({ valido: false })
+  }
+})
+
+router.post('/reset-password/validar', async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : ''
+  if (!token) return res.json({ valido: false })
   try {
     const cred = await credentialsRepo.buscarPorResetToken(token)
     res.json({ valido: !!cred })

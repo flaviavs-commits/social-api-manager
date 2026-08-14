@@ -1,9 +1,10 @@
 const pool = require('./pool')
 
 // Compatibilidade de inicialização para instalações que ainda não executaram
-// todas as migrations versionadas. Cada operação é idempotente e falhas
-// individuais não impedem o servidor de atender as demais rotas.
-const bestEffort = query => pool.query(query).catch(() => undefined)
+// todas as migrations versionadas. As operações são idempotentes, mas uma
+// falha não pode ser escondida: atender com schema parcial é mais perigoso do
+// que deixar o supervisor reiniciar o processo após corrigir a migração.
+const bestEffort = query => pool.query(query)
 
 async function ensurePostAccounts() {
   await bestEffort(`
@@ -19,6 +20,7 @@ async function ensurePostAccounts() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB')
+  await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS publication_error TEXT')
   // Remove credenciais que versões antigas gravavam no estado operacional.
   await bestEffort("UPDATE post_accounts SET instagram_pending = instagram_pending - 'accessToken' - 'refreshToken' WHERE instagram_pending IS NOT NULL")
   await bestEffort(`
@@ -85,12 +87,14 @@ async function ensureAiTables() {
     bestEffort(`CREATE TABLE IF NOT EXISTS ai_demo_usage (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, dia DATE NOT NULL, usos INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, dia))`),
     bestEffort(`CREATE TABLE IF NOT EXISTS ai_activity_log (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, acao TEXT NOT NULL, status TEXT NOT NULL, modelo TEXT, detalhes TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS ai_chat_messages (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, contexto TEXT NOT NULL, role TEXT NOT NULL, conteudo TEXT NOT NULL, criado_em TIMESTAMPTZ DEFAULT NOW())`),
-    bestEffort(`CREATE TABLE IF NOT EXISTS ai_image_leads (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, email TEXT NOT NULL, descricao TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`)
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_image_leads (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE SET NULL, email TEXT NOT NULL, descricao TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort(`CREATE TABLE IF NOT EXISTS ai_agent_approvals (nonce TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, action TEXT NOT NULL, arguments JSONB NOT NULL DEFAULT '{}', expires_at TIMESTAMPTZ NOT NULL, consumed_at TIMESTAMPTZ, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())`)
   ])
   await Promise.all([
     bestEffort('ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS last_four TEXT'),
     bestEffort("ALTER TABLE user_ai_keys ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'valid'"),
-    bestEffort('CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user ON ai_chat_messages (user_id, criado_em DESC)')
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_user ON ai_chat_messages (user_id, criado_em DESC)'),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_ai_agent_approvals_expiry ON ai_agent_approvals(expires_at)')
   ])
 }
 
@@ -118,6 +122,10 @@ async function runMigrations() {
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS default_platform TEXT'),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT '{\"email\":true,\"published\":true,\"failures\":true,\"comments\":true}'::jsonb"),
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_tokens_invalidated_at TIMESTAMPTZ'),
+    bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'criador'"),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan)'),
+    bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_unrestricted BOOLEAN NOT NULL DEFAULT TRUE'),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_unrestricted ON users(plan_unrestricted)'),
     bestEffort(`CREATE TABLE IF NOT EXISTS saved_texts (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title TEXT, body TEXT NOT NULL, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS platform_presets (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, platform TEXT NOT NULL, name TEXT NOT NULL, config JSONB NOT NULL DEFAULT '{}', criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT UNIQUE NOT NULL, p256dh TEXT, auth TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
@@ -146,6 +154,8 @@ async function runMigrations() {
     bestEffort(`CREATE TABLE IF NOT EXISTS smartlinks (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, title TEXT, description TEXT, theme JSONB NOT NULL DEFAULT '{}', active BOOLEAN NOT NULL DEFAULT TRUE, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS smartlink_items (id SERIAL PRIMARY KEY, smartlink_id INTEGER NOT NULL REFERENCES smartlinks(id) ON DELETE CASCADE, label TEXT NOT NULL, url TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0)`),
     bestEffort('CREATE INDEX IF NOT EXISTS idx_smartlinks_slug ON smartlinks(slug)'),
+    bestEffort(`CREATE TABLE IF NOT EXISTS smartlink_slug_aliases (slug TEXT PRIMARY KEY, smartlink_id INTEGER NOT NULL REFERENCES smartlinks(id) ON DELETE CASCADE, criado_em TIMESTAMPTZ DEFAULT NOW())`),
+    bestEffort('CREATE INDEX IF NOT EXISTS idx_smartlink_slug_aliases_smartlink ON smartlink_slug_aliases(smartlink_id)'),
     bestEffort(`CREATE TABLE IF NOT EXISTS webhook_endpoints (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL, events TEXT[] NOT NULL DEFAULT '{post_published,approval_updated}', active BOOLEAN NOT NULL DEFAULT TRUE, last_status INTEGER, last_error TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort('CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_user ON webhook_endpoints(user_id,active)'),
     bestEffort(`CREATE TABLE IF NOT EXISTS api_keys (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, prefix TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, last_used_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ, criado_em TIMESTAMPTZ DEFAULT NOW())`),

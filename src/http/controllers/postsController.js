@@ -87,8 +87,12 @@ async function getPosts(req, res) {
     if (status !== undefined && !['scheduled', 'published', 'partial', 'error', 'cancelled'].includes(status))
       return res.status(400).json({ erro: 'status inválido' })
 
-    const posts = await listarPosts({ status, ...ctx(req) })
-    res.json({ posts })
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 100))
+    const result = await listarPosts({ status, page, limit, ...ctx(req) })
+    // Compatibilidade com adaptadores/test doubles antigos que ainda
+    // retornam apenas o array, sem perder a paginação do repositório atual.
+    res.json(Array.isArray(result) ? { posts: result, page, limit, hasMore: false } : result)
   } catch (e) {
     serverError(res, e)
   }

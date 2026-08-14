@@ -138,6 +138,7 @@ function isErroTransitorio(err) {
 // criarPost.js): { postAccountId, accountId, platform, handle, mediaItems }.
 async function publicarNaConta(account, post, isSuperAdmin) {
   const platform = account.platform
+  await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, null)
   // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
   // cai no texto principal (post.text) quando a rede não tem entrada própria
   // em text_by_platform. Quando a rede tem 2+ contas marcadas no mesmo post
@@ -170,12 +171,15 @@ async function publicarNaConta(account, post, isSuperAdmin) {
 
   const publisher = PUBLISHERS[platform]
   if (!publisher) {
-    return { platform, accountId: account.accountId, success: false, error: `Plataforma "${platform}" não suportada` }
+    const error = `Plataforma "${platform}" não suportada`
+    await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, error)
+    return { platform, accountId: account.accountId, success: false, error }
   }
 
   let token = await buscarContaToken(platform, post.userId, isSuperAdmin, account.accountId)
   if (!token) {
     const msg = `Conta de ${platform} não encontrada ou desconectada`
+    await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, msg)
     await registrarLog({ type: 'err', message: `Publicação falhou [${platform}]: ${msg}`, platform, user_id: post.userId })
     return { platform, accountId: account.accountId, success: false, error: msg }
   }
@@ -189,6 +193,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     if (renewal.success) {
       token = await buscarContaToken(platform, post.userId, isSuperAdmin, account.accountId)
     } else {
+      await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, renewal.message)
       await registrarLog({
         type: 'err',
         message: `Token expirado para "${token.handle || token.accountName}" no ${platform} — não foi possível renovar automaticamente: ${renewal.message}`,
@@ -216,6 +221,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     // evita uma migration só para isso; o campo "provider" dentro do JSON
     // diferencia qual finalizador (cron) deve tratar cada linha.
     if (data?.pending) {
+      await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, null)
       const isZernio = data.provider === 'zernio'
       await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
       const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
@@ -233,6 +239,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     }
 
     const externalId = extrairExternalId(platform, data)
+    await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, null)
     if (externalId) {
       await postsRepo.salvarPublicacaoExterna(post.id, {
         externalPostId: externalId,
@@ -269,6 +276,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
 
     return { platform, accountId: account.accountId, success: true, account: token.handle || token.accountName, data }
   } catch (err) {
+    await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, err.message)
     await registrarLog({
       type: 'err',
       message: `Não foi possível publicar no ${platform} na conta "${token.handle || token.accountName}": ${err.message}`,
@@ -334,12 +342,14 @@ async function finalizarInstagramPendentes() {
       if (externalId) {
         await postsRepo.salvarPublicacaoExterna(postId, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString(), accountId: linha.accountId })
       }
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
 
       const tipoMidia = pending.stage === 'carousel_children' || pending.stage === 'carousel_container' ? 'Carrossel' : 'Post'
       await registrarLog({ type: 'ok', message: `${tipoMidia} publicado no Instagram na conta "${pending.accountName}" com sucesso! ✓`, platform: 'instagram', conta_id: pending.contaId, user_id: linha.userId })
       await fecharStatusSeSemPendencias(postId, linha)
     } catch (err) {
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, err.message)
       await postsRepo.limparInstagramPending(linha.postAccountId)
       await registrarLog({ type: 'err', message: `Não foi possível publicar no Instagram na conta "${pending.accountName}": ${err.message}`, platform: 'instagram', conta_id: pending.contaId, user_id: linha.userId })
       await fecharStatusSeSemPendencias(postId, linha)
@@ -394,12 +404,14 @@ async function finalizarZernioPendentes() {
         accountId: linha.accountId,
         firstCommentHandled: true
       })
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
 
       const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
       await registrarLog({ type: 'ok', message: `Post publicado no ${platLabel} na conta "${pending.accountName}" com sucesso! ✓`, platform, conta_id: pending.contaId, user_id: linha.userId })
       await fecharStatusSeSemPendencias(postId, linha)
     } catch (err) {
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, err.message)
       await postsRepo.limparInstagramPending(linha.postAccountId)
       const platLabel = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' }[platform] || platform
       await registrarLog({ type: 'err', message: `Não foi possível publicar no ${platLabel} na conta "${pending.accountName}": ${err.message}`, platform, conta_id: pending.contaId, user_id: linha.userId })
@@ -421,16 +433,22 @@ async function fecharStatusSeSemPendencias(postId, linha) {
   const publicadasSet = new Set(publicadas.map(p => `${p.platform}:${p.accountId}`))
 
   const results = contas.map(c => ({
-    platform: c.platform,
-    accountId: c.accountId,
-    success: publicadasSet.has(`${c.platform}:${c.accountId}`)
+      platform: c.platform,
+      accountId: c.accountId,
+      account: c.handle || undefined,
+      success: publicadasSet.has(`${c.platform}:${c.accountId}`),
+      ...(c.publicationError ? { error: c.publicationError } : {})
   }))
 
   const status = results.every(r => r.success) ? 'published'
     : results.some(r => r.success) ? 'partial'
     : 'error'
 
-  await postsRepo.atualizarStatusPost(postId, status)
+  const failureDetails = results
+    .filter(result => result.success === false)
+    .map(result => `${result.platform || 'Rede social'}${result.account ? ` (${result.account})` : ''}: ${result.error || 'A rede não informou o motivo.'}`)
+    .join(' | ') || null
+  await postsRepo.atualizarStatusPost(postId, status, status === 'published' ? null : failureDetails)
   broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
 

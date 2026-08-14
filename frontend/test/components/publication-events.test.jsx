@@ -14,7 +14,11 @@ describe('publication events', () => {
 
     expect(result).toEqual({
       type: 'error',
-      message: 'A publicação não foi concluída no Instagram. instagram (@perfil): Token expirado',
+      message: 'Nenhuma publicação foi confirmada em Instagram.',
+      resultSummary: {
+        published: [],
+        failures: [{ label: 'Instagram · @perfil', error: 'Token expirado' }],
+      },
     })
   })
 

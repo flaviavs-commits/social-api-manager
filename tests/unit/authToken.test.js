@@ -46,11 +46,9 @@ describe('gerarTokenPending2fa / verificarTokenPending2fa', () => {
     const token = gerarTokenPending2fa(99)
     expect(verificarTokenPending2fa(token)).toBe(99)
   })
-  test('token de sessão não serve para 2FA (mesmo formato, mesma secret — aceito por design)', () => {
-    // Ambos usam a mesma secret: é esperado que funcionem intercambiavelmente
-    // Documentado aqui como comportamento conhecido
+  test('token de sessão não pode ser usado como token pendente de 2FA', () => {
     const sessao = gerarTokenSessao(7)
-    expect(typeof verificarTokenPending2fa(sessao)).toBe('number')
+    expect(() => verificarTokenPending2fa(sessao)).toThrow('Token 2FA pendente inválido')
   })
 })
 

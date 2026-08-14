@@ -20,8 +20,8 @@ function mediaForCreate(items, fallbackPath, fallbackType) {
 async function repetirPost({ id, scheduledAt, userId, userRole, isAdmin }) {
   const source = await postsRepo.buscarPostPorId(id, userId, isAdmin)
   if (!source) return null
-  if (!['published', 'partial'].includes(source.status)) {
-    throw new ValidationError('Somente posts já publicados podem ser repetidos por esta opção.')
+  if (!['scheduled', 'published', 'partial'].includes(source.status)) {
+    throw new ValidationError('Somente posts agendados ou já publicados podem ser copiados.')
   }
 
   const accounts = Array.isArray(source.accounts) ? source.accounts : []
@@ -57,6 +57,9 @@ async function repetirPost({ id, scheduledAt, userId, userRole, isAdmin }) {
     tiktokDisableComment: Boolean(source.tiktokDisableComment),
     tiktokDisableDuet: Boolean(source.tiktokDisableDuet),
     tiktokDisableStitch: Boolean(source.tiktokDisableStitch),
+    locationId: source.locationId || undefined,
+    locationName: source.locationName || undefined,
+    firstComment: source.firstComment || undefined,
     publishNow: false
   }
 

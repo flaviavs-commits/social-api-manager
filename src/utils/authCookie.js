@@ -1,7 +1,9 @@
 const { gerarTokenSessao, gerarTokenPending2fa } = require('./authToken')
+const crypto = require('crypto')
 
 const AUTH_COOKIE = 'auth_session'
 const PENDING_2FA_COOKIE = 'pending_2fa'
+const CSRF_COOKIE = 'csrf_token'
 const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60
 const PENDING_MAX_AGE_SECONDS = 5 * 60
 
@@ -21,6 +23,16 @@ function setCookie(res, name, value, maxAge) {
   const cookies = Array.isArray(current) ? current : current ? [current] : []
   cookies.push(`${name}=${encodeURIComponent(value)}; ${cookieOptions(maxAge)}`)
   res.setHeader('Set-Cookie', cookies)
+}
+
+function issueCsrfToken(res) {
+  const token = crypto.randomBytes(32).toString('hex')
+  const production = process.env.NODE_ENV === 'production'
+  const current = res.getHeader('Set-Cookie')
+  const cookies = Array.isArray(current) ? current : current ? [current] : []
+  cookies.push(`${CSRF_COOKIE}=${token}; Max-Age=${COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=${production ? 'None' : 'Lax'}${production ? '; Secure' : ''}`)
+  res.setHeader('Set-Cookie', cookies)
+  return token
 }
 
 function clearCookie(res, name) {
@@ -63,9 +75,11 @@ function readCookie(req, name) {
 module.exports = {
   AUTH_COOKIE,
   PENDING_2FA_COOKIE,
+  CSRF_COOKIE,
   issueAuthSession,
   issuePending2fa,
   clearAuthCookies,
   clearPending2faCookie,
-  readCookie
+  readCookie,
+  issueCsrfToken
 }

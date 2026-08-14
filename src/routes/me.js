@@ -140,6 +140,11 @@ router.post('/avatar', async (req, res) => {
 // ativação depois que o usuário confirma um código válido (/2fa/enable).
 router.post('/2fa/setup', totpLimiter, async (req, res) => {
   try {
+    const password = typeof req.body?.password === 'string' ? req.body.password : ''
+    const credentials = await credentialsRepo.buscarPorUserId(req.user.id)
+    if (!password || !credentials || !(await bcrypt.compare(password, credentials.password_hash))) {
+      return res.status(403).json({ erro: 'Confirme sua senha atual antes de configurar o 2FA.' })
+    }
     const segredo = totp.gerarSegredo()
     await usersRepo.salvarSegredoTotp(req.user.id, segredo)
     const otpauthUri = totp.gerarOtpauthUri(segredo, req.user.email)

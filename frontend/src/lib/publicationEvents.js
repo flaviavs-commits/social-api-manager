@@ -22,6 +22,14 @@ export function scheduledPublicationMessage(date, platforms) {
   return `Publicação agendada com sucesso para ${formatScheduledDate(date)}. Ela será enviada para ${formatPlatformList(platforms)}.`
 }
 
+export function scheduledPublicationDetails(date, platforms) {
+  return {
+    date: formatScheduledDate(date),
+    platforms: formatPlatformList(platforms),
+    platformList: [...new Set(platforms.filter(Boolean).map(platform => PLATFORM_LABELS[platform] || platform))]
+  }
+}
+
 export function processingPublicationMessage(platforms) {
   return `Publicação iniciada com sucesso para ${formatPlatformList(platforms)}. Estamos enviando agora e a confirmação aparecerá aqui em instantes.`
 }
@@ -30,15 +38,26 @@ export function publicationResultMessage(event) {
   if (!event || event.event_name !== 'post_published') return null
 
   const data = event.payload || {}
-  const failures = (data.results || []).filter(result => result.success === false)
-  const details = failures
-    .map(result => `${result.platform}${result.account ? ` (${result.account})` : ''}: ${result.error || 'falha sem detalhes'}`)
-    .join(' | ')
+  const results = (data.results || []).map(result => ({
+    ...result,
+    label: `${PLATFORM_LABELS[result.platform] || result.platform || 'Rede social'}${result.account ? ` · ${result.account}` : ''}`,
+    detail: result.success === true
+      ? 'Publicada e confirmada'
+      : result.success === 'pending'
+        ? 'Aguardando confirmação'
+        : result.error || 'A rede não informou o motivo.'
+  }))
+  const published = results.filter(result => result.success === true)
+  const failures = results.filter(result => result.success === false)
+  const details = failures.map(result => `${result.label}: ${result.detail}`).join(' | ')
 
   const platforms = formatPlatformList(data.platforms || (data.results || []).map(result => result.platform))
-  if (data.status === 'published') return { type: 'success', message: `Publicação concluída com sucesso no ${platforms}. Post #${data.id}.` }
-  if (data.status === 'partial') return { type: 'warning', message: `Publicação concluída parcialmente no ${platforms}. Verifique as redes que apresentaram erro.${details ? ` ${details}` : ''}` }
-  if (data.status === 'error') return { type: 'error', message: `A publicação não foi concluída no ${platforms}.${details ? ` ${details}` : ''}` }
+  const resultSummary = results.length
+    ? { published: published.map(result => result.label), failures: failures.map(result => ({ label: result.label, error: result.detail })) }
+    : null
+  if (data.status === 'published') return { type: 'success', message: `Publicação confirmada em ${platforms}. Post #${data.id}.`, resultSummary }
+  if (data.status === 'partial') return { type: 'warning', message: `Publicação parcial: ${published.length} rede(s) confirmada(s) e ${failures.length} não publicada(s).`, resultSummary }
+  if (data.status === 'error') return { type: 'error', message: `Nenhuma publicação foi confirmada em ${platforms}.`, resultSummary }
   return null
 }
 

@@ -16,4 +16,17 @@ describe('GET /health', () => {
     expect(res.status).toBe(401)
     expect(res.headers['content-type']).toMatch(/json/)
   })
+
+  test('retorna 404 para página pública inexistente', async () => {
+    const res = await request(app).get('/pagina-que-nao-existe')
+    expect(res.status).toBe(404)
+    expect(res.headers['content-type']).toMatch(/html/)
+    expect(res.text).toContain('404')
+  })
+
+  test('retorna 404 para módulo inexistente da SPA', async () => {
+    const res = await request(app).get('/app/modulo-que-nao-existe')
+    expect(res.status).toBe(404)
+    expect(res.headers['content-type']).toMatch(/html/)
+  })
 })

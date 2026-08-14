@@ -37,16 +37,19 @@ function verificarTokenSessaoDetalhado(token) {
 }
 
 function gerarTokenPending2fa(userId) {
-  return sign({ userId, exp: Date.now() + 5 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
+  return sign({ purpose: 'pending-2fa', userId, exp: Date.now() + 5 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
 }
 
 function verificarTokenPending2fa(token) {
-  return verify(token, process.env.AUTH_TOKEN_SECRET).userId
+  const payload = verify(token, process.env.AUTH_TOKEN_SECRET)
+  if (payload.purpose !== 'pending-2fa') throw new Error('Token 2FA pendente inválido')
+  return payload.userId
 }
 
 function gerarTokenAprovacaoAgente(userId, action, args) {
   return sign({
     purpose: 'ai-agent-approval',
+    jti: crypto.randomUUID(),
     userId,
     action,
     args,

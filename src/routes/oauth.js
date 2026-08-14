@@ -8,6 +8,7 @@ const zernioClient = require('../infra/social/zernioClient');
 const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
 const { safeStringify } = require('../utils/redact');
+const { encrypt, decrypt } = require('../services/tokenCrypto')
 
 // Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
@@ -167,7 +168,7 @@ async function savePendingFacebookConnection({ userId, profileId, tempToken, use
   await pool.query(`
     INSERT INTO zernio_oauth_pending (id, user_id, platform, profile_id, temp_token, user_profile, connect_token, account_name, return_to)
     VALUES ($1, $2, 'facebook', $3, $4, $5::jsonb, $6, $7, $8)
-  `, [id, userId, profileId, tempToken, JSON.stringify(userProfile), connectToken || null, accountName || null, safeFrontendReturnPath(returnTo)])
+  `, [id, userId, profileId, encrypt(tempToken), JSON.stringify(userProfile), connectToken ? encrypt(connectToken) : null, accountName || null, safeFrontendReturnPath(returnTo)])
   return id
 }
 
@@ -177,7 +178,8 @@ async function getPendingFacebookConnection(id) {
     FROM zernio_oauth_pending
     WHERE id = $1 AND platform = 'facebook' AND criado_em >= NOW() - INTERVAL '15 minutes'
   `, [id])
-  return pending || null
+  if (!pending) return null
+  return { ...pending, tempToken: decrypt(pending.tempToken), connectToken: decrypt(pending.connectToken) }
 }
 
 function facebookPageMatchesTarget(page, target) {
@@ -295,11 +297,9 @@ const ZERNIO_PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', y
 // quando o navegador chega no nosso /*/zernio-return a conta JÁ está
 // conectada do lado deles. Só precisamos descobrir QUAL conta foi essa (o
 // Zernio não sabe nada sobre nosso userId) e espelhar em contas/tokens. A
-// heurística é a mesma já usada em contasRepository.criarContaRapida para
-// outras redes: como não há um ID de correlação direto, casamos pela conta
-// mais recente daquela plataforma. Quando o retorno traz accountId/username,
-// usamos esses dados antes do fallback para a conta mais recente, evitando
-// associar a conta errada em conexões paralelas.
+// A conta precisa ser correlacionada por um identificador retornado pelo
+// provedor. Escolher a conta mais recente era ambíguo e podia vincular uma
+// conta de outro fluxo OAuth concorrente.
 async function syncZernioAccount(platform, userId, accountName, remoteHint = {}) {
   const profileId = remoteHint.profileId || process.env.ZERNIO_PROFILE_ID;
   const remoteAccount = remoteHint.account && typeof remoteHint.account === 'object' ? remoteHint.account : null;
@@ -309,8 +309,7 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
   if (!escolhida) {
     const { accounts = [] } = await zernioClient.listAccounts({ profileId, platform, includeOverLimit: true });
     escolhida = accounts.find(a => remoteAccountId && String(a._id || a.accountId || a.id) === String(remoteAccountId))
-      || accounts.find(a => remoteUsername && [a.username, a.userName, a.displayName].filter(Boolean).some(value => String(value).toLowerCase() === String(remoteUsername).toLowerCase()))
-      || accounts[accounts.length - 1];
+      || accounts.find(a => remoteUsername && [a.username, a.userName].filter(Boolean).some(value => String(value).toLowerCase() === String(remoteUsername).toLowerCase()));
   }
   if (!escolhida) throw new Error(`Nenhuma conta do ${ZERNIO_PLATFORM_LABELS[platform] || platform} encontrada no Zernio após a conexão`);
 

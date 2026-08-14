@@ -27,6 +27,31 @@ function formatPostTime(post) {
   return Number.isNaN(value.getTime()) ? 'Horário não informado' : value.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
+function localDateTimeValue(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function suggestedPasteDate(post) {
+  const next = new Date(postDateValue(post))
+  if (Number.isNaN(next.getTime())) {
+    const fallback = new Date()
+    fallback.setDate(fallback.getDate() + 1)
+    fallback.setHours(10, 0, 0, 0)
+    return localDateTimeValue(fallback)
+  }
+  next.setDate(next.getDate() + 1)
+  return localDateTimeValue(next)
+}
+
+function formatPasteDate(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'Escolha o dia e horário'
+    : date.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })
+}
+
 function parseMediaItems(post) {
   const rawItems = Array.isArray(post.mediaItems)
     ? post.mediaItems
@@ -74,11 +99,12 @@ function CalendarMediaPreview({ post, compact = false }) {
   return <img className={`calendar-media-preview${compact ? ' is-compact' : ''}`} src={source} alt="Prévia do conteúdo publicado" onError={() => setFailed(true)} />
 }
 
-function CalendarDayPost({ post, onEdit, onDelete, onRepeat }) {
+function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRepeat, repeating, repeatDate, onRepeatDateChange, onRepeatSubmit, onRepeatCancel }) {
   const platforms = platformsOf(post)
   const primaryPlatform = platforms[0]
   const error = friendlyPostError(post)
   const canRepeat = ['published', 'partial'].includes(post.status)
+  const scheduled = isScheduled(post)
   return (
     <article className="calendar-detail-post">
       <div className="flex items-center gap-2">
@@ -89,10 +115,20 @@ function CalendarDayPost({ post, onEdit, onDelete, onRepeat }) {
       </div>
       <div className="calendar-detail-preview"><CalendarMediaPreview post={post}/>{error && <p className="calendar-post-warning" role="alert">{error}</p>}</div>
       <div className="calendar-detail-actions">
-        {isScheduled(post) && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar</button>}
+        {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar data/horário</button>}
+        {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onCopy}>Copiar</button>}
+        {scheduled && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir agendamento</button>}
         {canRepeat && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRepeat}>Reagendar este post</button>}
         {canRepeat && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir post publicado</button>}
       </div>
+      {repeating && <form className="calendar-repeat-form calendar-repeat-form-inline" onSubmit={onRepeatSubmit}>
+        <div>
+          <strong>Reagendar esta publicação</strong>
+          <p>O post original continuará publicado. Escolha o novo dia e horário para criar uma nova publicação.</p>
+        </div>
+        <label>Novo dia e horário<input required type="datetime-local" value={repeatDate} onChange={onRepeatDateChange}/></label>
+        <div className="calendar-repeat-actions"><button type="submit" className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Agendar novo post</button><button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={onRepeatCancel}>Cancelar</button></div>
+      </form>}
     </article>
   )
 }
@@ -103,9 +139,12 @@ export function CalendarPage({ onNavigate }) {
   const [year, setYear] = useState(now.getFullYear())
   const [editing, setEditing] = useState(null)
   const [repeating, setRepeating] = useState(null)
+  const [copiedPost, setCopiedPost] = useState(null)
+  const [pasting, setPasting] = useState(false)
   const [selectedDay, setSelectedDay] = useState(null)
   const [date, setDate] = useState('')
   const [repeatDate, setRepeatDate] = useState('')
+  const [pasteDate, setPasteDate] = useState('')
   const [platformFilter, setPlatformFilter] = useState(() => localStorage.getItem(`${CALENDAR_VIEW_KEY}:platform`) || 'all')
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(CALENDAR_VIEW_KEY) || 'calendar')
   const [draggedPost, setDraggedPost] = useState(null)
@@ -155,6 +194,33 @@ export function CalendarPage({ onNavigate }) {
     } catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 
+  function copyScheduled(post) {
+    setCopiedPost(post)
+    setPasteDate(suggestedPasteDate(post))
+    setPasting(true)
+    setMessage('Sugerimos o próximo dia no mesmo horário. Confira ou altere antes de confirmar.')
+    notify('Agendamento copiado. Escolha o novo dia e horário.')
+  }
+
+  function openPaste() {
+    if (!copiedPost) return
+    if (!pasteDate) setPasteDate(suggestedPasteDate(copiedPost))
+    setPasting(true)
+  }
+
+  async function pastePost(event) {
+    event.preventDefault()
+    if (!copiedPost) return
+    try {
+      await apiFetch(`/api/posts/${copiedPost.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: pasteDate }) })
+      setPasting(false)
+      setCopiedPost(null)
+      setMessage('Agendamento colado como uma nova publicação.')
+      await reload()
+      notify('Novo agendamento criado.')
+    } catch (e) { setError(e.message); notify(e.message, 'error') }
+  }
+
   async function deletePublished(post) {
     const label = postText(post)
     if (!window.confirm(`Excluir “${label}” do calendário?\n\nO registro será removido do Meu Ecoo, mas a publicação original continuará nas redes sociais.`)) return
@@ -164,6 +230,18 @@ export function CalendarPage({ onNavigate }) {
       setMessage('Publicação removida do calendário.')
       await reload()
       notify('Publicação removida do calendário.')
+    } catch (e) { setError(e.message); notify(e.message, 'error') }
+  }
+
+  async function deleteScheduled(post) {
+    const label = postText(post)
+    if (!window.confirm(`Excluir o agendamento “${label}”?\n\nEle será removido do calendário e não será publicado.`)) return
+    try {
+      await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
+      setSelectedDay(null)
+      setMessage('Agendamento excluído.')
+      await reload()
+      notify('Agendamento excluído.')
     } catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 
@@ -205,16 +283,15 @@ export function CalendarPage({ onNavigate }) {
 
   function openEditor(post) {
     setEditing(post)
-    setDate(postDateValue(post)?.slice(0, 16) || '')
+    setDate(localDateTimeValue(postDateValue(post)))
     setSelectedDay(null)
   }
 
   function openRepeat(post) {
     const next = new Date(Date.now() + 24 * 60 * 60 * 1000)
     next.setSeconds(0, 0)
-    const localValue = new Date(next.getTime() - next.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
     setRepeating(post)
-    setRepeatDate(localValue)
+    setRepeatDate(localDateTimeValue(next))
   }
 
   return (
@@ -237,7 +314,7 @@ export function CalendarPage({ onNavigate }) {
         <div className="calendar-view-toggle" role="group" aria-label="Modo de visualização"><button type="button" className={viewMode === 'calendar' ? 'active' : ''} onClick={() => setViewMode('calendar')}>Calendário</button><button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>Lista</button></div>
       </div>
 
-      {message && <p className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-500">{message}</p>}
+      {message && <div className={`calendar-copy-notice${copiedPost ? ' is-copy-ready' : ' is-complete'}`} role="status"><span className="calendar-copy-notice-icon" aria-hidden="true">{copiedPost ? '⧉' : '✓'}</span><div className="calendar-copy-notice-copy"><span className="calendar-copy-notice-kicker">{copiedPost ? 'DUPLICAR AGENDAMENTO' : 'AGENDAMENTO ATUALIZADO'}</span><strong>{copiedPost ? 'Post copiado com segurança' : 'Novo agendamento criado'}</strong><p>{message}</p>{copiedPost && <small className="calendar-copy-notice-destination">Nova publicação: <strong>{formatPasteDate(pasteDate)}</strong></small>}{copiedPost && !pasting && <small>O agendamento original não será alterado. A nova cópia será criada no dia e horário que você escolher.</small>}</div>{copiedPost && <button type="button" className="calendar-paste-button" onClick={openPaste}>{pasting ? 'Alterar dia e horário' : 'Escolher dia e horário'}</button>}</div>}
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400" role="alert">{error}</p>}
       {loading && <p className="mb-4 text-sm text-zinc-500" aria-live="polite">Carregando publicações do mês...</p>}
 
@@ -270,7 +347,19 @@ export function CalendarPage({ onNavigate }) {
             </button>
           )
         })}
-      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <button className="link-button" onClick={() => openEditor(post)}>Editar</button>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+
+      {pasting && copiedPost && <section className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
+        <div>
+          <h2 className="mb-1 text-lg font-semibold text-zinc-50">Escolha onde colar o post</h2>
+          <p className="text-sm text-zinc-400">A cópia de “{postText(copiedPost)}” será criada no dia e horário abaixo. O agendamento original continuará intacto.</p>
+        </div>
+        <form className="flex flex-wrap items-center gap-3" onSubmit={pastePost}>
+          <label className="calendar-paste-label">Dia e horário da nova publicação<input required type="datetime-local" value={pasteDate} onChange={event => setPasteDate(event.target.value)}/></label>
+          <button className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Confirmar nova publicação</button>
+          <button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setPasting(false)}>Cancelar</button>
+        </form>
+      </section>}
 
       {selectedDay && <div className="modal-overlay calendar-day-modal" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedDay(null) }}>
         <section className="modal-content" role="dialog" aria-modal="true" aria-labelledby="calendar-day-modal-title">
@@ -281,15 +370,7 @@ export function CalendarPage({ onNavigate }) {
             </div>
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
-          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onRepeat={() => openRepeat(post)} onDelete={() => deletePublished(post)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
-          {repeating && <form className="calendar-repeat-form" onSubmit={repeatPost}>
-            <div>
-              <strong>Repetir publicação</strong>
-              <p>O post original continuará publicado. Escolha quando criar uma nova publicação com o mesmo conteúdo.</p>
-            </div>
-            <label>Novo dia e horário<input required type="datetime-local" value={repeatDate} onChange={event => setRepeatDate(event.target.value)}/></label>
-            <div className="calendar-repeat-actions"><button type="submit" className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Agendar novo post</button><button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setRepeating(null)}>Cancelar</button></div>
-          </form>}
+          {selectedDay.posts.length ? <div className="calendar-day-details">{selectedDay.posts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
         </section>
       </div>}
 

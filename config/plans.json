@@ -1,0 +1,85 @@
+{
+  "defaultPlan": "gratuito",
+  "plans": {
+    "gratuito": {
+      "id": "gratuito",
+      "name": "Gratuito",
+      "description": "Para começar a organizar sua presença digital.",
+      "price": "Grátis",
+      "checkoutPrice": "R$ 0",
+      "cadence": "para começar",
+      "features": [
+        "Agendamento de publicações",
+        "Conexão com suas redes",
+        "Acompanhamento de métricas"
+      ],
+      "modules": [
+        "dashboard",
+        "agendador",
+        "calendario",
+        "integracoes",
+        "analytics",
+        "seguranca",
+        "atividade"
+      ]
+    },
+    "criador": {
+      "id": "criador",
+      "name": "Criador",
+      "description": "Mais ritmo e inteligência para quem publica com frequência.",
+      "price": "Para crescer",
+      "checkoutPrice": "R$ 49",
+      "cadence": "por mês",
+      "features": [
+        "Tudo do plano Gratuito",
+        "IA para ideias e conteúdo",
+        "Biblioteca de mídia e filas"
+      ],
+      "modules": [
+        "dashboard",
+        "agendador",
+        "calendario",
+        "integracoes",
+        "analytics",
+        "seguranca",
+        "atividade",
+        "rascunhos",
+        "ai",
+        "biblioteca",
+        "filas",
+        "smartlinks"
+      ]
+    },
+    "agencia": {
+      "id": "agencia",
+      "name": "Agência",
+      "description": "Colaboração e controle para times que cuidam de várias marcas.",
+      "price": "Para equipes",
+      "checkoutPrice": "R$ 149",
+      "cadence": "por mês",
+      "features": [
+        "Tudo do plano Criador",
+        "Espaços de trabalho e aprovações",
+        "Relatórios e automações"
+      ],
+      "modules": [
+        "dashboard",
+        "agendador",
+        "calendario",
+        "integracoes",
+        "analytics",
+        "seguranca",
+        "atividade",
+        "rascunhos",
+        "ai",
+        "biblioteca",
+        "filas",
+        "smartlinks",
+        "inbox",
+        "tokens",
+        "equipe",
+        "relatorios"
+      ]
+    }
+  }
+}

@@ -5,7 +5,7 @@ const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const { processarPost } = require('../../services/scheduler')
 const { probeVideo } = require('../../infra/storage/videoProbe')
-const { converterParaJpeg, lerDimensoesImagem } = require('../../infra/storage/mediaConverter')
+const { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok } = require('../../infra/storage/mediaConverter')
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
@@ -18,26 +18,18 @@ const fs = require('fs')
 const crypto = require('crypto')
 const { pipeline } = require('stream/promises')
 
-// Instagram e TikTok só aceitam imagens em JPEG — converte antes de publicar,
-// em vez de bloquear o post.
-//
-// resizeForTiktok é decidido pelo CHAMADOR, não por "platforms.includes
-// ('tiktok')" — quando Instagram e TikTok são marcados juntos com a MESMA
-// mídia compartilhada, redimensionar aqui contaminaria a versão que vai
-// pro Instagram também (bug real: um post com Instagram+TikTok e uma foto
-// horizontal/quadrada falhava no Instagram com "aspect ratio outside
-// allowed range" mesmo a foto original sendo compatível, porque a única
-// versão gerada já tinha sido forçada para 9:16 pensando só no TikTok).
-// Ver processarMidiaParaRedes, que decide isso por rede.
+// Instagram e TikTok recebem imagens em JPEG. Formatos de celular como HEIC,
+// PNG, GIF e WebP são convertidos sem reduzir a resolução ou alterar o
+// enquadramento original.
 // dimensoesPorPath acumula width/height de cada imagem tocada aqui (a
 // resolução real que efetivamente será publicada), lido depois em
 // processarMidia — evita rebaixar (fetch) a URL final de novo só para medir.
-async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, resizeForTiktok) {
+async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
   if (!platforms.includes('instagram') && !platforms.includes('tiktok')) return files
 
   return Promise.all(files.map(async f => {
     if (!f.mimetype.startsWith('image/')) return f
-    if (f.mimetype === 'image/jpeg' && !resizeForTiktok) return f
+    if (f.mimetype === 'image/jpeg') return f
 
     const fetchRes = await fetch(f.url)
     // fetch nativo devolve um Web ReadableStream em .body, que o sharp NÃO
@@ -45,7 +37,7 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, r
     // converter para Buffer aqui, toda conversão pra JPEG falha com
     // "Unsupported input" e o post inteiro quebra com 500.
     const inputBuffer = Buffer.from(await fetchRes.arrayBuffer())
-    const jpegBuffer = await converterParaJpeg(inputBuffer, { resizeForTiktok })
+    const jpegBuffer = await converterParaJpeg(inputBuffer, { mimetype: f.mimetype })
     const url = await salvarBuffer(`${crypto.randomUUID()}.jpg`, jpegBuffer, 'image/jpeg')
     if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(jpegBuffer).catch(() => null)
     return { ...f, url, mimetype: 'image/jpeg' }
@@ -94,13 +86,31 @@ async function probarVideos(files) {
 // anexa mídia independente num card (mediaByPlatform). Ver migrations/035.
 // igFormat: formato escolhido para o Instagram ('post'/'reel'/'story') — só
 // relevante quando 'instagram' está em platforms; decide a faixa de
-// proporção aceita (ver domain/posts/videoRules.js). resizeForTiktok:
-// decidido pelo chamador (ver processarMidiaParaRedes) para nunca
-// redimensionar a mídia usada por outra rede além do TikTok.
-async function processarMidia(media, captions, platforms, igFormat, resizeForTiktok) {
+// proporção aceita (ver domain/posts/videoRules.js). A mídia permanece na
+// resolução original em todas as redes.
+async function normalizarVideosTiktok(files, probes) {
+  return Promise.all(files.map(async (file, index) => {
+    if (!file.mimetype.startsWith('video/')) return file
+    const probe = probes[index]
+    if (probe?.width === 1080 && probe?.height === 1920 && file.mimetype === 'video/mp4') return file
+
+    const response = await fetch(file.url)
+    if (!response.ok) throw new Error('Não foi possível baixar o vídeo para preparar a versão do TikTok.')
+    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const outputBuffer = await converterVideoParaTiktok(inputBuffer)
+    const url = await salvarBuffer(`${crypto.randomUUID()}-tiktok.mp4`, outputBuffer, 'video/mp4')
+    return { ...file, url, mimetype: 'video/mp4' }
+  }))
+}
+
+async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false } = {}) {
   const dimensoesPorPath = {}
-  const files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath, resizeForTiktok)
-  const probes = await probarVideos(files)
+  let files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath)
+  let probes = await probarVideos(files)
+  if (normalizarTiktok && platforms.includes('tiktok')) {
+    files = await normalizarVideosTiktok(files, probes)
+    probes = await probarVideos(files)
+  }
   const items = montarItensMedia(files, captions)
   const mediaType = items[0]?.type || null
   const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
@@ -235,35 +245,27 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
       throw new ValidationError(`URL de mídia inválida em mediaByPlatform.${platform} — envie o arquivo pelo upload padrão.`)
   }
 
-  // A mídia COMPARTILHADA nunca é redimensionada para o TikTok (resizeForTiktok:
-  // false) — isso evita que uma foto horizontal/quadrada compatível com o
-  // Instagram vire 9:16 "achatada" na versão usada por TODAS as redes sem
-  // mídia própria, quebrando o Instagram quando os dois são marcados juntos
-  // com a mesma foto (bug real, corrigido — ver comentário em
-  // converterMidiasSeNecessario).
-  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat, false)
+  // A mídia compartilhada mantém resolução e enquadramento originais em
+  // todas as redes; cada API faz o enquadramento final.
+  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat)
   const mediaPath = items[0]?.path || null
   const mediaItems = items.length > 1 ? items : null
 
   // Processa a mídia própria de cada rede que tiver (em paralelo) — o
   // resultado alimenta tanto a validação por rede (domain/posts/post.js)
   // quanto o que é gravado em post_accounts.media_items por conta. TikTok
-  // sempre entra aqui quando está entre as plataformas e é uma foto — mesmo
-  // sem o usuário ter escolhido mídia independente manualmente — para ganhar
-  // sua própria versão redimensionada (9:16) sem afetar a mídia compartilhada
-  // usada pelas demais redes. Se o usuário JÁ escolheu mídia independente
-  // para o TikTok (mediaByPlatform.tiktok), usa essa (não a compartilhada)
-  // como origem do redimensionamento, respeitando a escolha dele.
+  // sempre entra aqui quando está entre as plataformas e é uma foto, para
+  // preservar a mídia por rede sem afetar a versão compartilhada. Se o
+  // usuário escolheu mídia independente, ela continua sendo respeitada.
   const platformsComMidiaPropria = Object.keys(mediaByPlatform).filter(p => platforms.includes(p))
-  const tiktokPrecisaDeVersaoPropria = platforms.includes('tiktok') && !platformsComMidiaPropria.includes('tiktok') && mediaType === 'image'
+  const tiktokPrecisaDeVersaoPropria = platforms.includes('tiktok') && !platformsComMidiaPropria.includes('tiktok') && ['image', 'video'].includes(mediaType)
   const todasComMidiaPropria = tiktokPrecisaDeVersaoPropria ? [...platformsComMidiaPropria, 'tiktok'] : platformsComMidiaPropria
 
   const resultadosPorPlataforma = await Promise.all(
     todasComMidiaPropria.map(p => {
       const origemMedia = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? media : mediaByPlatform[p]
       const origemCaptions = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? captions : (captionsByPlatform[p] || [])
-      const resizeParaEssaChamada = p === 'tiktok'
-      return processarMidia(origemMedia, origemCaptions, [p], igFormat, resizeParaEssaChamada)
+      return processarMidia(origemMedia, origemCaptions, [p], igFormat, { normalizarTiktok: p === 'tiktok' })
     })
   )
   const itemsByPlatform = {}

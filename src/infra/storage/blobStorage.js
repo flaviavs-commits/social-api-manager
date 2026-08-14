@@ -4,7 +4,7 @@ const crypto = require('crypto')
 const { put, presignUrl, issueSignedToken } = require('@vercel/blob')
 
 const ALLOWED_MEDIA_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'image/avif', 'image/tiff', 'image/bmp',
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'
 ])
 

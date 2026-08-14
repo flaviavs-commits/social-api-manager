@@ -64,7 +64,7 @@ async function processarPost(post) {
         : results.some(sucesso) ? 'partial'
         : 'error'
       const failureDetails = falhas
-        .map(result => `${result.platform || 'Rede social'}: ${result.error || 'A rede não confirmou a publicação.'}`)
+        .map(result => `${result.platform || 'Rede social'}${result.account ? ` (${result.account})` : ''}: ${result.error || 'A rede não informou o motivo.'}`)
         .join(' | ') || null
       await postsRepo.atualizarStatusPost(post.id, status, status === 'published' ? null : failureDetails)
     }
@@ -197,6 +197,14 @@ async function processarPrimeirosComentarios() {
 async function processarPendentes() {
   try { await processarFilasRecorrentes() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar fila recorrente: ${err.message}`, platform: null }) }
   try { await processarRelatoriosAgendados() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar relatório agendado: ${err.message}`, platform: null }) }
+  try {
+    const recuperados = await postsRepo.recuperarPostsProcessingStale()
+    if (recuperados.length) {
+      await registrarLog({ type: 'err', message: `${recuperados.length} publicação(ões) presas em processamento foram encerradas para revisão`, platform: null })
+    }
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao recuperar publicações presas: ${err.message}`, platform: null })
+  }
   try {
     const pendentes = await postsRepo.reservarPostsPendentes()
     // Posts pendentes são independentes entre si (já reservados atomicamente como

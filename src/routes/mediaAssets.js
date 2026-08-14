@@ -6,14 +6,17 @@ const router = Router()
 
 router.get('/', async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50))
+    const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0)
     const search = String(req.query.search || '').trim()
     const folder = String(req.query.folder || '').trim()
     const params = [req.user.id]
     const conditions = ['user_id=$1']
     if (search) { params.push(`%${search}%`); conditions.push(`(name ILIKE $${params.length} OR EXISTS (SELECT 1 FROM unnest(tags) AS tag WHERE tag ILIKE $${params.length}))`) }
     if (folder) { params.push(folder); conditions.push(`folder=$${params.length}`) }
-    const { rows } = await pool.query(`SELECT id, name, url, mime_type AS "mimeType", size_bytes AS "sizeBytes", folder, tags, criado_em AS "createdAt" FROM media_assets WHERE ${conditions.join(' AND ')} ORDER BY criado_em DESC`, params)
-    res.json({ assets: rows })
+    params.push(limit + 1, offset)
+    const { rows } = await pool.query(`SELECT id, name, url, mime_type AS "mimeType", size_bytes AS "sizeBytes", folder, tags, criado_em AS "createdAt" FROM media_assets WHERE ${conditions.join(' AND ')} ORDER BY criado_em DESC, id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params)
+    res.json({ assets: rows.slice(0, limit), limit, offset, hasMore: rows.length > limit })
   } catch (err) { serverError(res, err) }
 })
 

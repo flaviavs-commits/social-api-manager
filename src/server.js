@@ -36,15 +36,29 @@ const { runMigrations } = require('./db/runtimeMigrations')
 const { getStatusMap } = require('./services/platformHealth')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
 const { isBlobUrl, readResponseLimited, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('./infra/storage/blobStorage')
-const { issueAuthSession } = require('./utils/authCookie')
+const { issueAuthSession, issueCsrfToken, readCookie, CSRF_COOKIE, AUTH_COOKIE } = require('./utils/authCookie')
 const { readEnv, assertProductionSecrets } = require('./config/env')
 const asyncHandler = require('./http/asyncHandler')
 const { errorHandler } = require('./http/errorHandler')
 const { safeMessage } = require('./utils/redact')
+const { requirePlanModule } = require('./config/plans')
 
 const app = express()
 app.disable('x-powered-by')
 const config = readEnv()
+const reactShellPath = path.join(__dirname, '../public/react/index.html')
+const notFoundPagePath = path.join(__dirname, '../public/404.html')
+const appPages = [
+  'dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox',
+  'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil',
+  'biblioteca', 'filas', 'smartlinks', 'equipe'
+]
+const appPagePaths = appPages.map(page => `/app/${page}`)
+const applicationNamespaces = ['/api', '/auth', '/oauth', '/go', '/media-proxy', '/uploads', '/assets']
+
+function sendReactShell(_req, res) {
+  return res.sendFile(reactShellPath)
+}
 
 // Falhar cedo evita iniciar uma instância que emitiria tokens impossíveis de
 // validar ou armazenaria credenciais sem a proteção esperada.
@@ -79,6 +93,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.setHeader('Content-Security-Policy-Report-Only', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'")
   if (config.isProduction && req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
@@ -123,6 +138,27 @@ app.use((req, res, next) => {
   next()
 })
 
+// A sessão autenticada via cookie precisa apresentar também o token
+// double-submit. A checagem de Origin continua útil, mas não substitui CSRF.
+app.use((req, res, next) => {
+  const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+  const protectedPath = ['/api/', '/auth/', '/oauth/'].some(prefix => req.path.startsWith(prefix))
+  if (mutating && protectedPath && readCookie(req, AUTH_COOKIE)) {
+    const cookieToken = readCookie(req, CSRF_COOKIE)
+    const headerToken = req.get('X-CSRF-Token')
+    if (!cookieToken || !headerToken || cookieToken.length !== headerToken.length || cookieToken !== headerToken) {
+      return res.status(403).json({ erro: 'Token CSRF ausente ou inválido.' })
+    }
+  }
+  next()
+})
+
+app.get('/auth/csrf', (req, res) => {
+  const current = readCookie(req, CSRF_COOKIE)
+  const token = current || issueCsrfToken(res)
+  res.json({ token })
+})
+
 app.use('/auth/login', authRoutes)
 
 // As rotas de OAuth (incluindo os callbacks navegados pelo provedor externo)
@@ -144,13 +180,13 @@ app.use('/go', publicSmartlinksRoutes)
 // token, e as chamadas de API por baixo (apiFetch('/api/admin/...')) são
 // quem de fato exige token + role admin, redirecionando no 401/403.
 app.get('/admin.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+  return sendReactShell(req, res)
 })
 
 // As telas de autenticação pertencem ao shell React. Os caminhos antigos são
 // mantidos como URLs públicas para não invalidar links já enviados por e-mail.
 app.get(['/login.html', '/reset-password.html', '/verify-2fa.html'], (_req, res) => {
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+  return sendReactShell(_req, res)
 })
 
 app.use('/assets', express.static(path.join(__dirname, '../public/react/assets')))
@@ -232,7 +268,7 @@ app.get('/', (req, res) => {
     return res.redirect((process.env.FRONTEND_URL || '') + '/app.html')
   }
 
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+  return sendReactShell(req, res)
 })
 
 // Páginas legais públicas (exigência da revisão do TikTok: ToS e Privacy
@@ -247,12 +283,23 @@ app.get('/support', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/support.html'))
 })
 app.get('/sobre', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+  return sendReactShell(req, res)
+})
+
+app.get('/como-funciona', (req, res) => {
+  return sendReactShell(req, res)
 })
 
 // O dashboard React é servido pela mesma URL pública do produto.
 app.get('/app.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+  return sendReactShell(req, res)
+})
+
+// A SPA só deve ser entregue para páginas que o frontend realmente conhece.
+// O wildcard anterior fazia qualquer URL, inclusive typo e rota removida,
+// retornar 200 com o dashboard, mascarando links quebrados e scanners.
+app.get(appPagePaths, (req, res) => {
+  return sendReactShell(req, res)
 })
 
 app.use(express.static(path.join(__dirname, '../public'), { index: false }))
@@ -281,6 +328,18 @@ app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 
 // do navegador. As rotas autenticadas da aplicação continuam abaixo.
 app.use('/api/v1', requireApiKey, apiV1Routes)
 
+// Tudo que não foi atendido pelas páginas públicas, pela SPA conhecida ou
+// pelos arquivos estáticos deve ser 404 antes do requireAuth. Caso contrário,
+// uma URL digitada incorretamente seria redirecionada para login (302),
+// escondendo o fato de que o recurso não existe.
+app.use((req, res, next) => {
+  const belongsToApplicationNamespace = applicationNamespaces.some(prefix =>
+    req.path === prefix || req.path.startsWith(`${prefix}/`)
+  )
+  if (belongsToApplicationNamespace) return next()
+  return res.status(404).sendFile(notFoundPagePath)
+})
+
 app.use(requireAuth)
 
 const apiLimiter = rateLimit({
@@ -294,7 +353,7 @@ app.use('/api', apiLimiter)
 
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=30')
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
+  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, plan: req.user.plan, planUnrestricted: req.user.planUnrestricted === true, fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
 })
 
 app.use('/api/me',       meRoutes)
@@ -303,17 +362,17 @@ app.use('/api/tokens',   tokensRoutes)
 app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)
-app.use('/api/drafts',   draftsRoutes)
+app.use('/api/drafts',   requirePlanModule('rascunhos'), draftsRoutes)
 app.use('/api/saved-texts', savedTextsRoutes)
 app.use('/api/platform-presets', platformPresetsRoutes)
 app.use('/api/push',     pushRoutes)
-app.use('/api/ai',       aiRoutes)
-app.use('/api/media-assets', mediaAssetsRoutes)
-app.use('/api/media-folders', mediaFoldersRoutes)
-app.use('/api/content-queues', contentQueuesRoutes)
-app.use('/api/report-schedules', reportSchedulesRoutes)
-app.use('/api/smartlinks', smartlinksRoutes)
-app.use('/api/workspaces', workspacesRoutes)
+app.use('/api/ai',       requirePlanModule('ai'), aiRoutes)
+app.use('/api/media-assets', requirePlanModule('biblioteca'), mediaAssetsRoutes)
+app.use('/api/media-folders', requirePlanModule('biblioteca'), mediaFoldersRoutes)
+app.use('/api/content-queues', requirePlanModule('filas'), contentQueuesRoutes)
+app.use('/api/report-schedules', requirePlanModule('relatorios'), reportSchedulesRoutes)
+app.use('/api/smartlinks', requirePlanModule('smartlinks'), smartlinksRoutes)
+app.use('/api/workspaces', requirePlanModule('equipe'), workspacesRoutes)
 app.use('/api/webhooks', webhooksRoutes)
 app.use('/api/api-keys', apiKeysRoutes)
 
@@ -325,9 +384,11 @@ app.get('/api/platform-health', asyncHandler(async (req, res) => {
 // A API nunca deve devolver HTML para uma rota inexistente.
 app.use('/api', (_req, res) => res.status(404).json({ erro: 'Endpoint não encontrado' }))
 
-app.get('*', (req, res) => {
-  // Todas as rotas de interface entram pelo shell React.
-  res.sendFile(path.join(__dirname, '../public/react/index.html'))
+// Rota desconhecida: não entregar o shell React nem revelar detalhes do
+// servidor. A resposta mantém status 404 também para clientes HTML.
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) return next()
+  return res.status(404).sendFile(notFoundPagePath)
 })
 
 // Error handler global — nunca expõe stack traces ao cliente.
@@ -342,21 +403,26 @@ app.use(errorHandler)
 // pelo error handler do Express; o resto do servidor não deve morrer junto.
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection:', safeMessage(reason?.stack || reason?.message || reason))
+  if (require.main === module) setImmediate(() => process.exit(1))
 })
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', safeMessage(err?.stack || err?.message || err))
+  if (require.main === module) setImmediate(() => process.exit(1))
 })
 
 if (require.main === module) {
   const PORT = config.port
   runMigrations()
-    .catch(err => console.error('Migration error:', safeMessage(err?.stack || err?.message || err)))
-    .finally(() => {
+    .then(() => {
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
         console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
         scheduler.start()
       })
+    })
+    .catch(err => {
+      console.error('Migration error — servidor não iniciado:', safeMessage(err?.stack || err?.message || err))
+      process.exitCode = 1
     })
 }
 

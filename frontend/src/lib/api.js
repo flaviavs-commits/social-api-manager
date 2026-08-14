@@ -1,6 +1,7 @@
 // Em desenvolvimento o Vite usa o proxy local; em produção o front pode ser
 // hospedado separadamente do backend (Vercel/Railway, por exemplo).
 export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+let csrfToken = null
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -11,8 +12,20 @@ export class ApiError extends Error {
 }
 
 export function logout() {
-  void fetch(`${API_URL}/auth/login/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
+  void ensureCsrfToken().then(token => fetch(`${API_URL}/auth/login/logout`, { method: 'POST', credentials: 'include', headers: token ? { 'X-CSRF-Token': token } : {} })).catch(() => {})
   window.location.assign('/login.html')
+}
+
+async function ensureCsrfToken() {
+  if (csrfToken) return csrfToken
+  try {
+    const response = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include' })
+    const body = await response.json()
+    csrfToken = body?.token || null
+  } catch {
+    csrfToken = null
+  }
+  return csrfToken
 }
 
 function parseBody(text) {
@@ -30,12 +43,15 @@ async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
+    const method = String(requestOptions.method || 'GET').toUpperCase()
+    const token = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? await ensureCsrfToken() : null
     const response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
       credentials: 'include',
       signal: requestOptions.signal || controller.signal,
       headers: {
         ...(requestOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { 'X-CSRF-Token': token } : {}),
         ...headers,
       },
     })

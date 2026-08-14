@@ -1,7 +1,7 @@
 const postsRepo = require('../../infra/db/postsRepository')
 
-async function listarPosts({ status, userId, isAdmin }) {
-  return postsRepo.listarPosts({ status, userId, isAdmin })
+async function listarPosts({ status, userId, isAdmin, page, limit }) {
+  return postsRepo.listarPosts({ status, userId, isAdmin, page, limit })
 }
 
 async function listarPostsCalendario({ year, month, userId, isAdmin }) {

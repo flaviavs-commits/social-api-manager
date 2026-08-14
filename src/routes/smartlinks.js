@@ -4,7 +4,42 @@ const { parseId, serverError } = require('../utils/http')
 
 const apiRouter = Router()
 const publicRouter = Router()
-const slugify = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || `link-${Date.now()}`
+const SLUG_MAX_LENGTH = 60
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const RESERVED_SLUGS = new Set(['api', 'app', 'assets', 'auth', 'go', 'login', 'support', 'privacy-policy', 'terms-of-service', 'como-funciona', 'criar-conta'])
+const slugify = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, SLUG_MAX_LENGTH)
+const normalizeSlug = value => slugify(String(value || '').trim())
+const slugError = slug => {
+  if (!slug) return 'Informe uma URL personalizada.'
+  if (slug.length < 3) return 'A URL personalizada precisa ter pelo menos 3 caracteres.'
+  if (!SLUG_PATTERN.test(slug)) return 'Use apenas letras, números e hífens, sem espaços ou símbolos.'
+  if (RESERVED_SLUGS.has(slug)) return 'Essa palavra é reservada pelo sistema. Escolha outra URL.'
+  return null
+}
+const isUniqueViolation = error => error?.code === '23505'
+
+async function isSlugAvailable(client, slug, ignoreId = null) {
+  const smartlink = await client.query(
+    ignoreId === null
+      ? 'SELECT id FROM smartlinks WHERE slug=$1 LIMIT 1'
+      : 'SELECT id FROM smartlinks WHERE slug=$1 AND id<>$2 LIMIT 1',
+    ignoreId === null ? [slug] : [slug, ignoreId]
+  )
+  if (smartlink.rows.length) return false
+  const alias = await client.query('SELECT smartlink_id FROM smartlink_slug_aliases WHERE slug=$1 LIMIT 1', [slug])
+  return !alias.rows.length || (ignoreId !== null && alias.rows[0].smartlink_id === ignoreId)
+}
+
+async function uniqueGeneratedSlug(client, baseSlug) {
+  const base = baseSlug || `link-${Date.now()}`
+  if (!RESERVED_SLUGS.has(base) && await isSlugAvailable(client, base)) return base
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const suffix = Math.random().toString(36).slice(2, 6)
+    const candidate = `${base.slice(0, SLUG_MAX_LENGTH - 5)}-${suffix}`
+    if (!RESERVED_SLUGS.has(candidate) && await isSlugAvailable(client, candidate)) return candidate
+  }
+  return `${base.slice(0, SLUG_MAX_LENGTH - 13)}-${Date.now().toString(36)}`
+}
 const normalizeUrl = value => {
   const candidate = String(value || '').trim()
   if (!candidate) return null
@@ -34,14 +69,51 @@ apiRouter.post('/', async (req, res) => {
     })).filter(item => item.label && item.url).slice(0, 30) : []
     if (!validItems.length) return res.status(400).json({ erro: 'Adicione ao menos um link HTTPS válido.' })
     client = await pool.connect()
-    const baseSlug = slugify(slug || name)
-    const candidate = `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`
     await client.query('BEGIN')
+    const requestedSlug = String(slug || '').trim()
+    let candidate
+    if (requestedSlug) {
+      candidate = normalizeSlug(requestedSlug)
+      const error = slugError(candidate)
+      if (error) { await client.query('ROLLBACK'); return res.status(400).json({ erro: error }) }
+      if (!await isSlugAvailable(client, candidate)) { await client.query('ROLLBACK'); return res.status(409).json({ erro: 'Essa URL personalizada já está em uso.' }) }
+    } else {
+      candidate = await uniqueGeneratedSlug(client, normalizeSlug(name))
+    }
     const { rows } = await client.query('INSERT INTO smartlinks (user_id,name,slug,title,description,theme) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,slug', [req.user.id, name.trim(), candidate, title?.trim() || name.trim(), description?.trim() || null, JSON.stringify(theme || {})])
     for (const [position, item] of validItems.entries()) await client.query('INSERT INTO smartlink_items (smartlink_id,label,url,position) VALUES ($1,$2,$3,$4)', [rows[0].id, item.label.trim(), item.url.trim(), position])
     await client.query('COMMIT')
     res.status(201).json({ id: rows[0].id, slug: rows[0].slug, publicUrl: `/go/${rows[0].slug}` })
-  } catch (err) { await client?.query('ROLLBACK').catch(() => {}); serverError(res, err) } finally { client?.release() }
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {})
+    if (isUniqueViolation(err)) return res.status(409).json({ erro: 'Essa URL personalizada já está em uso.' })
+    serverError(res, err)
+  } finally { client?.release() }
+})
+
+apiRouter.patch('/:id', async (req, res) => {
+  let client
+  try {
+    const id = parseId(req.params.id)
+    if (!id) return res.status(400).json({ erro: 'id inválido' })
+    const candidate = normalizeSlug(req.body?.slug)
+    const error = slugError(candidate)
+    if (error) return res.status(400).json({ erro: error })
+    client = await pool.connect()
+    await client.query('BEGIN')
+    const current = await client.query('SELECT id,slug FROM smartlinks WHERE id=$1 AND user_id=$2 FOR UPDATE', [id, req.user.id])
+    if (!current.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Smartlink não encontrado.' }) }
+    if (current.rows[0].slug === candidate) { await client.query('COMMIT'); return res.json({ id, slug: candidate, publicUrl: `/go/${candidate}` }) }
+    if (!await isSlugAvailable(client, candidate, id)) { await client.query('ROLLBACK'); return res.status(409).json({ erro: 'Essa URL personalizada já está em uso.' }) }
+    await client.query('INSERT INTO smartlink_slug_aliases (slug,smartlink_id) VALUES ($1,$2) ON CONFLICT (slug) DO NOTHING', [current.rows[0].slug, id])
+    await client.query('UPDATE smartlinks SET slug=$1 WHERE id=$2 AND user_id=$3', [candidate, id, req.user.id])
+    await client.query('COMMIT')
+    res.json({ id, slug: candidate, publicUrl: `/go/${candidate}` })
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {})
+    if (isUniqueViolation(err)) return res.status(409).json({ erro: 'Essa URL personalizada já está em uso.' })
+    serverError(res, err)
+  } finally { client?.release() }
 })
 
 apiRouter.delete('/:id', async (req, res) => {
@@ -49,19 +121,20 @@ apiRouter.delete('/:id', async (req, res) => {
 })
 
 async function getPublic(slug) {
-  const { rows } = await pool.query(`SELECT s.name,s.slug,s.title,s.description,s.theme,s.active,i.id,i.label,i.url,i.position FROM smartlinks s LEFT JOIN smartlink_items i ON i.smartlink_id=s.id WHERE s.slug=$1 ORDER BY i.position`, [slug])
+  const { rows } = await pool.query(`SELECT s.name,s.slug,s.title,s.description,s.theme,s.active,a.slug AS "aliasSlug",i.id,i.label,i.url,i.position FROM smartlinks s LEFT JOIN smartlink_slug_aliases a ON a.smartlink_id=s.id AND a.slug=$1 LEFT JOIN smartlink_items i ON i.smartlink_id=s.id WHERE s.slug=$1 OR a.slug=$1 ORDER BY i.position`, [slug])
   if (!rows.length || !rows[0].active) return null
   return { ...rows[0], items: rows.filter(row => row.id).map(row => ({ id: row.id, label: row.label, url: row.url })) }
 }
 const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
 
 publicRouter.get('/:slug/:itemId', async (req, res) => {
-  try { const id = parseId(req.params.itemId); const { rows } = await pool.query('SELECT url FROM smartlink_items i JOIN smartlinks s ON s.id=i.smartlink_id WHERE s.slug=$1 AND s.active=true AND i.id=$2', [req.params.slug, id]); if (!rows.length || !validUrl(rows[0].url)) return res.status(404).send('Link não encontrado'); await pool.query('UPDATE smartlink_items SET clicks=clicks+1 WHERE id=$1', [id]); res.redirect(rows[0].url) } catch { res.status(404).send('Link não encontrado') }
+  try { const id = parseId(req.params.itemId); const { rows } = await pool.query('SELECT url FROM smartlink_items i JOIN smartlinks s ON s.id=i.smartlink_id LEFT JOIN smartlink_slug_aliases a ON a.smartlink_id=s.id WHERE (s.slug=$1 OR a.slug=$1) AND s.active=true AND i.id=$2', [req.params.slug, id]); if (!rows.length || !validUrl(rows[0].url)) return res.status(404).send('Link não encontrado'); await pool.query('UPDATE smartlink_items SET clicks=clicks+1 WHERE id=$1', [id]); res.redirect(rows[0].url) } catch { res.status(404).send('Link não encontrado') }
 })
 publicRouter.get('/:slug', async (req, res) => {
   try {
     const data = await getPublic(req.params.slug)
     if (!data) return res.status(404).send('Página não encontrada')
+    if (data.aliasSlug && data.aliasSlug !== data.slug) return res.redirect(301, `/go/${encodeURIComponent(data.slug)}`)
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
 
     const title = escapeHtml(data.title || data.name || 'Smartlink')

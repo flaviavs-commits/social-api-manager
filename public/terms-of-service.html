@@ -22,8 +22,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
-.legal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 0.5rem; }
-.legal-header img { width: 48px; height: 48px; }
+.legal-header { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; margin-bottom: 0.5rem; }
+.legal-header img { display: block; width: 170px; height: auto; }
 .legal-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
 .updated { color: var(--muted); font-size: 13px; margin-bottom: 1.25rem; }
 .intro { color: var(--text); font-size: 15px; margin-bottom: 2rem; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
@@ -60,7 +60,7 @@ try { document.documentElement.dataset.theme = localStorage.getItem('meu-ecoo:th
 
 <div class="wrap">
   <div class="legal-header">
-    <img src="/favicon.png" alt="Meu Ecoo Mídia">
+    <a href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia"></a>
     <h1>Termos de Uso</h1>
   </div>
   <p class="updated">Última atualização: 15 de julho de 2026 · Vigente desde: junho de 2026</p>

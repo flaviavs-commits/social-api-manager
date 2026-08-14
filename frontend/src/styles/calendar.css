@@ -107,6 +107,145 @@
   margin: 10px 0 0 58px;
 }
 
+.calendar-paste-button {
+  padding: 8px 11px;
+  border: 1px solid rgba(209, 153, 62, .38);
+  border-radius: 8px;
+  background: rgba(209, 153, 62, .12);
+  color: var(--accent-bright);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calendar-copy-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 15px;
+  border: 1px solid rgba(209, 153, 62, .34);
+  border-radius: 12px;
+  background: linear-gradient(115deg, rgba(209, 153, 62, .12), rgba(74, 222, 128, .05) 70%);
+  color: var(--text);
+  box-shadow: 0 8px 20px rgb(0 0 0 / .08);
+}
+
+.calendar-copy-notice-icon {
+  display: grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(209, 153, 62, .18);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calendar-copy-notice-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.calendar-copy-notice-kicker {
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.calendar-copy-notice strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.calendar-copy-notice p,
+.calendar-copy-notice small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.calendar-copy-notice small {
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+.calendar-copy-notice-destination {
+  color: var(--accent-strong) !important;
+  font-weight: 600;
+}
+
+.calendar-copy-notice-destination strong {
+  display: inline;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.calendar-copy-notice.is-complete {
+  border-color: rgba(74, 222, 128, .34);
+  background: rgba(74, 222, 128, .08);
+}
+
+.calendar-copy-notice.is-complete .calendar-copy-notice-icon {
+  background: rgba(74, 222, 128, .16);
+  color: #4ade80;
+}
+
+.calendar-copy-notice.is-complete .calendar-copy-notice-kicker {
+  color: #4ade80;
+}
+
+.calendar-paste-button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid rgba(209, 153, 62, .48);
+  border-radius: 9px;
+  background: rgba(209, 153, 62, .12);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.calendar-paste-button:hover {
+  border-color: var(--accent);
+  background: rgba(209, 153, 62, .2);
+  transform: translateY(-1px);
+}
+
+.calendar-paste-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.calendar-paste-label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.calendar-paste-label input {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--app-bg);
+  color: var(--text);
+}
+
 .calendar-repeat-form {
   display: grid;
   gap: 12px;
@@ -115,6 +254,10 @@
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-2);
+}
+
+.calendar-repeat-form-inline {
+  margin-left: 58px;
 }
 
 .calendar-repeat-form p {
@@ -149,6 +292,9 @@
 @media (max-width: 767px) {
   .calendar-detail-preview { margin-left: 0; }
   .calendar-detail-actions { margin-left: 0; }
+  .calendar-repeat-form-inline { margin-left: 0; }
+  .calendar-copy-notice { align-items: flex-start; flex-wrap: wrap; }
+  .calendar-copy-notice .calendar-paste-button { width: 100%; margin-left: 35px; }
   .calendar-media-preview { max-height: 220px; }
   .calendar-list-copy strong,
   .calendar-list-copy .calendar-post-warning { white-space: normal; }

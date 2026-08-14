@@ -1,8 +1,56 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_URL, ApiError, publicApiFetch } from '../lib/api.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
+import { DEFAULT_PLAN, PLANS } from '../lib/plans.js'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_MIN_LENGTH = 8
+const VALID_PLANS = new Set(Object.keys(PLANS))
+const AUTH_ERROR_MESSAGES = new Set([
+  'Login com Google cancelado.',
+  'Sessão de login inválida ou expirada. Tente novamente.',
+  'Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.',
+  'Não foi possível obter seu e-mail do Google.'
+])
+
+const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
+  id: plan.id,
+  name: plan.name,
+  price: plan.checkoutPrice,
+  cadence: plan.cadence,
+  description: plan.description,
+  features: plan.features,
+  featured: plan.id === 'criador',
+}))
+
+const PAYMENT_METHODS = [
+  { id: 'credit', label: 'Cartão de crédito', icon: '▣', description: 'Parcele e renove automaticamente' },
+  { id: 'debit', label: 'Cartão de débito', icon: '▤', description: 'Pagamento à vista' },
+  { id: 'pix', label: 'Pix', icon: '◇', description: 'Confirmação rápida' },
+]
+
+function formatCardNumber(value) {
+  return value.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
+}
+
+function formatExpiry(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 4)
+  return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+}
+
+// Parâmetros da tela de autenticação são apenas estado de apresentação. Não
+// devem aceitar HTML, URLs de redirecionamento, planos arbitrários ou texto
+// ilimitado vindo da barra de endereço.
+export function parseLoginQuery(search = '') {
+  const params = new URLSearchParams(search)
+  const rawPlan = params.get('plan')
+  const rawError = params.get('error')
+  return {
+    register: params.get('register') === '1',
+    selectedPlan: VALID_PLANS.has(rawPlan) ? rawPlan : null,
+    error: AUTH_ERROR_MESSAGES.has(rawError) ? rawError : null
+  }
+}
 
 function validEmail(email) {
   return EMAIL_PATTERN.test(email.trim())
@@ -22,7 +70,7 @@ function maskEmail(email) {
 
 function passwordRules(password) {
   return {
-    length: password.length >= 6 && password.length <= 72,
+    length: password.length >= PASSWORD_MIN_LENGTH && password.length <= 72,
     uppercase: /[A-Z]/.test(password),
     number: /[0-9]/.test(password),
     special: /[^A-Za-z0-9]/.test(password),
@@ -31,7 +79,7 @@ function passwordRules(password) {
 
 function Message({ message }) {
   if (!message) return null
-  return <p className={`auth-message auth-message--${message.type}`} role="alert">{message.text}</p>
+  return <div className={`auth-message auth-message--${message.type}`} role="alert"><span>{message.text}</span>{message.action && <button type="button" className="auth-message-action" onClick={message.action.onClick}>{message.action.label}</button>}</div>
 }
 
 function AuthCard({ children }) {
@@ -39,9 +87,9 @@ function AuthCard({ children }) {
 }
 
 export function LoginPage() {
-  const queryParams = useMemo(() => new URLSearchParams(window.location.search), [])
-  const selectedPlan = queryParams.get('plan')
-  const [register, setRegister] = useState(queryParams.get('register') === '1')
+  const initialQuery = useMemo(() => parseLoginQuery(window.location.search), [])
+  const { selectedPlan, error: queryError } = initialQuery
+  const [register, setRegister] = useState(initialQuery.register)
   const [flow, setFlow] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -50,22 +98,38 @@ export function LoginPage() {
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
 
-  const queryError = queryParams.get('error')
-
   useEffect(() => {
     if (queryError) setMessage({ type: 'error', text: queryError })
   }, [queryError])
 
+  useEffect(() => {
+    // Remove register/plan/error e qualquer parâmetro desconhecido do
+    // histórico assim que a tela é carregada. Isso reduz exposição em
+    // histórico, screenshots, referrers e ferramentas de suporte.
+    if (window.location.search) {
+      window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
+    }
+  }, [])
+
   const submitCredentials = async event => {
     event.preventDefault()
     if (!validEmail(email)) return setMessage({ type: 'error', text: 'Informe um e-mail válido.' })
+    if (register && !Object.values(passwordRules(password)).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.' })
     setBusy(true)
     setMessage(null)
     try {
       const endpoint = register ? '/auth/login/register' : '/auth/login/login'
-      const data = await publicApiFetch(endpoint, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() || undefined }) })
+      const data = await publicApiFetch(endpoint, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() || undefined, plan: register ? selectedPlan || undefined : undefined }) })
       if (data.requires2fa) {
+        if (data.passwordUpgradeRecommended) {
+          setMessage({ type: 'warning', text: 'Sua senha atual ainda funciona, mas é mais curta que o padrão de segurança. Recomendamos trocar por uma senha com pelo menos 8 caracteres.', action: { label: 'Trocar senha agora', onClick: () => { setFlow('forgot-email'); setMessage(null) } } })
+        }
         setFlow('login-2fa')
+        return
+      }
+      if (data.passwordUpgradeRecommended) {
+        const redirectTimer = window.setTimeout(() => window.location.assign('/app.html'), 6000)
+        setMessage({ type: 'warning', text: 'Sua senha atual ainda funciona, mas é mais curta que o padrão de segurança. Para proteger melhor sua conta, recomendamos trocar por uma senha com 8 a 72 caracteres.', action: { label: 'Trocar senha agora', onClick: () => { window.clearTimeout(redirectTimer); setFlow('forgot-email'); setMessage(null) } } })
         return
       }
       window.location.assign('/app.html')
@@ -94,7 +158,7 @@ export function LoginPage() {
     setBusy(true)
     try {
       const data = await publicApiFetch('/auth/login/reset-2fa', { method: 'POST', body: JSON.stringify({ email: email.trim(), code }) })
-      window.location.assign(`/reset-password.html?token=${encodeURIComponent(data.token)}`)
+      window.location.assign(`/reset-password.html#token=${encodeURIComponent(data.token)}`)
     } catch (error) {
       setMessage({ type: 'error', text: error.message || 'Não foi possível verificar o código.' })
     } finally { setBusy(false) }
@@ -154,8 +218,8 @@ export function LoginPage() {
         <label className="auth-label" htmlFor="email">E-mail</label>
         <input id="email" className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} required />
         <label className="auth-label" htmlFor="password">Senha</label>
-        <input id="password" className="auth-input" type="password" value={password} onChange={event => setPassword(event.target.value)} required />
-        {register && <p className="auth-help">Use pelo menos 6 caracteres, uma maiúscula, um número e um caractere especial.</p>}
+        <input id="password" className="auth-input" type="password" minLength={register ? PASSWORD_MIN_LENGTH : undefined} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} required />
+        {register && <p className="auth-help">Use de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.</p>}
         <button className="auth-button" disabled={busy}>{busy ? 'Aguarde…' : register ? 'Criar conta' : 'Entrar'}</button>
       </form>
       {!register && <a className="auth-link auth-forgot" href="#forgot" onClick={event => { event.preventDefault(); setFlow('forgot-email'); setMessage(null) }}>Esqueceu sua senha?</a>}
@@ -163,14 +227,102 @@ export function LoginPage() {
       <a className="auth-button auth-button--google" href={`${API_URL}/auth/login/google`}>Continuar com o Google</a>
     </>}
 
-    {flow === 'login' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" className="auth-link" onClick={() => { setRegister(value => !value); setFlow('login'); setMessage(null) }}>{register ? 'Entrar' : 'Criar conta'}</button></p>}
+    {flow === 'login' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} {register ? <button type="button" className="auth-link" onClick={() => { setRegister(false); setFlow('login'); setMessage(null) }}>Entrar</button> : <a className="auth-link" href="/criar-conta">Criar conta</a>}</p>}
     {flow === 'forgot-email' || flow === 'forgot-2fa' || flow === 'forgot-sent' ? <p className="auth-switch"><button type="button" className="auth-link" onClick={() => { setFlow('login'); setMessage(null) }}>Voltar para o login</button></p> : null}
     <p className="auth-legal"><a href="/privacy-policy">Política de Privacidade</a><a href="/terms-of-service">Termos de Uso</a></p>
   </AuthCard>
 }
 
+export function CreateAccountPage() {
+  const initialPlan = useMemo(() => {
+    const plan = new URLSearchParams(window.location.search).get('plan')
+    return ACCOUNT_PLANS.some(item => item.id === plan) ? plan : DEFAULT_PLAN
+  }, [])
+  const [selectedPlan, setSelectedPlan] = useState(initialPlan)
+  const [paymentMethod, setPaymentMethod] = useState('credit')
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [cardName, setCardName] = useState('')
+  const [cardNumber, setCardNumber] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [cvv, setCvv] = useState('')
+  const [accepted, setAccepted] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [complete, setComplete] = useState(false)
+  const [message, setMessage] = useState(null)
+  const plan = ACCOUNT_PLANS.find(item => item.id === selectedPlan) || ACCOUNT_PLANS[1]
+  const paidPlan = selectedPlan !== 'gratuito'
+  const rules = passwordRules(password)
+
+  useEffect(() => {
+    window.history.replaceState({}, '', `/criar-conta?plan=${selectedPlan}`)
+  }, [selectedPlan])
+
+  function choosePlan(id) {
+    setSelectedPlan(id)
+    setMessage(null)
+  }
+
+  async function submit(event) {
+    event.preventDefault()
+    if (!fullName.trim()) return setMessage({ type: 'error', text: 'Informe seu nome completo.' })
+    if (!validEmail(email)) return setMessage({ type: 'error', text: 'Informe um e-mail válido.' })
+    if (!Object.values(rules).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.' })
+    if (password !== confirmation) return setMessage({ type: 'error', text: 'As senhas não são iguais.' })
+    if (!accepted) return setMessage({ type: 'error', text: 'Aceite os termos para continuar.' })
+    if (paidPlan && paymentMethod !== 'pix' && cardNumber.replace(/\D/g, '').length < 16) return setMessage({ type: 'error', text: 'Informe um número de cartão válido.' })
+    if (paidPlan && paymentMethod !== 'pix' && (!cardName.trim() || !/^\d{2}\/\d{2}$/.test(expiry) || cvv.length < 3)) return setMessage({ type: 'error', text: 'Complete os dados do cartão.' })
+
+    setBusy(true)
+    setMessage(null)
+    try {
+      await publicApiFetch('/auth/login/register', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), plan: selectedPlan, paymentMethod }) })
+      setComplete(true)
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Não foi possível criar sua conta agora.' })
+    } finally { setBusy(false) }
+  }
+
+  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>O checkout está preparado para conectar o gateway de pagamento escolhido.</small></section></main>
+
+  return <main className="checkout-page">
+    <div className="checkout-shell">
+      <header className="checkout-header"><a className="checkout-logo" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div><span>Já tem uma conta?</span> <a href="/login.html">Entrar</a></div></header>
+      <div className="checkout-progress"><span className="is-active">01 <small>Conta</small></span><i /><span className="is-active">02 <small>Plano</small></span><i /><span className="is-active">03 <small>Pagamento</small></span></div>
+      <div className="checkout-grid">
+        <section className="checkout-main">
+          <div className="checkout-heading"><p className="checkout-eyebrow">COMECE AGORA</p><h1>Crie sua conta</h1><p>Escolha o plano ideal e tenha tudo para publicar com mais consistência.</p></div>
+          <Message message={message} />
+          <form onSubmit={submit} className="checkout-form">
+            <div className="checkout-section-heading"><span>01</span><div><h2>Seus dados</h2><p>Usaremos essas informações para criar seu acesso.</p></div></div>
+            <div className="checkout-fields checkout-fields--two"><label>Nome completo<input className="auth-input" value={fullName} onChange={event => setFullName(event.target.value)} autoComplete="name" required placeholder="Como devemos chamar você?" /></label><label>E-mail<input className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com" /></label></div>
+            <div className="checkout-fields checkout-fields--two"><label>Senha<input className="auth-input" type="password" minLength="8" maxLength="72" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" required placeholder="Crie uma senha segura" /></label><label>Confirmar senha<input className="auth-input" type="password" minLength="8" maxLength="72" value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" required placeholder="Repita sua senha" /></label></div>
+            <div className="checkout-password-rules">{Object.entries({ length: '8+ caracteres', uppercase: 'Uma maiúscula', number: 'Um número', special: 'Um caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div>
+            <div className="checkout-section-heading"><span>02</span><div><h2>Escolha seu plano</h2><p>Você pode trocar de plano quando quiser.</p></div></div>
+            <div className="checkout-plan-grid">{ACCOUNT_PLANS.map(item => <button type="button" key={item.id} className={`checkout-plan-option${selectedPlan === item.id ? ' is-selected' : ''}${item.featured ? ' is-featured' : ''}`} onClick={() => choosePlan(item.id)}><span className="checkout-plan-check">{selectedPlan === item.id ? '✓' : ''}</span><strong>{item.name}</strong><em>{item.price}<small>/{item.cadence}</small></em><p>{item.description}</p></button>)}</div>
+            <div className="checkout-section-heading"><span>03</span><div><h2>Forma de pagamento</h2><p>{paidPlan ? 'Seus dados serão usados somente pelo gateway seguro.' : 'No plano Gratuito, você não precisa informar pagamento.'}</p></div></div>
+            {paidPlan ? <><div className="checkout-payment-tabs">{PAYMENT_METHODS.map(method => <button type="button" key={method.id} className={paymentMethod === method.id ? 'is-selected' : ''} onClick={() => setPaymentMethod(method.id)}><b>{method.icon}</b><span>{method.label}<small>{method.description}</small></span></button>)}</div>{paymentMethod === 'pix' ? <div className="checkout-pix-box"><strong>Pagamento via Pix</strong><p>Depois de criar sua conta, o gateway exibirá o QR Code e a confirmação do pagamento.</p><span>✓ Sem cobrança recorrente no cartão</span></div> : <div className="checkout-card-fields"><label>Nome no cartão<input className="auth-input" value={cardName} onChange={event => setCardName(event.target.value)} autoComplete="cc-name" placeholder="Nome como aparece no cartão" /></label><label>Número do cartão<input className="auth-input" inputMode="numeric" value={cardNumber} onChange={event => setCardNumber(formatCardNumber(event.target.value))} autoComplete="cc-number" placeholder="0000 0000 0000 0000" /></label><div className="checkout-fields checkout-fields--two"><label>Validade<input className="auth-input" inputMode="numeric" value={expiry} onChange={event => setExpiry(formatExpiry(event.target.value))} autoComplete="cc-exp" placeholder="MM/AA" /></label><label>CVV<input className="auth-input" inputMode="numeric" type="password" maxLength="4" value={cvv} onChange={event => setCvv(event.target.value.replace(/\D/g, '').slice(0, 4))} autoComplete="cc-csc" placeholder="123" /></label></div></div>}</> : <div className="checkout-free-box"><strong>Você está no plano Gratuito</strong><p>Comece sem cartão e faça upgrade quando precisar de mais recursos.</p></div>}
+            <label className="checkout-terms"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> <span>Li e aceito a <a href="/privacy-policy" target="_blank" rel="noreferrer">Política de Privacidade</a> e os <a href="/terms-of-service" target="_blank" rel="noreferrer">Termos de Uso</a>.</span></label>
+            <button className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e continuar' : 'Criar minha conta grátis'} <span>→</span></button>
+            <p className="checkout-security">⌁ Cadastro protegido · Não armazenamos dados sensíveis do cartão</p>
+          </form>
+        </section>
+        <aside className="checkout-summary"><div className="checkout-summary-top"><p className="checkout-eyebrow">SEU PLANO</p><span className="checkout-summary-badge">{plan.featured ? 'Mais escolhido' : 'Escolha flexível'}</span></div><h2>{plan.name}</h2><p>{plan.description}</p><div className="checkout-summary-price"><strong>{plan.price}</strong><span>/{plan.cadence}</span></div><ul>{plan.features.map(feature => <li key={feature}>✓ <span>{feature}</span></li>)}</ul><div className="checkout-summary-note"><span>✦</span><p><strong>Feito para você publicar melhor</strong><br />Comece simples e evolua no seu ritmo.</p></div><a href="#planos" onClick={event => { event.preventDefault(); document.querySelector('.checkout-plan-grid')?.scrollIntoView({ behavior: 'smooth' }) }}>Comparar outros planos</a></aside>
+      </div>
+    </div>
+  </main>
+}
+
 export function ResetPasswordPage() {
-  const token = useMemo(() => new URLSearchParams(window.location.search).get('token'), [])
+  const token = useMemo(() => {
+    const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token')
+    const queryToken = new URLSearchParams(window.location.search).get('token')
+    const value = hashToken || queryToken
+    if (hashToken) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`)
+    return value
+  }, [])
   const [valid, setValid] = useState(null)
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -180,12 +332,12 @@ export function ResetPasswordPage() {
 
   useEffect(() => {
     if (!token) return setValid(false)
-    publicApiFetch(`/auth/login/reset-password/validar?token=${encodeURIComponent(token)}`).then(data => setValid(data.valido)).catch(() => setValid(false))
+    publicApiFetch('/auth/login/reset-password/validar', { method: 'POST', body: JSON.stringify({ token }) }).then(data => setValid(data.valido)).catch(() => setValid(false))
   }, [token])
 
   const submit = async event => {
     event.preventDefault()
-    if (!Object.values(rules).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter no mínimo 6 caracteres, uma maiúscula, um número e um caractere especial.' })
+    if (!Object.values(rules).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.' })
     if (password !== confirmation) return setMessage({ type: 'error', text: 'As senhas não são iguais.' })
     setBusy(true)
     try {
@@ -196,7 +348,7 @@ export function ResetPasswordPage() {
     finally { setBusy(false) }
   }
 
-  return <AuthCard><h1 className="auth-title">Criar nova senha</h1><p className="auth-subtitle">{valid === null ? 'Verificando seu link…' : valid ? 'Escolha uma nova senha para acessar sua conta.' : 'Esse link não é mais válido ou já expirou.'}</p><Message message={message} />{valid && <form onSubmit={submit} className="auth-form"><label className="auth-label" htmlFor="new-password">Nova senha</label><input id="new-password" className="auth-input" type="password" value={password} onChange={event => setPassword(event.target.value)} autoFocus required /><div className="auth-rules">{Object.entries({ length: 'mínimo 6 caracteres', uppercase: '1 letra maiúscula', number: '1 número', special: '1 caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div><label className="auth-label" htmlFor="confirm-password">Confirme a nova senha</label><input id="confirm-password" className="auth-input" type="password" value={confirmation} onChange={event => setConfirmation(event.target.value)} required /><button className="auth-button" disabled={busy}>{busy ? 'Salvando…' : 'Salvar nova senha'}</button></form>}<p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
+  return <AuthCard><h1 className="auth-title">Criar nova senha</h1><p className="auth-subtitle">{valid === null ? 'Verificando seu link…' : valid ? 'Escolha uma nova senha para acessar sua conta.' : 'Esse link não é mais válido ou já expirou.'}</p><Message message={message} />{valid && <form onSubmit={submit} className="auth-form"><label className="auth-label" htmlFor="new-password">Nova senha</label><input id="new-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} autoFocus required /><div className="auth-rules">{Object.entries({ length: '8 a 72 caracteres', uppercase: '1 letra maiúscula', number: '1 número', special: '1 caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div><label className="auth-label" htmlFor="confirm-password">Confirme a nova senha</label><input id="confirm-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={confirmation} onChange={event => setConfirmation(event.target.value)} required /><button className="auth-button" disabled={busy}>{busy ? 'Salvando…' : 'Salvar nova senha'}</button></form>}<p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
 }
 
 export function VerifyTwoFactorPage() {

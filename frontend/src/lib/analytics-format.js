@@ -121,6 +121,24 @@ export function filterTikTokVideosByPeriodOffset(videos, periodDays, offsetDays 
   })
 }
 
+// Converte o catálogo separado de vídeos do TikTok para o formato usado pelos gráficos.
+export function tiktokVideoToMetric(video) {
+  const publishedAt = video.publishedAt || (video.createTime != null && Number.isFinite(Number(video.createTime))
+    ? new Date(Number(video.createTime) * 1000).toISOString()
+    : null)
+  return {
+    platform: 'tiktok',
+    publishedAt,
+    text: video.title || '',
+    metrics: {
+      views: video.viewCount,
+      likes: video.likeCount,
+      comments: video.commentCount,
+      shares: video.shareCount,
+    },
+  }
+}
+
 export function topN(itens, n) {
   const ordenado = [...itens].sort((a, b) => b.value - a.value)
   if (ordenado.length <= n) return ordenado

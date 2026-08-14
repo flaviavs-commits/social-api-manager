@@ -8,7 +8,7 @@ function normalizarEmail(email) {
   return email.trim().toLowerCase()
 }
 
-const USER_COLS = 'id, email, role, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em, auth_tokens_invalidated_at'
+const USER_COLS = 'id, email, role, plan, plan_unrestricted, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em, auth_tokens_invalidated_at'
 
 async function buscarPorEmail(email) {
   const { rows: [user] } = await pool.query(
@@ -45,20 +45,20 @@ async function buscarPorGoogleId(googleId) {
   return user || null
 }
 
-async function criar({ email, fullName }) {
+async function criar({ email, fullName, plan = 'criador' }) {
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (email, full_name)
-     VALUES ($1, $2)
+    `INSERT INTO users (email, full_name, plan, plan_unrestricted)
+     VALUES ($1, $2, $3, FALSE)
      RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null]
+    [normalizarEmail(email), fullName || null, plan]
   )
   return user
 }
 
 async function criarComGoogle({ email, fullName, googleId }) {
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (email, full_name, google_id)
-     VALUES ($1, $2, $3)
+    `INSERT INTO users (email, full_name, google_id, plan_unrestricted)
+     VALUES ($1, $2, $3, FALSE)
      RETURNING id, email, full_name AS "fullName"`,
     [normalizarEmail(email), fullName || null, googleId]
   )
@@ -116,7 +116,7 @@ async function buscarPerfil(userId) {
   const { rows: [user] } = await pool.query(`
     SELECT id, email, full_name AS "fullName", role, avatar_url AS "avatarUrl",
            totp_enabled AS "totpEnabled", google_id IS NOT NULL AS "googleConnected",
-           timezone, language, default_platform AS "defaultPlatform",
+           plan, timezone, language, default_platform AS "defaultPlatform",
            notification_preferences AS "notificationPreferences", criado_em AS "createdAt"
     FROM users WHERE id = $1 AND ativo = TRUE
   `, [userId])
@@ -131,7 +131,7 @@ async function atualizarPerfil(userId, { fullName, timezone, language, defaultPl
     WHERE id = $6 AND ativo = TRUE
     RETURNING id, email, full_name AS "fullName", role, avatar_url AS "avatarUrl",
               totp_enabled AS "totpEnabled", google_id IS NOT NULL AS "googleConnected",
-              timezone, language, default_platform AS "defaultPlatform",
+              plan, timezone, language, default_platform AS "defaultPlatform",
               notification_preferences AS "notificationPreferences", criado_em AS "createdAt"
   `, [fullName, timezone, language, defaultPlatform || null, JSON.stringify(notificationPreferences), userId])
   return user || null
