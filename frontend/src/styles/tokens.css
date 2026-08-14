@@ -285,6 +285,44 @@ a:focus-visible {
   font-size: 13px;
 }
 
+.copyright-notice {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.site-footer .copyright-notice {
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+
+.app-copyright {
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.auth-card .copyright-notice,
+.checkout-footer,
+.admin-footer {
+  text-align: center;
+}
+
+.auth-card .copyright-notice {
+  margin-top: 24px;
+}
+
+.checkout-footer {
+  padding: 20px 0 0;
+}
+
+.admin-footer {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 48px) 28px;
+}
+
 .site-footer a {
   text-decoration: none;
 }

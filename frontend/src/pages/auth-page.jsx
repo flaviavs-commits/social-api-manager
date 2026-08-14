@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { API_URL, ApiError, publicApiFetch } from '../lib/api.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { DEFAULT_PLAN, PLANS } from '../lib/plans.js'
+import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_MIN_LENGTH = 8
@@ -83,7 +84,7 @@ function Message({ message }) {
 }
 
 function AuthCard({ children }) {
-  return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a>{children}</section></main>
+  return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a>{children}<CopyrightNotice /></section></main>
 }
 
 export function LoginPage() {
@@ -285,7 +286,7 @@ export function CreateAccountPage() {
     } finally { setBusy(false) }
   }
 
-  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>O checkout está preparado para conectar o gateway de pagamento escolhido.</small></section></main>
+  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>O checkout está preparado para conectar o gateway de pagamento escolhido.</small><CopyrightNotice /></section></main>
 
   return <main className="checkout-page">
     <div className="checkout-shell">
@@ -311,6 +312,7 @@ export function CreateAccountPage() {
         </section>
         <aside className="checkout-summary"><div className="checkout-summary-top"><p className="checkout-eyebrow">SEU PLANO</p><span className="checkout-summary-badge">{plan.featured ? 'Mais escolhido' : 'Escolha flexível'}</span></div><h2>{plan.name}</h2><p>{plan.description}</p><div className="checkout-summary-price"><strong>{plan.price}</strong><span>/{plan.cadence}</span></div><ul>{plan.features.map(feature => <li key={feature}>✓ <span>{feature}</span></li>)}</ul><div className="checkout-summary-note"><span>✦</span><p><strong>Feito para você publicar melhor</strong><br />Comece simples e evolua no seu ritmo.</p></div><a href="#planos" onClick={event => { event.preventDefault(); document.querySelector('.checkout-plan-grid')?.scrollIntoView({ behavior: 'smooth' }) }}>Comparar outros planos</a></aside>
       </div>
+      <footer className="checkout-footer"><CopyrightNotice /></footer>
     </div>
   </main>
 }

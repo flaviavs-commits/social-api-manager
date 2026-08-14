@@ -6,6 +6,7 @@ import { ThemeSelector } from '../ui/theme-selector.jsx'
 import { AppTutorial } from '../ui/app-tutorial.jsx'
 import { getTutorialStatus, markTutorialCompleted, markTutorialSeen, TUTORIAL_OPEN_EVENT } from '../../lib/tutorial.js'
 import { getPlan, hasPlanModule } from '../../lib/plans.js'
+import { CopyrightNotice } from '../ui/copyright-notice.jsx'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -336,6 +337,7 @@ function AppShellBody({ page, onPageChange, children, user }) {
       <div className="flex min-h-screen flex-1 flex-col">
         <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
         <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
+        <footer className="app-copyright"><CopyrightNotice /></footer>
       </div>
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />

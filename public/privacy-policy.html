@@ -49,6 +49,7 @@ td { color: var(--text); }
 footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 2.5rem; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 1.25rem; }
 footer a { color: var(--muted); text-decoration: none; }
 footer a:hover { color: var(--text); text-decoration: underline; opacity: 1; }
+footer .copyright-notice { flex-basis: 100%; color: var(--muted); font-size: 11px; }
 </style>
 <style>
 html[data-theme='light'] { --bg:#f7f8fa; --surface:#fff; --surface2:#f8fafc; --border:#e2e8f0; --border2:#cbd5e1; --text:#0f172a; --muted:#64748b; --accent:#a66d12; }
@@ -281,6 +282,7 @@ try { document.documentElement.dataset.theme = localStorage.getItem('meu-ecoo:th
     <a href="/terms-of-service">Termos de Uso</a>
     <a href="/support">Suporte</a>
     <a href="/login.html">Entrar</a>
+    <span class="copyright-notice">© <span data-current-year></span> Meu Ecoo Mídia. Todos os direitos reservados.</span>
   </footer>
 </div>
 
@@ -292,6 +294,7 @@ document.querySelector('.theme-toggle').addEventListener('click', function () {
   this.textContent = next === 'light' ? '☾ Escuro' : '☀ Claro'
 })
 if (document.documentElement.dataset.theme === 'light') document.querySelector('.theme-toggle').textContent = '☾ Escuro'
+document.querySelectorAll('[data-current-year]').forEach(element => { element.textContent = new Date().getFullYear() })
 </script>
 </body>
 </html>

@@ -12,6 +12,7 @@
     h1 { margin: 0 0 .5rem; font-size: 4rem; }
     p { color: #b8c0d0; }
     a { color: #9db7ff; }
+    .copyright-notice { margin-top: 2rem; color: #7f8aa3; font-size: .8rem; }
   </style>
 </head>
 <body>
@@ -20,6 +21,8 @@
     <h1>404</h1>
     <p>A página que você tentou acessar não existe ou foi removida.</p>
     <a href="/">Voltar para o início</a>
+    <p class="copyright-notice">© <span data-current-year></span> Meu Ecoo Mídia. Todos os direitos reservados.</p>
   </main>
+  <script>document.querySelectorAll('[data-current-year]').forEach(element => { element.textContent = new Date().getFullYear() })</script>
 </body>
 </html>
