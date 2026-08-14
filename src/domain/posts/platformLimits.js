@@ -2,9 +2,9 @@
 // Agente IA (para não gerar/entregar texto que a rede vai rejeitar) quanto
 // por qualquer validação futura do fluxo normal de posts.
 //
-// O TikTok usa campos separados nas publicações com foto: título de até 90
-// caracteres e descrição de até 4.000 caracteres. O texto deste arquivo é a
-// descrição/caption por rede; o limite do título é validado em post.js.
+// O TikTok usa título de até 90 caracteres e descrição de até 4.000
+// caracteres. O texto deste arquivo é a descrição/caption por rede; o limite
+// do título é validado em post.js.
 const TEXT_LIMITS = {
   instagram: { max: 2200 },
   facebook:  { max: 63206 },

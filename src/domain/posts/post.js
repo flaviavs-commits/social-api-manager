@@ -39,7 +39,6 @@ const YOUTUBE_CATEGORY_IDS = YOUTUBE_CATEGORIES.map(c => c.id)
 const INSTAGRAM_FORMATS = ['post', 'reel', 'story']
 const YOUTUBE_FORMATS = ['video', 'short']
 const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
-const TIKTOK_CAROUSEL_MAX_ITEMS = 35
 
 // Resolve os dados de mídia relevantes para validar UMA rede: usa os itens
 // próprios dela (mediaByPlatform[platform], quando o usuário anexou mídia
@@ -178,13 +177,9 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   if (platforms.includes('tiktok')) {
     const { itemsResolvidos, mediaTypeResolvido, aspectRatioResolvido } = resolverMidiaDaRede('tiktok', midiaContext)
     if (!itemsResolvidos.length)
-      return 'Falta mídia para publicar no TikTok. Anexe um vídeo ou imagem.'
-    if (itemsResolvidos.length > 1) {
-      if (!itemsResolvidos.every(item => item.type === 'image'))
-        return 'O carrossel do TikTok aceita somente fotos. Remova os vídeos ou publique uma mídia única.'
-      if (itemsResolvidos.length > TIKTOK_CAROUSEL_MAX_ITEMS)
-        return `O carrossel do TikTok aceita no máximo ${TIKTOK_CAROUSEL_MAX_ITEMS} fotos.`
-    }
+      return 'Falta vídeo para publicar no TikTok. Anexe um vídeo ou desmarque o TikTok.'
+    if (itemsResolvidos.length !== 1 || itemsResolvidos[0].type !== 'video')
+      return 'O TikTok aceita somente um vídeo por publicação. Remova as imagens e os arquivos extras.'
     if (mediaTypeResolvido === 'video' && aspectRatioResolvido === false)
       return 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.'
   }
@@ -279,7 +274,7 @@ module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
   YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
   INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS,
-  INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_CAROUSEL_MAX_ITEMS,
+  INSTAGRAM_CAROUSEL_MAX_ITEMS,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao
 }

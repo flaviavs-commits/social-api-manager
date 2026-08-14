@@ -91,7 +91,7 @@ describe('validarCriacaoPost — textByPlatform', () => {
       textByPlatform: { tiktokDescription: 'a'.repeat(4000) },
       titleByPlatform: { tiktok: 'Título curto' },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      itemsByPlatform: { tiktok: [{ path: 'x.mp4', type: 'video', caption: '' }] },
       aspectRatioValidoTiktokByPlatform: { tiktok: true },
     }))
     expect(erro).toBeNull()
@@ -102,7 +102,7 @@ describe('validarCriacaoPost — textByPlatform', () => {
       platforms: ['tiktok'],
       textByPlatform: { tiktokDescription: 'a'.repeat(4001) },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      itemsByPlatform: { tiktok: [{ path: 'x.mp4', type: 'video', caption: '' }] },
       aspectRatioValidoTiktokByPlatform: { tiktok: true },
     }))
     expect(erro).toMatch(/4000 caracteres/)
@@ -114,7 +114,7 @@ describe('validarCriacaoPost — textByPlatform', () => {
       textByPlatform: { tiktokDescription: 'descrição' },
       titleByPlatform: { tiktok: 'a'.repeat(91) },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      itemsByPlatform: { tiktok: [{ path: 'x.jpg', type: 'image', caption: '' }] },
+      itemsByPlatform: { tiktok: [{ path: 'x.mp4', type: 'video', caption: '' }] },
       aspectRatioValidoTiktokByPlatform: { tiktok: true },
     }))
     expect(erro).toMatch(/título do TikTok.*90 caracteres/)
@@ -235,20 +235,24 @@ describe('validarCriacaoPost — igFormat', () => {
     expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toMatch(/no máximo 10 fotos/)
   })
 
-  test('aceita carrossel de fotos do TikTok e rejeita vídeo misturado', () => {
-    const fotos = Array.from({ length: 3 }, (_, index) => ({ path: `${index}.jpg`, type: 'image', caption: '' }))
+  test('aceita somente um vídeo no TikTok', () => {
     expect(validarCriacaoPost(baseArgs({
       platforms: ['tiktok'],
       textByPlatform: { tiktokDescription: 'descrição' },
-      titleByPlatform: { tiktok: 'Título' },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      items: fotos,
+      items: [{ path: 'video.mp4', type: 'video', caption: '' }],
     }))).toBeNull()
     expect(validarCriacaoPost(baseArgs({
       platforms: ['tiktok'],
       textByPlatform: { tiktokDescription: 'descrição' },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      items: [...fotos, { path: 'video.mp4', type: 'video', caption: '' }],
-    }))).toMatch(/somente fotos/)
+      items: [{ path: 'foto.jpg', type: 'image', caption: '' }],
+    }))).toMatch(/somente um vídeo/)
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: [{ path: 'a.mp4', type: 'video', caption: '' }, { path: 'b.mp4', type: 'video', caption: '' }],
+    }))).toMatch(/somente um vídeo/)
   })
 })

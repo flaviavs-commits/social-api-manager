@@ -845,7 +845,7 @@ const PLATFORM_REQUIREMENTS = {
   instagram: { media: 'required', mediaTypes: ['image', 'video'], label: 'Instagram', descricao: 'Exige uma imagem ou vídeo — não publica só texto.' },
   facebook:  { media: 'optional', mediaTypes: ['image', 'video'], label: 'Facebook',  descricao: 'Aceita só texto; imagem/vídeo são opcionais.' },
   youtube:   { media: 'required', mediaTypes: ['video'],          label: 'YouTube',   descricao: 'Exige um vídeo e um título.' },
-  tiktok:    { media: 'required', mediaTypes: ['image', 'video'], label: 'TikTok',    descricao: 'Exige ao menos uma mídia (imagem ou vídeo), título de até 90 caracteres e descrição de até 4000 caracteres.' },
+  tiktok:    { media: 'required', mediaTypes: ['video'],          label: 'TikTok',    descricao: 'Exige exatamente um vídeo, título de até 90 caracteres e descrição de até 4000 caracteres.' },
 }
 
 // GET /api/ai/requirements?plataformas=instagram,youtube — o que cada rede exige

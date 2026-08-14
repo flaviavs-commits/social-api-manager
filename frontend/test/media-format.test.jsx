@@ -12,9 +12,9 @@ describe('media format preview', () => {
     expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'video', sourceRatio: 1.78 }).key).toBe('vertical')
   })
 
-  it('permite ajustar uma foto do TikTok para 1:1 ou 4:5', () => {
-    expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 1, requested: 'portrait' })).toEqual(PREVIEW_ASPECTS.portrait)
-    expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 0.75, requested: 'square' })).toEqual(PREVIEW_ASPECTS.square)
+  it('mantém o TikTok em vídeo vertical mesmo quando a mídia informada é uma imagem', () => {
+    expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 1, requested: 'portrait' })).toEqual(PREVIEW_ASPECTS.vertical)
+    expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'image', sourceRatio: 0.75, requested: 'square' })).toEqual(PREVIEW_ASPECTS.vertical)
   })
 
   it('mantém Reel/Story do Instagram em 9:16', () => {

@@ -8,7 +8,6 @@ import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from './platformTextLimits
 const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 export const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
-export const TIKTOK_CAROUSEL_MAX_ITEMS = 35
 const INSTAGRAM_ASPECT_RATIO_RANGES = {
   post: [4 / 5, 1.91],
   reel: [0.5625 * 0.98, 0.5625 * 1.02],
@@ -105,13 +104,9 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
 
   if (platforms.includes('tiktok')) {
     if (!hasMedia)
-      issues.push({ platform: 'tiktok', message: 'Falta mídia para publicar no TikTok — anexe um vídeo ou imagem.' })
-    if (files.length > 1) {
-      if (files.some(file => !file.type.startsWith('image/')))
-        issues.push({ platform: 'tiktok', message: 'O carrossel do TikTok aceita somente fotos. Remova os vídeos ou publique uma mídia única.' })
-      if (files.length > TIKTOK_CAROUSEL_MAX_ITEMS)
-        issues.push({ platform: 'tiktok', message: `O carrossel do TikTok aceita no máximo ${TIKTOK_CAROUSEL_MAX_ITEMS} fotos.` })
-    }
+      issues.push({ platform: 'tiktok', message: 'Falta vídeo para publicar no TikTok — anexe um vídeo ou desmarque o TikTok.' })
+    else if (files.length !== 1 || !videoFiles.length)
+      issues.push({ platform: 'tiktok', message: 'O TikTok aceita somente um vídeo por publicação. Remova as imagens e os arquivos extras.' })
     const meta = videoFiles[0] && videoMetaByKey[mediaFileKey(videoFiles[0])]
     if (meta && !isAspectRatioValidForTiktok(meta))
       issues.push({ platform: 'tiktok', message: 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.' })

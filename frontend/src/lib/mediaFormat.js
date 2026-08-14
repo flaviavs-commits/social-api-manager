@@ -36,11 +36,6 @@ export const SOCIAL_MEDIA_RESOLUTIONS = {
   },
   tiktok: {
     video: { key: 'vertical', label: 'Vídeo', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
-    photo: [
-      { key: 'square', label: 'Quadrado', dimensions: '1080 × 1080 px', ratio: 1 },
-      { key: 'portrait', label: 'Retrato', dimensions: '1080 × 1350 px', ratio: 4 / 5 },
-      { key: 'vertical', label: 'Vertical', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
-    ],
   },
 }
 
@@ -57,8 +52,7 @@ export function socialMediaResolutionHint(platform, { instagramFormat = 'post', 
     return `${format.dimensions} · miniatura ${SOCIAL_MEDIA_RESOLUTIONS.youtube.thumbnail.dimensions}`
   }
   if (platform === 'tiktok') {
-    if (mediaKind === 'video') return SOCIAL_MEDIA_RESOLUTIONS.tiktok.video.dimensions
-    return SOCIAL_MEDIA_RESOLUTIONS.tiktok.photo.map(item => item.dimensions).join(' · ')
+    return SOCIAL_MEDIA_RESOLUTIONS.tiktok.video.dimensions
   }
   return ''
 }
@@ -84,11 +78,11 @@ export function ratioLabel(width, height) {
 
 export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, requested = 'auto', instagramFormat = 'post' }) {
   if (platform === 'instagram' && ['reel', 'story'].includes(instagramFormat)) return PREVIEW_ASPECTS.vertical
+  if (platform === 'tiktok') return PREVIEW_ASPECTS.vertical
   if (requested !== 'auto' && PREVIEW_ASPECTS[requested]) return PREVIEW_ASPECTS[requested]
 
-  if (platform === 'tiktok' && mediaKind === 'video') return PREVIEW_ASPECTS.vertical
   if (platform === 'instagram') return nearestPreviewAspect(sourceRatio, [PREVIEW_ASPECTS.square, PREVIEW_ASPECTS.portrait, PREVIEW_ASPECTS.instagramWide])
-  if (platform === 'tiktok') return nearestPreviewAspect(sourceRatio, PREVIEW_ASPECT_OPTIONS)
+  if (platform === 'tiktok') return PREVIEW_ASPECTS.vertical
   return nearestPreviewAspect(sourceRatio, Object.values(PREVIEW_ASPECTS))
 }
 

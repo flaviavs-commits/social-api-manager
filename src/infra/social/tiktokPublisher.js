@@ -1,5 +1,5 @@
 // Adapter TikTok (Content Posting API v2).
-const { mediaToBlob, mediaUrlTiktok } = require('./mediaFetch')
+const { mediaToBlob } = require('./mediaFetch')
 const { fetchComRateLimit } = require('./rateLimitedFetch')
 
 // A Content Posting API exige consultar as opções de privacidade permitidas
@@ -56,7 +56,7 @@ function isErroClienteNaoAuditado(initData) {
   return initData?.error?.code === 'unaudited_client_can_only_post_to_private_accounts'
 }
 
-// Chama o endpoint de init (video ou photo) com o privacyLevel pedido; se o
+// Chama o endpoint de init de vídeo com o privacyLevel pedido; se o
 // TikTok recusar por falta de audit do app, tenta de novo automaticamente
 // com SELF_ONLY em vez de falhar o post inteiro — sem isso, todo post
 // pararia de sair assim que o app tentasse ir público sem estar auditado.
@@ -97,9 +97,9 @@ async function aguardarStatusPublicacaoTiktok(publishId, accessToken) {
 
 async function publicarTiktok(token, post) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
-  if (!items.length) throw new Error('TikTok exige ao menos uma mídia para publicar')
-
-  const isVideo = items.length === 1 && items[0].type === 'video'
+  if (items.length !== 1 || items[0].type !== 'video') {
+    throw new Error('O TikTok aceita somente um vídeo por publicação.')
+  }
 
   // A privacidade e as interações (comentário/duet/stitch) são escolhidas
   // pelo usuário na tela de post (exigência das Content Sharing Guidelines —
@@ -111,84 +111,39 @@ async function publicarTiktok(token, post) {
   const disableComment = post.tiktokDisableComment ?? false
   const disableDuet = post.tiktokDisableDuet ?? false
   const disableStitch = post.tiktokDisableStitch ?? false
-  const tiktokTitle = post.titleByPlatform?.tiktok || ''
   const tiktokDescription = post.textByPlatform?.tiktokDescription || post.text || ''
 
-  // ── Vídeo ──
-  if (isVideo) {
-    const { buffer } = await mediaToBlob(items[0].path)
-    // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
-    // diretrizes de integração do TikTok — sem eles, o
-    // post/publish/video/init/ responde "Please review our integration
-    // guidelines".
-    const montarBody = privacy => JSON.stringify({
-      post_info: {
-        // O endpoint de vídeo ainda chama a legenda de `title` e aceita até
-        // 2200 caracteres; a descrição separada de 4000 é suportada no fluxo
-        // de fotos abaixo.
-        title: tiktokDescription.slice(0, 2200),
-        privacy_level: privacy,
-        disable_duet: disableDuet,
-        disable_comment: disableComment,
-        disable_stitch: disableStitch
-      },
-      source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
-    })
-    const initData = await initComFallbackPrivado(
-      'https://open.tiktokapis.com/v2/post/publish/video/init/',
-      montarBody,
-      privacyLevel,
-      { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' }
-    )
-
-    const uploadRes = await fetch(initData.data.upload_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${buffer.length - 1}/${buffer.length}` },
-      body: buffer
-    })
-    if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (${uploadRes.status})`)
-
-    const { status, failReason } = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
-    if (status === 'FAILED') throw new Error(`TikTok rejeitou o vídeo após o upload (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
-
-    return { ...initData.data, status }
-  }
-
-  // ── Foto única ou Carrossel ──
-  // Usa o endpoint de Content Posting API dedicado a fotos (media_type: PHOTO),
-  // que aceita as imagens por URL pública (PULL_FROM_URL) em vez de upload binário.
-  const photoImages = items.map(item => mediaUrlTiktok(item.path))
-
-  // Para media_type PHOTO, o schema de post_info é diferente do de vídeo:
-  // não existem disable_duet/disable_stitch (causam invalid_params se
-  // enviados), title tem limite de 90 caracteres e description de 4000, e
-  // brand_content_toggle/brand_organic_toggle são obrigatórios.
+  const { buffer } = await mediaToBlob(items[0].path)
+  // disable_duet/disable_comment/disable_stitch são obrigatórios pelas
+  // diretrizes de integração do TikTok — sem eles, o
+  // post/publish/video/init/ responde "Please review our integration
+  // guidelines".
   const montarBody = privacy => JSON.stringify({
     post_info: {
-      title: tiktokTitle.slice(0, 90),
-      description: tiktokDescription.slice(0, 4000),
+      title: tiktokDescription.slice(0, 2200),
       privacy_level: privacy,
+      disable_duet: disableDuet,
       disable_comment: disableComment,
-      brand_content_toggle: false,
-      brand_organic_toggle: false
+      disable_stitch: disableStitch
     },
-    source_info: {
-      source: 'PULL_FROM_URL',
-      photo_cover_index: 0,
-      photo_images: photoImages
-    },
-    post_mode: 'DIRECT_POST',
-    media_type: 'PHOTO'
+    source_info: { source: 'FILE_UPLOAD', video_size: buffer.length, chunk_size: buffer.length, total_chunk_count: 1 }
   })
   const initData = await initComFallbackPrivado(
-    'https://open.tiktokapis.com/v2/post/publish/content/init/',
+    'https://open.tiktokapis.com/v2/post/publish/video/init/',
     montarBody,
     privacyLevel,
     { Authorization: `Bearer ${token.accessToken}`, 'Content-Type': 'application/json' }
   )
 
+  const uploadRes = await fetch(initData.data.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${buffer.length - 1}/${buffer.length}` },
+    body: buffer
+  })
+  if (!uploadRes.ok) throw new Error(`Falha no upload do vídeo para o TikTok (${uploadRes.status})`)
+
   const { status, failReason } = await aguardarStatusPublicacaoTiktok(initData.data.publish_id, token.accessToken)
-  if (status === 'FAILED') throw new Error(`TikTok rejeitou a foto após o envio (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
+  if (status === 'FAILED') throw new Error(`TikTok rejeitou o vídeo após o upload (publish_id: ${initData.data.publish_id}, motivo: ${failReason || 'não informado'})`)
 
   return { ...initData.data, status }
 }

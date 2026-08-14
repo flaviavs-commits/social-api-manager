@@ -67,11 +67,12 @@ router.post('/', async (req, res) => {
     if (!validDays(recurrence?.days) || !validTime(recurrence?.time)) return res.status(400).json({ erro: 'Defina dias e horário válidos para a recorrência.' })
     if (!content || typeof content !== 'object' || (!content.text && !content.textByPlatform)) return res.status(400).json({ erro: 'A fila precisa ter um texto ou texto por rede.' })
     const requiresMedia = platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform))
-    if (requiresMedia && !content.mediaPath) return res.status(400).json({ erro: 'Instagram, YouTube e TikTok precisam de uma imagem ou vídeo anexado.' })
+    if (requiresMedia && !content.mediaPath) return res.status(400).json({ erro: 'Instagram, YouTube e TikTok precisam de mídia anexada.' })
     if (content.mediaPath && (!isBlobUrl(content.mediaPath) || !ALLOWED_MEDIA_TYPES.has(String(content.mediaType || '').toLowerCase()))) {
       return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload oficial e ter um formato permitido.' })
     }
     if (platforms.includes('youtube') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) return res.status(400).json({ erro: 'O YouTube precisa de um vídeo anexado.' })
+    if (platforms.includes('tiktok') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) return res.status(400).json({ erro: 'O TikTok aceita somente um vídeo anexado.' })
     const normalized = { days: [...new Set(recurrence.days.map(Number))].sort((a, b) => a - b), time: recurrence.time }
     const next = active ? nextOccurrence(normalized, new Date(), await userTimezone(req.user.id)) : null
     const { rows } = await pool.query('INSERT INTO content_queues (user_id,name,platforms,content,recurrence,next_run_at,active) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id', [req.user.id, name.trim(), platforms, JSON.stringify(content), JSON.stringify(normalized), next, Boolean(active)])

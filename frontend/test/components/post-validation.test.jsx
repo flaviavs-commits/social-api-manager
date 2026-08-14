@@ -55,6 +55,7 @@ describe('buildValidationIssues', () => {
   it('validates each selected network with its own text limit', () => {
     const issues = buildValidationIssues(baseArgs({
       platforms: ['instagram', 'facebook', 'tiktok'],
+      files: [{ type: 'video/mp4' }],
       text: 'a'.repeat(5000),
       textByPlatform: {
         instagram: 'a'.repeat(2200),
@@ -71,6 +72,7 @@ describe('buildValidationIssues', () => {
   it('accepts a TikTok description up to 4000 and rejects a title above 90', () => {
     const issues = buildValidationIssues(baseArgs({
       platforms: ['tiktok'],
+      files: [{ type: 'video/mp4' }],
       textByPlatform: { tiktokDescription: 'a'.repeat(4000) },
       titleByPlatform: { tiktok: 'a'.repeat(91) },
       tiktokDescription: 'a'.repeat(4000),
@@ -103,6 +105,14 @@ describe('buildValidationIssues', () => {
       videoMetaByKey: { 'a.mp4-1-10': { width: 2000, height: 100 } }
     }))
     expect(issues.some(i => i.message.includes('proporção entre 9:16'))).toBe(true)
+  })
+
+  it('rejects an image for TikTok', () => {
+    const issues = buildValidationIssues(baseArgs({
+      platforms: ['tiktok'],
+      files: [{ type: 'image/png' }],
+    }))
+    expect(issues.some(i => i.message.includes('somente um vídeo'))).toBe(true)
   })
 
   it('accepts a wide Instagram Feed image up to 1.91:1', () => {

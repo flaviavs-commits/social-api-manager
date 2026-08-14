@@ -270,7 +270,7 @@ Responda em texto simples. Não use JSON.`
         instagram: { media: 'obrigatória', formatos: 'imagem ou vídeo', observação: 'não publica somente texto' },
         facebook: { media: 'opcional', formatos: 'imagem ou vídeo', observação: 'aceita somente texto' },
         youtube: { media: 'obrigatória', formatos: 'vídeo', observação: 'exige título e indicação de conteúdo infantil' },
-        tiktok: { media: 'obrigatória', formatos: 'imagem ou vídeo', observação: 'texto curto e proporção compatível' },
+        tiktok: { media: 'obrigatória', formatos: 'um vídeo', observação: 'somente um vídeo e proporção compatível' },
       }
       const platforms = (Array.isArray(args.platforms) ? args.platforms : []).filter(platform => all[platform])
       return { message: 'Requisitos de publicação carregados.', data: { requirements: platforms.length ? Object.fromEntries(platforms.map(platform => [platform, all[platform]])) : all }, navigation: 'agendador' }

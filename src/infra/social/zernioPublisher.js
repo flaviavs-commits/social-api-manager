@@ -128,7 +128,8 @@ async function publicarZernioYoutube(token, post) {
 }
 
 async function publicarZernioTiktok(token, post) {
-  if (!post.mediaPath && !post.mediaItems?.length) throw new Error('TikTok exige um vídeo ou imagem para publicar')
+  const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
+  if (items.length !== 1 || items[0].type !== 'video') throw new Error('O TikTok aceita somente um vídeo por publicação.')
 
   // Exigência das Content Sharing Guidelines do TikTok (mesma regra de
   // domain/posts/post.js/validarCriacaoPost): a privacidade não pode ter um
@@ -147,7 +148,7 @@ async function publicarZernioTiktok(token, post) {
   const { post: created } = await zernioClient.createPost({
     content: tiktokDescription.slice(0, 4000),
     publishNow: true,
-    mediaItems: montarMediaItems(post),
+    mediaItems: [{ type: 'video', url: mediaUrl(items[0].path) }],
     platforms: [{ platform: 'tiktok', accountId: token.accessToken, platformSpecificData }]
   })
 

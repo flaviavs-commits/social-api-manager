@@ -10,7 +10,7 @@ const AI_GENERATION_TIMEOUT_MS = 60_000
 const PUBLISH_PLATFORMS = [
   { id: 'instagram', label: 'Instagram', symbol: '◎', hint: 'Imagem obrigatória' },
   { id: 'facebook', label: 'Facebook', symbol: 'f', hint: 'Imagem opcional' },
-  { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Imagem ou vídeo obrigatório' },
+  { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Um vídeo obrigatório' },
   { id: 'youtube', label: 'YouTube', symbol: '▶', hint: 'Exige vídeo', videoOnly: true },
 ]
 

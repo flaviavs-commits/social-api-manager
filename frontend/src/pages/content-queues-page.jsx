@@ -25,7 +25,12 @@ export function ContentQueuesPage() {
     }
   }, [])
   useEffect(() => { load().catch(error => notify(error.message, 'error')) }, [load, notify])
-  function togglePlatform(platform) { setForm(current => ({ ...current, platforms: current.platforms.includes(platform) ? current.platforms.filter(item => item !== platform) : [...current.platforms, platform] })) }
+  function togglePlatform(platform) {
+    setForm(current => ({ ...current, platforms: current.platforms.includes(platform) ? current.platforms.filter(item => item !== platform) : [...current.platforms, platform] }))
+    if (platform === 'tiktok' && !form.platforms.includes(platform) && media && !media.file.type.startsWith('video/')) {
+      notify('O TikTok aceita somente um vídeo. Troque a imagem antes de criar a rotina.', 'error')
+    }
+  }
   function toggleDay(day) { setForm(current => ({ ...current, days: current.days.includes(day) ? current.days.filter(item => item !== day) : [...current.days, day] })) }
   function selectMedia(event) {
     const file = event.target.files?.[0]
@@ -33,6 +38,10 @@ export function ContentQueuesPage() {
     if (!file) return
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       notify('Escolha uma imagem ou vídeo válido.', 'error')
+      return
+    }
+    if (form.platforms.includes('tiktok') && !file.type.startsWith('video/')) {
+      notify('O TikTok aceita somente um vídeo.', 'error')
       return
     }
     setMedia(current => {
@@ -57,8 +66,9 @@ export function ContentQueuesPage() {
   async function save(event) {
     event.preventDefault()
     if (!form.platforms.length || !form.days.length) return notify('Selecione ao menos uma rede e um dia.', 'error')
-    if (form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform)) && !media) return notify('Instagram, YouTube e TikTok precisam de uma imagem ou vídeo anexado.', 'error')
+    if (form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform)) && !media) return notify('Instagram, YouTube e TikTok precisam de mídia anexada.', 'error')
     if (form.platforms.includes('youtube') && media && !media.file.type.startsWith('video/')) return notify('O YouTube precisa de um vídeo anexado.', 'error')
+    if (form.platforms.includes('tiktok') && media && !media.file.type.startsWith('video/')) return notify('O TikTok aceita somente um vídeo.', 'error')
     setSaving(true)
     try {
       const mediaPath = media ? await uploadMedia(media.file) : null
@@ -89,6 +99,7 @@ export function ContentQueuesPage() {
   const selectedPlatforms = platforms.filter(([id]) => form.platforms.includes(id)).map(([, label]) => label)
   const selectedPlatformsLabel = selectedPlatforms.length === 1 ? '1 rede selecionada' : `${selectedPlatforms.length} redes selecionadas`
   const mediaRequired = form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform))
+  const videoOnly = form.platforms.includes('tiktok') || form.platforms.includes('youtube')
 
   function formatQueueDays(queue) {
     const queueDays = queue.recurrence?.days || []
@@ -129,7 +140,7 @@ export function ContentQueuesPage() {
         <div className="queues-form-fields">
           <label className="queues-field"><span>Nome da rotina</span><small>Um nome fácil de reconhecer depois.</small><input value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Ex.: Dicas da semana" required /></label>
           <label className="queues-field"><span>Texto da publicação</span><small>O conteúdo será reutilizado em cada execução da rotina.</small><textarea value={form.text} onChange={event => setForm(current => ({ ...current, text: event.target.value }))} placeholder="Uma ideia que será publicada nos dias selecionados…" required /></label>
-          <div className="queues-field queues-media-field"><span>Mídia da publicação {mediaRequired ? <em>obrigatória</em> : <em>opcional</em>}</span><small>A mesma imagem ou vídeo será reutilizada em cada execução da rotina.</small><label className={`queues-media-picker${media ? ' has-media' : ''}`}><input type="file" accept="image/*,video/*" onChange={selectMedia} /><span className="queues-media-picker-icon" aria-hidden="true">{media?.file.type.startsWith('video/') ? '▶' : '＋'}</span><span><strong>{media ? media.file.name : 'Escolher imagem ou vídeo'}</strong><small>{media ? `${(media.file.size / 1024 / 1024).toFixed(1)} MB · pronto para enviar` : 'JPG, PNG, WebP, MP4, MOV ou WebM · até 200 MB'}</small></span><span className="queues-media-picker-action">{media ? 'Trocar' : 'Selecionar'}</span></label>{media ? <div className="queues-media-preview">{media.file.type.startsWith('video/') ? <video src={media.previewUrl} muted controls preload="metadata" /> : <img src={media.previewUrl} alt="Prévia da mídia selecionada" />}<button type="button" className="queues-media-remove" onClick={removeMedia}>Remover mídia</button></div> : null}</div>
+<div className="queues-field queues-media-field"><span>Mídia da publicação {mediaRequired ? <em>obrigatória</em> : <em>opcional</em>}</span><small>A mesma mídia será reutilizada em cada execução da rotina.</small><label className={`queues-media-picker${media ? ' has-media' : ''}`}><input type="file" accept={videoOnly ? 'video/*' : 'image/*,video/*'} onChange={selectMedia} /><span className="queues-media-picker-icon" aria-hidden="true">{media?.file.type.startsWith('video/') ? '▶' : '＋'}</span><span><strong>{media ? media.file.name : videoOnly ? 'Escolher vídeo' : 'Escolher imagem ou vídeo'}</strong><small>{media ? `${(media.file.size / 1024 / 1024).toFixed(1)} MB · pronto para enviar` : videoOnly ? 'MP4, MOV ou WebM · até 200 MB' : 'JPG, PNG, WebP, MP4, MOV ou WebM · até 200 MB'}</small></span><span className="queues-media-picker-action">{media ? 'Trocar' : 'Selecionar'}</span></label>{media ? <div className="queues-media-preview">{media.file.type.startsWith('video/') ? <video src={media.previewUrl} muted controls preload="metadata" /> : <img src={media.previewUrl} alt="Prévia da mídia selecionada" />}<button type="button" className="queues-media-remove" onClick={removeMedia}>Remover mídia</button></div> : null}</div>
         </div>
 
         <fieldset className="queues-fieldset queues-platform-fieldset">
