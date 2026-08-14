@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Passos do tour guiado. Cada passo com "page" navega o app de verdade para
 // aquela tela enquanto a caixa do tutorial explica o que está sendo mostrado
@@ -7,6 +7,9 @@ import { useEffect, useState } from 'react'
 // fixo do topo do app (ex.: botão de criar post) sem trocar de tela.
 // A lista cobre todos os itens do menu, então serve tanto de primeiro
 // contato quanto de referência completa para quem quiser revê-la depois.
+// O número "passo X de Y" não é escrito à mão em cada item — é calculado a
+// partir da posição no array (ver `stepEyebrow` abaixo), então adicionar,
+// remover ou reordenar passos nunca deixa a contagem desatualizada.
 const STEPS = [
   {
     eyebrow: 'BEM-VINDO(A)',
@@ -15,109 +18,91 @@ const STEPS = [
   },
   {
     page: 'dashboard',
-    eyebrow: 'PASSO 1 DE 18',
     title: 'Seu painel principal',
     body: 'O Dashboard reúne publicações, agendamentos, falhas recentes e quantas redes sociais já estão conectadas — sua visão geral do dia a dia.'
   },
   {
     target: 'criar-post',
-    eyebrow: 'PASSO 2 DE 18',
     title: 'Criar um post de qualquer tela',
     body: 'Este botão fica sempre visível no topo do app. Clique nele a qualquer momento para começar uma publicação nova, sem precisar navegar até o Criador de Posts.'
   },
   {
     page: 'agendador',
-    eyebrow: 'PASSO 3 DE 18',
     title: 'Criador de Posts',
     body: 'Escreva o conteúdo, anexe fotos ou vídeos e escolha em quais redes publicar. Você pode publicar na hora ou agendar para o melhor momento.'
   },
   {
     page: 'calendario',
-    eyebrow: 'PASSO 4 DE 18',
     title: 'Calendário',
     body: 'Veja tudo o que está agendado ou já foi publicado, organizado por dia, semana ou mês, para nunca perder o ritmo das postagens.'
   },
   {
     page: 'rascunhos',
-    eyebrow: 'PASSO 5 DE 18',
     title: 'Baú de Ideias',
     body: 'Ideias que ainda não estão prontas ficam salvas aqui, sem se perder, até você decidir publicar ou agendar.'
   },
   {
     page: 'analytics',
-    eyebrow: 'PASSO 6 DE 18',
     title: 'Relatórios',
     body: 'Acompanhe alcance, engajamento e o desempenho de cada publicação, separado por rede social.'
   },
   {
     page: 'inbox',
-    eyebrow: 'PASSO 7 DE 18',
     title: 'Inbox',
     body: 'Comentários e mensagens das suas redes conectadas chegam até aqui, para você responder sem sair da plataforma.'
   },
   {
     target: 'notificacoes',
-    eyebrow: 'PASSO 8 DE 18',
     title: 'Notificações',
     body: 'O sino avisa sobre falhas de publicação e outros eventos recentes, com acesso rápido ao histórico completo de atividades.'
   },
   {
     page: 'integracoes',
-    eyebrow: 'PASSO 9 DE 18',
     title: 'Contas conectadas',
     body: 'Conecte Instagram, Facebook, YouTube e TikTok por aqui — é o primeiro passo para publicar direto pela plataforma.'
   },
   {
     page: 'tokens',
-    eyebrow: 'PASSO 10 DE 18',
     title: 'Tokens',
     body: 'Gerencie os tokens de acesso usados nas integrações com cada rede social, incluindo renovação e revogação quando necessário.'
   },
   {
     page: 'seguranca',
-    eyebrow: 'PASSO 11 DE 18',
     title: 'Segurança',
     body: 'Ative a autenticação em dois fatores e acompanhe as sessões ativas da sua conta por aqui.'
   },
   {
     page: 'atividade',
-    eyebrow: 'PASSO 12 DE 18',
     title: 'Atividades',
     body: 'Consulte o histórico recente da sua conta: publicações, logins e outras ações importantes, tudo em ordem cronológica.'
   },
   {
     page: 'ai',
-    eyebrow: 'PASSO 13 DE 18',
     title: 'Assistente de IA',
     body: 'Peça legendas, ideias de conteúdo e sugestões de horário de publicação para o Assistente de IA a qualquer momento.'
   },
   {
     page: 'biblioteca',
-    eyebrow: 'PASSO 14 DE 18',
     title: 'Biblioteca de mídia',
     body: 'Centralize fotos e vídeos já enviados para reutilizar em novas publicações sem precisar subir os arquivos de novo.'
   },
   {
     page: 'filas',
-    eyebrow: 'PASSO 15 DE 18',
     title: 'Repetidor de posts',
     body: 'Automatize publicações que se repetem em intervalos regulares, sem precisar recriar o mesmo conteúdo toda vez.'
   },
   {
     page: 'smartlinks',
-    eyebrow: 'PASSO 16 DE 18',
     title: 'Smartlinks',
     body: 'Crie um link único na bio que reúne vários destinos e converta cliques em oportunidades reais para o seu negócio.'
   },
   {
     page: 'equipe',
-    eyebrow: 'PASSO 17 DE 18',
     title: 'Equipe',
     body: 'Aprove conteúdos antes da publicação e organize quem faz o quê na sua operação, com papéis diferentes para cada pessoa.'
   },
   {
     page: 'perfil',
-    eyebrow: 'PASSO 18 DE 18',
     title: 'Seu perfil',
     body: 'Atualize seus dados, preferências de notificação e veja seu plano de uso. É também aqui que você encontra este tutorial para rever quando quiser.'
   },
@@ -128,6 +113,35 @@ const STEPS = [
     final: true
   }
 ]
+
+// "Passos com conteúdo" são os que ficam entre a boas-vindas e a conclusão
+// — é essa contagem que aparece como "PASSO N DE M" para a pessoa.
+function stepEyebrow(step, index) {
+  if (step.eyebrow) return step.eyebrow
+  return `PASSO ${index} DE ${STEPS.length - 2}`
+}
+
+// Páginas cujo destaque é alcançável no mobile sem abrir a barra lateral
+// (menu inferior ou barra superior, que ficam sempre visíveis). Todo o
+// resto só existe no menu lateral, então precisa que ele seja aberto.
+const MOBILE_REACHABLE_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'inbox', 'perfil'])
+
+function stepNeedsMobileSidebar(step) {
+  if (!step || step.target) return false
+  return Boolean(step.page) && !MOBILE_REACHABLE_PAGES.has(step.page)
+}
+
+// No mobile, o item destacado por um passo fica sempre perto do topo da tela
+// (menu lateral aberto ou barra superior) — exceto os 4 itens que também
+// vivem no menu inferior fixo. Por isso a caixa do tutorial "encosta" no
+// lado oposto ao do destaque: sobe para o topo quando o alvo é o menu
+// inferior, e vira uma folha (sheet) colada embaixo nos demais casos — assim
+// ela nunca cobre o próprio elemento que está apresentando.
+const BOTTOM_NAV_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'inbox'])
+
+function stepSpotlightsMobileBottomNav(step) {
+  return Boolean(step?.page) && !step.target && BOTTOM_NAV_PAGES.has(step.page)
+}
 
 // Procura, entre todos os elementos marcados com esse alvo (menu lateral,
 // menu inferior no mobile ou ações fixas do topo), o primeiro que está de
@@ -145,18 +159,39 @@ function findVisibleTarget(target) {
   return null
 }
 
-export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
+export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSidebar }) {
   const [index, setIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
+  const dialogRef = useRef(null)
 
   useEffect(() => {
     if (open) setIndex(0)
   }, [open])
 
+  // Trava o scroll da página por trás enquanto o tour está aberto, já que a
+  // navegação entre telas durante os passos pode deixar a posição do scroll
+  // inconsistente assim que o overlay some.
   useEffect(() => {
     if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previousOverflow }
+  }, [open])
+
+  // Move o foco para o diálogo a cada passo, tanto para leitores de tela
+  // anunciarem o novo conteúdo quanto para quem navega só pelo teclado.
+  useEffect(() => {
+    if (open) dialogRef.current?.focus()
+  }, [open, index])
+
+  useEffect(() => {
+    if (!open) {
+      onRequestSidebar?.(false)
+      return
+    }
     const step = STEPS[index]
     if (step.page) onNavigate?.(step.page)
+    onRequestSidebar?.(stepNeedsMobileSidebar(step))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, index])
 
@@ -188,7 +223,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     if (!open) return
     function handleKeydown(event) {
       if (event.key === 'Escape') { event.preventDefault(); onClose() }
-      if (event.key === 'ArrowRight') { event.preventDefault(); goNext() }
+      if (event.key === 'ArrowRight' || event.key === 'Enter') { event.preventDefault(); goNext() }
       if (event.key === 'ArrowLeft') { event.preventDefault(); goBack() }
     }
     window.addEventListener('keydown', handleKeydown)
@@ -212,8 +247,13 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
   }
 
   const spotlightPadding = 8
+  const overlayClassName = [
+    'tutorial-overlay',
+    spotlightRect ? 'has-spotlight' : '',
+    stepSpotlightsMobileBottomNav(step) ? 'spotlight-near-bottom' : ''
+  ].filter(Boolean).join(' ')
 
-  return <div className={`tutorial-overlay${spotlightRect ? ' has-spotlight' : ''}`} role="presentation" onMouseDown={onClose}>
+  return <div className={overlayClassName} role="presentation" onMouseDown={onClose}>
     {spotlightRect && (
       <div
         className="tutorial-spotlight"
@@ -227,21 +267,23 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
       />
     )}
     <section
+      ref={dialogRef}
       className="tutorial-dialog"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tutorial-title"
+      tabIndex="-1"
       onMouseDown={event => event.stopPropagation()}
     >
-      <div className="tutorial-heading">
+      <div className="tutorial-heading" aria-live="polite">
         <div>
-          <p className="eyebrow">{step.eyebrow}</p>
+          <p className="eyebrow">{stepEyebrow(step, index)}</p>
           <h2 id="tutorial-title">{step.title}</h2>
         </div>
         <button type="button" className="tutorial-close" onClick={onClose} aria-label="Fechar tutorial">✕</button>
       </div>
 
-      <p className="tutorial-body">{step.body}</p>
+      <p className="tutorial-body" aria-live="polite">{step.body}</p>
 
       <div className="tutorial-progress" aria-label={`Passo ${index + 1} de ${STEPS.length}`}>
         <span style={{ width: `${((index + 1) / STEPS.length) * 100}%` }} />

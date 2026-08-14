@@ -20,6 +20,15 @@
   box-shadow: var(--shadow-md);
 }
 
+.tutorial-dialog:focus {
+  outline: none;
+}
+
+.tutorial-dialog:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
 /* Quando há um item de menu destacado, o escurecimento da tela vem do
    próprio recorte do spotlight (box-shadow gigante), não do overlay. */
 .tutorial-overlay.has-spotlight {
@@ -139,10 +148,39 @@
   color: var(--success);
 }
 
-@media (max-width: 760px) {
-  .tutorial-overlay { padding: 8vh 12px 12px; }
-  .tutorial-dialog { padding: 16px; }
+@media (max-width: 767px) {
+  /* No mobile o diálogo vira uma "folha" colada na borda oposta ao elemento
+     destacado (ver stepSpotlightsMobileBottomNav em app-tutorial.jsx), para
+     nunca tampar o próprio item que está sendo apresentado. Por padrão
+     encosta embaixo — a maioria dos alvos (menu lateral, barra superior)
+     fica perto do topo; quando o alvo é o menu inferior fixo, inverte. */
+  .tutorial-overlay {
+    align-items: flex-end;
+    padding: max(8vh, env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .tutorial-overlay.spotlight-near-bottom {
+    align-items: flex-start;
+  }
+
+  .tutorial-dialog {
+    width: 100%;
+    max-height: calc(100dvh - max(8vh, env(safe-area-inset-top)) - 12px);
+    padding: 16px;
+    border-radius: 16px;
+    overflow-y: auto;
+  }
+
+  .tutorial-overlay:not(.spotlight-near-bottom) .tutorial-dialog {
+    border-radius: 16px 16px 0 0;
+  }
+
+  .tutorial-close {
+    width: 32px;
+    height: 32px;
+  }
+
   .tutorial-footer { flex-direction: column; align-items: stretch; }
   .tutorial-nav-buttons { justify-content: stretch; }
-  .tutorial-nav-buttons > * { flex: 1; }
+  .tutorial-nav-buttons > * { flex: 1; min-height: 44px; }
 }

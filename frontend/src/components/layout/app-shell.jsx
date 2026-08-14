@@ -271,6 +271,7 @@ function AppShellBody({ page, onPageChange, children, user }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('meu-ecoo:sidebar-collapsed') === '1')
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false)
   const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [tutorialWantsSidebar, setTutorialWantsSidebar] = useState(false)
   const currentLabel = page === 'perfil' ? 'Meu perfil' : navigation.find(([key]) => key === page)?.[1] || 'Dashboard'
   const notify = useToast()
 
@@ -326,7 +327,11 @@ function AppShellBody({ page, onPageChange, children, user }) {
 
   return (
     <div className="app-shell-modern flex min-h-screen bg-app text-zinc-100">
-      <AppSidebar page={page} open={open} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
+      {/* No mobile a barra lateral fica fora da tela até alguém abrir o menu.
+          Passos do tutorial cujo item só existe nela pedem que fique aberta
+          (tutorialWantsSidebar, controlado pelo próprio AppTutorial), sem
+          depender do toggle manual do usuário. */}
+      <AppSidebar page={page} open={open || tutorialWantsSidebar} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
 
       <div className="flex min-h-screen flex-1 flex-col">
         <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
@@ -335,7 +340,7 @@ function AppShellBody({ page, onPageChange, children, user }) {
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
       <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
-      <AppTutorial open={tutorialOpen} onNavigate={onPageChange} onClose={closeTutorial} onComplete={completeTutorial} />
+      <AppTutorial open={tutorialOpen} onNavigate={onPageChange} onClose={closeTutorial} onComplete={completeTutorial} onRequestSidebar={setTutorialWantsSidebar} />
       <MobileBottomNav page={page} onNavigate={onPageChange} onOpenMenu={() => setOpen(true)} />
     </div>
   )
