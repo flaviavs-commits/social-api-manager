@@ -1,8 +1,10 @@
 jest.mock('../../src/db/pool', () => ({ query: jest.fn() }))
 jest.mock('../../src/services/mailer', () => ({ enviarRelatorioAgendado: jest.fn() }))
+jest.mock('../../src/services/reportPdf', () => ({ gerarRelatorioPdf: jest.fn().mockResolvedValue(Buffer.from('%PDF-test')) }))
 
 const pool = require('../../src/db/pool')
 const mailer = require('../../src/services/mailer')
+const { gerarRelatorioPdf } = require('../../src/services/reportPdf')
 const { escapeHtml, gerarResumoRelatorio, enviarRelatorioAgendado } = require('../../src/services/reportService')
 
 describe('reportService', () => {
@@ -20,6 +22,7 @@ describe('reportService', () => {
     mailer.enviarRelatorioAgendado.mockResolvedValueOnce(undefined)
 
     await expect(enviarRelatorioAgendado({ user_id: 7, name: 'Operacional', period_days: 30, recipients: ['user@example.com'] })).resolves.toEqual({ periodDays: 30, recipientCount: 1 })
-    expect(mailer.enviarRelatorioAgendado).toHaveBeenCalledWith(['user@example.com'], 'Operacional', 30, '<li>Nenhuma publicação no período.</li>')
+    expect(gerarRelatorioPdf).toHaveBeenCalledWith(expect.objectContaining({ name: 'Operacional', periodDays: 30, rows: [] }))
+    expect(mailer.enviarRelatorioAgendado).toHaveBeenCalledWith(['user@example.com'], 'Operacional', 30, '<li>Nenhuma publicação no período.</li>', expect.objectContaining({ filename: 'relatorio-operacional.pdf', pdf: expect.any(Buffer) }))
   })
 })

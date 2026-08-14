@@ -28,13 +28,14 @@ async function enviarEmailRedefinicaoSenha(email, resetLink) {
   })
 }
 
-async function enviarRelatorioAgendado(recipients, name, periodDays, summary) {
+async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { pdf, filename } = {}) {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para relatórios agendados')
   await transporter.sendMail({
     from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
     to: recipients.join(', '),
     subject: `${name} — relatório dos últimos ${periodDays} dias`,
-    html: `<div style="font-family:sans-serif;max-width:620px;margin:0 auto"><h2>${name}</h2><p>Resumo operacional dos últimos ${periodDays} dias:</p><ul>${summary}</ul><p style="color:#777">Abra o MeuEcooMidia para consultar as métricas completas.</p></div>`
+    html: `<div style="font-family:sans-serif;max-width:620px;margin:0 auto"><h2>${name}</h2><p>Resumo operacional dos últimos ${periodDays} dias:</p><ul>${summary}</ul><p style="color:#777">O relatório completo está anexado em PDF.</p></div>`,
+    ...(pdf ? { attachments: [{ filename: filename || 'relatorio-operacional.pdf', content: pdf, contentType: 'application/pdf' }] } : {})
   })
 }
 
