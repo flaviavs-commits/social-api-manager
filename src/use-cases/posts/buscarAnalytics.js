@@ -7,9 +7,30 @@ const instagramReconcileService = require('../../services/instagramReconcileServ
 // feitas a partir desta funcionalidade. Um post pode ter sido publicado em
 // várias redes (uma linha por rede em post_publications) — busca métricas de
 // CADA rede para que todas apareçam no Analytics, não só uma por post.
-// Limita ao total de chamadas (não de posts) para não disparar uma chamada de
-// API externa por rede em contas com muito histórico.
-const MAX_PUBLICACOES_COM_METRICAS = 30
+// As chamadas são feitas em pequenos grupos. Assim cada publicação do período
+// recebe uma consulta real sem abrir dezenas de conexões externas de uma vez.
+const METRICAS_CONCORRENCIA = 6
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = Array(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      try {
+        results[index] = { status: 'fulfilled', value: await mapper(items[index], index) }
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason }
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  )
+  return results
+}
 
 async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
   // Tenta recuperar o ID externo de posts antigos do Instagram (publicados
@@ -22,7 +43,12 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
     await instagramReconcileService.reconciliarPostsInstagram(userId, isAdmin)
   } catch {}
 
-  const posts = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
+  const allPosts = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
+  const cutoff = Date.now() - Math.max(1, Number(days) || 30) * 24 * 60 * 60 * 1000
+  const posts = allPosts.filter(post => {
+    const publishedAt = new Date(post.publishedAt || post.criado_em).getTime()
+    return Number.isFinite(publishedAt) && publishedAt >= cutoff
+  })
 
   // Série diária por plataforma, a partir da data real de publicação (cai
   // para a data de criação se publishedAt ainda não tiver sido salvo).
@@ -37,21 +63,36 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
   }
 
   const postById = new Map(posts.map(p => [p.id, p]))
-  const publicacoes = (await postsRepo.listarPublicacoesDosPosts(posts.map(p => p.id)))
+  const publicacoesRegistradas = (await postsRepo.listarPublicacoesDosPosts(posts.map(p => p.id)))
     .filter(pub => postById.has(pub.postId))
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-    .slice(0, MAX_PUBLICACOES_COM_METRICAS)
+  const plataformasRegistradas = new Set(publicacoesRegistradas.map(pub => `${pub.postId}:${pub.platform}`))
+  const publicacoes = [
+    ...publicacoesRegistradas,
+    ...posts.flatMap(post => (post.platforms || [])
+      .filter(platform => !plataformasRegistradas.has(`${post.id}:${platform}`))
+      .map(platform => ({
+        postId: post.id,
+        platform,
+        accountId: post.accountId || null,
+        externalPostId: null,
+        publishedAt: post.publishedAt || post.criado_em
+      })))
+  ].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
 
-  const metricsResults = await Promise.allSettled(
-    publicacoes.map(pub => {
+  const metricsResults = await mapWithConcurrency(
+    publicacoes,
+    METRICAS_CONCORRENCIA,
+    pub => {
       const p = postById.get(pub.postId)
       return metricsService.buscarMetricasPost({
         ...p,
+        accountId: pub.accountId || p.accountId,
         externalPostId: pub.externalPostId,
         externalPlatform: pub.platform,
         userRole
       })
-    })
+    }
   )
 
   const metrics = publicacoes.map((pub, i) => {
@@ -65,7 +106,8 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
       mediaPath: p.mediaPath,
       mediaType: p.mediaType,
       mediaItems: p.mediaItems,
-      metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null
+      metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null,
+      metricsStatus: pub.externalPostId ? 'unavailable' : 'missing_external_id'
     }
   })
 

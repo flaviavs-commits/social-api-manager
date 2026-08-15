@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum } from '../../lib/analytics-format.js'
+import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum, PLAT_LABELS } from '../../lib/analytics-format.js'
 import { CommentsModal } from './comments-modal.jsx'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
@@ -33,7 +33,7 @@ function groupByPost(metrics) {
   for (const m of metrics) {
     const key = m.postId || `${m.text || ''}${m.publishedAt || ''}`
     if (!grupos[key]) grupos[key] = { ...m, plataformas: [] }
-    grupos[key].plataformas.push({ platform: m.platform, metrics: m.metrics, postId: m.postId })
+    grupos[key].plataformas.push({ platform: m.platform, metrics: m.metrics, metricsStatus: m.metricsStatus, postId: m.postId })
   }
   return Object.values(grupos)
 }
@@ -45,6 +45,95 @@ function PostThumb({ post }) {
   return item.type === 'video'
     ? <video className="analytics-post-thumb" src={item.path}/>
     : <img className="analytics-post-thumb" src={item.path} alt=""/>
+}
+
+const METRIC_FIELDS = [
+  { key: 'views', label: 'Visualizações', icon: '👁' },
+  { key: 'reach', label: 'Alcance', icon: '◎' },
+  { key: 'impressions', label: 'Impressões', icon: '◌' },
+  { key: 'likes', label: 'Curtidas', icon: '❤' },
+  { key: 'comments', label: 'Comentários', icon: '💬' },
+  { key: 'shares', label: 'Compartilhamentos', icon: '↗' },
+  { key: 'saves', label: 'Salvamentos', icon: '🔖' },
+  { key: 'clicks', label: 'Cliques', icon: '⌁' },
+  { key: 'follows', label: 'Seguidores ganhos', icon: '+' },
+  { key: 'engagedViews', label: 'Visualizações engajadas', icon: '◉' },
+  { key: 'estimatedMinutesWatched', label: 'Minutos assistidos', icon: '◷' },
+  { key: 'averageViewDuration', label: 'Duração média', icon: '◷' },
+  { key: 'averageViewPercentage', label: 'Retenção média', icon: '%' },
+  { key: 'dislikes', label: 'Não gostei', icon: '−' },
+  { key: 'subscribersGained', label: 'Inscritos ganhos', icon: '+' },
+  { key: 'subscribersLost', label: 'Inscritos perdidos', icon: '−' }
+]
+
+function metricIsAvailable(value) {
+  return value !== null && value !== undefined
+}
+
+function formatMetricValue(key, value) {
+  if (key === 'averageViewPercentage' || key === 'engagementRate') {
+    return `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
+  }
+  return fmtNum(value)
+}
+
+function formatUpdatedAt(value) {
+  if (!value) return 'Atualização não informada pela rede'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Atualização não informada pela rede'
+  return `Atualizado em ${date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' })}`
+}
+
+function PostNetworkMetrics({ platform, metrics, metricsStatus, postId, onOpenComments }) {
+  const fields = METRIC_FIELDS.filter(field => metricIsAvailable(metrics?.[field.key]))
+  const engagementRate = metricIsAvailable(metrics?.engagementRate)
+    ? { key: 'engagementRate', label: 'Taxa de engajamento', icon: '%' }
+    : null
+  if (engagementRate) fields.push(engagementRate)
+
+  return (
+    <div className={`analytics-post-network analytics-post-network-${platform}`}>
+      <div className="analytics-post-network-heading">
+        <span className={`analytics-post-platform-icon analytics-post-platform-icon-${platform}`} aria-label={platform}>
+          <PlatformIcon platform={platform} className="h-3.5 w-3.5" />
+        </span>
+        <strong>{PLAT_LABELS[platform] || platform}</strong>
+        <span className="analytics-post-sync-status">{formatUpdatedAt(metrics?.lastUpdated)}</span>
+      </div>
+      {metrics
+        ? <>
+            <div className="analytics-post-metric-grid">
+              {fields.length
+                ? fields.map(field => (
+                    <span key={field.key} className="analytics-post-metric" title={field.label}>
+                      <span className="analytics-post-metric-icon" aria-hidden="true">{field.icon}</span>
+                      <span className="analytics-post-metric-label">{field.label}</span>
+                      <strong>{formatMetricValue(field.key, metrics[field.key])}</strong>
+                    </span>
+                  ))
+                : <span className="empty-state">A rede ainda não retornou métricas para este post.</span>}
+            </div>
+            {metrics.reactionBreakdown && (
+              <div className="analytics-post-reactions">
+                Reações: {Object.entries(metrics.reactionBreakdown).map(([type, value]) => `${type} ${fmtNum(value)}`).join(' · ')}
+              </div>
+            )}
+            <div className="analytics-post-network-actions">
+              {metrics.platformUrl && (
+                <a href={metrics.platformUrl} target="_blank" rel="noopener noreferrer" className="link-button">Abrir na rede</a>
+              )}
+              {platform === 'instagram' && postId && (
+                <button type="button" className="link-button" onClick={() => onOpenComments(postId)}>Ver comentários</button>
+              )}
+            </div>
+          </>
+        : <div className="analytics-post-no-metrics">
+            {metricsStatus === 'missing_external_id'
+              ? 'Sem ID externo: reconecte a conta ou publique novamente para sincronizar os dados.'
+              : 'Não foi possível sincronizar os dados deste post agora.'}
+          </div>}
+    </div>
+  )
 }
 
 function NetworkPostsList({ net, metrics, onOpenComments }) {
@@ -62,24 +151,7 @@ function NetworkPostsList({ net, metrics, onOpenComments }) {
           </div>
           <div className="analytics-post-platforms">
             {post.plataformas.map((pl, j) => (
-              <div key={j} className="analytics-post-plat-row">
-                <span className={`analytics-post-platform-icon analytics-post-platform-icon-${pl.platform}`} aria-label={pl.platform}>
-                  <PlatformIcon platform={pl.platform} className="h-3.5 w-3.5" />
-                </span>
-                {pl.metrics
-                  ? <>
-                      <span className="analytics-post-view-metric" title={pl.metrics.views == null ? 'A rede ainda não forneceu a contagem de visualizações' : 'Visualizações'}>👁 {fmtNum(pl.metrics.views)}</span>
-                      {pl.metrics.likes != null && <span title="Curtidas">❤ {fmtNum(pl.metrics.likes)}</span>}
-                      {pl.metrics.comments != null && <span title="Comentários">💬 {fmtNum(pl.metrics.comments)}</span>}
-                      {pl.metrics.shares != null && <span>↗ {fmtNum(pl.metrics.shares)}</span>}
-                      {pl.metrics.saves != null && <span>🔖 {fmtNum(pl.metrics.saves)}</span>}
-                      {pl.metrics.reactionBreakdown && <span title={Object.entries(pl.metrics.reactionBreakdown).map(([type, value]) => `${type}: ${value}`).join(', ')}>😀 Reações</span>}
-                    </>
-                  : <span className="empty-state">Sem métricas</span>}
-                {pl.platform === 'instagram' && pl.postId && (
-                  <button type="button" className="link-button" style={{ fontSize: 10, padding: '2px 7px' }} onClick={e => { e.stopPropagation(); onOpenComments(pl.postId) }}>Ver Comentários</button>
-                )}
-              </div>
+              <PostNetworkMetrics key={`${pl.platform}-${j}`} platform={pl.platform} metrics={pl.metrics} metricsStatus={pl.metricsStatus} postId={pl.postId} onOpenComments={onOpenComments}/>
             ))}
           </div>
         </div>
@@ -96,6 +168,7 @@ export function AnalyticsPostsList({ net, tab, data, tiktokVideos, periodDays })
 
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
   return <>
+    <div className="analytics-posts-live-note">Dados reais por publicação e rede. A lista é atualizada automaticamente.</div>
     <NetworkPostsList net={net} metrics={metrics} onOpenComments={setCommentsPostId}/>
     {commentsPostId != null && <CommentsModal postId={commentsPostId} onClose={() => setCommentsPostId(null)}/>}
   </>

@@ -45,7 +45,7 @@ async function metricsZernio(token, externalPostId) {
   })
   const metrics = normalizePostAnalytics(result, externalPostId)
 
-  const resultPlatforms = result?.post?.platforms || result?.platforms || []
+  const resultPlatforms = result?.platformAnalytics || result?.post?.platforms || result?.platforms || []
   const resultPlatform = result?.platform || resultPlatforms.find(item => item.platformPostId === externalPostId)?.platform
   if (token.zernioAccountId && resultPlatform === 'facebook') {
     try {
@@ -134,11 +134,20 @@ async function metricsYoutube(token, externalPostId) {
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
   const stats = data.items?.[0]?.statistics
-  if (!stats) return { likes: null, comments: null, views: null, ...advancedMetrics }
+  if (!stats) {
+    return {
+      likes: null,
+      comments: null,
+      views: null,
+      averageViewDuration: advancedMetrics.averageViewDuration ?? advancedMetrics.watchTimeSeconds ?? null,
+      ...advancedMetrics
+    }
+  }
   return {
     likes: Number(stats.likeCount) || 0,
     comments: Number(stats.commentCount) || 0,
     views: Number(stats.viewCount) || 0,
+    averageViewDuration: advancedMetrics.averageViewDuration ?? advancedMetrics.watchTimeSeconds ?? null,
     ...advancedMetrics
   }
 }

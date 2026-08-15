@@ -44,10 +44,18 @@ function normalizeInsight(response, fallbackPlatform = null) {
 
 function normalizePostAnalytics(response, platformPostId = null) {
   const post = response?.post || response
-  const platforms = Array.isArray(response?.posts)
-    ? response.posts.flatMap(item => item.platforms || [])
-    : (post?.platforms || [])
-  const platform = platforms.find(item => item.platformPostId === platformPostId) || post?.platforms?.[0] || post
+  // O Zernio usa `platformAnalytics`; versões antigas do adaptador usavam
+  // `platforms`/`posts`. Aceitamos os três formatos para não perder métricas
+  // reais quando a resposta vem de uma versão diferente do provedor.
+  const platforms = Array.isArray(response?.platformAnalytics)
+    ? response.platformAnalytics
+    : Array.isArray(response?.posts)
+      ? response.posts.flatMap(item => item.platforms || item.platformAnalytics || [])
+      : (post?.platforms || post?.platformAnalytics || [])
+  const platform = platforms.find(item => item.platformPostId === platformPostId)
+    || platforms.find(item => item.platform === response?.platform)
+    || platforms[0]
+    || post
   const analytics = { ...(post?.analytics || {}), ...(platform?.analytics || {}) }
 
   // Cada rede/provedor usa um nome diferente para a contagem de reproduções.
@@ -75,7 +83,22 @@ function normalizePostAnalytics(response, platformPostId = null) {
     saves: analytics.saves ?? analytics.saveCount ?? analytics.save_count ?? null,
     clicks: analytics.clicks ?? null,
     views,
-    follows: analytics.follows ?? null
+    follows: analytics.follows ?? null,
+    engagementRate: analytics.engagementRate ?? analytics.engagement_rate ?? null,
+    igReelsAvgWatchTime: analytics.igReelsAvgWatchTime ?? null,
+    igReelsVideoViewTotalTime: analytics.igReelsVideoViewTotalTime ?? null,
+    videoDurationSeconds: analytics.videoDurationSeconds ?? null,
+    engagedViews: analytics.engagedViews ?? null,
+    dislikes: analytics.dislikes ?? null,
+    estimatedMinutesWatched: analytics.estimatedMinutesWatched ?? null,
+    averageViewDuration: analytics.averageViewDuration ?? null,
+    averageViewPercentage: analytics.averageViewPercentage ?? null,
+    subscribersGained: analytics.subscribersGained ?? null,
+    subscribersLost: analytics.subscribersLost ?? null,
+    lastUpdated: analytics.lastUpdated ?? response?.lastUpdated ?? null,
+    syncStatus: platform?.syncStatus ?? response?.syncStatus ?? null,
+    platformPostId: platform?.platformPostId ?? platformPostId ?? null,
+    platformUrl: platform?.platformPostUrl ?? response?.platformPostUrl ?? null
   }
 }
 

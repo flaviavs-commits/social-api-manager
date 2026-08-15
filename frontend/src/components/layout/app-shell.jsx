@@ -76,6 +76,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
               data-tutorial-target={key}
               onClick={() => onNavigate(key)}
               title={collapsed ? label : undefined}
+              aria-label={label}
               aria-current={active ? 'page' : undefined}
               className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${locked ? 'opacity-60' : ''} ${
                 active
