@@ -1,0 +1,213 @@
+const billingRepo = require('../../repositories/billingRepository')
+const paymentGateway = require('./paymentGateway')
+const { DEFAULT_PLAN, PLANS, normalizePlan, publicPlanCatalog } = require('../../config/plans')
+
+class BillingError extends Error {
+  constructor(message, statusCode = 400, code = 'billing_error') {
+    super(message)
+    this.name = 'BillingError'
+    this.statusCode = statusCode
+    this.code = code
+  }
+}
+
+function billingMonth(now = new Date()) {
+  const year = now.getUTCFullYear()
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0')
+  return `${year}-${month}-01`
+}
+
+function publicCharge(change) {
+  if (!change) return null
+  return {
+    id: change.id,
+    requestedPlan: change.toPlan,
+    amountCents: Number(change.amountCents),
+    currency: change.currency,
+    billingMonth: change.billingMonth,
+    status: change.status,
+    checkoutUrl: change.checkoutUrl || null,
+    failureCode: change.status === 'failed' ? change.failureCode : null,
+    createdAt: change.createdAt,
+    paidAt: change.paidAt || null,
+  }
+}
+
+function resultForChange(change, currentPlan) {
+  if (!change) return null
+  const status = change.status === 'paid' ? 'paid' : change.checkoutUrl ? 'checkout_pending' : change.status
+  return {
+    status,
+    plan: currentPlan,
+    requestedPlan: change.toPlan,
+    charged: change.status === 'paid',
+    checkoutUrl: change.checkoutUrl || null,
+    billingMonth: change.billingMonth,
+    charge: publicCharge(change),
+    httpStatus: status === 'processing' ? 202 : status === 'failed' ? 409 : 200,
+  }
+}
+
+async function cancelOpenCheckout(userId, now) {
+  const cancelled = await billingRepo.cancelarEmAberto(userId, billingMonth(now))
+  if (cancelled?.gatewaySessionId) {
+    await paymentGateway.expireCheckout(cancelled.gatewaySessionId).catch(() => false)
+  }
+  return cancelled
+}
+
+async function requestPlanChange({ user, targetPlan, now = new Date() }) {
+  if (!user?.id) throw new BillingError('Usuário não autenticado.', 401, 'not_authenticated')
+  if (typeof targetPlan !== 'string' || !PLANS[targetPlan]) {
+    throw new BillingError('Plano selecionado inválido.', 400, 'invalid_plan')
+  }
+
+  const currentPlan = normalizePlan(user.plan || DEFAULT_PLAN)
+  if (targetPlan === currentPlan) {
+    if (Number(PLANS[targetPlan].priceCents) <= 0) await cancelOpenCheckout(user.id, now)
+    return { status: 'unchanged', plan: currentPlan, requestedPlan: targetPlan, charged: false, checkoutUrl: null, charge: null, httpStatus: 200 }
+  }
+
+  const selectedPlan = PLANS[targetPlan]
+  if (Number(selectedPlan.priceCents) <= 0) {
+    await cancelOpenCheckout(user.id, now)
+    const updated = await billingRepo.atualizarParaGratuito(user.id)
+    if (!updated) throw new BillingError('Não foi possível atualizar o plano agora.', 500, 'plan_update_failed')
+    return { status: 'updated', plan: 'gratuito', requestedPlan: 'gratuito', charged: false, checkoutUrl: null, charge: null, httpStatus: 200 }
+  }
+
+  const month = billingMonth(now)
+  const idempotencyKey = `plan-change-${user.id}-${month.slice(0, 7)}`
+  let change = await billingRepo.buscarPorMes(user.id, month)
+
+  if (change && change.toPlan !== targetPlan) {
+    throw new BillingError('Você já possui uma cobrança de troca de plano neste mês. Não será criada uma segunda cobrança.', 409, 'monthly_charge_exists')
+  }
+
+  if (change?.status === 'paid') return resultForChange(change, change.toPlan)
+  if (change?.status === 'pending' && change.checkoutUrl) return resultForChange(change, currentPlan)
+  if (change?.status === 'failed' && change.gatewaySessionId) {
+    throw new BillingError('A tentativa de pagamento deste mês já foi registrada. Não faremos uma nova cobrança automática.', 409, 'monthly_charge_attempted')
+  }
+  if (change?.status === 'cancelled') {
+    throw new BillingError('A troca de plano deste mês foi cancelada. Não será criada uma nova cobrança.', 409, 'monthly_charge_attempted')
+  }
+
+  if (!change) {
+    change = await billingRepo.criarPendente({
+      userId: user.id,
+      fromPlan: currentPlan,
+      toPlan: targetPlan,
+      amountCents: Number(selectedPlan.priceCents),
+      currency: String(selectedPlan.currency || 'brl').toLowerCase(),
+      billingMonth: month,
+      idempotencyKey,
+      gateway: String(process.env.PAYMENT_GATEWAY || 'stripe').toLowerCase(),
+    })
+    if (!change) {
+      const existing = await billingRepo.buscarPorMes(user.id, month)
+      if (existing?.toPlan !== targetPlan) {
+        throw new BillingError('Você já possui uma cobrança de troca de plano neste mês. Não será criada uma segunda cobrança.', 409, 'monthly_charge_exists')
+      }
+      if (existing?.status === 'cancelled') {
+        throw new BillingError('A troca de plano deste mês foi cancelada. Não será criada uma nova cobrança.', 409, 'monthly_charge_attempted')
+      }
+      if (existing && !(existing.status === 'pending' && !existing.checkoutUrl)) return resultForChange(existing, currentPlan)
+      if (existing) {
+        change = existing
+      } else {
+        throw new BillingError('Não foi possível registrar a cobrança com segurança.', 503, 'billing_record_unavailable')
+      }
+    }
+  }
+
+  const reserved = await billingRepo.reservarProcessamento(change.id)
+  if (!reserved) {
+    const current = await billingRepo.buscarPorMes(user.id, month)
+    if (current?.status === 'processing') return resultForChange(current, currentPlan)
+    if (current) return resultForChange(current, currentPlan)
+    throw new BillingError('A cobrança está sendo processada. Tente novamente em instantes.', 202, 'billing_processing')
+  }
+
+  try {
+    const checkout = await paymentGateway.createCheckout({
+      billingId: reserved.id,
+      userId: user.id,
+      email: user.email,
+      fromPlan: reserved.fromPlan,
+      toPlan: reserved.toPlan,
+      planName: selectedPlan.name,
+      amountCents: Number(reserved.amountCents),
+      currency: reserved.currency,
+      billingMonth: reserved.billingMonth,
+      idempotencyKey: reserved.idempotencyKey,
+    })
+    const attached = await billingRepo.anexarCheckout(reserved.id, { gatewaySessionId: checkout.id, checkoutUrl: checkout.url })
+    return resultForChange(attached || { ...reserved, status: 'pending', gatewaySessionId: checkout.id, checkoutUrl: checkout.url }, currentPlan)
+  } catch (error) {
+    if (error.uncertain) {
+      await billingRepo.manterProcessando(reserved.id)
+      return {
+        status: 'processing',
+        plan: currentPlan,
+        requestedPlan: targetPlan,
+        charged: false,
+        checkoutUrl: null,
+        charge: publicCharge({ ...reserved, status: 'processing' }),
+        httpStatus: 202,
+      }
+    }
+    await billingRepo.marcarFalha(reserved.id, { code: error.code, message: error.message })
+    throw error
+  }
+}
+
+async function getStatus({ userId, currentPlan }) {
+  const month = billingMonth()
+  const charge = await billingRepo.buscarPorMes(userId, month)
+  return {
+    currentPlan: normalizePlan(currentPlan || DEFAULT_PLAN),
+    plans: publicPlanCatalog(),
+    billingMonth: month,
+    charge: publicCharge(charge),
+    gatewayConfigured: paymentGateway.isConfigured(),
+  }
+}
+
+function readPaymentIntentId(value) {
+  return typeof value === 'string' ? value : value?.id || null
+}
+
+async function handleWebhook(event) {
+  const object = event?.data?.object
+  if (!object?.id) return { status: 'ignored' }
+
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+    if (event.type === 'checkout.session.completed' && object.payment_status !== 'paid') return { status: 'pending' }
+    const metadata = object.metadata || {}
+    const toPlan = metadata.to_plan && PLANS[metadata.to_plan] ? metadata.to_plan : null
+    if (!toPlan) throw new BillingError('Webhook sem plano registrado.', 400, 'invalid_webhook_plan')
+    const confirmed = await billingRepo.confirmarPagamento({
+      gatewaySessionId: object.id,
+      gatewayPaymentId: readPaymentIntentId(object.payment_intent),
+      amountCents: Number(object.amount_total),
+      currency: String(object.currency || '').toLowerCase(),
+      toPlan,
+    })
+    return { status: confirmed?.status === 'paid' ? 'paid' : 'ignored' }
+  }
+
+  if (event.type === 'checkout.session.async_payment_failed') {
+    await billingRepo.marcarFalhaPorSession(object.id, { code: 'async_payment_failed', message: 'O gateway informou que o pagamento não foi concluído.' })
+    return { status: 'failed' }
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    await billingRepo.marcarFalhaPorSession(object.id, { code: 'checkout_expired', message: 'O checkout expirou antes da confirmação.' })
+    return { status: 'failed' }
+  }
+
+  return { status: 'ignored' }
+}
+
+module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, handleWebhook }

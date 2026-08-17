@@ -85,6 +85,7 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
   const { rows } = await pool.query(`
     SELECT
       c.id, c.platform, c.handle, c.tipo, c.ativo, c.criado_em, c.avatar_url AS "avatarUrl",
+      c.zernio_account_id AS "zernioAccountId",
       c.user_id AS "userId", u.email AS "ownerEmail",
       JSON_AGG(
         JSON_BUILD_OBJECT(

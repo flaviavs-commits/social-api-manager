@@ -45,7 +45,7 @@ async function buscarPorGoogleId(googleId) {
   return user || null
 }
 
-async function criar({ email, fullName, plan = 'criador' }) {
+async function criar({ email, fullName, plan = 'gratuito' }) {
   const { rows: [user] } = await pool.query(
     `INSERT INTO users (email, full_name, plan, plan_unrestricted)
      VALUES ($1, $2, $3, FALSE)
@@ -55,12 +55,12 @@ async function criar({ email, fullName, plan = 'criador' }) {
   return user
 }
 
-async function criarComGoogle({ email, fullName, googleId }) {
+async function criarComGoogle({ email, fullName, googleId, plan = 'gratuito' }) {
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (email, full_name, google_id, plan_unrestricted)
-     VALUES ($1, $2, $3, FALSE)
+    `INSERT INTO users (email, full_name, google_id, plan, plan_unrestricted)
+     VALUES ($1, $2, $3, $4, FALSE)
      RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null, googleId]
+    [normalizarEmail(email), fullName || null, googleId, plan]
   )
   return user
 }

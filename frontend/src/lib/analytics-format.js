@@ -152,6 +152,74 @@ export function latestOf(obj) {
   return dias.length ? obj[dias.at(-1)] : null
 }
 
+function readAccountMetrics(profile, names) {
+  let found = false
+  let value = 0
+  for (const name of names) {
+    const entry = profile?.totals?.metrics?.[name] ?? profile?.metrics?.[name]
+    const number = Number(entry?.total ?? entry)
+    if (Number.isFinite(number)) {
+      found = true
+      value += number
+    }
+  }
+  return { value, hasData: found }
+}
+
+function firstAccountMetric(profile, names) {
+  for (const name of names) {
+    const result = readAccountMetrics(profile, [name])
+    if (result.hasData) return result
+  }
+  return { value: 0, hasData: false }
+}
+
+// Totais agregados do provedor por rede. O frontend usa estes valores antes
+// dos snapshots por publicação; quando uma rede não oferece determinado
+// indicador, o chamador continua usando o fallback local daquela rede.
+export function accountAnalyticsPlatformTotals(accountAnalytics) {
+  const result = {}
+  for (const [platform, profiles] of Object.entries(accountAnalytics?.platforms || {})) {
+    if (!Array.isArray(profiles)) continue
+    const totals = profiles.reduce((acc, profile) => {
+      const views = platform === 'facebook'
+        ? readAccountMetrics(profile, ['page_media_view', 'page_video_views'])
+        : firstAccountMetric(profile, platform === 'instagram' ? ['views', 'reach'] : ['views'])
+      const likes = platform === 'instagram' || platform === 'youtube'
+        ? firstAccountMetric(profile, ['likes'])
+        : { value: 0, hasData: false }
+      const comments = platform === 'instagram' || platform === 'youtube'
+        ? firstAccountMetric(profile, ['comments'])
+        : { value: 0, hasData: false }
+      const shares = platform === 'instagram' || platform === 'youtube'
+        ? firstAccountMetric(profile, ['shares'])
+        : { value: 0, hasData: false }
+      const engagement = platform === 'facebook'
+        ? firstAccountMetric(profile, ['page_post_engagements'])
+        : platform === 'instagram'
+          ? firstAccountMetric(profile, ['total_interactions'])
+          : platform === 'youtube'
+            ? { value: likes.value + comments.value + shares.value, hasData: likes.hasData || comments.hasData || shares.hasData }
+            : { value: 0, hasData: false }
+      for (const key of ['views', 'likes', 'comments', 'shares', 'engagement']) {
+        acc[key].value += totalsFor(key, { views, likes, comments, shares, engagement }).value
+        acc[key].hasData = acc[key].hasData || totalsFor(key, { views, likes, comments, shares, engagement }).hasData
+      }
+      return acc
+    }, {
+      views: { value: 0, hasData: false }, likes: { value: 0, hasData: false },
+      comments: { value: 0, hasData: false }, shares: { value: 0, hasData: false },
+      engagement: { value: 0, hasData: false },
+    })
+    result[platform] = totals
+  }
+  return result
+}
+
+function totalsFor(key, values) {
+  return values[key]
+}
+
 export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokStats = {}, youtubeSubscribers = {}, tiktokVideos = [], accountAnalytics }) {
   const nets = new Set()
   for (const m of metrics) if (m.platform) nets.add(m.platform)

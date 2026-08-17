@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
+import { accountAnalyticsPlatformTotals } from '../lib/analytics-format.js'
 
 const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 'Publicada', publicado: 'Publicado', failed: 'Falhou', erro: 'Falhou', error: 'Falhou', partial: 'Parcial', processing: 'Processando' }
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const ACTIVITY_FILTER_KEY = 'meu-ecoo:dashboard-activity-filter'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
 const PERFORMANCE_PERIODS = [7, 15, 30]
+const ANALYTICS_RETRY_BASE_MS = 5000
+const ANALYTICS_RETRY_MAX_MS = 60000
 const PLATFORM_LABELS = Object.fromEntries(DASHBOARD_PLATFORMS)
 
 function formatPostDate(value) {
@@ -143,6 +146,7 @@ export function DashboardPage({ onNavigate }) {
   const [postsLoading, setPostsLoading] = useState(true)
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [analyticsLoading, setAnalyticsLoading] = useState(true)
+  const [analyticsRetry, setAnalyticsRetry] = useState(0)
   const [activityFilter, setActivityFilter] = useState(() => localStorage.getItem(ACTIVITY_FILTER_KEY) || 'all')
   const [activitySearch, setActivitySearch] = useState('')
   const [deletingPostId, setDeletingPostId] = useState(null)
@@ -166,14 +170,35 @@ export function DashboardPage({ onNavigate }) {
 
   useEffect(() => {
     let active = true
+    let retryTimer = null
+    let retryAttempt = 0
     setAnalyticsLoading(true)
     setAnalyticsError('')
-    apiFetch(`/api/posts/analytics?days=${analyticsPeriodDays}`)
-      .then(result => { if (active) setAnalytics(result) })
-      .catch(error => { if (active) setAnalyticsError(error.message) })
-      .finally(() => { if (active) setAnalyticsLoading(false) })
-    return () => { active = false }
-  }, [analyticsPeriodDays])
+
+    function loadAnalytics() {
+      apiFetch(`/api/posts/analytics?days=${analyticsPeriodDays}`)
+        .then(result => {
+          if (!active) return
+          retryAttempt = 0
+          setAnalytics(result)
+          setAnalyticsError('')
+        })
+        .catch(error => {
+          if (!active) return
+          setAnalyticsError(error.message)
+          retryAttempt += 1
+          const delay = Math.min(ANALYTICS_RETRY_MAX_MS, ANALYTICS_RETRY_BASE_MS * (2 ** Math.min(retryAttempt - 1, 4)))
+          retryTimer = window.setTimeout(loadAnalytics, delay)
+        })
+        .finally(() => { if (active) setAnalyticsLoading(false) })
+    }
+
+    loadAnalytics()
+    return () => {
+      active = false
+      if (retryTimer) window.clearTimeout(retryTimer)
+    }
+  }, [analyticsPeriodDays, analyticsRetry])
 
   const scheduled = data.posts.filter(p => p.status === 'scheduled' || p.status === 'agendado').length
   const reviewAlerts = data.posts
@@ -190,8 +215,20 @@ export function DashboardPage({ onNavigate }) {
   const dashboardError = postsError || accountsError
   const connectedPlatforms = new Set(data.accounts.map(account => account.platform).filter(Boolean)).size
   const analyticsRows = Array.isArray(analytics?.metrics) ? analytics.metrics.filter(row => row.metrics) : []
-  const totalViews = analyticsRows.reduce((total, row) => total + metricValue(row.metrics, 'views'), 0)
-  const totalEngagement = analyticsRows.reduce((total, row) => total + engagementValue(row.metrics), 0)
+  const accountTotals = accountAnalyticsPlatformTotals(analytics?.accountAnalytics)
+  const totalForPlatform = (platform, key, fallback) => accountTotals[platform]?.[key]?.hasData
+    ? accountTotals[platform][key].value
+    : fallback
+  const totalViews = DASHBOARD_PLATFORMS.reduce((total, [platform]) => total + totalForPlatform(
+    platform,
+    'views',
+    analyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + metricValue(row.metrics, 'views'), 0)
+  ), 0)
+  const totalEngagement = DASHBOARD_PLATFORMS.reduce((total, [platform]) => total + totalForPlatform(
+    platform,
+    'engagement',
+    analyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + engagementValue(row.metrics), 0)
+  ), 0)
   const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
   const topEngagementPosts = useMemo(() => [...analyticsRows]
     .sort((a, b) => engagementValue(b.metrics) - engagementValue(a.metrics))
@@ -342,12 +379,13 @@ export function DashboardPage({ onNavigate }) {
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
       <section className="panel dashboard-performance-panel">
         <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {analyticsPeriodDays} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><div className="dashboard-performance-actions"><div className="dashboard-period-switch" role="group" aria-label="Período da performance">{PERFORMANCE_PERIODS.map(days => <button type="button" className={analyticsPeriodDays === days ? 'is-active' : ''} aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}</div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div></div>
-        {analyticsLoading
-          ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
-          : analyticsError
-            ? <div className="dashboard-analytics-empty"><strong>Métricas indisponíveis no momento</strong><p>{analyticsError}</p><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Abrir Analytics</button></div>
-            : <>
-                <div className="dashboard-kpi-row"><div><span>Visualizações</span><strong>{compactNumber(totalViews)}</strong></div><div><span>Interações</span><strong>{compactNumber(totalEngagement)}</strong></div><div><span>Taxa de interação</span><strong>{engagementRate.toFixed(1)}%</strong></div></div>
+         {analyticsLoading && !analytics
+           ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
+           : analyticsError && !analytics
+             ? <div className="dashboard-analytics-empty"><strong>Métricas indisponíveis no momento</strong><p>{analyticsError}</p><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Abrir Analytics</button></div>
+             : <>
+                 {analyticsError && <div className="dashboard-analytics-warning" role="status"><span>Não foi possível atualizar agora. Exibindo o último resultado válido.</span><button type="button" className="link-button" onClick={() => setAnalyticsRetry(value => value + 1)}>Tentar novamente</button></div>}
+                 <div className="dashboard-kpi-row"><div><span>Visualizações</span><strong>{compactNumber(totalViews)}</strong></div><div><span>Interações</span><strong>{compactNumber(totalEngagement)}</strong></div><div><span>Taxa de interação</span><strong>{engagementRate.toFixed(1)}%</strong></div></div>
                 <div className="dashboard-trend-chart" role="img" aria-label={`Gráfico de visualizações e interações dos últimos ${analyticsPeriodDays} dias`}>
                   {trend.length ? trend.map(item => <div className="dashboard-chart-column" key={item.date}><div className="dashboard-chart-bars"><span className="dashboard-chart-bar is-views" style={{ height: `${Math.max((item.views / maxTrendValue) * 100, item.views ? 8 : 2)}%` }} title={`${compactNumber(item.views)} visualizações`}/><span className="dashboard-chart-bar is-engagement" style={{ height: `${Math.max((item.engagement / maxTrendValue) * 100, item.engagement ? 8 : 2)}%` }} title={`${compactNumber(item.engagement)} interações`}/></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</small></div>) : <p className="empty-state">Ainda não há série suficiente para desenhar o gráfico.</p>}
                 </div>

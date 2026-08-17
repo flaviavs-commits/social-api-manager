@@ -22,6 +22,8 @@ function publicPlanCatalog() {
     description: plan.description,
     price: plan.price,
     checkoutPrice: plan.checkoutPrice,
+    priceCents: plan.priceCents,
+    currency: plan.currency,
     cadence: plan.cadence,
     features: plan.features,
   }]))

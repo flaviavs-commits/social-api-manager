@@ -150,7 +150,12 @@ router.post('/register', loginLimiter, async (req, res) => {
   if (requestedPlan !== undefined && !PLANS[requestedPlan]) {
     return res.status(400).json({ erro: 'Plano selecionado inválido.' })
   }
-  const plan = requestedPlan ? normalizePlan(requestedPlan) : DEFAULT_PLAN
+  const selectedPlan = requestedPlan ? normalizePlan(requestedPlan) : DEFAULT_PLAN
+  const freePlan = Object.values(PLANS).find(item => Number(item.priceCents) <= 0)?.id || DEFAULT_PLAN
+  // A escolha do plano pago só vira acesso depois da confirmação do gateway.
+  // A conta começa no plano gratuito para que cadastro não seja confundido
+  // com pagamento concluído.
+  const plan = Number(PLANS[selectedPlan]?.priceCents) > 0 ? freePlan : selectedPlan
 
   try {
     const existente = await usersRepo.buscarPorEmail(email)
@@ -163,7 +168,7 @@ router.post('/register', loginLimiter, async (req, res) => {
     await credentialsRepo.criar(user.id, passwordHash)
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
     const token = issueAuthSession(res, user.id)
-    respondAuth(res, { ok: true, plan }, token)
+    respondAuth(res, { ok: true, plan, selectedPlan, requiresPayment: selectedPlan !== plan }, token)
   } catch (err) {
     addLog('err', `Falha ao criar conta: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível criar sua conta agora. Tente novamente em alguns instantes.' })

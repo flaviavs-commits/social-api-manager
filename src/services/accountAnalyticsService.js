@@ -6,6 +6,7 @@ const { normalizeInsight } = require('../domain/analytics/normalizeAnalytics')
 
 const ZERNIO_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'youtube']
 const MAX_DAYS = 90
+const ACCOUNT_ANALYTICS_CONCURRENCY = 2
 
 function dateOnly(date) {
   return new Date(date).toISOString().slice(0, 10)
@@ -35,6 +36,19 @@ async function settledCall(fn) {
   } catch (error) {
     return { error: safeError(error) }
   }
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = Array(items.length)
+  let nextIndex = 0
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      results[index] = await mapper(items[index], index)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
+  return results
 }
 
 function insightMethod(platform) {
@@ -137,20 +151,19 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     ZERNIO_PLATFORMS.map(platform => listarContasToken(platform, userId, isAdmin))
   )).flat()
 
-  const accounts = await Promise.all(tokens.map(token => collectAccount(token, range)))
+  const accounts = await mapWithConcurrency(tokens, ACCOUNT_ANALYTICS_CONCURRENCY, token => collectAccount(token, range))
   const providerIds = accounts.map(account => account.providerAccountId).filter(Boolean)
+  const providerAccounts = accounts.filter(account => account.providerAccountId)
 
   const [dailyResults, decayResults, followerResult, youtubeResult] = await Promise.all([
-    Promise.all(accounts.filter(account => account.providerAccountId).map(account => settledCall(() => zernioClient.getDailyMetrics({
-      accountId: account.providerAccountId,
-      fromDate: range.since,
-      toDate: range.until
-    }).then(data => ({ ...account, data }))))),
-    Promise.all(accounts.filter(account => account.providerAccountId).map(account => settledCall(() => zernioClient.getContentDecay({
-      accountId: account.providerAccountId,
-      fromDate: range.since,
-      toDate: range.until
-    }).then(data => ({ ...account, data }))))),
+    mapWithConcurrency(providerAccounts, ACCOUNT_ANALYTICS_CONCURRENCY, account => settledCall(async () => ({
+      ...account,
+      data: await zernioClient.getDailyMetrics({ accountId: account.providerAccountId, fromDate: range.since, toDate: range.until })
+    }))),
+    mapWithConcurrency(providerAccounts, ACCOUNT_ANALYTICS_CONCURRENCY, account => settledCall(async () => ({
+      ...account,
+      data: await zernioClient.getContentDecay({ accountId: account.providerAccountId, fromDate: range.since, toDate: range.until })
+    }))),
     providerIds.length
       ? settledCall(() => zernioClient.getFollowerStats({
         accountIds: providerIds.join(','),
@@ -162,10 +175,10 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     settledCall(() => metricsService.buscarInsightsYoutube(userId, isAdmin, range))
   ])
 
-  const bestTimeResults = await Promise.all(accounts.filter(account => account.providerAccountId).map(account => settledCall(() => zernioClient.getBestTimeToPost({
-    accountId: account.providerAccountId,
-    platform: account.platform
-  }).then(data => ({ ...account, data })))))
+  const bestTimeResults = await mapWithConcurrency(providerAccounts, ACCOUNT_ANALYTICS_CONCURRENCY, account => settledCall(async () => ({
+    ...account,
+    data: await zernioClient.getBestTimeToPost({ accountId: account.providerAccountId, platform: account.platform })
+  })))
 
   const byPlatform = Object.fromEntries(ZERNIO_PLATFORMS.map(platform => [
     platform,

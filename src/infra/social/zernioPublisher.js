@@ -54,7 +54,15 @@ function extrairDadosDaPlataforma(created, platform) {
   return { ...created, platformPostId: entrada.platformPostId, platformPostUrl: entrada.platformPostUrl || null }
 }
 
-async function publicarZernioInstagram(token, post) {
+function postDaResposta(response) {
+  // Em uma repetição com o mesmo X-Request-Id, o Zernio pode devolver o post
+  // original em `existingPost` em vez de criar outro registro.
+  const created = response?.post || response?.existingPost
+  if (!created) throw new Error('O Zernio não retornou o post criado.')
+  return created
+}
+
+async function publicarZernioInstagram(token, post, { requestId } = {}) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
   const platformSpecificData = {}
@@ -65,7 +73,7 @@ async function publicarZernioInstagram(token, post) {
   // continua existindo só para as redes ainda não migradas.
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
 
-  const { post: created } = await zernioClient.createPost({
+  const response = await zernioClient.createPost({
     content: post.text || '',
     publishNow: true,
     mediaItems: montarMediaItems(post),
@@ -74,16 +82,17 @@ async function publicarZernioInstagram(token, post) {
       accountId: token.accessToken,
       ...(Object.keys(platformSpecificData).length ? { platformSpecificData } : {})
     }]
-  })
+  }, { requestId })
+  const created = postDaResposta(response)
 
   return extrairDadosDaPlataforma(created, 'instagram')
 }
 
-async function publicarZernioFacebook(token, post) {
+async function publicarZernioFacebook(token, post, { requestId } = {}) {
   const platformSpecificData = {}
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
 
-  const { post: created } = await zernioClient.createPost({
+  const response = await zernioClient.createPost({
     content: post.text || '',
     publishNow: true,
     mediaItems: montarMediaItems(post),
@@ -92,12 +101,13 @@ async function publicarZernioFacebook(token, post) {
       accountId: token.accessToken,
       ...(Object.keys(platformSpecificData).length ? { platformSpecificData } : {})
     }]
-  })
+  }, { requestId })
+  const created = postDaResposta(response)
 
   return extrairDadosDaPlataforma(created, 'facebook')
 }
 
-async function publicarZernioYoutube(token, post) {
+async function publicarZernioYoutube(token, post, { requestId } = {}) {
   const items = post.mediaItems?.length
     ? post.mediaItems
     : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
@@ -121,13 +131,13 @@ async function publicarZernioYoutube(token, post) {
       accountId: token.accessToken,
       platformSpecificData
     }]
-  })
+  }, { requestId })
 
-  const { post: created } = response
+  const created = postDaResposta(response)
   return extrairDadosDaPlataforma(created, 'youtube')
 }
 
-async function publicarZernioTiktok(token, post) {
+async function publicarZernioTiktok(token, post, { requestId } = {}) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   if (items.length !== 1 || items[0].type !== 'video') throw new Error('O TikTok aceita somente um vídeo por publicação.')
 
@@ -145,12 +155,13 @@ async function publicarZernioTiktok(token, post) {
     privacy: TIKTOK_PRIVACY[post.tiktokPrivacyLevel] || 'public'
   }
 
-  const { post: created } = await zernioClient.createPost({
+  const response = await zernioClient.createPost({
     content: tiktokDescription.slice(0, 4000),
     publishNow: true,
     mediaItems: [{ type: 'video', url: mediaUrl(items[0].path) }],
     platforms: [{ platform: 'tiktok', accountId: token.accessToken, platformSpecificData }]
-  })
+  }, { requestId })
+  const created = postDaResposta(response)
 
   return extrairDadosDaPlataforma(created, 'tiktok')
 }

@@ -66,7 +66,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
       </a>
       <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={collapsed ? 'Expandir menu' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
 
-      <nav aria-label="Navegação principal" className="flex flex-1 flex-col gap-1 px-3 py-4">
+      <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
         {navigation.map(([key, label]) => {
           const active = page === key
           const locked = user && !hasPlanModule(user.plan, key, user.planUnrestricted)

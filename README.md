@@ -131,6 +131,37 @@ ativa — sem login, o usuário é redirecionado para `/login.html`
   com uma Redirect URI própria (`GOOGLE_LOGIN_REDIRECT_URI`). Cria a conta
   automaticamente no primeiro acesso; não gera linha em `credentials`.
 
+### Troca de plano e cobrança
+
+O usuário escolhe o plano na criação da conta ou na tela de perfil. Planos
+pagos abrem um checkout hospedado pelo Stripe; o aplicativo não recebe nem
+armazena número de cartão, validade ou CVV. O plano só é ativado depois do
+webhook assinado confirmar o pagamento.
+
+Uma troca paga cria no máximo um registro em `billing_plan_changes` por
+usuário e mês. A chave de idempotência é estável entre tentativas, e a
+restrição única do banco impede uma segunda cobrança mesmo com cliques
+repetidos, concorrência ou perda de resposta do gateway. Downgrade para o
+plano Gratuito não gera cobrança. Não existe renovação automática neste
+fluxo.
+
+Configure o Stripe antes de habilitar planos pagos:
+
+```env
+PAYMENT_GATEWAY=stripe
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+FRONTEND_URL=https://seu-dominio.example
+PAYMENT_SUCCESS_URL=https://seu-dominio.example/app/perfil?billing=success
+PAYMENT_CANCEL_URL=https://seu-dominio.example/app/perfil?billing=cancelled
+```
+
+O endpoint do webhook deve ser cadastrado no Stripe como
+`POST /api/billing/stripe/webhook` e receber o corpo bruto para validação da
+assinatura. A API autenticada expõe `GET /api/billing/status` e
+`POST /api/billing/plan-change` com `{ "plan": "criador" }`. Se as chaves não
+estiverem configuradas, nenhuma troca paga é ativada nem simulada.
+
 ### Esqueci minha senha
 
 Fluxo completo em `/login.html` → `/reset-password.html`: gera um token de

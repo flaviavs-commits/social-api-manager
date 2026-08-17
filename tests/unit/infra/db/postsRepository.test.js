@@ -159,6 +159,15 @@ describe('salvarInstagramPending', () => {
   })
 })
 
+describe('obterProviderRequestId', () => {
+  test('retorna a chave persistida pelo banco', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ providerRequestId: 'request-123' }] })
+    await expect(repo.obterProviderRequestId(7)).resolves.toBe('request-123')
+    expect(pool.query.mock.calls[0][0]).toContain('COALESCE(provider_request_id')
+    expect(pool.query.mock.calls[0][1][0]).toBe(7)
+  })
+})
+
 describe('registrarSnapshotMetricas', () => {
   test('passa post, rede, likes, comments e views', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })

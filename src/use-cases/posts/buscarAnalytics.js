@@ -7,9 +7,12 @@ const instagramReconcileService = require('../../services/instagramReconcileServ
 // feitas a partir desta funcionalidade. Um post pode ter sido publicado em
 // várias redes (uma linha por rede em post_publications) — busca métricas de
 // CADA rede para que todas apareçam no Analytics, não só uma por post.
-// As chamadas são feitas em pequenos grupos. Assim cada publicação do período
-// recebe uma consulta real sem abrir dezenas de conexões externas de uma vez.
-const METRICAS_CONCORRENCIA = 6
+// O provedor limita a frequência de consultas. Atualizamos ao vivo somente as
+// publicações mais recentes e usamos o último snapshot local para as demais.
+// Assim o período pode conter milhares de publicações sem transformar cada
+// refresh do painel em milhares de chamadas externas.
+const METRICAS_AO_VIVO_LIMITE = 24
+const METRICAS_CONCORRENCIA = 2
 
 async function mapWithConcurrency(items, concurrency, mapper) {
   const results = Array(items.length)
@@ -80,8 +83,18 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
       })))
   ].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
 
-  const metricsResults = await mapWithConcurrency(
-    publicacoes,
+  const snapshots = typeof postsRepo.listarUltimosSnapshotsMetricas === 'function'
+    ? await postsRepo.listarUltimosSnapshotsMetricas(posts.map(p => p.id))
+    : []
+  const snapshotByPublication = new Map(snapshots.map(snapshot => [
+    `${snapshot.postId}:${snapshot.platform}`,
+    { likes: snapshot.likes, comments: snapshot.comments, views: snapshot.views }
+  ]))
+  const publicacoesAoVivo = publicacoes
+    .filter(pub => pub.externalPostId)
+    .slice(0, METRICAS_AO_VIVO_LIMITE)
+  const liveResults = await mapWithConcurrency(
+    publicacoesAoVivo,
     METRICAS_CONCORRENCIA,
     pub => {
       const p = postById.get(pub.postId)
@@ -95,8 +108,15 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
     }
   )
 
-  const metrics = publicacoes.map((pub, i) => {
+  const liveByPublication = new Map(publicacoesAoVivo.map((pub, i) => [`${pub.postId}:${pub.platform}`, liveResults[i]]))
+  const metrics = publicacoes.map(pub => {
     const p = postById.get(pub.postId)
+    const key = `${pub.postId}:${pub.platform}`
+    const liveResult = liveByPublication.get(key)
+    const liveMetrics = liveResult?.status === 'fulfilled' ? liveResult.value : null
+    const cachedMetrics = snapshotByPublication.get(key) || null
+    const metricValue = liveMetrics || cachedMetrics
+    const hasMetrics = metricValue != null
     return {
       postId: p.id,
       platform: pub.platform,
@@ -106,8 +126,8 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
       mediaPath: p.mediaPath,
       mediaType: p.mediaType,
       mediaItems: p.mediaItems,
-      metrics: metricsResults[i].status === 'fulfilled' ? metricsResults[i].value : null,
-      metricsStatus: pub.externalPostId ? 'unavailable' : 'missing_external_id'
+      metrics: metricValue,
+      metricsStatus: liveMetrics ? 'available' : cachedMetrics ? 'cached' : liveResult ? 'unavailable' : pub.externalPostId ? 'deferred' : 'missing_external_id'
     }
   })
 

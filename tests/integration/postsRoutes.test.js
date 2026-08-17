@@ -49,6 +49,7 @@ jest.mock('../../src/infra/social/publisher', () => ({ publishPost: jest.fn() })
 const usersRepo = require('../../src/repositories/usersRepository')
 const postsRepo = require('../../src/infra/db/postsRepository')
 const commentsService = require('../../src/services/commentsService')
+const metricsService = require('../../src/services/metricsService')
 const accountAnalyticsService = require('../../src/services/accountAnalyticsService')
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 
@@ -112,6 +113,26 @@ describe('GET /api/posts/analytics', () => {
       accountAnalytics: expect.any(Object)
     }))
     expect(accountAnalyticsService.buscarAnalyticsContas).toHaveBeenCalledWith(expect.objectContaining({ days: 30 }))
+  })
+
+  test('marca como disponível uma métrica retornada pela rede', async () => {
+    postsRepo.listarPosts.mockResolvedValue([POST])
+    postsRepo.listarPublicacoesDosPosts.mockResolvedValueOnce([{
+      postId: POST.id,
+      platform: 'instagram',
+      accountId: null,
+      externalPostId: POST.externalPostId,
+      publishedAt: POST.publishedAt
+    }])
+    metricsService.buscarMetricasPost.mockResolvedValueOnce({ views: 42, likes: 7 })
+
+    const res = await request(app).get('/api/posts/analytics?days=30').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.metrics[0]).toEqual(expect.objectContaining({
+      metrics: { views: 42, likes: 7 },
+      metricsStatus: 'available'
+    }))
   })
 })
 

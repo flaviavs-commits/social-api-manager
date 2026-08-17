@@ -7,6 +7,8 @@
       "description": "Para começar a organizar sua presença digital.",
       "price": "Grátis",
       "checkoutPrice": "R$ 0",
+      "priceCents": 0,
+      "currency": "brl",
       "cadence": "para começar",
       "features": [
         "Agendamento de publicações",
@@ -29,6 +31,8 @@
       "description": "Mais ritmo e inteligência para quem publica com frequência.",
       "price": "Para crescer",
       "checkoutPrice": "R$ 49",
+      "priceCents": 4900,
+      "currency": "brl",
       "cadence": "por mês",
       "features": [
         "Tudo do plano Gratuito",
@@ -56,6 +60,8 @@
       "description": "Colaboração e controle para times que cuidam de várias marcas.",
       "price": "Para equipes",
       "checkoutPrice": "R$ 149",
+      "priceCents": 14900,
+      "currency": "brl",
       "cadence": "por mês",
       "features": [
         "Tudo do plano Criador",

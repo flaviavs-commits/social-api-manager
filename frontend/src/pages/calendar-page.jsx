@@ -92,7 +92,13 @@ function friendlyPostError(post) {
   const unavailable = /não existe|nao existe|não encontrado|nao encontrado|remov|apag|deleted|removed|does not exist|cannot be loaded|missing permissions/i.test(detail)
   if (unavailable) return 'Esta publicação não está mais disponível na rede social. O registro foi mantido no calendário.'
   if (['partial', 'parcial'].includes(normalizePostStatus(post))) return 'A publicação foi concluída em algumas redes, mas houve uma falha em outra.'
-  if (['error', 'erro'].includes(normalizePostStatus(post))) return 'Não foi possível confirmar esta publicação na rede social. Ela pode ter sido removida ou a conta pode ter perdido acesso. O histórico foi mantido.'
+  if (['error', 'erro'].includes(normalizePostStatus(post))) {
+    // O backend já remove credenciais e limita mensagens externas; mostrar o
+    // detalhe real evita esconder causas acionáveis como duplicidade, limite
+    // da plataforma ou conta desconectada.
+    if (detail) return detail.slice(0, 320)
+    return 'Não foi possível confirmar esta publicação na rede social. O histórico foi mantido.'
+  }
   return ''
 }
 

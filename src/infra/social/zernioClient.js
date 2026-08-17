@@ -97,8 +97,15 @@ async function listProfiles() {
   return zernioFetch('/profiles')
 }
 
-async function createPost(body) {
-  return zernioFetch('/posts', { method: 'POST', body })
+// requestId identifica uma operação lógica, não uma tentativa HTTP. Ele deve
+// ser reutilizado quando requestJson repetir uma chamada após timeout/erro de
+// rede, para que o Zernio devolva o post original em vez de criar outro.
+async function createPost(body, { requestId } = {}) {
+  return zernioFetch('/posts', {
+    method: 'POST',
+    body,
+    headers: requestId ? { 'X-Request-Id': requestId } : {}
+  })
 }
 
 async function getPost(postId) {

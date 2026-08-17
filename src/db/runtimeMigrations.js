@@ -21,6 +21,8 @@ async function ensurePostAccounts() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS publication_error TEXT')
+  await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS provider_request_id TEXT')
+  await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS idx_post_accounts_provider_request_id ON post_accounts(provider_request_id) WHERE provider_request_id IS NOT NULL')
   // Remove credenciais que versões antigas gravavam no estado operacional.
   await bestEffort("UPDATE post_accounts SET instagram_pending = instagram_pending - 'accessToken' - 'refreshToken' WHERE instagram_pending IS NOT NULL")
   await bestEffort(`
@@ -98,6 +100,42 @@ async function ensureAiTables() {
   ])
 }
 
+async function ensureUserPlanColumns() {
+  await bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'criador'")
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan)')
+  await bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_unrestricted BOOLEAN NOT NULL DEFAULT TRUE')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_unrestricted ON users(plan_unrestricted)')
+}
+
+async function ensureBillingTables() {
+  await bestEffort("ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'gratuito'")
+  await bestEffort(`
+    CREATE TABLE IF NOT EXISTS billing_plan_changes (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      from_plan TEXT NOT NULL,
+      to_plan TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+      currency TEXT NOT NULL DEFAULT 'brl',
+      billing_month DATE NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      gateway TEXT NOT NULL DEFAULT 'stripe',
+      gateway_session_id TEXT UNIQUE,
+      gateway_payment_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'paid', 'failed', 'cancelled')),
+      checkout_url TEXT,
+      failure_code TEXT,
+      failure_message TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      paid_at TIMESTAMPTZ,
+      UNIQUE (user_id, billing_month)
+    )
+  `)
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_billing_plan_changes_user_month ON billing_plan_changes (user_id, billing_month DESC)')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_billing_plan_changes_gateway_session ON billing_plan_changes (gateway_session_id) WHERE gateway_session_id IS NOT NULL')
+}
+
 async function runMigrations() {
   await Promise.all([
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB'),
@@ -122,10 +160,6 @@ async function runMigrations() {
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS default_platform TEXT'),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences JSONB NOT NULL DEFAULT '{\"email\":true,\"published\":true,\"failures\":true,\"comments\":true}'::jsonb"),
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_tokens_invalidated_at TIMESTAMPTZ'),
-    bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'criador'"),
-    bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan)'),
-    bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_unrestricted BOOLEAN NOT NULL DEFAULT TRUE'),
-    bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_unrestricted ON users(plan_unrestricted)'),
     bestEffort(`CREATE TABLE IF NOT EXISTS saved_texts (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, title TEXT, body TEXT NOT NULL, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS platform_presets (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, platform TEXT NOT NULL, name TEXT NOT NULL, config JSONB NOT NULL DEFAULT '{}', criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT UNIQUE NOT NULL, p256dh TEXT, auth TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
@@ -187,6 +221,8 @@ async function runMigrations() {
       bestEffort('ALTER TABLE drafts ADD COLUMN IF NOT EXISTS first_comment TEXT'),
     ])),
   ])
+  await ensureUserPlanColumns()
+  await ensureBillingTables()
 }
 
 module.exports = { runMigrations }

@@ -106,8 +106,8 @@ function extrairExternalId(platform, data) {
 // ver src/infra/social/zernioPublisher.js e src/routes/oauth.js
 // (syncZernioAccount). A função do YouTube mantém fallback para contas antigas
 // conectadas diretamente ao Google.
-async function publicarYoutubePorProvedor(token, post) {
-  return token.zernioAccountId ? publicarZernioYoutube(token, post) : publicarYoutube(token, post)
+async function publicarYoutubePorProvedor(token, post, options = {}) {
+  return token.zernioAccountId ? publicarZernioYoutube(token, post, options) : publicarYoutube(token, post)
 }
 
 const PUBLISHERS = {
@@ -130,6 +130,45 @@ function isErroTransitorio(err) {
   if (/respondeu (429|500|502|503|504)/.test(msg)) return true
   if (/rate limit|too many requests|timeout|econnreset|etimedout|enotfound|fetch failed/.test(msg)) return true
   return false
+}
+
+function existingZernioPostId(err) {
+  if (err?.name !== 'ZernioError' || err.status !== 409) return null
+  // Resposta documentada: { error, details: { existingPostId } }.
+  return err.details?.details?.existingPostId || err.details?.existingPostId || null
+}
+
+// Um POST pode ter sido aceito pelo Zernio e a resposta se perder antes de
+// chegar aqui. A nova tentativa recebe 409, mas isso é uma confirmação
+// indireta, não uma falha. Consulta o post existente e reaproveita o contrato
+// normal do publisher.
+async function reconciliarDuplicidadeZernio({ platform, existingPostId }) {
+  const response = await zernioClient.getPost(existingPostId)
+  const zernioPost = response?.post || response
+  const entry = zernioPost?.platforms?.find(item => item.platform === platform)
+  if (!entry) throw new Error(`O Zernio não retornou a plataforma ${platform} para a publicação duplicada.`)
+
+  if (entry.status === 'failed' || zernioPost?.status === 'failed') {
+    throw new Error(entry.errorMessage || 'A publicação existente no Zernio falhou.')
+  }
+
+  if (!entry.platformPostId) {
+    return {
+      pending: true,
+      provider: 'zernio',
+      reconciled: true,
+      zernioPostId: zernioPost._id || existingPostId,
+      platform
+    }
+  }
+
+  return {
+    ...zernioPost,
+    provider: 'zernio',
+    reconciled: true,
+    platformPostId: entry.platformPostId,
+    platformPostUrl: entry.platformPostUrl || null
+  }
 }
 
 // Publica em uma única conta e retorna o resultado (registrando o log
@@ -206,7 +245,17 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   }
 
   try {
-    const data = await publisher(token, post)
+    // O identificador é persistido antes da chamada externa e reutilizado por
+    // retries, deploys e instâncias concorrentes do scheduler.
+    const providerRequestId = await postsRepo.obterProviderRequestId(account.postAccountId)
+    let data
+    try {
+      data = await publisher(token, post, { requestId: providerRequestId })
+    } catch (err) {
+      const duplicateId = existingZernioPostId(err)
+      if (!duplicateId) throw err
+      data = await reconciliarDuplicidadeZernio({ platform, existingPostId: duplicateId })
+    }
 
     // Instagram (fluxo direto, não migrado): o container foi criado, mas
     // ainda precisa terminar de processar antes de poder ser publicado de
@@ -267,7 +316,7 @@ async function publicarNaConta(account, post, isSuperAdmin) {
       const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
       await registrarLog({
         type: 'ok',
-        message: `Post publicado no ${platLabel} na conta "${token.handle || token.accountName}" com sucesso! ✓${detalheTiktok}`,
+        message: `Post publicado no ${platLabel} na conta "${token.handle || token.accountName}" com sucesso! ✓${data?.reconciled ? ' (confirmação recuperada após retry)' : ''}${detalheTiktok}`,
         platform,
         conta_id: token.contaId,
         user_id: post.userId

@@ -1,4 +1,5 @@
 const pool = require('../../db/pool')
+const crypto = require('crypto')
 
 async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
@@ -45,7 +46,7 @@ async function definirContasDoPost(postId, contas, mediaItemsByPlatform = {}) {
 // publishPost() agora itera por (conta, rede) em vez de só por rede.
 async function listarContasDoPost(postId) {
   const { rows } = await pool.query(`
-    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", c.platform, c.handle,
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", pa.provider_request_id AS "providerRequestId", c.platform, c.handle,
            c.avatar_url AS "avatarUrl",
            pa.media_items AS "mediaItems",
            pa.publication_error AS "publicationError"
@@ -114,7 +115,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
       p.external_post_id AS "externalPostId", p.external_platform AS "externalPlatform", p.published_at AS "publishedAt",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'providerRequestId', pa.provider_request_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts
@@ -185,7 +186,7 @@ async function reservarPostsPendentes() {
       r.location_id AS "locationId", r.location_name AS "locationName", r.first_comment AS "firstComment",
       u.role AS "userRole",
       COALESCE(
-        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
+        JSON_AGG(JSON_BUILD_OBJECT('postAccountId', pa.id, 'accountId', pa.account_id, 'providerRequestId', pa.provider_request_id, 'platform', c.platform, 'handle', c.handle, 'avatarUrl', c.avatar_url, 'mediaItems', pa.media_items))
           FILTER (WHERE pa.id IS NOT NULL),
         '[]'
       ) AS accounts
@@ -218,6 +219,21 @@ async function recuperarPostsProcessingStale() {
      RETURNING p.id, p.user_id AS "userId"
   `)
   return rows
+}
+
+// Gera o identificador uma única vez. O COALESCE torna a operação segura se
+// duas instâncias tentarem iniciar a mesma publicação simultaneamente: ambas
+// recebem o valor persistido, e todos os retries usam a mesma chave.
+async function obterProviderRequestId(postAccountId) {
+  const candidate = crypto.randomUUID()
+  const { rows: [row] } = await pool.query(`
+    UPDATE post_accounts
+       SET provider_request_id = COALESCE(provider_request_id, $2)
+     WHERE id = $1
+     RETURNING provider_request_id AS "providerRequestId"
+  `, [postAccountId, candidate])
+  if (!row?.providerRequestId) throw new Error('Conta da publicação não encontrada ao reservar a chave de idempotência')
+  return row.providerRequestId
 }
 
 // Reagenda um post que falhou por erro transitório (ver isErroTransitorio em
@@ -432,6 +448,22 @@ async function buscarHistoricoMetricas(postId) {
   return rows
 }
 
+// Último snapshot conhecido de cada (post, rede). O Analytics usa este
+// resultado quando a publicação não entra na pequena janela de atualização
+// ao vivo, evitando uma chamada externa por publicação a cada refresh.
+async function listarUltimosSnapshotsMetricas(postIds) {
+  if (!postIds.length) return []
+  const { rows } = await pool.query(`
+    SELECT DISTINCT ON (post_id, platform)
+           post_id AS "postId", platform, captured_on AS "capturedOn",
+           likes, comments, views
+    FROM post_metrics_history
+    WHERE post_id = ANY($1)
+    ORDER BY post_id, platform, captured_on DESC
+  `, [postIds])
+  return rows
+}
+
 // Retorna todos os posts de um mês/ano específico (agendados, publicados, erro, etc.)
 // para alimentar o calendário. Exclui apenas cancelados.
 async function listarPostsCalendario({ year, month, userId, isAdmin }) {
@@ -486,9 +518,10 @@ module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
   reservarPostsPendentes, recuperarPostsProcessingStale, reagendarParaRetry,
   definirContasDoPost, listarContasDoPost, atualizarErroPublicacaoConta,
+  obterProviderRequestId,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
   salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,
-  registrarSnapshotMetricas, buscarHistoricoMetricas,
+  registrarSnapshotMetricas, buscarHistoricoMetricas, listarUltimosSnapshotsMetricas,
   listarPostsCalendario, reagendarPost
 }

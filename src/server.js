@@ -30,6 +30,7 @@ const workspacesRoutes = require('./routes/workspaces')
 const webhooksRoutes = require('./routes/webhooks')
 const apiKeysRoutes = require('./routes/apiKeys')
 const apiV1Routes = require('./routes/apiV1')
+const { router: billingRoutes, handleStripeWebhook } = require('./routes/billing')
 const requireApiKey = require('./middleware/requireApiKey')
 const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
@@ -106,6 +107,11 @@ app.use((req, res, next) => {
 app.use('/oauth/tiktok/webhook', express.json({
   verify: (req, _res, buf) => { req.rawBody = buf }
 }))
+
+// O webhook do Stripe precisa do corpo bruto para validar a assinatura. Ele
+// fica fora do requireAuth porque é chamado pelo gateway, não pelo navegador.
+app.use('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }))
+app.post('/api/billing/stripe/webhook', handleStripeWebhook)
 
 // O agendador envia miniaturas comprimidas das imagens para a análise visual
 // conjunta de carrosséis. Mantém um limite explícito para não aceitar corpos
@@ -357,6 +363,7 @@ app.get('/api/me', (req, res) => {
 })
 
 app.use('/api/me',       meRoutes)
+app.use('/api/billing',  billingRoutes)
 app.use('/api/accounts', accountsRoutes)
 app.use('/api/tokens',   tokensRoutes)
 app.use('/api/logs',     logsRoutes)

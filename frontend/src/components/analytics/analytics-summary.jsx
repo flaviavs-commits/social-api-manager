@@ -2,6 +2,7 @@ import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
   filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
+  accountAnalyticsPlatformTotals,
 } from '../../lib/analytics-format.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 import { useTheme } from '../ui/theme-selector.jsx'
@@ -45,13 +46,26 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
   const summaryMetrics = [...metrics.filter(item => item.platform !== 'tiktok'), ...tiktokRows]
   const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1)
   const previousVideos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, 1)
+  const accountTotals = accountAnalyticsPlatformTotals(data.accountAnalytics)
 
-  const totalViews = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.views || 0), 0)
-  const totalLikes = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.likes || 0), 0)
-  const totalComments = summaryMetrics.reduce((acc, m) => acc + (m.metrics?.comments || 0), 0)
-  const totalShares = metrics.filter(m => m.platform !== 'tiktok').reduce((acc, m) => acc + (Number(m.metrics?.shares) || 0), 0)
-    + videos.reduce((acc, v) => acc + (Number(v.shareCount) || 0), 0)
-  const totalEngagement = totalLikes + totalComments + totalShares
+  function platformRows(platform) {
+    return platform === 'tiktok' ? tiktokRows : metrics.filter(item => item.platform === platform)
+  }
+
+  function mergedPlatformTotal(platform, key) {
+    const accountValue = accountTotals[platform]?.[key]
+    if (accountValue?.hasData) return accountValue.value
+    return sumMetric(platformRows(platform), key)
+  }
+
+  const totalViews = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'views'), 0)
+  const totalLikes = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'likes'), 0)
+  const totalComments = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'comments'), 0)
+  const totalShares = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'shares'), 0)
+  const totalEngagement = NETWORK_ORDER.reduce((total, platform) => {
+    const accountValue = accountTotals[platform]?.engagement
+    return total + (accountValue?.hasData ? accountValue.value : mergedPlatformTotal(platform, 'likes') + mergedPlatformTotal(platform, 'comments') + mergedPlatformTotal(platform, 'shares'))
+  }, 0)
   const engagementRate = totalViews > 0 ? (totalEngagement / totalViews * 100) : 0
   const recommendation = totalViews === 0
     ? 'Publique um novo conteúdo para começar a construir uma base de comparação.'
@@ -74,15 +88,13 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
   const platformCounts = buildPlatformCounts(metrics, videos)
   const topPlatform = [...platformCounts].sort(([, a], [, b]) => b - a)[0]
   const platformEngagement = NETWORK_ORDER.map(platform => {
-    const platformMetrics = platform === 'tiktok' ? tiktokRows : metrics.filter(item => item.platform === platform)
-    const shares = sumMetric(platformMetrics, 'shares')
     return {
       platform,
-      likes: sumMetric(platformMetrics, 'likes'),
-      comments: sumMetric(platformMetrics, 'comments'),
-      shares,
+      likes: mergedPlatformTotal(platform, 'likes'),
+      comments: mergedPlatformTotal(platform, 'comments'),
+      shares: mergedPlatformTotal(platform, 'shares'),
     }
-  }).filter(item => metrics.some(metric => metric.platform === item.platform) || (item.platform === 'tiktok' && videos.length))
+  }).filter(item => metrics.some(metric => metric.platform === item.platform) || (item.platform === 'tiktok' && videos.length) || accountTotals[item.platform])
 
   return <>
     <section className="an-summary-section an-summary-overview" aria-labelledby="analytics-overview-title">
