@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const bcrypt = require('bcrypt')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const usersRepo = require('../repositories/usersRepository')
 const credentialsRepo = require('../repositories/credentialsRepository')
 const mailer = require('../services/mailer')
@@ -54,6 +55,7 @@ const loginLimiter = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('auth-login'),
   message: { erro: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
 })
 
@@ -62,6 +64,7 @@ const forgotPasswordLimiter = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('auth-forgot'),
   message: { erro: 'Muitos pedidos de redefinição de senha. Aguarde antes de tentar novamente.' }
 })
 

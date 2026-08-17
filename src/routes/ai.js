@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
@@ -35,6 +36,7 @@ const aiLimiter = rateLimit({
   limit: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('ai'),
   message: { erro: 'Limite de operações de IA atingido. Aguarde alguns minutos.' }
 })
 router.use(aiLimiter)

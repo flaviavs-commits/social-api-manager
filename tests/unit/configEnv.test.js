@@ -46,6 +46,18 @@ describe('config/env', () => {
     expect(() => assertProductionSecrets(validProduction)).toThrow(/modos de revisão/i)
   })
 
+  test('recusa Bearer legado em produção', () => {
+    const validProduction = {
+      NODE_ENV: 'production',
+      AUTH_TOKEN_SECRET: 'a'.repeat(32), SESSION_SECRET: 'b'.repeat(32), CRON_SECRET: 'c'.repeat(32),
+      TOKEN_ENCRYPTION_KEY: 'd'.repeat(64), DATABASE_URL: 'postgres://db',
+      BASE_URL: 'https://api.example.com', FRONTEND_URL: 'https://app.example.com',
+      FRONTEND_ORIGIN: 'https://app.example.com', BLOB_ALLOWED_HOSTS: 'storage.public.blob.vercel-storage.com',
+      TRUST_PROXY: '1', ALLOW_LEGACY_BEARER: 'true'
+    }
+    expect(() => assertProductionSecrets(validProduction)).toThrow(/ALLOW_LEGACY_BEARER/i)
+  })
+
   test('não libera modo de revisão sem ambiente explícito', () => {
     expect(() => assertProductionSecrets({ REVIEW_MODE_NO_AUTH: 'true' })).toThrow(/NODE_ENV/i)
     expect(() => assertProductionSecrets({ TIKTOK_REVIEW_MODE: 'true' })).toThrow(/NODE_ENV/i)

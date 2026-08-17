@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const bcrypt = require('bcrypt')
 const QRCode = require('qrcode')
 const usersRepo = require('../repositories/usersRepository')
@@ -20,6 +21,7 @@ const totpLimiter = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('totp'),
   message: { erro: 'Muitas tentativas de 2FA. Aguarde alguns minutos.' }
 })
 

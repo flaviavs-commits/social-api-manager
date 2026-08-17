@@ -24,10 +24,10 @@ async function requireAuth(req, res, next) {
   }
 
   const header = req.headers.authorization || ''
-  // Cookies HttpOnly são o caminho principal. O Bearer continua aceito
-  // temporariamente para clientes antigos durante a migração, mas o frontend
-  // não o armazena mais em localStorage.
-  const token = readCookie(req, AUTH_COOKIE) || (header.startsWith('Bearer ') ? header.slice(7) : null)
+  // Cookies HttpOnly são o único caminho aceito em produção. O Bearer legado
+  // só pode ser habilitado explicitamente fora de produção para migração/testes.
+  const allowLegacyBearer = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_BEARER !== 'false'
+  const token = readCookie(req, AUTH_COOKIE) || (allowLegacyBearer && header.startsWith('Bearer ') ? header.slice(7) : null)
 
   let userId = null
   let tokenInfo = null

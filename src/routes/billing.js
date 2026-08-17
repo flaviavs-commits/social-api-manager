@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { addLog } = require('../middleware/logger')
 const paymentGateway = require('../services/billing/paymentGateway')
 const billingService = require('../services/billing/billingService')
@@ -10,6 +11,7 @@ const planChangeLimiter = rateLimit({
   limit: 6,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('billing'),
   message: { erro: 'Muitas tentativas de troca de plano. Aguarde alguns minutos.' },
 })
 

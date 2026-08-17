@@ -14,10 +14,8 @@ const { encrypt, decrypt } = require('../services/tokenCrypto')
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
 // instância de função serverless diferente, perdendo qualquer Map em memória.
 async function salvarPkceVerifier(state, codeVerifier) {
-  // O state é determinístico (signState dos mesmos dados gera o mesmo valor),
-  // então reiniciar um OAuth com a mesma conta reusa a chave. UPSERT sobrescreve
-  // o verifier anterior em vez de estourar a unique constraint — um INSERT cru
-  // lançava um erro não tratado que derrubava o processo inteiro.
+  // O state agora contém um nonce aleatório e é persistido como uso único.
+  // Reiniciar o fluxo gera outra chave e não reaproveita um state antigo.
   await pool.query(
     `INSERT INTO oauth_pkce_state (state, code_verifier) VALUES ($1, $2)
      ON CONFLICT (state) DO UPDATE SET code_verifier = EXCLUDED.code_verifier, criado_em = NOW()`,
@@ -42,13 +40,26 @@ async function consumirPkceVerifier(state) {
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 function signState(payload) {
-  const withExp = { ...payload, exp: Date.now() + STATE_TTL_MS };
+  const withExp = { ...payload, nonce: crypto.randomBytes(24).toString('base64url'), exp: Date.now() + STATE_TTL_MS };
   const json = JSON.stringify(withExp);
   const sig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(json).digest('hex');
-  return Buffer.from(JSON.stringify({ ...withExp, sig })).toString('base64');
+  return Buffer.from(JSON.stringify({ ...withExp, sig })).toString('base64url');
+}
+
+async function issueState(payload) {
+  const state = signState(payload)
+  const verified = verifyState(state)
+  const stateHash = crypto.createHash('sha256').update(state).digest('hex')
+  await pool.query(
+    `INSERT INTO oauth_flow_states (state_hash, user_id, payload, expires_at)
+     VALUES ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0))`,
+    [stateHash, Number(verified.userId), JSON.stringify(verified), new Date(verified.exp).getTime()]
+  )
+  return state
 }
 
 function verifyState(state) {
+  if (typeof state !== 'string' || state.length < 32) throw new Error('state ausente')
   const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
   const { sig, ...payload } = decoded;
   const expectedSig = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(JSON.stringify(payload)).digest('hex');
@@ -61,6 +72,23 @@ function verifyState(state) {
   }
   if (payload.exp && Date.now() > payload.exp) throw new Error('state expirado');
   return payload;
+}
+
+async function consumirState(state) {
+  const verified = verifyState(state)
+  const stateHash = crypto.createHash('sha256').update(state).digest('hex')
+  const { rows: [row] } = await pool.query(
+    `DELETE FROM oauth_flow_states
+      WHERE state_hash = $1 AND expires_at > NOW()
+      RETURNING payload`,
+    [stateHash]
+  )
+  if (!row?.payload) throw new Error('state ausente, expirado ou já utilizado')
+  const persisted = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload
+  if (String(persisted.nonce || '') !== String(verified.nonce || '') || Number(persisted.userId) !== Number(verified.userId)) {
+    throw new Error('state inconsistente')
+  }
+  return persisted
 }
 
 // As APIs de OAuth (Meta/Instagram/Google/TikTok) ocasionalmente respondem com
@@ -356,7 +384,7 @@ router.get('/meta', requireAuth, async (req, res) => {
 
   const { accountName, returnTo } = req.query;
   const platform = 'facebook';
-  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
+  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'meta', state);
 
   try {
@@ -372,7 +400,7 @@ router.get('/meta/zernio-return', async (req, res) => {
   const { state, step, tempToken, userProfile, profileId, connect_token: connectToken, connectToken: alternateConnectToken, accountId, account_id, id, username, userName, displayName } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   const platform = 'facebook';
 
@@ -517,7 +545,7 @@ router.get('/meta/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   if (error) {
     addLog('err', `OAuth Facebook cancelado pelo usuário: ${error}`, null, null, meta.userId);
@@ -591,7 +619,7 @@ router.get('/instagram', requireAuth, async (req, res) => {
 
   const { accountName, returnTo } = req.query;
   const platform = 'instagram';
-  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
+  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'instagram', state);
 
   try {
@@ -607,7 +635,7 @@ router.get('/instagram/zernio-return', async (req, res) => {
   const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   const platform = 'instagram';
 
@@ -643,7 +671,7 @@ router.get('/google', requireAuth, async (req, res) => {
 
   const { accountName, returnTo } = req.query;
   const platform = 'youtube';
-  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
+  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'google', state);
 
   try {
@@ -658,7 +686,7 @@ router.get('/google', requireAuth, async (req, res) => {
 router.get('/google/zernio-return', async (req, res) => {
   const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   const platform = 'youtube';
   if (!meta.userId) {
@@ -686,12 +714,12 @@ router.get('/google/zernio-return', async (req, res) => {
 
 // Mantém somente a rota de callback para instalações antigas; a rota de início
 // legada fica fora do caminho público para que novas conexões usem Zernio.
-router.get('/google/legacy', requireAuth, (req, res) => {
+router.get('/google/legacy', requireAuth, async (req, res) => {
   const configError = checkEnv(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
   const { accountName } = req.query;
-  const state = signState({ accountName, platform: 'youtube', userId: req.user.id });
+  const state = await issueState({ accountName, platform: 'youtube', userId: req.user.id });
   const scopes = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
@@ -722,7 +750,7 @@ router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   if (error) {
     addLog('err', `OAuth Google cancelado: ${error}`, 'youtube', null, meta.userId);
@@ -802,7 +830,7 @@ async function iniciarOAuthTiktok(req, res, { scopes, stateExtra = {}, logMessag
   // uma resposta de erro — sem o try/catch, a rejeição não tratada derrubava o
   // processo inteiro e reiniciava o servidor a cada tentativa de conexão.
   try {
-    const state = signState({ accountName, platform, userId: req.user.id, ...stateExtra });
+    const state = await issueState({ accountName, platform, userId: req.user.id, ...stateExtra });
 
     // PKCE — TikTok exige HEX encoding para code_challenge (não base64url)
     const codeVerifier = crypto.randomBytes(64).toString('base64url');
@@ -855,7 +883,7 @@ router.get('/tiktok', requireAuth, async (req, res) => {
 
   const { accountName, returnTo } = req.query;
   const platform = 'tiktok';
-  const state = signState({ accountName, returnTo, platform, userId: req.user.id });
+  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
   const redirectUrl = zernioRedirectUrl(req, 'tiktok', state);
 
   try {
@@ -871,7 +899,7 @@ router.get('/tiktok/zernio-return', async (req, res) => {
   const { state, accountId, account_id, id, username, userName, displayName, profileId } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   const platform = 'tiktok';
 
@@ -915,7 +943,7 @@ router.get('/tiktok/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
   let meta = {};
-  try { meta = verifyState(state); } catch {}
+  try { meta = await consumirState(state); } catch {}
 
   if (error) {
     addLog('err', `OAuth TikTok cancelado: ${error}`, 'tiktok', null, meta.userId);

@@ -4,10 +4,14 @@ const pool = require('./pool')
 // todas as migrations versionadas. As operações são idempotentes, mas uma
 // falha não pode ser escondida: atender com schema parcial é mais perigoso do
 // que deixar o supervisor reiniciar o processo após corrigir a migração.
-const bestEffort = query => pool.query(query)
+// Todas as queries abaixo são aguardadas. Qualquer falha rejeita runMigrations
+// e impede o servidor de iniciar com schema parcial.
+const requiredQuery = query => pool.query(query)
+// Alias temporário para os blocos históricos; ele não engole exceções.
+const bestEffort = requiredQuery
 
 async function ensurePostAccounts() {
-  await bestEffort(`
+  await requiredQuery(`
     CREATE TABLE IF NOT EXISTS post_accounts (
       id SERIAL PRIMARY KEY,
       post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
@@ -17,7 +21,7 @@ async function ensurePostAccounts() {
       UNIQUE (post_id, account_id)
     )
   `)
-  await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)')
+  await requiredQuery('CREATE INDEX IF NOT EXISTS idx_post_accounts_post_id ON post_accounts(post_id)')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS publication_error TEXT')
@@ -138,6 +142,24 @@ async function ensureBillingTables() {
 
 async function runMigrations() {
   await Promise.all([
+    requiredQuery(`
+      CREATE TABLE IF NOT EXISTS rate_limit_counters (
+        key TEXT PRIMARY KEY,
+        hits INTEGER NOT NULL DEFAULT 0 CHECK (hits >= 0),
+        expires_at TIMESTAMPTZ NOT NULL
+      )
+    `),
+    requiredQuery('CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_expiry ON rate_limit_counters(expires_at)'),
+    requiredQuery(`
+      CREATE TABLE IF NOT EXISTS oauth_flow_states (
+        state_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        payload JSONB NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `),
+    requiredQuery('CREATE INDEX IF NOT EXISTS idx_oauth_flow_states_expiry ON oauth_flow_states(expires_at)'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_by_platform JSONB'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS title_by_platform JSONB'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS youtube_category_id TEXT'),

@@ -52,6 +52,12 @@ function assertProductionSecrets(source = process.env) {
     throw error
   }
 
+  if (boolean(source.ALLOW_LEGACY_BEARER)) {
+    const error = new Error('ALLOW_LEGACY_BEARER não pode ser ativado em produção')
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+
   const required = [
     'AUTH_TOKEN_SECRET', 'SESSION_SECRET', 'TOKEN_ENCRYPTION_KEY', 'DATABASE_URL',
     'BASE_URL', 'FRONTEND_URL', 'FRONTEND_ORIGIN', 'CRON_SECRET', 'BLOB_ALLOWED_HOSTS'

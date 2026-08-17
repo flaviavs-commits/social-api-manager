@@ -3,6 +3,7 @@ const express  = require('express')
 const path     = require('path')
 const cors     = require('cors')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('./infra/http/postgresRateLimitStore')
 
 const compression    = require('compression')
 const accountsRoutes = require('./routes/accounts')
@@ -94,7 +95,8 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  res.setHeader('Content-Security-Policy-Report-Only', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'")
+  const csp = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-StHcaWdc2/HgrGZXxKE0LfihFx9NPi1XasBlgsGWdeU=' 'sha256-LwAqGK/kdCWuY9FDcQ5GWMUgoc+n9DB/AHlF3te5Zww=' 'sha256-c/MpL7TXH9z4WiaZ3egdDwIovDJViAz5LRujZatofRU=' 'sha256-E3L+/uNfSGakMxL/kGdU1mIm04RAULzstN5QPWnVEA8='"
+  res.setHeader(config.isProduction ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only', csp)
   if (config.isProduction && req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
@@ -353,6 +355,7 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('api'),
   message: { erro: 'Muitas requisições. Aguarde alguns minutos e tente novamente.' }
 })
 app.use('/api', apiLimiter)

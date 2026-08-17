@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { createRateLimitStore } = require('../../infra/http/postgresRateLimitStore')
 const controller = require('../controllers/postsController')
 const { requirePlanModule } = require('../../config/plans')
 
@@ -10,6 +11,7 @@ const uploadLimiter = rateLimit({
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('uploads'),
   message: { erro: 'Limite de uploads atingido. Aguarde antes de enviar mais arquivos.' }
 })
 
