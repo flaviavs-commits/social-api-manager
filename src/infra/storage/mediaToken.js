@@ -9,7 +9,11 @@ const crypto = require('crypto')
 // baixada de forma assíncrona. Com 10 min, o token expirava antes do pull e
 // o TikTok rejeitava com url_ownership_unverified (não conseguia acessar a
 // URL). O token segue restrito a uma mídia específica e assinado por HMAC.
-const EXPIRACAO_MS = 6 * 60 * 60 * 1000 // 6 horas
+// No modo privado o token também pode ficar salvo em posts agendados. O prazo
+// maior evita quebrar agendamentos sem transformar o token em permanente.
+const EXPIRACAO_MS = String(process.env.BLOB_ACCESS_MODE || '').toLowerCase() === 'private'
+  ? 30 * 24 * 60 * 60 * 1000
+  : 6 * 60 * 60 * 1000
 
 function gerarTokenMedia(filename) {
   const expira = Date.now() + EXPIRACAO_MS

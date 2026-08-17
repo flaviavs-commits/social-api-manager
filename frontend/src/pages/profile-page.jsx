@@ -136,8 +136,8 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       const response = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
       if (!response.ok) throw new Error('Não foi possível enviar a imagem.')
       const uploaded = await response.json().catch(() => null)
-      if (!uploaded?.url) throw new Error('O upload não retornou uma URL pública válida.')
-      const avatarUrl = uploaded.url
+      const avatarUrl = upload.mediaUrl || uploaded?.url
+      if (!avatarUrl) throw new Error('O upload não retornou uma URL válida.')
       await apiFetch('/api/me/avatar', { method: 'POST', body: JSON.stringify({ avatarUrl }) })
       setProfile(current => ({ ...current, avatarUrl }))
       onUserChange?.({ avatarUrl })

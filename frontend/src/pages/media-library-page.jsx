@@ -95,8 +95,9 @@ export function MediaLibraryPage({ onNavigate }) {
         const response = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
         if (!response.ok) throw new Error(`Não foi possível enviar ${file.name}.`)
         const uploaded = await response.json().catch(() => null)
-        if (!uploaded?.url) throw new Error(`O upload de ${file.name} não retornou uma URL.`)
-        await apiFetch('/api/media-assets', { method: 'POST', body: JSON.stringify({ name: file.name, url: uploaded.url, mimeType: file.type, sizeBytes: file.size, folder: uploadFolder || 'Geral' }) })
+        const mediaUrl = signed.mediaUrl || uploaded?.url
+        if (!mediaUrl) throw new Error(`O upload de ${file.name} não retornou uma URL.`)
+        await apiFetch('/api/media-assets', { method: 'POST', body: JSON.stringify({ name: file.name, url: mediaUrl, mimeType: file.type, sizeBytes: file.size, folder: uploadFolder || 'Geral' }) })
       }
       const foldersData = await apiFetch('/api/media-folders')
       setFolders(foldersData.folders || [])

@@ -183,8 +183,9 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       const uploadResponse = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob })
       if (!uploadResponse.ok) throw new Error('Não foi possível enviar uma imagem para publicação.')
       const uploaded = await uploadResponse.json().catch(() => null)
-      if (!uploaded?.url) throw new Error('O upload de uma imagem não retornou uma URL válida.')
-      return { path: uploaded.url, type: 'image' }
+      const mediaUrl = signed.mediaUrl || uploaded?.url
+      if (!mediaUrl) throw new Error('O upload de uma imagem não retornou uma URL válida.')
+      return { path: mediaUrl, type: 'image' }
     }))
     return { mediaPath: uploadedItems[0].path, mediaItems: uploadedItems.length > 1 ? uploadedItems : null }
   }

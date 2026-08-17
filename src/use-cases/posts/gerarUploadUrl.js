@@ -13,8 +13,8 @@ async function gerarUploadUrl({ filename, mimetype }) {
   // arquivo nesse fluxo. allowedContentTypes/maximumSizeInBytes em
   // blobStorage são a validação equivalente possível num upload direto
   // navegador→Blob.
-  const uploadUrl = await gerarUploadUrlBlob(filename, mimetype)
-  return { uploadUrl, mimetype: String(mimetype).toLowerCase() }
+  const upload = await gerarUploadUrlBlob(filename, mimetype)
+  return { ...upload, mimetype: String(mimetype).toLowerCase() }
 }
 
 module.exports = { gerarUploadUrl, ALLOWED_MEDIA_TYPES }

@@ -40,8 +40,9 @@ export function SmartlinksPage() {
       const response = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
       if (!response.ok) throw new Error('Não foi possível enviar a logo.')
       const uploaded = await response.json().catch(() => null)
-      if (!uploaded?.url) throw new Error('O upload não retornou uma URL pública válida.')
-      setForm(current => ({ ...current, logoUrl: uploaded.url }))
+      const mediaUrl = upload.mediaUrl || uploaded?.url
+      if (!mediaUrl) throw new Error('O upload não retornou uma URL válida.')
+      setForm(current => ({ ...current, logoUrl: mediaUrl }))
       notify('Logo da loja carregada.')
     } catch (error) {
       notify(error.message, 'error')

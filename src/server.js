@@ -37,7 +37,7 @@ const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
 const { getStatusMap } = require('./services/platformHealth')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
-const { isBlobUrl, readResponseLimited, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('./infra/storage/blobStorage')
+const { isBlobUrl, isPrivateBlobMode, getPrivateBlob, readResponseLimited, readBlobStreamLimited, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('./infra/storage/blobStorage')
 const { issueAuthSession, issueCsrfToken, readCookie, CSRF_COOKIE, AUTH_COOKIE } = require('./utils/authCookie')
 const { readEnv, assertProductionSecrets } = require('./config/env')
 const asyncHandler = require('./http/asyncHandler')
@@ -242,18 +242,34 @@ app.get('/media-proxy/:token/:encoded', async (req, res) => {
     return res.status(403).end()
   }
 
-  let upstream
-  try {
-    upstream = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15_000) })
-  } catch {
-    return res.status(502).end()
-  }
-  if (!upstream.ok) return res.status(502).end()
-
-  const contentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
-  if (!ALLOWED_MEDIA_TYPES.has(contentType)) return res.status(415).end()
+  let contentType
   let buffer
-  try { buffer = await readResponseLimited(upstream, MAX_UPLOAD_SIZE_BYTES) } catch { return res.status(413).end() }
+  if (isPrivateBlobMode()) {
+    try {
+      const privateBlob = await getPrivateBlob(url)
+      if (privateBlob) {
+        contentType = String(privateBlob.blob?.contentType || '').split(';')[0].trim().toLowerCase()
+        buffer = await readBlobStreamLimited(privateBlob, MAX_UPLOAD_SIZE_BYTES)
+      }
+    } catch {
+      if (process.env.BLOB_LEGACY_PUBLIC_FALLBACK === 'false') return res.status(502).end()
+    }
+  }
+
+  // Durante a migração, blobs antigos públicos continuam funcionando. Novos
+  // blobs privados são atendidos pelo SDK acima e nunca caem neste caminho.
+  if (!buffer) {
+    let upstream
+    try {
+      upstream = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15_000) })
+    } catch {
+      return res.status(502).end()
+    }
+    if (!upstream.ok) return res.status(502).end()
+    contentType = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    try { buffer = await readResponseLimited(upstream, MAX_UPLOAD_SIZE_BYTES) } catch { return res.status(413).end() }
+  }
+  if (!ALLOWED_MEDIA_TYPES.has(contentType)) return res.status(415).end()
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Content-Type', contentType)
   res.send(buffer)

@@ -21,8 +21,8 @@ function ctx(req) {
 
 async function postUploadUrl(req, res) {
   try {
-    const { uploadUrl, mimetype } = await gerarUploadUrl(req.body || {})
-    res.json({ uploadUrl, mimetype })
+    const { uploadUrl, mediaUrl, mimetype } = await gerarUploadUrl(req.body || {})
+    res.json({ uploadUrl, mediaUrl, mimetype })
   } catch (e) {
     if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })
     serverError(res, e, 'Não foi possível gerar a URL de upload')

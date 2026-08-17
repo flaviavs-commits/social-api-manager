@@ -3,7 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { gerarTokenMedia } = require('../storage/mediaToken')
-const { isBlobUrl, readResponseLimited, MAX_UPLOAD_SIZE_BYTES } = require('../storage/blobStorage')
+const { isBlobUrl, isPrivateBlobMode, getPrivateBlob, decodeMediaProxyUrl, readResponseLimited, readBlobStreamLimited, mediaProxyUrl, MAX_UPLOAD_SIZE_BYTES } = require('../storage/blobStorage')
 
 const UPLOADS_DIR = path.join(__dirname, '../../../public/uploads')
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -20,6 +20,17 @@ function isUrlExterna(mediaPath) {
 async function mediaToBlob(mediaPath) {
   if (isUrlExterna(mediaPath)) {
     if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
+    if (isPrivateBlobMode()) {
+      try {
+        const privateBlob = await getPrivateBlob(mediaPath)
+        if (privateBlob) {
+          const buffer = await readBlobStreamLimited(privateBlob, MAX_UPLOAD_SIZE_BYTES)
+          return { buffer, filename: path.basename(new URL(mediaPath).pathname) }
+        }
+      } catch (error) {
+        if (process.env.BLOB_LEGACY_PUBLIC_FALLBACK === 'false') throw error
+      }
+    }
     const res = await fetch(mediaPath, { redirect: 'error', signal: AbortSignal.timeout(30_000) })
     if (!res.ok) throw new Error(`Falha ao baixar mídia (${res.status})`)
     const buffer = await readResponseLimited(res, MAX_UPLOAD_SIZE_BYTES)
@@ -39,6 +50,10 @@ async function mediaToBlob(mediaPath) {
 function mediaUrl(mediaPath) {
   if (isUrlExterna(mediaPath)) {
     if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
+    if (isPrivateBlobMode()) {
+      const actual = decodeMediaProxyUrl(mediaPath) || mediaPath
+      return mediaProxyUrl(actual) || mediaPath
+    }
     return mediaPath
   }
 
@@ -56,6 +71,10 @@ function mediaUrl(mediaPath) {
 function mediaUrlTiktok(mediaPath) {
   if (!isUrlExterna(mediaPath)) return mediaUrl(mediaPath)
   if (!isBlobUrl(mediaPath)) throw new Error('Origem de mídia não autorizada')
+  if (isPrivateBlobMode()) {
+    const actual = decodeMediaProxyUrl(mediaPath) || mediaPath
+    return mediaProxyUrl(actual) || mediaPath
+  }
 
   // O TikTok valida o url_prefix de forma estrita: a URL precisa começar com
   // o prefixo verificado e (na prática) terminar num arquivo, sem query

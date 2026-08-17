@@ -738,10 +738,11 @@ export function SchedulerPage() {
     const response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
     if (!response.ok) throw new Error(`Falha ao enviar ${file.name}`)
     const uploaded = await response.json().catch(() => null)
-    // A URL usada no PUT é temporária; o corpo da resposta contém a URL
-    // pública final que deve ser salva no post.
-    if (!uploaded?.url) throw new Error(`O upload de ${file.name} não retornou uma URL pública válida.`)
-    return { url: uploaded.url, mimetype: file.type, name: file.name }
+    // Em modo privado o backend fornece uma URL proxy assinada; no modo
+    // público preservamos a URL final devolvida pelo Blob.
+    const mediaUrl = data.mediaUrl || uploaded?.url
+    if (!mediaUrl) throw new Error(`O upload de ${file.name} não retornou uma URL válida.`)
+    return { url: mediaUrl, mimetype: file.type, name: file.name }
   }
 
   async function submit(event) {

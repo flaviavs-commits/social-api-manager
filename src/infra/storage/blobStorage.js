@@ -1,7 +1,8 @@
 // Adapter para o Vercel Blob — geração de URL pré-assinada de upload e escrita direta.
 const path = require('path')
 const crypto = require('crypto')
-const { put, presignUrl, issueSignedToken } = require('@vercel/blob')
+const { get, put, presignUrl, issueSignedToken } = require('@vercel/blob')
+const { gerarTokenMedia, validarTokenMedia } = require('./mediaToken')
 
 const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'image/avif', 'image/tiff', 'image/bmp',
@@ -12,6 +13,48 @@ const MAX_UPLOAD_SIZE_BYTES = 200 * 1024 * 1024
 const UPLOAD_URL_TTL_MS = 10 * 60 * 1000
 const BLOB_ALLOWED_HOSTS = new Set(String(process.env.BLOB_ALLOWED_HOSTS || '')
   .split(',').map(host => host.trim().toLowerCase()).filter(Boolean))
+const PRIVATE_BLOB_MODE = String(process.env.BLOB_ACCESS_MODE || '').toLowerCase() === 'private'
+const BLOB_ACCESS = PRIVATE_BLOB_MODE ? 'private' : 'public'
+const BASE_URL = String(process.env.BASE_URL || '').replace(/\/$/, '')
+
+function blobOrigin() {
+  const configured = String(process.env.BLOB_PUBLIC_BASE_URL || '').trim().replace(/\/$/, '')
+  if (configured) return configured
+  const host = Array.from(BLOB_ALLOWED_HOSTS)[0]
+  return host ? `https://${host}` : ''
+}
+
+function blobUrlForPath(pathname) {
+  const origin = blobOrigin()
+  if (!origin) throw new Error('BLOB_ALLOWED_HOSTS ou BLOB_PUBLIC_BASE_URL é necessário para o modo privado')
+  return `${origin}/${String(pathname).replace(/^\//, '')}`
+}
+
+function mediaProxyUrl(blobUrl) {
+  if (!PRIVATE_BLOB_MODE || !BASE_URL) return null
+  const token = gerarTokenMedia(blobUrl)
+  const encoded = Buffer.from(blobUrl).toString('base64url')
+  const ext = path.extname(new URL(blobUrl).pathname) || '.bin'
+  return `${BASE_URL}/media-proxy/${token}/${encoded}${ext}`
+}
+
+function decodeMediaProxyUrl(value) {
+  if (!PRIVATE_BLOB_MODE || typeof value !== 'string' || !BASE_URL) return null
+  try {
+    const parsed = new URL(value)
+    const base = new URL(BASE_URL)
+    if (parsed.origin !== base.origin || !parsed.pathname.startsWith('/media-proxy/')) return null
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    if (parts.length < 3) return null
+    const token = parts[1]
+    const encoded = parts[2].replace(/\.[^.]+$/, '')
+    const blobUrl = Buffer.from(encoded, 'base64url').toString('utf8')
+    if (!validarTokenMedia(blobUrl, token)) return null
+    return blobUrl
+  } catch {
+    return null
+  }
+}
 
 // Gera uma URL pré-assinada para o navegador enviar o arquivo direto ao
 // Vercel Blob, sem passar pelo corpo da requisição desta API. Necessário
@@ -27,17 +70,19 @@ async function gerarUploadUrl(filename, mimetype) {
   const { presignedUrl } = await presignUrl(signed, {
     operation: 'put',
     pathname,
-    access: 'public',
+    access: BLOB_ACCESS,
     allowedContentTypes: Array.from(ALLOWED_MEDIA_TYPES),
     maximumSizeInBytes: MAX_UPLOAD_SIZE_BYTES,
     validUntil
   })
 
-  return presignedUrl
+  if (!PRIVATE_BLOB_MODE) return { uploadUrl: presignedUrl, mediaUrl: null, blobUrl: null }
+  const blobUrl = blobUrlForPath(pathname)
+  return { uploadUrl: presignedUrl, mediaUrl: mediaProxyUrl(blobUrl), blobUrl }
 }
 
 async function salvarBuffer(filename, buffer, contentType) {
-  const { url } = await put(filename, buffer, { access: 'public', contentType })
+  const { url } = await put(filename, buffer, { access: BLOB_ACCESS, contentType })
   return url
 }
 
@@ -51,6 +96,7 @@ async function salvarBuffer(filename, buffer, contentType) {
 // (server.js) para o caso inverso (proxy de saída).
 function isBlobUrl(url) {
   if (typeof url !== 'string') return false
+  if (decodeMediaProxyUrl(url)) return true
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'https:') return false
@@ -58,6 +104,29 @@ function isBlobUrl(url) {
     // Desenvolvimento/testes mantêm compatibilidade com o formato do Blob;
     // produção precisa declarar os hosts exatos para impedir objetos de outra
     // conta/storage serem usados como origem de processamento.
+    return process.env.NODE_ENV !== 'production' && parsed.hostname.endsWith('.public.blob.vercel-storage.com')
+  } catch {
+    return false
+  }
+}
+
+function isPrivateBlobMode() {
+  return PRIVATE_BLOB_MODE
+}
+
+async function getPrivateBlob(url) {
+  const actualUrl = decodeMediaProxyUrl(url) || url
+  if (!isActualBlobUrl(actualUrl)) return null
+  const pathname = new URL(actualUrl).pathname.replace(/^\//, '')
+  return get(pathname, { access: 'private' })
+}
+
+function isActualBlobUrl(url) {
+  if (typeof url !== 'string') return false
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    if (BLOB_ALLOWED_HOSTS.size) return BLOB_ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())
     return process.env.NODE_ENV !== 'production' && parsed.hostname.endsWith('.public.blob.vercel-storage.com')
   } catch {
     return false
@@ -89,4 +158,22 @@ async function readResponseLimited(response, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
   return Buffer.concat(chunks, total)
 }
 
-module.exports = { ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES, gerarUploadUrl, salvarBuffer, isBlobUrl, readResponseLimited }
+async function readBlobStreamLimited(blobResult, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
+  const declared = Number(blobResult?.blob?.size || 0)
+  if (declared > maxBytes) throw new Error('Mídia excede o tamanho máximo permitido')
+  const chunks = []
+  let total = 0
+  for await (const chunk of blobResult?.stream || []) {
+    const buffer = Buffer.from(chunk)
+    total += buffer.length
+    if (total > maxBytes) throw new Error('Mídia excede o tamanho máximo permitido')
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks, total)
+}
+
+module.exports = {
+  ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES, gerarUploadUrl, salvarBuffer, isBlobUrl,
+  isActualBlobUrl, isPrivateBlobMode, getPrivateBlob, mediaProxyUrl, decodeMediaProxyUrl,
+  readResponseLimited, readBlobStreamLimited
+}

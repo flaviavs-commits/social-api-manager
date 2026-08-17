@@ -103,6 +103,22 @@ function assertProductionSecrets(source = process.env) {
     error.code = 'CONFIGURATION_ERROR'
     throw error
   }
+
+  const blobAccessMode = String(source.BLOB_ACCESS_MODE || 'public').trim().toLowerCase()
+  if (!['public', 'private'].includes(blobAccessMode)) {
+    const error = new Error('BLOB_ACCESS_MODE deve ser public ou private')
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+  if (blobAccessMode === 'private') {
+    const hasBlobCredentials = String(source.BLOB_READ_WRITE_TOKEN || '').trim() ||
+      (String(source.VERCEL_OIDC_TOKEN || '').trim() && String(source.BLOB_STORE_ID || '').trim())
+    if (!hasBlobCredentials) {
+      const error = new Error('Modo privado do Blob exige BLOB_READ_WRITE_TOKEN ou VERCEL_OIDC_TOKEN+BLOB_STORE_ID')
+      error.code = 'CONFIGURATION_ERROR'
+      throw error
+    }
+  }
 }
 
 module.exports = { DEFAULT_PORT, csv, boolean, readEnv, assertProductionSecrets }
