@@ -61,7 +61,9 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const loadAnalytics = useCallback(async () => {
     try {
       const queryDays = Math.min(90, periodDays * (comparePeriod ? 2 : 1))
-      const result = await apiFetch(`/api/posts/analytics?days=${queryDays}`)
+      // Agrega métricas ao vivo de várias contas/plataformas — pode passar
+      // do timeout padrão de 15s da apiFetch em contas com muitas publicações.
+      const result = await apiFetch(`/api/posts/analytics?days=${queryDays}`, { timeoutMs: 45_000 })
       const next = {
         series: result.series || {},
         metrics: result.metrics || [],

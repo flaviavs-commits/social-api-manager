@@ -141,7 +141,7 @@ export function DashboardPage({ onNavigate }) {
   const [postsError, setPostsError] = useState('')
   const [accountsError, setAccountsError] = useState('')
   const [analytics, setAnalytics] = useState(null)
-  const [analyticsPeriodDays, setAnalyticsPeriodDays] = useState(30)
+  const [analyticsPeriodDays, setAnalyticsPeriodDays] = useState(7)
   const [analyticsError, setAnalyticsError] = useState('')
   const [postsLoading, setPostsLoading] = useState(true)
   const [accountsLoading, setAccountsLoading] = useState(true)
@@ -176,7 +176,10 @@ export function DashboardPage({ onNavigate }) {
     setAnalyticsError('')
 
     function loadAnalytics() {
-      apiFetch(`/api/posts/analytics?days=${analyticsPeriodDays}`)
+      // Esse endpoint agrega métricas ao vivo de várias contas/plataformas
+      // (Zernio + APIs nativas), podendo levar bem mais que o timeout padrão
+      // de 15s da apiFetch em contas com várias publicações no período.
+      apiFetch(`/api/posts/analytics?days=${analyticsPeriodDays}`, { timeoutMs: 45_000 })
         .then(result => {
           if (!active) return
           retryAttempt = 0
