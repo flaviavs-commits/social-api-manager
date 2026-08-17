@@ -8,6 +8,7 @@
 // confiar em type/code estarem presentes, só error é garantido.
 const ZERNIO_BASE_URL = 'https://zernio.com/api/v1'
 const { HttpClientError, requestJson } = require('../http/requestJson')
+const { analyticsLimiter } = require('./zernioRateLimiter')
 
 class ZernioError extends Error {
   constructor(message, { status, code, type, details } = {}) {
@@ -51,6 +52,18 @@ async function zernioFetch(path, { method = 'GET', body, query, headers = {}, ti
     }
     throw error
   }
+}
+
+// Os endpoints de /analytics/* têm um limite de requisições por segundo bem
+// mais apertado que o resto da API (6/s no plano atual de 0-2 contas). O
+// painel dispara vários desses de uma vez (um por conta/período/widget), e
+// sem throttle a rajada inicial já estoura o limite antes do retry de 429
+// entrar em ação — o usuário via isso como "Métricas indisponíveis" mesmo
+// com o Zernio saudável. analyticsLimiter serializa essas chamadas na taxa
+// configurada antes de cada uma sair.
+async function zernioAnalyticsFetch(path, options = {}) {
+  await analyticsLimiter.acquire()
+  return zernioFetch(path, options)
 }
 
 // Devolve a URL de autorização OAuth para o usuário conectar uma conta —
@@ -128,67 +141,67 @@ async function replyToComment(postId, body) {
 // O parâmetro query é opcional para preservar o contrato usado pelo fluxo
 // legado de reconciliação.
 async function getAnalytics(query) {
-  return zernioFetch('/analytics', { query })
+  return zernioAnalyticsFetch('/analytics', { query })
 }
 
 async function getDailyMetrics(query) {
-  return zernioFetch('/analytics/daily-metrics', { query })
+  return zernioAnalyticsFetch('/analytics/daily-metrics', { query })
 }
 
 async function getContentDecay(query) {
-  return zernioFetch('/analytics/content-decay', { query })
+  return zernioAnalyticsFetch('/analytics/content-decay', { query })
 }
 
 async function getBestTimeToPost(query) {
-  return zernioFetch('/analytics/best-time', { query })
+  return zernioAnalyticsFetch('/analytics/best-time', { query })
 }
 
 async function getPostTimeline(query) {
-  return zernioFetch('/analytics/post-timeline', { query })
+  return zernioAnalyticsFetch('/analytics/post-timeline', { query })
 }
 
 async function getFollowerStats(query) {
-  return zernioFetch('/accounts/follower-stats', { query })
+  return zernioAnalyticsFetch('/accounts/follower-stats', { query })
 }
 
 async function getFacebookPageInsights(query) {
-  return zernioFetch('/analytics/facebook/page-insights', { query })
+  return zernioAnalyticsFetch('/analytics/facebook/page-insights', { query })
 }
 
 async function getInstagramAccountInsights(query) {
-  return zernioFetch('/analytics/instagram/account-insights', { query })
+  return zernioAnalyticsFetch('/analytics/instagram/account-insights', { query })
 }
 
 async function getInstagramDemographics(query) {
-  return zernioFetch('/analytics/instagram/demographics', { query })
+  return zernioAnalyticsFetch('/analytics/instagram/demographics', { query })
 }
 
 async function getTiktokAccountInsights(query) {
-  return zernioFetch('/analytics/tiktok/account-insights', { query })
+  return zernioAnalyticsFetch('/analytics/tiktok/account-insights', { query })
 }
 
 async function getYoutubeChannelInsights(query) {
-  return zernioFetch('/analytics/youtube/channel-insights', { query })
+  return zernioAnalyticsFetch('/analytics/youtube/channel-insights', { query })
 }
 
 async function getYoutubeDailyViews(query) {
-  return zernioFetch('/analytics/youtube/daily-views', { query })
+  return zernioAnalyticsFetch('/analytics/youtube/daily-views', { query })
 }
 
 async function getYoutubeVideoRetention(query) {
-  return zernioFetch('/analytics/youtube/video-retention', { query })
+  return zernioAnalyticsFetch('/analytics/youtube/video-retention', { query })
 }
 
 async function getYoutubeDemographics(query) {
-  return zernioFetch('/analytics/youtube/demographics', { query })
+  return zernioAnalyticsFetch('/analytics/youtube/demographics', { query })
 }
 
 async function getFacebookPostReactions(accountId, query) {
-  return zernioFetch(`/accounts/${encodeURIComponent(accountId)}/facebook-post-reactions`, { query })
+  return zernioAnalyticsFetch(`/accounts/${encodeURIComponent(accountId)}/facebook-post-reactions`, { query })
 }
 
 async function getYoutubePlaylists(accountId) {
-  return zernioFetch(`/accounts/${encodeURIComponent(accountId)}/youtube-playlists`)
+  return zernioAnalyticsFetch(`/accounts/${encodeURIComponent(accountId)}/youtube-playlists`)
 }
 
 module.exports = {
