@@ -304,7 +304,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     <div className="ai-generator-heading"><div><p className="eyebrow">CRIAR CONTEÚDO</p><h2>O que você quer publicar?</h2><p>Quanto mais contexto você informar, mais úteis serão as sugestões.</p></div><span className="ai-generator-icon" aria-hidden="true">✦</span></div>
     <form className="draft-form sched-form" onSubmit={generate}>
       <SchedSection number={1} title="Instrução">
-        <textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Inclua tema, público, objetivo, tom de voz ou rede social.</span>
+<textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Você pode pedir qualquer assunto benigno: história, viagem, tecnologia, negócios, cultura, comida ou vários temas juntos. Observação: a IA não é autorizada para temas médicos, jurídicos, adultos/+18 ou análises financeiras aprofundadas.</span>
       </SchedSection>
       <fieldset className="ai-visual-format-picker">
         <legend>Formato visual opcional</legend>
