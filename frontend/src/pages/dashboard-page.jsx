@@ -8,6 +8,7 @@ const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const ACTIVITY_FILTER_KEY = 'meu-ecoo:dashboard-activity-filter'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
+const PERFORMANCE_PLATFORM_FILTERS = [['all', 'Todas as redes'], ...DASHBOARD_PLATFORMS]
 const PERFORMANCE_PERIODS = [7, 15, 30]
 const ANALYTICS_RETRY_BASE_MS = 5000
 const ANALYTICS_RETRY_MAX_MS = 60000
@@ -128,8 +129,10 @@ function bestObservedHour(rows) {
   return `${String(hour).padStart(2, '0')}:00–${String((hour + 1) % 24).padStart(2, '0')}:00`
 }
 
-function bestProviderTime(accountAnalytics) {
-  const slots = (accountAnalytics?.bestTimeToPost || []).flatMap(item => item.data?.slots || [])
+function bestProviderTime(accountAnalytics, platform = 'all') {
+  const slots = (accountAnalytics?.bestTimeToPost || [])
+    .filter(item => platform === 'all' || [item.platform, item.network, item.data?.platform].includes(platform))
+    .flatMap(item => item.data?.slots || [])
   const best = [...slots].sort((a, b) => Number(b.avg_engagement || 0) - Number(a.avg_engagement || 0))[0]
   if (!best || best.hour == null) return null
   const days = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
@@ -142,6 +145,7 @@ export function DashboardPage({ onNavigate }) {
   const [accountsError, setAccountsError] = useState('')
   const [analytics, setAnalytics] = useState(null)
   const [analyticsPeriodDays, setAnalyticsPeriodDays] = useState(7)
+  const [analyticsPlatform, setAnalyticsPlatform] = useState('all')
   const [analyticsError, setAnalyticsError] = useState('')
   const [postsLoading, setPostsLoading] = useState(true)
   const [accountsLoading, setAccountsLoading] = useState(true)
@@ -218,27 +222,34 @@ export function DashboardPage({ onNavigate }) {
   const dashboardError = postsError || accountsError
   const connectedPlatforms = new Set(data.accounts.map(account => account.platform).filter(Boolean)).size
   const analyticsRows = Array.isArray(analytics?.metrics) ? analytics.metrics.filter(row => row.metrics) : []
+  const selectedAnalyticsRows = analyticsPlatform === 'all'
+    ? analyticsRows
+    : analyticsRows.filter(row => row.platform === analyticsPlatform)
+  const selectedPlatforms = analyticsPlatform === 'all'
+    ? DASHBOARD_PLATFORMS
+    : DASHBOARD_PLATFORMS.filter(([platform]) => platform === analyticsPlatform)
+  const selectedPlatformLabel = PERFORMANCE_PLATFORM_FILTERS.find(([platform]) => platform === analyticsPlatform)?.[1] || 'Todas as redes'
   const accountTotals = accountAnalyticsPlatformTotals(analytics?.accountAnalytics)
   const totalForPlatform = (platform, key, fallback) => accountTotals[platform]?.[key]?.hasData
     ? accountTotals[platform][key].value
     : fallback
-  const totalViews = DASHBOARD_PLATFORMS.reduce((total, [platform]) => total + totalForPlatform(
+  const totalViews = selectedPlatforms.reduce((total, [platform]) => total + totalForPlatform(
     platform,
     'views',
-    analyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + metricValue(row.metrics, 'views'), 0)
+    selectedAnalyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + metricValue(row.metrics, 'views'), 0)
   ), 0)
-  const totalEngagement = DASHBOARD_PLATFORMS.reduce((total, [platform]) => total + totalForPlatform(
+  const totalEngagement = selectedPlatforms.reduce((total, [platform]) => total + totalForPlatform(
     platform,
     'engagement',
-    analyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + engagementValue(row.metrics), 0)
+    selectedAnalyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + engagementValue(row.metrics), 0)
   ), 0)
   const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
-  const topEngagementPosts = useMemo(() => [...analyticsRows]
+  const topEngagementPosts = useMemo(() => [...selectedAnalyticsRows]
     .sort((a, b) => engagementValue(b.metrics) - engagementValue(a.metrics))
-    .slice(0, 3), [analyticsRows])
+    .slice(0, 3), [selectedAnalyticsRows])
   const trend = useMemo(() => {
     const byDay = {}
-    analyticsRows.forEach(row => {
+    selectedAnalyticsRows.forEach(row => {
       const date = new Date(row.publishedAt)
       if (Number.isNaN(date.getTime())) return
       const key = date.toISOString().slice(0, 10)
@@ -247,8 +258,8 @@ export function DashboardPage({ onNavigate }) {
       byDay[key].engagement += engagementValue(row.metrics)
     })
     return Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).slice(-7).map(([date, values]) => ({ date, ...values }))
-  }, [analyticsRows])
-  const bestHour = bestProviderTime(analytics?.accountAnalytics) || bestObservedHour(topEngagementPosts)
+  }, [selectedAnalyticsRows])
+  const bestHour = bestProviderTime(analytics?.accountAnalytics, analyticsPlatform) || bestObservedHour(topEngagementPosts)
   const bestPost = topEngagementPosts[0]
   const maxTrendValue = Math.max(...trend.map(item => Math.max(item.views, item.engagement)), 1)
   const analyticsInsight = bestPost
@@ -381,7 +392,7 @@ export function DashboardPage({ onNavigate }) {
 
     <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
       <section className="panel dashboard-performance-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {analyticsPeriodDays} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><div className="dashboard-performance-actions"><div className="dashboard-period-switch" role="group" aria-label="Período da performance">{PERFORMANCE_PERIODS.map(days => <button type="button" className={analyticsPeriodDays === days ? 'is-active' : ''} aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}</div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div></div>
+        <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {analyticsPeriodDays} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><div className="dashboard-performance-actions"><div className="dashboard-platform-switch" role="group" aria-label="Filtrar performance por rede social">{PERFORMANCE_PLATFORM_FILTERS.map(([platform, label]) => <button type="button" className={analyticsPlatform === platform ? 'is-active' : ''} aria-pressed={analyticsPlatform === platform} key={platform} onClick={() => setAnalyticsPlatform(platform)}>{platform !== 'all' && <PlatformIcon platform={platform} className="dashboard-platform-filter-icon" />}{label}</button>)}</div><div className="dashboard-period-switch" role="group" aria-label="Período da performance">{PERFORMANCE_PERIODS.map(days => <button type="button" className={analyticsPeriodDays === days ? 'is-active' : ''} aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}</div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div></div>
          {analyticsLoading && !analytics
            ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
            : analyticsError && !analytics
@@ -389,7 +400,7 @@ export function DashboardPage({ onNavigate }) {
              : <>
                  {analyticsError && <div className="dashboard-analytics-warning" role="status"><span>Não foi possível atualizar agora. Exibindo o último resultado válido.</span><button type="button" className="link-button" onClick={() => setAnalyticsRetry(value => value + 1)}>Tentar novamente</button></div>}
                  <div className="dashboard-kpi-row"><div><span>Visualizações</span><strong>{compactNumber(totalViews)}</strong></div><div><span>Interações</span><strong>{compactNumber(totalEngagement)}</strong></div><div><span>Taxa de interação</span><strong>{engagementRate.toFixed(1)}%</strong></div></div>
-                <div className="dashboard-trend-chart" role="img" aria-label={`Gráfico de visualizações e interações dos últimos ${analyticsPeriodDays} dias`}>
+                  <div className="dashboard-trend-chart" role="img" aria-label={`Gráfico de visualizações e interações de ${selectedPlatformLabel.toLowerCase()} dos últimos ${analyticsPeriodDays} dias`}>
                   {trend.length ? trend.map(item => <div className="dashboard-chart-column" key={item.date}><div className="dashboard-chart-bars"><span className="dashboard-chart-bar is-views" style={{ height: `${Math.max((item.views / maxTrendValue) * 100, item.views ? 8 : 2)}%` }} title={`${compactNumber(item.views)} visualizações`}/><span className="dashboard-chart-bar is-engagement" style={{ height: `${Math.max((item.engagement / maxTrendValue) * 100, item.engagement ? 8 : 2)}%` }} title={`${compactNumber(item.engagement)} interações`}/></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</small></div>) : <p className="empty-state">Ainda não há série suficiente para desenhar o gráfico.</p>}
                 </div>
                 <div className="dashboard-chart-legend"><span><i className="is-views"/>Visualizações</span><span><i className="is-engagement"/>Interações</span></div>
