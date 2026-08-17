@@ -35,7 +35,7 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return results
 }
 
-async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
+async function buscarAnalytics({ userId, userRole, isAdmin, days = 7 }) {
   // Tenta recuperar o ID externo de posts antigos do Instagram (publicados
   // antes de existir essa coluna), casando com os posts reais da conta por
   // data/texto. Roda antes de listar para que esses posts já apareçam com
@@ -47,7 +47,7 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 30 }) {
   } catch {}
 
   const allPosts = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
-  const cutoff = Date.now() - Math.max(1, Number(days) || 30) * 24 * 60 * 60 * 1000
+  const cutoff = Date.now() - Math.max(1, Number(days) || 7) * 24 * 60 * 60 * 1000
   const posts = allPosts.filter(post => {
     const publishedAt = new Date(post.publishedAt || post.criado_em).getTime()
     return Number.isFinite(publishedAt) && publishedAt >= cutoff

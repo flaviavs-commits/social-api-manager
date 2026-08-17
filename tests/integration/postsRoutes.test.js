@@ -98,6 +98,13 @@ describe('GET /api/posts', () => {
 })
 
 describe('GET /api/posts/analytics', () => {
+  test('usa 7 dias por padrão', async () => {
+    const res = await request(app).get('/api/posts/analytics').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(accountAnalyticsService.buscarAnalyticsContas).toHaveBeenCalledWith(expect.objectContaining({ days: 7 }))
+  })
+
   test('400 quando o período excede o limite da API de insights', async () => {
     const res = await request(app).get('/api/posts/analytics?days=91').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(400)

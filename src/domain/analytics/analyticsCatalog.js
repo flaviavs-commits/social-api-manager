@@ -1,4 +1,6 @@
 const PLATFORMS = ['facebook', 'instagram', 'youtube', 'tiktok']
+const DEFAULT_ANALYTICS_DAYS = 7
+const MAX_ANALYTICS_DAYS = 90
 
 // Métricas aceitas pelos relatórios do provedor atual. A lista fica no
 // domínio para ser reutilizada pelo backend, frontend e documentação sem
@@ -37,4 +39,7 @@ function accountMetrics(platform) {
   return ACCOUNT_METRICS[platform] || []
 }
 
-module.exports = { PLATFORMS, ACCOUNT_METRICS, UNAVAILABLE_METRICS, accountMetrics }
+module.exports = {
+  PLATFORMS, ACCOUNT_METRICS, UNAVAILABLE_METRICS, accountMetrics,
+  DEFAULT_ANALYTICS_DAYS, MAX_ANALYTICS_DAYS
+}

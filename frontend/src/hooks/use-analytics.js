@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { detectNetworks } from '../lib/analytics-format.js'
+import { detectNetworks, DEFAULT_ANALYTICS_PERIOD, ANALYTICS_PERIODS } from '../lib/analytics-format.js'
 
 const AUTO_REFRESH_MS = 30000
 const ANALYTICS_FILTERS_KEY = 'meu-ecoo:analytics-filters'
@@ -26,7 +26,8 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const [tiktokVideos, setTiktokVideos] = useState([])
   const [activeNet, setActiveNet] = useState(savedFilters.activeNet || 'instagram')
   const [activeTab, setActiveTab] = useState(savedFilters.activeTab || 'community')
-  const [periodDays, setPeriodDays] = useState(savedFilters.periodDays || 7)
+  const savedPeriod = Number(savedFilters.periodDays)
+  const [periodDays, setPeriodDays] = useState(ANALYTICS_PERIODS.includes(savedPeriod) ? savedPeriod : DEFAULT_ANALYTICS_PERIOD)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)

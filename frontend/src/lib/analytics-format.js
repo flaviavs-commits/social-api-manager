@@ -4,7 +4,8 @@ export const NET_ICONS = { instagram: '📸', facebook: '📘', youtube: '▶️
 export const DEMO_COLORS = ['#d1993e', '#e94f8a', '#34d399', '#fbbf24', '#5b8def', '#f97316', '#a78bfa', '#22d3ee']
 export const GENDER_COLORS = { M: '#5b8def', F: '#e94f8a', U: '#8b8fa3', male: '#5b8def', female: '#e94f8a' }
 export const NETWORK_ORDER = ['instagram', 'facebook', 'youtube', 'tiktok']
-export const ANALYTICS_PERIODS = [7, 30, 90]
+export const DEFAULT_ANALYTICS_PERIOD = 7
+export const ANALYTICS_PERIODS = [DEFAULT_ANALYTICS_PERIOD, 30, 90]
 
 export const TAB_HELP = {
   community: 'Resumo das interações e do desempenho da sua comunidade.',

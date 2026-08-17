@@ -1,19 +1,23 @@
 const { listarContasToken } = require('../infra/social/publisher')
 const zernioClient = require('../infra/social/zernioClient')
 const metricsService = require('./metricsService')
-const { ACCOUNT_METRICS, UNAVAILABLE_METRICS } = require('../domain/analytics/analyticsCatalog')
+const {
+  ACCOUNT_METRICS, UNAVAILABLE_METRICS, DEFAULT_ANALYTICS_DAYS, MAX_ANALYTICS_DAYS
+} = require('../domain/analytics/analyticsCatalog')
 const { normalizeInsight } = require('../domain/analytics/normalizeAnalytics')
 
 const ZERNIO_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'youtube']
-const MAX_DAYS = 90
+const MAX_DAYS = MAX_ANALYTICS_DAYS
+const ZERNIO_INSIGHT_MAX_DAYS = { facebook: 89, instagram: 90, tiktok: 89, youtube: 89 }
 const ACCOUNT_ANALYTICS_CONCURRENCY = 2
 
 function dateOnly(date) {
   return new Date(date).toISOString().slice(0, 10)
 }
 
-function buildDateRange(days = 30) {
-  const boundedDays = Math.min(Math.max(Number(days) || 30, 1), MAX_DAYS)
+function buildDateRange(days = DEFAULT_ANALYTICS_DAYS) {
+  const requestedDays = Number(days)
+  const boundedDays = Math.min(Math.max(Number.isFinite(requestedDays) ? requestedDays : DEFAULT_ANALYTICS_DAYS, 1), MAX_DAYS)
   const until = new Date()
   const since = new Date(until.getTime() - (boundedDays - 1) * 86400000)
   return { since: dateOnly(since), until: dateOnly(until), days: boundedDays }
@@ -68,12 +72,16 @@ function timeSeriesMetrics(platform) {
 }
 
 async function collectAccount(token, range) {
+  const insightRange = buildDateRange(Math.min(
+    range.days,
+    ZERNIO_INSIGHT_MAX_DAYS[token.platform] || MAX_DAYS
+  ))
   const base = {
     localAccountId: token.contaId,
     providerAccountId: token.zernioAccountId,
     accountName: token.accountName || token.handle || null,
     platform: token.platform,
-    dateRange: { since: range.since, until: range.until },
+    dateRange: { since: insightRange.since, until: insightRange.until },
     totals: null,
     timeSeries: null,
     demographics: null,
@@ -91,15 +99,15 @@ async function collectAccount(token, range) {
     settledCall(() => method({
       accountId: token.zernioAccountId,
       metrics: ACCOUNT_METRICS[token.platform].join(','),
-      since: range.since,
-      until: range.until,
+      since: insightRange.since,
+      until: insightRange.until,
       metricType: 'total_value'
     })),
     settledCall(() => method({
       accountId: token.zernioAccountId,
       metrics: timeSeriesMetrics(token.platform).join(','),
-      since: range.since,
-      until: range.until,
+      since: insightRange.since,
+      until: insightRange.until,
       metricType: 'time_series'
     }))
   ])
@@ -145,7 +153,7 @@ async function collectAccount(token, range) {
   return base
 }
 
-async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
+async function buscarAnalyticsContas({ userId, isAdmin, days = DEFAULT_ANALYTICS_DAYS }) {
   const range = buildDateRange(days)
   const tokens = (await Promise.all(
     ZERNIO_PLATFORMS.map(platform => listarContasToken(platform, userId, isAdmin))
@@ -162,7 +170,7 @@ async function buscarAnalyticsContas({ userId, isAdmin, days = 30 }) {
     }))),
     mapWithConcurrency(providerAccounts, ACCOUNT_ANALYTICS_CONCURRENCY, account => settledCall(async () => ({
       ...account,
-      data: await zernioClient.getContentDecay({ accountId: account.providerAccountId, fromDate: range.since, toDate: range.until })
+      data: await zernioClient.getContentDecay({ accountId: account.providerAccountId })
     }))),
     providerIds.length
       ? settledCall(() => zernioClient.getFollowerStats({

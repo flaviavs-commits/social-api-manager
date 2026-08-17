@@ -396,7 +396,7 @@ para a conta Instagram Business vinculada à página:
 
 #### Analytics
 
-`GET /api/posts/analytics?days=30` aceita de 1 a 90 dias e retorna tanto o
+`GET /api/posts/analytics` usa 7 dias por padrão; o parâmetro `days` aceita de 1 a 90 dias e retorna tanto o
 resumo legado quanto `accountAnalytics`, organizado por rede e conta. O
 relatório inclui métricas de publicação (impressões, alcance, visualizações,
 curtidas, comentários, compartilhamentos, salvamentos, cliques e seguidores

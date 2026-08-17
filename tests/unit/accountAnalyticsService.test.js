@@ -53,6 +53,13 @@ describe('accountAnalyticsService', () => {
     })
     expect(result.capabilities.facebook.available).toContain('page_media_view')
     expect(result.capabilities.tiktok.unavailable).toContain('watch_time')
+    expect(zernio.getFacebookPageInsights).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'fb-1',
+      metricType: 'total_value',
+      since: expect.any(String),
+      until: expect.any(String)
+    }))
+    expect(zernio.getContentDecay).toHaveBeenCalledWith({ accountId: 'fb-1' })
     expect(metricsService.buscarInsightsYoutube).toHaveBeenCalledWith(
       1,
       false,

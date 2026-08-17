@@ -100,7 +100,7 @@ async function getPosts(req, res) {
 
 async function getAnalytics(req, res) {
   try {
-    const days = req.query.days === undefined ? 30 : Number(req.query.days)
+    const days = req.query.days === undefined ? 7 : Number(req.query.days)
     if (!Number.isInteger(days) || days < 1 || days > 90)
       return res.status(400).json({ erro: 'days deve ser um inteiro entre 1 e 90' })
 

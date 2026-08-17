@@ -159,7 +159,7 @@ Arquivo: `frontend/src/pages/dashboard-page.jsx`
 
 - Publicações em `GET /api/posts`.
 - Contas em `GET /api/accounts`.
-- Métricas em `GET /api/posts/analytics?days=30`.
+- Métricas em `GET /api/posts/analytics` (7 dias por padrão; `days` é opcional).
 
 **Funções para usuários com dados:**
 
@@ -167,7 +167,7 @@ Arquivo: `frontend/src/pages/dashboard-page.jsx`
 - Mostrar publicações agendadas.
 - Mostrar falhas e permitir revisão no editor.
 - Mostrar total de contas conectadas e redes ativas.
-- Exibir performance dos últimos 30 dias.
+- Exibir performance dos últimos 7 dias por padrão.
 - Exibir visualizações, interações, taxa de interação e tendência diária.
 - Sugerir conteúdo com base no melhor post real.
 - Sugerir horário com base nos dados disponíveis.
@@ -688,4 +688,3 @@ O produto trabalha com Instagram, Facebook, YouTube e TikTok. Cada rede pode ter
 - Hooks de analytics: `frontend/src/hooks/use-analytics.js`.
 - Testes de componentes: `frontend/test/components/`.
 - Rotas backend correspondentes: `src/routes/`, `src/http/routes/` e `src/http/controllers/`.
-
