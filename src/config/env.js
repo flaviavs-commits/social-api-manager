@@ -35,11 +35,18 @@ function readEnv(source = process.env) {
 function assertProductionSecrets(source = process.env) {
   const nodeEnv = String(source.NODE_ENV || '').trim().toLowerCase()
   const reviewEnabled = boolean(source.REVIEW_MODE_NO_AUTH) || boolean(source.TIKTOK_REVIEW_MODE)
+  const hostedEnvironment = Boolean(source.RAILWAY_ENVIRONMENT || source.VERCEL_ENV || source.RENDER || source.FLY_APP_NAME)
 
   // Um modo de revisão sem NODE_ENV explícito não pode ser tratado como
   // desenvolvimento: em um deploy mal configurado isso abriria a API inteira.
   if (!nodeEnv && reviewEnabled) {
     const error = new Error('NODE_ENV deve ser explicitamente configurado quando um modo de revisão estiver ativo')
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+
+  if (!nodeEnv && hostedEnvironment) {
+    const error = new Error('NODE_ENV deve ser explicitamente configurado em ambientes hospedados')
     error.code = 'CONFIGURATION_ERROR'
     throw error
   }

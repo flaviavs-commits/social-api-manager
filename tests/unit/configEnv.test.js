@@ -62,4 +62,9 @@ describe('config/env', () => {
     expect(() => assertProductionSecrets({ REVIEW_MODE_NO_AUTH: 'true' })).toThrow(/NODE_ENV/i)
     expect(() => assertProductionSecrets({ TIKTOK_REVIEW_MODE: 'true' })).toThrow(/NODE_ENV/i)
   })
+
+  test('exige NODE_ENV em ambientes hospedados', () => {
+    expect(() => assertProductionSecrets({ RAILWAY_ENVIRONMENT: 'production' })).toThrow(/NODE_ENV/i)
+    expect(() => assertProductionSecrets({ VERCEL_ENV: 'production' })).toThrow(/NODE_ENV/i)
+  })
 })
