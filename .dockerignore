@@ -1,3 +1,15 @@
 node_modules/
-.env
+.env*
+.vercel/
+.git/
+.claude/
 public/uploads/
+docs/
+tests/
+frontend/
+scratchpad_logo/
+*.log
+*.code-workspace
+AUDITORIA-SEGURANCA.md
+RESUMO-AUDITORIA-SEGURANCA.md
+IA.md

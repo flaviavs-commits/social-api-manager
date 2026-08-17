@@ -48,7 +48,7 @@ describe('requireAuth middleware', () => {
   test('token válido com usuário existente passa o middleware', async () => {
     usersRepo.buscarPorId.mockResolvedValue({
       id: 1, email: 'u@test.com', role: 'user',
-      full_name: 'Teste', avatar_url: null, totp_enabled: false
+      full_name: 'Teste', avatar_url: null, totp_enabled: false, plan: 'agencia'
     })
     pool.query.mockResolvedValue({ rows: [] })
     const token = gerarTokenSessao(1)

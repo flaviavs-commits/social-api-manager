@@ -45,4 +45,9 @@ describe('config/env', () => {
     }
     expect(() => assertProductionSecrets(validProduction)).toThrow(/modos de revisão/i)
   })
+
+  test('não libera modo de revisão sem ambiente explícito', () => {
+    expect(() => assertProductionSecrets({ REVIEW_MODE_NO_AUTH: 'true' })).toThrow(/NODE_ENV/i)
+    expect(() => assertProductionSecrets({ TIKTOK_REVIEW_MODE: 'true' })).toThrow(/NODE_ENV/i)
+  })
 })

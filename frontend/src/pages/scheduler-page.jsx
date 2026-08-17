@@ -80,30 +80,49 @@ function compressImageForAnalysis(file) {
   })
 }
 
-function captureVideoFrameForAnalysis(file) {
+function captureVideoFramesForAnalysis(file) {
   return new Promise((resolve, reject) => {
     const sourceUrl = URL.createObjectURL(file)
     const video = document.createElement('video')
     let finished = false
     const cleanup = () => { URL.revokeObjectURL(sourceUrl); video.removeAttribute('src'); video.load() }
     const fail = error => { if (!finished) { finished = true; cleanup(); reject(error) } }
+    let frameTimes = []
+    let frameIndex = 0
+    let duration = 0
+    const frames = []
     video.muted = true
     video.playsInline = true
     video.preload = 'metadata'
     video.onloadedmetadata = () => {
-      try { video.currentTime = Number.isFinite(video.duration) ? Math.min(Math.max(video.duration / 2, 0), 3) : 0 } catch { fail(new Error(`Não foi possível preparar ${file.name}.`)) }
+      try {
+        duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
+        // Um único frame no meio do vídeo não representa uma ação. Amostramos
+        // o começo, o desenvolvimento e o encerramento para a IA entender a
+        // sequência sem precisar enviar o arquivo de vídeo inteiro.
+        const percentages = duration > 8 ? [0.04, 0.28, 0.52, 0.76, 0.96] : [0.05, 0.35, 0.65, 0.95]
+        frameTimes = Array.from(new Set(percentages.map(percent => Math.min(Math.max(duration * percent, 0), Math.max(duration - 0.05, 0)))))
+        video.currentTime = frameTimes[0] || 0
+      } catch { fail(new Error(`Não foi possível preparar ${file.name}.`)) }
     }
     video.onseeked = () => {
       if (finished) return
       try {
-        const maxDimension = 1024
+        const maxDimension = 768
         const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight))
         const canvas = document.createElement('canvas')
         canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
         canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+        const frame = { ...canvasToAnalysisData(canvas), mediaKind: 'video', timestamp: frameTimes[frameIndex] || 0, frameIndex: frameIndex + 1, frameCount: frameTimes.length, duration }
+        frames.push(frame)
+        frameIndex += 1
+        if (frameIndex < frameTimes.length) {
+          video.currentTime = frameTimes[frameIndex]
+          return
+        }
         finished = true
-        resolve({ ...canvasToAnalysisData(canvas), mediaKind: 'video' })
+        resolve({ frames, duration })
         cleanup()
       } catch { fail(new Error(`Não foi possível capturar um frame de ${file.name}.`)) }
     }
@@ -114,7 +133,9 @@ function captureVideoFrameForAnalysis(file) {
 }
 
 async function buildMediaAnalysisPayload(file) {
-  return file.type.startsWith('video/') ? captureVideoFrameForAnalysis(file) : compressImageForAnalysis(file)
+  if (!file.type.startsWith('video/')) return compressImageForAnalysis(file)
+  const result = await captureVideoFramesForAnalysis(file)
+  return result.frames
 }
 
 function cleanAiTag(tag) {
@@ -175,14 +196,18 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       // narrativa do carrossel, escolher a melhor capa e evitar uma legenda
       // baseada apenas na primeira foto.
       const targets = files.slice(0, analysisLimit)
-      const mediaItems = await Promise.all(targets.map(buildMediaAnalysisPayload))
+      const payloads = await Promise.all(targets.map(buildMediaAnalysisPayload))
+      const mediaItems = payloads.flat().slice(0, 35)
+      const hasVideo = targets.some(file => file.type.startsWith('video/'))
+      const isCarousel = !hasVideo && targets.length > 1
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
         body: JSON.stringify({
           mediaItems,
-          mediaKind: mediaItems[0]?.mediaKind,
-          mediaCount: mediaItems.length,
-          carousel: mediaItems.length > 1,
+          mediaKind: hasVideo ? 'video' : 'image',
+          mediaCount: targets.length,
+          videoFrameCount: hasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
+          carousel: isCarousel,
           plataformas: requestedPlatforms,
           contexto,
           melhorar: Boolean(contexto.trim()),
@@ -197,8 +222,12 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
         setAnalysisError(`A IA não retornou uma sugestão para: ${missingPlatforms.join(', ')}. Tente novamente.`)
       } else {
         onApply(suggestions, { silent: true })
-        setAnalysisNotes(response.analise_carrossel?.recomendacoes || [])
-        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaItems.length} ${mediaItems.length === 1 ? 'mídia' : 'fotos'} para ${suggestions.length} rede(s).`)
+        setAnalysisNotes([
+          response.descricao_midia,
+          ...(response.analise_carrossel?.recomendacoes || []),
+        ].filter(Boolean))
+        const mediaLabel = hasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
+        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaLabel} para ${suggestions.length} rede(s).`)
       }
     } catch (caught) {
       const message = caught?.message || ''

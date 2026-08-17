@@ -31,11 +31,13 @@ function publicPlanCatalog() {
 
 function requirePlanModule(moduleName) {
   return (req, res, next) => {
-    // Compatibilidade com tokens/fixtures antigos emitidos antes da coluna
-    // de plano existir. Usuários persistidos passam a ter plano pela
-    // migration, mas uma sessão legada não deve perder acesso de repente.
-    if (!req.user?.plan || req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin' || hasPlanModule(req.user.plan, moduleName)) return next()
-    const plan = getPlan(req.user?.plan)
+    // Ausência de plano é tratada como o plano padrão (gratuito), nunca como
+    // acesso ilimitado. Assim uma migration incompleta ou um registro antigo
+    // não transforma uma falha de configuração em autorização.
+    if (req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin') return next()
+    const currentPlan = normalizePlan(req.user?.plan || DEFAULT_PLAN)
+    if (hasPlanModule(currentPlan, moduleName)) return next()
+    const plan = getPlan(currentPlan)
     return res.status(403).json({
       erro: `O módulo ${moduleName} não está disponível no plano ${plan.name}.`,
       code: 'PLAN_REQUIRED',

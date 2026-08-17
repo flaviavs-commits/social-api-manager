@@ -365,7 +365,7 @@ app.get('/api/me', (req, res) => {
 app.use('/api/me',       meRoutes)
 app.use('/api/billing',  billingRoutes)
 app.use('/api/accounts', accountsRoutes)
-app.use('/api/tokens',   tokensRoutes)
+app.use('/api/tokens',   requirePlanModule('tokens'), tokensRoutes)
 app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
 app.use('/api/admin',    requireAdmin, adminRoutes)

@@ -5,7 +5,11 @@ const { AUTH_COOKIE, readCookie } = require('../utils/authCookie')
 async function requireAuth(req, res, next) {
   // Modo público solicitado para a demonstração: todas as requisições usam
   // somente a conta demo configurada, sem exigir login ou senha.
-  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && !['test', 'production'].includes(process.env.NODE_ENV)) {
+  // O modo público é permitido somente em desenvolvimento explícito. Se
+  // NODE_ENV estiver ausente, o processo não pode assumir que é seguro liberar
+  // a API: ambientes de produção mal configurados costumam omitir essa
+  // variável.
+  if (process.env.REVIEW_MODE_NO_AUTH === 'true' && process.env.NODE_ENV === 'development') {
     req.user = {
       id: Number(process.env.REVIEW_MODE_USER_ID) || 38,
       email: 'review-tiktok@demo.local',

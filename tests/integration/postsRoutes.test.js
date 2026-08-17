@@ -55,7 +55,7 @@ const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
 
-const USER = { id: 1, email: 'u@test.com', role: 'user', full_name: 'U', avatar_url: null, totp_enabled: false }
+const USER = { id: 1, email: 'u@test.com', role: 'user', plan: 'agencia', full_name: 'U', avatar_url: null, totp_enabled: false }
 let token
 
 beforeEach(() => {

@@ -386,16 +386,22 @@ async function generateImageResilient({ descricao, userId, preferredModel = 'aut
   throw failure
 }
 
-// Analisa uma imagem ou um frame representativo de vídeo respeitando o modelo
+// Analisa uma imagem ou cenas amostradas de vídeo respeitando o modelo
 // escolhido pelo usuário no seletor — cada provedor recebe a mídia no formato
-// nativo do seu SDK. O navegador envia um frame comprimido para vídeo; quando
-// ele não está disponível, o modelo ainda consegue gerar uma sugestão usando o
-// contexto textual informado.
+// nativo do seu SDK. O navegador envia frames comprimidos em ordem temporal;
+// quando eles não estão disponíveis, o modelo ainda consegue gerar uma
+// sugestão usando o contexto textual informado.
 async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, mediaItems = [], userKey, isVideo }) {
   const imagens = (mediaItems.length ? mediaItems : [{ mediaBase64, mimeType }])
     .filter(item => item?.mediaBase64)
-    .map(item => ({ data: item.mediaBase64, mimeType: item.mimeType || mimeType || 'image/jpeg' }))
-  if (isVideo && !mediaBase64) {
+    .map(item => ({
+      data: item.mediaBase64,
+      mimeType: item.mimeType || mimeType || 'image/jpeg',
+      timestamp: Number.isFinite(Number(item.timestamp)) ? Number(item.timestamp) : null,
+      frameIndex: Number.isFinite(Number(item.frameIndex)) ? Number(item.frameIndex) : null,
+      frameCount: Number.isFinite(Number(item.frameCount)) ? Number(item.frameCount) : null,
+    }))
+  if (isVideo && !imagens.length) {
     const promptVideo = `${prompt}\n\n(Nota: o usuário enviou um vídeo. Crie sugestões com base no contexto disponível.)`
     if (OPENAI_MODEL_IDS[modelo])          return generateWithOpenAI(promptVideo, userKey, modelo)
     if (OPENROUTER_MODEL_IDS[modelo])      return generateWithOpenRouter(promptVideo, userKey, modelo)
@@ -403,8 +409,11 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, m
     return generateWithGemini(promptVideo, userKey, modelo)
   }
 
+  const videoFramesHint = isVideo && imagens.length > 1
+    ? `\n\n(Nota: estas são cenas amostradas do mesmo vídeo em ordem temporal${imagens.some(image => image.timestamp !== null) ? `, nos tempos ${imagens.map(image => `${image.timestamp.toFixed(1)}s`).join(', ')}` : ''}. Entenda a progressão entre elas. Não trate as cenas como um carrossel.)`
+    : ''
   const promptForModel = isVideo
-    ? `${prompt}\n\n(Nota: esta é uma sugestão para um vídeo. A imagem recebida é um frame representativo; considere também a linguagem audiovisual, o ritmo e uma chamada para assistir até o final.)`
+    ? `${prompt}\n\n(Nota: esta é uma sugestão para um vídeo. Considere a ação e a progressão visual observadas nas cenas e crie uma chamada que combine com o conteúdo audiovisual. Não invente falas, música, local, pessoas, marcas ou acontecimentos que não estejam visíveis ou no contexto.)${videoFramesHint}`
     : imagens.length > 1
       ? `${prompt}\n\n(Nota: estas imagens formam um carrossel na ordem enviada. Analise o conjunto, a progressão visual, a coerência entre as fotos e a primeira imagem como capa. A legenda deve conversar com o conjunto, não apenas com uma foto.)`
       : prompt
@@ -1592,7 +1601,7 @@ function formatarSugestoesMedia(parsed, plataformas, mediaType) {
 // chave do servidor já usada em /generate para cada provedor.
 router.post('/analyze-media', async (req, res) => {
   try {
-    const { mediaBase64, mimeType, mediaKind, mediaItems: mediaItemsRaw, carousel = false, plataformas: plataformasRaw, contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
+    const { mediaBase64, mimeType, mediaKind, mediaItems: mediaItemsRaw, mediaCount = 0, videoFrameCount = 0, carousel = false, plataformas: plataformasRaw, contexto = '', melhorar = false, modelo = 'openrouter' } = req.body || {}
     const mediaItems = Array.isArray(mediaItemsRaw) ? mediaItemsRaw.slice(0, 35) : []
     const primeiroItem = mediaItems[0] || {}
     const mediaBase64Resolvido = mediaBase64 || primeiroItem.mediaBase64
@@ -1607,14 +1616,29 @@ router.post('/analyze-media', async (req, res) => {
 
     const platDesc = plataformas.map(p => PLATFORM_HINTS[p] || p).join('; ')
     const contextoHint = contexto?.trim() ? `\n\nContexto adicional do usuário: "${contexto.trim()}"` : ''
+    const isVideo = mediaKindResolvido === 'video' || (!mediaKindResolvido && !mediaBase64Resolvido)
+    const isVideoSequence = isVideo && mediaItems.length > 1
+    const mediaCountHint = isVideo
+      ? `O arquivo enviado é um vídeo${Number(videoFrameCount) > 1 ? ` representado por ${Number(videoFrameCount)} cenas amostradas em ordem` : ''}.`
+      : `A mídia enviada contém ${Number(mediaCount) > 1 ? `${Number(mediaCount)} imagens em sequência` : 'uma imagem'}.`
 
     const dataAtual = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())
     const melhoriaHint = melhorar && contexto?.trim()
       ? '\n\nO usuário não aprovou a descrição anterior. Reescreva-a de forma claramente melhor: mais natural, específica, envolvente e adequada à mídia, sem apenas trocar algumas palavras.'
       : ''
-    const prompt = `Você é um especialista em marketing digital e social media. Analise a mídia${carousel || mediaItems.length > 1 ? ' e todas as imagens do carrossel na ordem enviada' : ''} e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
+    const prompt = `Você é um especialista em marketing digital e social media com visão computacional. Analise cuidadosamente a mídia${carousel ? ' e todas as imagens do carrossel na ordem enviada' : isVideoSequence ? ' e todas as cenas do vídeo na ordem temporal enviada' : ''} e o contexto do post no agendador para escrever a DESCRIÇÃO/LEGENDA FINAL que será publicada em cada rede social.
 
 Não responda com uma descrição técnica da imagem. Escreva o texto de publicação pronto para o público, relacionado ao que aparece na mídia e ao contexto informado. Se já existir texto no campo do post, melhore e complete esse texto em vez de ignorá-lo.${melhoriaHint}
+
+${mediaCountHint}
+Antes de escrever, faça uma leitura visual silenciosa: identifique assunto principal, pessoas/objetos sem nomeá-los além do que for seguro, ação, ambiente, cores, emoção aparente, texto legível na mídia, produto ou marca visível e a intenção provável da publicação. Use somente evidências visíveis ou informações fornecidas no contexto. Se algo não puder ser confirmado, use uma formulação neutra ou não mencione.
+
+Regras de fidelidade:
+- Não invente nomes, locais, datas, preços, benefícios, especificações, falas, músicas, resultados, profissão, identidade ou relação entre pessoas.
+- Não diga que alguém está feliz, triste, fazendo uma ação específica ou usando um produto se isso não for claramente observável.
+- Só reproduza texto que esteja realmente legível na mídia; não complete logotipos ou palavras borradas por suposição.
+- Para vídeo, use a progressão entre as cenas para descrever a ação apenas quando ela for sustentada pelo conjunto. Não trate um frame como se fosse o vídeo inteiro e não invente áudio, fala ou movimento que não possa ser visto.
+- O contexto orienta objetivo, público e tom, mas não autoriza criar fatos ausentes na mídia.
 
 Data de referência: ${dataAtual}
 
@@ -1628,7 +1652,7 @@ Para cada plataforma, forneça:
 - Hashtags de nicho, mais precisas e menos genéricas
 - Um título (só para YouTube)
 
-${carousel || mediaItems.length > 1 ? '- Para o carrossel, avalie a força da primeira imagem como capa, a sequência visual e a coerência de formato. Inclua em "analise_carrossel.recomendacoes" de 2 a 4 recomendações práticas para melhorar o resultado.' : ''}
+${carousel ? '- Para o carrossel, avalie a força da primeira imagem como capa, a sequência visual e a coerência de formato. Inclua em "analise_carrossel.recomendacoes" de 2 a 4 recomendações práticas para melhorar o resultado.' : ''}
 
 Adapte de verdade o texto e a seleção de hashtags para cada plataforma. Não copie a mesma legenda entre redes. Para vídeo, crie uma chamada que combine com o conteúdo audiovisual. Evite hashtags banidas, genéricas demais ou que não tenham relação com a mídia.
 
@@ -1649,7 +1673,6 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   "analise_carrossel": { "recomendacoes": ["..."], "capa_indice": 0 }
 }`
 
-    const isVideo = mediaKindResolvido === 'video' || !mediaBase64Resolvido
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
     const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64: mediaBase64Resolvido, mimeType: mimeTypeResolvido, mediaItems, userKey, isVideo })
     let parsed
@@ -1673,7 +1696,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
       sugestoes,
       plataformas,
       modelo,
-      analise_carrossel: mediaItems.length > 1 ? {
+      analise_carrossel: carousel ? {
         ...(parsed.analise_carrossel || {}),
         recomendacoes: Array.isArray(parsed.analise_carrossel?.recomendacoes) ? parsed.analise_carrossel.recomendacoes.slice(0, 4) : [],
       } : null,
