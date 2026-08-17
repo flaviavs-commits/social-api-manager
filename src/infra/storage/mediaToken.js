@@ -11,7 +11,8 @@ const crypto = require('crypto')
 // URL). O token segue restrito a uma mídia específica e assinado por HMAC.
 // No modo privado o token também pode ficar salvo em posts agendados. O prazo
 // maior evita quebrar agendamentos sem transformar o token em permanente.
-const EXPIRACAO_MS = String(process.env.BLOB_ACCESS_MODE || '').toLowerCase() === 'private'
+const BLOB_ACCESS_MODE = String(process.env.BLOB_ACCESS_MODE || 'public').trim().toLowerCase()
+const EXPIRACAO_MS = BLOB_ACCESS_MODE === 'private'
   ? 30 * 24 * 60 * 60 * 1000
   : 6 * 60 * 60 * 1000
 

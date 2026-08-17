@@ -13,7 +13,10 @@ const MAX_UPLOAD_SIZE_BYTES = 200 * 1024 * 1024
 const UPLOAD_URL_TTL_MS = 10 * 60 * 1000
 const BLOB_ALLOWED_HOSTS = new Set(String(process.env.BLOB_ALLOWED_HOSTS || '')
   .split(',').map(host => host.trim().toLowerCase()).filter(Boolean))
-const PRIVATE_BLOB_MODE = String(process.env.BLOB_ACCESS_MODE || '').toLowerCase() === 'private'
+// Público é o padrão deliberado para manter compatibilidade com a aplicação
+// atual. O modo privado só entra em vigor quando for configurado explicitamente.
+const BLOB_ACCESS_MODE = String(process.env.BLOB_ACCESS_MODE || 'public').trim().toLowerCase()
+const PRIVATE_BLOB_MODE = BLOB_ACCESS_MODE === 'private'
 const BLOB_ACCESS = PRIVATE_BLOB_MODE ? 'private' : 'public'
 const BASE_URL = String(process.env.BASE_URL || '').replace(/\/$/, '')
 
