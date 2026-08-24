@@ -49,6 +49,24 @@ beforeEach(() => {
 })
 
 describe('billingService.requestPlanChange', () => {
+  test('cria o primeiro checkout mesmo quando o plano escolhido já está no cadastro pendente', async () => {
+    const pendingUser = { ...user, planActive: false }
+    const pending = change({ toPlan: 'basico', amountCents: 5250 })
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    billingRepo.criarPendente.mockResolvedValue(pending)
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ toPlan: 'basico', amountCents: 5250, status: 'processing' }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ toPlan: 'basico', amountCents: 5250, status: 'pending', gatewaySessionId: 'cs_basic', checkoutUrl: 'https://checkout.stripe.test/cs_basic' }))
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_basic', url: 'https://checkout.stripe.test/cs_basic' })
+
+    const result = await billingService.requestPlanChange({ user: pendingUser, targetPlan: 'basico', now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(result.checkoutUrl).toBe('https://checkout.stripe.test/cs_basic')
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      toPlan: 'basico',
+      amountCents: 5250,
+    }))
+  })
+
   test('reutiliza o checkout e não cria uma segunda cobrança no mesmo mês', async () => {
     const pending = change({ status: 'pending', gatewaySessionId: 'cs_123', checkoutUrl: 'https://checkout.stripe.test/cs_123' })
     billingRepo.buscarPorMes.mockResolvedValueOnce(null).mockResolvedValueOnce(pending)

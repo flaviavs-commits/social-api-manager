@@ -31,6 +31,10 @@ function hasPlanModule(plan, moduleName) {
   return getPlan(plan).modules.includes(moduleName)
 }
 
+function isPaidPlan(plan) {
+  return Number(getPlan(plan).priceCents) > 0
+}
+
 function publicPlanCatalog() {
   return Object.fromEntries(Object.entries(PLANS).map(([id, plan]) => [id, {
     id,
@@ -65,4 +69,18 @@ function requirePlanModule(moduleName) {
   }
 }
 
-module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanPlatforms, hasPlanModule, publicPlanCatalog, requirePlanModule }
+function requirePaidPlan(req, res, next) {
+  if (req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin') return next()
+
+  const currentPlan = normalizePlan(req.user?.plan || DEFAULT_PLAN)
+  if (req.user?.planActive === false || !isPaidPlan(currentPlan)) {
+    return res.status(402).json({
+      erro: 'Confirme o pagamento do seu plano para usar este recurso.',
+      code: 'PAYMENT_REQUIRED',
+      currentPlan,
+    })
+  }
+  return next()
+}
+
+module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }

@@ -158,7 +158,7 @@ export function MediaLibraryPage({ onNavigate }) {
       const generated = await apiFetch('/api/ai/generate', {
         method: 'POST',
         timeoutMs: 60_000,
-        body: JSON.stringify({ instrucao: buildSuggestionInstruction(insights, inferredNiche), plataformas: suggestionPlatforms, quantidade: 3, tom: 'profissional', modelo: 'local' }),
+        body: JSON.stringify({ instrucao: buildSuggestionInstruction(insights, inferredNiche), plataformas: suggestionPlatforms, quantidade: 3, tom: 'profissional', modelo: 'openrouter' }),
       })
       const nextSuggestions = (generated.posts || []).map((post, index) => ({ ...post, suggestionId: `${Date.now()}-${index}`, text: suggestionText(post) }))
       setSuggestions(nextSuggestions)

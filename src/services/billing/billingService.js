@@ -55,7 +55,8 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
   }
 
   const currentPlan = normalizePlan(user.plan || DEFAULT_PLAN)
-  if (targetPlan === currentPlan) {
+  const initialPurchase = user.planActive === false
+  if (targetPlan === currentPlan && !initialPurchase) {
     return { status: 'unchanged', plan: currentPlan, requestedPlan: targetPlan, charged: false, checkoutUrl: null, charge: null, httpStatus: 200 }
   }
 

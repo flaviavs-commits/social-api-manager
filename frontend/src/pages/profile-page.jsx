@@ -28,7 +28,6 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ fullName: user?.fullName || '', timezone: 'America/Sao_Paulo', language: 'pt-BR', defaultPlatform: '', notificationPreferences: DEFAULT_NOTIFICATIONS })
   const [password, setPassword] = useState({ currentPassword: '', newPassword: '', confirmation: '' })
-  const [usage, setUsage] = useState(null)
   const [billing, setBilling] = useState(null)
   const [billingBusy, setBillingBusy] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -48,9 +47,8 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   useEffect(() => {
     Promise.all([
       apiFetch('/api/me/profile'),
-      apiFetch('/api/ai/demo-status').catch(() => null),
       apiFetch('/api/billing/status').catch(() => null)
-    ]).then(([data, aiUsage, billingStatus]) => {
+    ]).then(([data, billingStatus]) => {
       setProfile(data)
       setForm({
         fullName: data.fullName || '',
@@ -59,7 +57,6 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         defaultPlatform: data.defaultPlatform || '',
         notificationPreferences: { ...DEFAULT_NOTIFICATIONS, ...(data.notificationPreferences || {}) }
       })
-      setUsage(aiUsage)
       setBilling(billingStatus)
     }).catch(caught => setError(caught.message)).finally(() => setLoading(false))
   }, [])
@@ -167,8 +164,9 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
   async function choosePlan(planId) {
     const currentPlanId = normalizePlan(profile?.plan || user?.plan || DEFAULT_PLAN)
+    const planActive = profile?.planActive ?? user?.planActive ?? true
     const target = PLANS[planId]
-    if (!target || planId === currentPlanId) return
+    if (!target || (planId === currentPlanId && planActive !== false)) return
     if (Number(target.priceCents) > 0 && !window.confirm(`A troca para o plano ${target.name} abrirá o checkout seguro e poderá gerar uma única cobrança neste mês. Continuar?`)) return
 
     setBillingBusy(true)
@@ -233,7 +231,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
     <div className="profile-columns">
       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">SEGURANÇA</p><h3>Proteja sua conta</h3></div><span className={`profile-status-dot${current.totpEnabled ? ' is-on' : ''}`}>{current.totpEnabled ? 'Ativo' : 'Recomendado'}</span></div><div className="profile-security-row"><span className="profile-card-icon">⌁</span><div><strong>Autenticação em 2 fatores</strong><small>{current.totpEnabled ? 'Sua conta pede um código extra no login.' : 'Adicione uma camada extra de proteção.'}</small></div><button type="button" className="link-button" onClick={() => onNavigate?.('seguranca')}>{current.totpEnabled ? 'Gerenciar' : 'Configurar'}</button></div><form className="profile-password-form" onSubmit={changePassword}><h4>Alterar senha</h4><label>Senha atual<input type="password" value={password.currentPassword} onChange={event => setPassword(current => ({ ...current, currentPassword: event.target.value }))} autoComplete="current-password" placeholder="Digite sua senha atual" /></label><label>Nova senha<input type="password" value={password.newPassword} onChange={event => setPassword(current => ({ ...current, newPassword: event.target.value }))} autoComplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Confirmar nova senha<input type="password" value={password.confirmation} onChange={event => setPassword(current => ({ ...current, confirmation: event.target.value }))} autoComplete="new-password" placeholder="Repita a nova senha" /></label><button type="submit" className="secondary-button" disabled={passwordSaving}>{passwordSaving ? 'Alterando…' : 'Alterar senha'}</button></form></section>
-       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">USO DA APLICAÇÃO</p><h3>Seu plano e consumo</h3></div><span className="profile-status-dot is-on">Ativo</span></div><div className="profile-usage-card"><span className="profile-card-icon">✦</span><div><strong>Plano atual: {currentPlan.name}</strong><small>Gerações de IA incluídas no limite diário do aplicativo.</small></div><b>{usage ? `${usage.restantes}/${usage.limite}` : '—'}</b></div>{chargeStatusMessage && <p className="profile-billing-note" role="status">{chargeStatusMessage}</p>}<div className="profile-plan-options" aria-label="Escolha seu plano">{Object.values(PLANS).map(planOption => <article key={planOption.id} className={`profile-plan-option${currentPlanId === planOption.id ? ' is-current' : ''}`}><div><strong>{planOption.name}</strong><small>{planOption.checkoutPrice === 'R$ 0' ? 'Grátis' : `${planOption.checkoutPrice}/${planOption.cadence}`}</small></div><p>{planOption.description}</p><button type="button" className={currentPlanId === planOption.id ? 'secondary-button' : 'action-button'} onClick={() => choosePlan(planOption.id)} disabled={billingBusy || currentPlanId === planOption.id}>{currentPlanId === planOption.id ? 'Plano atual' : billingBusy ? 'Processando…' : 'Escolher plano'}</button></article>)}</div><p className="profile-help-text">Uma troca para plano pago abre o checkout seguro e só ativa o plano após a confirmação do gateway. O sistema limita a uma cobrança por usuário no mês.</p><div className="profile-quick-links"><button type="button" onClick={() => onNavigate?.('integracoes')}>Gerenciar contas <span>→</span></button><button type="button" onClick={() => onNavigate?.('tokens')}>Ver tokens <span>→</span></button><button type="button" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades <span>→</span></button></div></section>
+       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">USO DA APLICAÇÃO</p><h3>Seu plano e consumo</h3></div><span className={`profile-status-dot${current.planActive !== false ? ' is-on' : ''}`}>{current.planActive !== false ? 'Ativo' : 'Pagamento pendente'}</span></div><div className="profile-usage-card"><span className="profile-card-icon">✦</span><div><strong>Plano atual: {currentPlan.name}</strong><small>{current.planActive === false ? 'Finalize o pagamento para liberar a inteligência artificial via OpenRouter.' : 'Seu plano inclui acesso à inteligência artificial via OpenRouter.'}</small></div><b>IA</b></div>{chargeStatusMessage && <p className="profile-billing-note" role="status">{chargeStatusMessage}</p>}<div className="profile-plan-options" aria-label="Escolha seu plano">{Object.values(PLANS).map(planOption => { const isCurrent = currentPlanId === planOption.id; const isActive = current.planActive !== false; return <article key={planOption.id} className={`profile-plan-option${isCurrent ? ' is-current' : ''}`}><div><strong>{planOption.name}</strong><small>{planOption.checkoutPrice}/{planOption.cadence}</small></div><p>{planOption.description}</p><button type="button" className={isCurrent && isActive ? 'secondary-button' : 'action-button'} onClick={() => choosePlan(planOption.id)} disabled={billingBusy || (isCurrent && isActive)}>{isCurrent && isActive ? 'Plano atual' : isCurrent ? 'Finalizar pagamento' : billingBusy ? 'Processando…' : 'Escolher plano'}</button></article> })}</div><p className="profile-help-text">Uma troca de plano abre o checkout seguro e só ativa o novo plano após a confirmação do gateway. O sistema limita a uma cobrança por usuário no mês.</p><div className="profile-quick-links"><button type="button" onClick={() => onNavigate?.('integracoes')}>Gerenciar contas <span>→</span></button><button type="button" onClick={() => onNavigate?.('tokens')}>Ver tokens <span>→</span></button><button type="button" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades <span>→</span></button></div></section>
     </div>
 
     <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">AJUDA</p><h3>Tutorial guiado</h3></div><span className={`profile-status-dot${tutorialStatus.completed ? ' is-on' : ''}`}>{tutorialStatus.completed ? 'Concluído' : 'Pendente'}</span></div><div className="tutorial-status-card"><span className={`tutorial-status-check${tutorialStatus.completed ? ' is-done' : ''}`} aria-hidden="true">{tutorialStatus.completed ? '✓' : '○'}</span><div><strong>{tutorialStatus.completed ? 'Você já completou o tutorial' : 'Você ainda não completou o tutorial'}</strong><small>{tutorialStatus.completed && tutorialStatus.completedAt ? `Concluído em ${formatDateTime(tutorialStatus.completedAt)}. Pode rever quando quiser.` : 'Um tour rápido pelas principais telas da plataforma.'}</small></div><button type="button" className="link-button" onClick={requestTutorialOpen}>{tutorialStatus.completed ? 'Rever tutorial' : 'Iniciar tutorial'}</button></div></section>

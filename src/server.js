@@ -43,7 +43,7 @@ const { readEnv, assertProductionSecrets } = require('./config/env')
 const asyncHandler = require('./http/asyncHandler')
 const { errorHandler } = require('./http/errorHandler')
 const { safeMessage } = require('./utils/redact')
-const { requirePlanModule } = require('./config/plans')
+const { requirePlanModule, requirePaidPlan } = require('./config/plans')
 
 const app = express()
 app.disable('x-powered-by')
@@ -95,7 +95,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  const csp = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https:; media-src 'self' https: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-StHcaWdc2/HgrGZXxKE0LfihFx9NPi1XasBlgsGWdeU=' 'sha256-LwAqGK/kdCWuY9FDcQ5GWMUgoc+n9DB/AHlF3te5Zww=' 'sha256-c/MpL7TXH9z4WiaZ3egdDwIovDJViAz5LRujZatofRU=' 'sha256-E3L+/uNfSGakMxL/kGdU1mIm04RAULzstN5QPWnVEA8='"
+  const csp = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: blob: https:; media-src 'self' https: blob:; connect-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-StHcaWdc2/HgrGZXxKE0LfihFx9NPi1XasBlgsGWdeU=' 'sha256-LwAqGK/kdCWuY9FDcQ5GWMUgoc+n9DB/AHlF3te5Zww=' 'sha256-c/MpL7TXH9z4WiaZ3egdDwIovDJViAz5LRujZatofRU=' 'sha256-E3L+/uNfSGakMxL/kGdU1mIm04RAULzstN5QPWnVEA8='"
   res.setHeader(config.isProduction ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only', csp)
   if (config.isProduction && req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
@@ -378,7 +378,7 @@ app.use('/api', apiLimiter)
 
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=30')
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, plan: req.user.plan, planUnrestricted: req.user.planUnrestricted === true, allowedPlatforms: req.user.allowedPlatforms || [], fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
+  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, plan: req.user.plan, planActive: req.user.planActive !== false, planUnrestricted: req.user.planUnrestricted === true, allowedPlatforms: req.user.allowedPlatforms || [], fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
 })
 
 app.use('/api/me',       meRoutes)
@@ -392,7 +392,7 @@ app.use('/api/drafts',   requirePlanModule('rascunhos'), draftsRoutes)
 app.use('/api/saved-texts', savedTextsRoutes)
 app.use('/api/platform-presets', platformPresetsRoutes)
 app.use('/api/push',     pushRoutes)
-app.use('/api/ai',       requirePlanModule('ai'), aiRoutes)
+app.use('/api/ai',       requirePlanModule('ai'), requirePaidPlan, aiRoutes)
 app.use('/api/media-assets', requirePlanModule('biblioteca'), mediaAssetsRoutes)
 app.use('/api/media-folders', requirePlanModule('biblioteca'), mediaFoldersRoutes)
 app.use('/api/content-queues', requirePlanModule('filas'), contentQueuesRoutes)
@@ -404,7 +404,7 @@ app.use('/api/api-keys', apiKeysRoutes)
 
 app.get('/api/platform-health', asyncHandler(async (req, res) => {
   const { getStatusMap } = require('./services/platformHealth')
-  res.json({ platforms: await getStatusMap() })
+  res.json({ platforms: await getStatusMap(req.user.id) })
 }))
 
 // A API nunca deve devolver HTML para uma rota inexistente.

@@ -19,9 +19,9 @@ const { detectarTemaRestrito } = require('../services/ai/contentSafety')
 
 const router = Router()
 const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
-// O GPT-OSS gratuito pode levar mais de 30s quando precisa gerar vários
-// posts em JSON. O frontend tem um limite ligeiramente maior para receber a
-// resposta ou o fallback do servidor.
+// O provedor pode levar mais de 30s quando precisa gerar vários posts em JSON.
+// O frontend tem um limite ligeiramente maior para receber a resposta ou o
+// fallback do servidor.
 const AI_PROVIDER_TIMEOUT_MS = 45_000
 const AI_IMAGE_PROVIDER_TIMEOUT_MS = 35_000
 
@@ -294,10 +294,10 @@ async function generateWithOpenAI(prompt, userKey, modelId = 'openai') {
 
 // OpenRouter fala o mesmo formato de API que a OpenAI (chat.completions) — só
 // muda a baseURL e o formato do id do modelo ("empresa/modelo"). Um único
-// modelo fixo (GPT-OSS 20B via OpenRouter) evita ter que expor ao usuário a
+// modelo fixo (GPT-4o Mini via OpenRouter) evita ter que expor ao usuário a
 // escolha entre dezenas de modelos disponíveis no OpenRouter.
 const OPENROUTER_MODEL_IDS = {
-  openrouter: 'openai/gpt-oss-20b:free',
+  openrouter: 'openai/gpt-4o-mini',
 }
 
 async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
@@ -307,16 +307,16 @@ async function generateWithOpenRouter(prompt, userKey, modelId = 'openrouter') {
   const client = new OpenAI({ apiKey: key, baseURL: 'https://openrouter.ai/api/v1' })
   const msg = await withTimeout(() => client.chat.completions.create({
     model: OPENROUTER_MODEL_IDS[modelId] || OPENROUTER_MODEL_IDS.openrouter,
-    // O GPT-OSS pode gastar muitos tokens em raciocínio antes do JSON. Para
-    // três ideias de Instagram, 2048 é suficiente e evita o timeout do free.
+    // Para três ideias de Instagram, 2048 tokens é suficiente e reduz o
+    // tempo de resposta.
     max_tokens: 2048,
     messages: mensagensDeChat(prompt),
   }), AI_PROVIDER_TIMEOUT_MS, 'O provedor de IA demorou mais que o esperado.')
   return msg.choices[0]?.message?.content || ''
 }
 
-// O modelo gratuito padrão do OpenRouter (gpt-oss-20b:free) não suporta
-// imagem — usamos um modelo de visão barato do próprio OpenRouter só para
+// O modelo de texto não suporta imagem — usamos um modelo de visão do próprio
+// OpenRouter só para
 // análise de mídia, mantendo a mesma chave/conta do usuário.
 const OPENROUTER_VISION_MODEL = 'google/gemini-2.5-flash-lite'
 
@@ -899,42 +899,12 @@ router.get('/requirements', (req, res) => {
   res.json({ requirements: lista })
 })
 
-// ── Demo grátis do LLM (modelo "local") ──────────────────────────────────────
-// O modelo "local" usa o Gemini com a CHAVE DO SERVIDOR — o usuário testa um LLM
-// real sem precisar de conta/chave própria, antes de assinar. Para não estourar
-// o custo da chave do dono, cada usuário tem um limite diário de gerações via
-// demo; ao atingir, cai no gerador por template (que é ilimitado e sem custo).
-const DEMO_LIMITE_DIA = parseInt(process.env.AI_DEMO_LIMITE_DIA || '', 10) || 10
-// A tabela ai_demo_usage é criada mais abaixo, junto das demais (depois que
-// `pool` é definido) — não pode ser criada aqui pois `pool` ainda está na TDZ.
-
-// Retorna quantos usos o usuário já fez hoje no demo (0 se nunca usou).
-async function demoUsosHoje(userId) {
-  try {
-    const { rows } = await pool.query(
-      `SELECT usos FROM ai_demo_usage WHERE user_id = $1 AND dia = CURRENT_DATE`,
-      [userId]
-    )
-    return rows[0]?.usos || 0
-  } catch { return 0 }
-}
-
-// GET /api/ai/demo-status — quanto resta do demo grátis hoje (para o frontend)
-router.get('/demo-status', async (req, res) => {
-  const hasServerKey = !!getGeminiApiKey()
-  const usados = await demoUsosHoje(req.user.id)
-  res.json({
-    llmDisponivel: hasServerKey,
-    limite: DEMO_LIMITE_DIA,
-    usados,
-    restantes: Math.max(0, DEMO_LIMITE_DIA - usados),
-  })
-})
-
 // POST /api/ai/generate
 router.post('/generate', async (req, res) => {
   try {
-    const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo = 'openrouter' } = req.body
+    const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo: modeloSolicitado = 'openrouter' } = req.body
+    // Clientes antigos podem enviar "local"; o provedor padrão do produto é o OpenRouter.
+    const modelo = modeloSolicitado === 'local' ? 'openrouter' : modeloSolicitado
     const plataformas = normalizarPlataformasSelecionadas(plataformasRaw)
 
     if (typeof instrucao !== 'string' || !instrucao.trim()) return res.status(400).json({ erro: 'Instrução é obrigatória' })
@@ -991,58 +961,20 @@ router.post('/generate', async (req, res) => {
       return res.json({ modelo: modeloUsado, ...extra, posts, ...(avisos.length ? { avisos } : {}) })
     }
 
-    // Cai no gerador por template (ilimitado, sem custo). Usado como fallback
-    // do demo quando não há LLM disponível ou o limite diário foi atingido.
+    // O template é somente um fallback técnico quando o provedor não responde;
+    // a rota continua protegida por plano pago ativo.
     const responderComTemplate = (motivo = null) => {
       const parsedLocal = gerarPostsLocal(instrucao, plataformas, qtd, tom)
       return montarResposta(parsedLocal.posts, 'local', motivo ? { fallback: motivo } : {})
     }
 
-    // Modo demo (modelo "local"): tenta o LLM real (Gemini) com a CHAVE DO
-    // SERVIDOR, sem exigir conta do usuário — respeitando o limite diário.
-    // Sem chave no servidor OU limite estourado OU erro do LLM → template.
-    if (modelo === 'local') {
-      if (!getGeminiApiKey()) return responderComTemplate()
-
-      const reserva = await reservarUsoDemo(req.user.id)
-      if (!reserva.allowed) return responderComTemplate('limite_diario')
-
-      try {
-        const promptDemo = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
-        // userKey = null → generateWithGemini usa process.env.GEMINI_API_KEY
-        const rawTextDemo = await generateWithGemini(promptDemo, null, 'gemini')
-        const parsedDemo = parseJsonResponse(rawTextDemo)
-        return montarResposta(parsedDemo.posts || [], 'local', { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - reserva.used) })
-      } catch (e) {
-        // Qualquer falha do LLM (quota, formato inválido, rede) → template,
-        // para o usuário nunca ficar sem resposta no modo grátis.
-        console.error('[AI demo] LLM falhou, usando template:', e.message)
-        return responderComTemplate('llm_indisponivel')
-      }
-    }
-
     const prompt = buildPrompt(instrucao, plataformas, qtd, tom, idioma)
 
-    // Um usuário comum não sabe gerar uma API key do Google AI Studio (é uma
-    // credencial técnica, exige projeto no Cloud, às vezes billing) — por isso
-    // TODOS os modelos Gemini (incluindo 2.5 Pro/Flash/Lite) usam a CHAVE DO
-    // SERVIDOR sempre, com o mesmo limite diário do modo "local". Só OpenAI e
-    // Claude continuam exigindo chave própria do usuário (não há chave deles
-    // configurada no servidor).
+    // Modelos Gemini usam a chave do servidor, quando configurada.
     if (GEMINI_MODEL_IDS[modelo]) {
       if (!getGeminiApiKey()) {
         throw Object.assign(new Error('Nenhum modelo Gemini está disponível no momento.'), { status: 503 })
       }
-      const reserva = await reservarUsoDemo(req.user.id)
-      // Diferente do modelo "local" (modo grátis/padrão, onde cair no
-      // template é o comportamento esperado): aqui o usuário escolheu um
-      // modelo Gemini específico de propósito — trocar silenciosamente pelo
-      // template dava um texto genérico sem avisar direito que a IA de
-      // verdade não rodou. Agora vira um erro explícito no limite.
-      if (!reserva.allowed) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
-      }
-
       const rawTextGemini = await generateWithGemini(prompt, null, modelo)
       let parsedGemini
       try {
@@ -1051,24 +983,16 @@ router.post('/generate', async (req, res) => {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return responderComTemplate('resposta_invalida')
       }
-      return montarResposta(parsedGemini.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - reserva.used) })
+      return montarResposta(parsedGemini.posts || [], modelo, { llm: true })
     }
 
     const userKey = await getUserApiKey(pool, req.user.id, modelo)
 
-    // OpenAI (GPT-4o Mini/GPT-4o) roda com a chave do servidor quando o
-    // usuário não tem chave própria salva — mesmo padrão de custo controlado
-    // já usado pelo Gemini, com o mesmo limite diário compartilhado. Claude
-    // continua exigindo chave própria do usuário (sem ANTHROPIC_API_KEY no
-    // servidor); sem chave própria, generateWithClaude já lança erro 503
-    // claro pedindo pra configurar.
+    // OpenAI pode usar a chave do servidor quando o usuário não tem uma chave
+    // própria salva. Claude continua exigindo sua própria chave.
     if (OPENAI_MODEL_IDS[modelo] && !userKey) {
       if (!process.env.OPENAI_API_KEY) {
         throw Object.assign(new Error('Para usar o GPT sem sua própria chave, configure a chave de API da OpenAI no servidor.'), { status: 503 })
-      }
-      const reserva = await reservarUsoDemo(req.user.id)
-      if (!reserva.allowed) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
       }
       const rawTextOpenai = await generateWithOpenAI(prompt, null, modelo)
       let parsedOpenai
@@ -1078,19 +1002,15 @@ router.post('/generate', async (req, res) => {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return responderComTemplate('resposta_invalida')
       }
-      return montarResposta(parsedOpenai.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - reserva.used) })
+      return montarResposta(parsedOpenai.posts || [], modelo, { llm: true })
     }
 
-    // OpenRouter segue o mesmo padrão do OpenAI: roda com a chave do servidor
-    // (mesmo limite diário compartilhado) quando o usuário não tem chave
-    // própria salva.
+    // OpenRouter usa a chave do servidor para todos os planos pagos. O acesso
+    // a esta rota já é protegido por requirePaidPlan no servidor; não use o
+    // contador do antigo modo demo para limitar uma assinatura ativa.
     if (OPENROUTER_MODEL_IDS[modelo] && !userKey) {
       if (!process.env.OPENROUTER_API_KEY) {
         throw Object.assign(new Error('Para usar o OpenRouter sem sua própria chave, configure a chave de API no servidor.'), { status: 503 })
-      }
-      const reserva = await reservarUsoDemo(req.user.id)
-      if (!reserva.allowed) {
-        throw Object.assign(new Error(`Limite diário de gerações com IA (${DEMO_LIMITE_DIA}) atingido. Tente novamente amanhã ou use sua própria chave de API para gerar sem limite.`), { status: 429 })
       }
       const rawTextOpenrouter = await generateWithOpenRouter(prompt, null, modelo)
       let parsedOpenrouter
@@ -1100,7 +1020,7 @@ router.post('/generate', async (req, res) => {
         await registrarAtividadeIA({ userId: req.user.id, acao: 'generate', status: 'erro', modelo, detalhes: `resposta inválida do provedor: ${parseError.message}` })
         return responderComTemplate('resposta_invalida')
       }
-      return montarResposta(parsedOpenrouter.posts || [], modelo, { llm: true, restantes: Math.max(0, DEMO_LIMITE_DIA - reserva.used) })
+      return montarResposta(parsedOpenrouter.posts || [], modelo, { llm: true })
     }
 
     let rawText
@@ -1143,8 +1063,7 @@ router.post('/generate', async (req, res) => {
     // O SDK do Gemini lança status 429 com a mensagem curta e genérica
     // "quota" para rate-limit momentâneo (segundos/minutos) — cai no fallback
     // padrão abaixo. Mensagens 429 mais longas são erros customizados nossos
-    // (ex: limite diário do demo, que só reseta amanhã) e preservam o texto
-    // original, que já é claro sobre o que aconteceu e o que fazer.
+    // e preservam o texto original, que já é claro sobre o que aconteceu.
     if (err.status === 429 && err.message !== 'quota') return res.status(429).json({ erro: err.message })
     if (err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('RESOURCE_EXHAUSTED')) {
       return res.status(429).json({ erro: 'Limite de requisições da IA atingido. Aguarde alguns segundos e tente novamente.' })
@@ -1526,22 +1445,6 @@ async function generateImageEndpoint(req, res) {
   }
 }
 
-async function reservarUsoDemo(userId) {
-  try {
-    const { rows } = await pool.query(`
-      INSERT INTO ai_demo_usage (user_id, dia, usos)
-      VALUES ($1, CURRENT_DATE, 1)
-      ON CONFLICT (user_id, dia) DO UPDATE
-        SET usos = ai_demo_usage.usos + 1
-        WHERE ai_demo_usage.usos < $2
-      RETURNING usos
-    `, [userId, DEMO_LIMITE_DIA])
-    return { allowed: rows.length > 0, used: Number(rows[0]?.usos || 0) }
-  } catch {
-    return { allowed: false, used: DEMO_LIMITE_DIA }
-  }
-}
-
 router.post('/image/generate', generateImageEndpoint)
 
 // Compatibilidade com clientes que ainda escolhem explicitamente OpenRouter.
@@ -1750,14 +1653,13 @@ router.get('/models', (req, res) => {
   const hasOpenrouter = !!process.env.OPENROUTER_API_KEY
   res.json({
     models: [
-      { id: 'local',             name: 'Assistente Rápido',      provider: 'Sem conta',      available: true },
+      { id: 'openrouter',        name: 'GPT-4o Mini (OpenRouter)', provider: 'OpenRouter', available: hasOpenrouter },
       { id: 'gemini',            name: 'Gemini 2.0 Flash',      provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-flash',  name: 'Gemini 2.5 Flash',      provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-pro',    name: 'Gemini 2.5 Pro',        provider: 'Google',    available: hasGemini },
       { id: 'gemini-2.5-lite',   name: 'Gemini 2.5 Flash-Lite', provider: 'Google',    available: hasGemini },
       { id: 'openai',            name: 'GPT-4o Mini',            provider: 'OpenAI',   available: hasOpenai },
       { id: 'openai-4o',         name: 'GPT-4o',                 provider: 'OpenAI',   available: hasOpenai },
-      { id: 'openrouter',        name: 'GPT-OSS 20B (OpenRouter)', provider: 'OpenRouter', available: hasOpenrouter },
       // Gera texto E imagem juntos na mesma resposta (Nano Banana 2 Lite) —
       // sempre exige chave própria do usuário no OpenRouter, por isso
       // "available: false" fixo aqui (mesmo padrão do Claude acima): não
@@ -1780,28 +1682,22 @@ router.get('/agent/capabilities', (_req, res) => {
   res.json({ capabilities: getPublicCapabilities() })
 })
 
-async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
-  const modeloReal = modelo === 'local' ? 'gemini' : modelo
+async function gerarTextoParaAgente(prompt, userId, modelo = 'openrouter') {
+  const modeloReal = modelo === 'local' ? 'openrouter' : modelo
   const userKey = await getUserApiKey(pool, userId, modeloReal)
 
   if (GEMINI_MODEL_IDS[modeloReal]) {
     if (!userKey && !getGeminiApiKey()) return null
-    const reserva = !userKey ? await reservarUsoDemo(userId) : { allowed: true }
-    if (!reserva.allowed) return null
     const raw = await generateWithGemini(prompt, userKey, modeloReal)
     return raw
   }
   if (OPENAI_MODEL_IDS[modeloReal]) {
     if (!userKey && !process.env.OPENAI_API_KEY) return null
-    const reserva = !userKey ? await reservarUsoDemo(userId) : { allowed: true }
-    if (!reserva.allowed) return null
     const raw = await generateWithOpenAI(prompt, userKey, modeloReal)
     return raw
   }
   if (OPENROUTER_MODEL_IDS[modeloReal]) {
     if (!userKey && !process.env.OPENROUTER_API_KEY) return null
-    const reserva = !userKey ? await reservarUsoDemo(userId) : { allowed: true }
-    if (!reserva.allowed) return null
     const raw = await generateWithOpenRouter(prompt, userKey, modeloReal)
     return raw
   }
@@ -1813,9 +1709,9 @@ async function gerarTextoParaAgente(prompt, userId, modelo = 'local') {
 // texto deve ter a mesma tolerância: Gemini é o padrão do modo rápido, mas uma
 // falha de quota, timeout ou billing não deve transformar um pedido válido em
 // um template local se o OpenRouter puder atender.
-async function gerarTextoParaAgenteResiliente(prompt, userId, modelo = 'local') {
-  const preferido = String(modelo || 'local').toLowerCase() === 'local'
-    ? 'gemini'
+async function gerarTextoParaAgenteResiliente(prompt, userId, modelo = 'openrouter') {
+  const preferido = String(modelo || 'openrouter').toLowerCase() === 'local'
+    ? 'openrouter'
     : String(modelo).toLowerCase()
   const candidatos = [...new Set([preferido, 'openrouter', 'gemini'])]
     .filter(id => GEMINI_MODEL_IDS[id] || OPENROUTER_MODEL_IDS[id])
@@ -1834,14 +1730,14 @@ async function gerarTextoParaAgenteResiliente(prompt, userId, modelo = 'local') 
 
 // Geração inteligente para o agente: usa o modelo de linguagem quando
 // disponível e preserva o gerador local como fallback sem chave/quota.
-async function gerarPostsParaAgente({ instruction, platforms, quantity, tone }, userId, modelo = 'local') {
+async function gerarPostsParaAgente({ instruction, platforms, quantity, tone }, userId, modelo = 'openrouter') {
   const plataformas = platforms.length ? platforms : ['instagram']
   const qtd = Math.min(Math.max(Number(quantity) || 1, 1), 5)
   const fallback = () => {
     const result = gerarPostsLocal(instruction, plataformas, qtd, tone)
     return {
       ...result,
-      modelo: 'local',
+      modelo: 'openrouter',
       llm: false,
       posts: result.posts.map(post => ({ ...post, plataformas })),
     }
@@ -1907,7 +1803,7 @@ router.post('/agent', async (req, res) => {
         history,
         currentPage,
         pendingPlan,
-        generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'local').then(result => result.rawText),
+        generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'openrouter').then(result => result.rawText),
       })
     }
 
@@ -1938,8 +1834,8 @@ router.post('/agent', async (req, res) => {
       actionId: plan.actionId,
       arguments: plan.actionId === 'conversation' ? { ...plan.arguments, response: plan.answer } : plan.arguments,
       user: req.user,
-      generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'local').then(result => result.rawText),
-      generatePosts: args => gerarPostsParaAgente(args, req.user.id, req.body?.modelo || 'local'),
+      generateText: prompt => gerarTextoParaAgenteResiliente(prompt, req.user.id, req.body?.modelo || 'openrouter').then(result => result.rawText),
+      generatePosts: args => gerarPostsParaAgente(args, req.user.id, req.body?.modelo || 'openrouter'),
       generateImage: args => generateImageResilient({
         descricao: args.description,
         userId: req.user.id,

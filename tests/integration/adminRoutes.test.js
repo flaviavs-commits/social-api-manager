@@ -1,6 +1,7 @@
 // Testes de integração — /api/admin/users (requireAdmin protege tudo)
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
+process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
 
 const request = require('supertest')
 
@@ -22,9 +23,9 @@ const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
 
-const ADMIN = { id: 1, email: 'admin@test.com', role: 'admin', full_name: 'Admin', avatar_url: null, totp_enabled: false }
-const SUPER = { id: 2, email: 'super@test.com', role: 'super_admin', full_name: 'Super', avatar_url: null, totp_enabled: false }
-const USER  = { id: 3, email: 'user@test.com',  role: 'user',        full_name: 'User',  avatar_url: null, totp_enabled: false }
+const ADMIN = { id: 1, email: 'admin@allowed.test', role: 'admin', full_name: 'Admin', avatar_url: null, totp_enabled: false }
+const SUPER = { id: 2, email: 'super@allowed.test', role: 'super_admin', full_name: 'Super', avatar_url: null, totp_enabled: false }
+const USER  = { id: 3, email: 'user@allowed.test',  role: 'user',        full_name: 'User',  avatar_url: null, totp_enabled: false }
 
 let tokenAdmin, tokenSuper, tokenUser
 
@@ -90,7 +91,7 @@ describe('POST /api/admin/users/:id/role', () => {
 
   test('200 super_admin atualiza role', async () => {
     usersRepo.buscarPorId.mockResolvedValue(SUPER)
-    usersRepo.atualizarRole.mockResolvedValue({ id: 3, email: 'user@test.com', role: 'admin' })
+    usersRepo.atualizarRole.mockResolvedValue({ id: 3, email: 'user@allowed.test', role: 'admin' })
     const res = await request(app)
       .post('/api/admin/users/3/role')
       .set('Authorization', `Bearer ${tokenSuper}`)
@@ -144,7 +145,7 @@ describe('POST /api/admin/users/:id/ativo', () => {
   test('200 admin desativa usuário comum', async () => {
     usersRepo.buscarPorId.mockResolvedValue(ADMIN)
     usersRepo.buscarPorIdIncluindoInativo.mockResolvedValue({ id: 3, role: 'user' })
-    usersRepo.atualizarAtivo.mockResolvedValue({ id: 3, email: 'user@test.com', ativo: false })
+    usersRepo.atualizarAtivo.mockResolvedValue({ id: 3, email: 'user@allowed.test', ativo: false })
     const res = await request(app)
       .post('/api/admin/users/3/ativo')
       .set('Authorization', `Bearer ${tokenAdmin}`)

@@ -1,6 +1,7 @@
 // Testes de integração — middleware requireAuth + rotas protegidas
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
+process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
 
 const request = require('supertest')
 
@@ -47,8 +48,8 @@ describe('requireAuth middleware', () => {
 
   test('token válido com usuário existente passa o middleware', async () => {
     usersRepo.buscarPorId.mockResolvedValue({
-      id: 1, email: 'u@test.com', role: 'user',
-      full_name: 'Teste', avatar_url: null, totp_enabled: false, plan: 'agencia'
+      id: 1, email: 'u@allowed.test', role: 'user',
+        full_name: 'Teste', avatar_url: null, totp_enabled: false, plan: 'premium'
     })
     pool.query.mockResolvedValue({ rows: [] })
     const token = gerarTokenSessao(1)
@@ -62,7 +63,7 @@ describe('requireAuth middleware', () => {
 describe('GET /api/me', () => {
   test('retorna dados do usuário autenticado', async () => {
     usersRepo.buscarPorId.mockResolvedValue({
-      id: 5, email: 'me@test.com', role: 'admin',
+      id: 5, email: 'me@allowed.test', role: 'admin',
       full_name: 'Usuário Admin', avatar_url: 'https://img', totp_enabled: true
     })
     const token = gerarTokenSessao(5)
@@ -70,7 +71,7 @@ describe('GET /api/me', () => {
       .get('/api/me')
       .set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.email).toBe('me@test.com')
+    expect(res.body.email).toBe('me@allowed.test')
     expect(res.body.role).toBe('admin')
     // Nunca expõe senha
     expect(res.body.password).toBeUndefined()

@@ -8,9 +8,11 @@ import { findPublicationResult, latestPublicationEventId, processingPublicationM
 import { useToast } from '../components/ui/toast.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, socialMediaResolutionHint } from '../lib/mediaFormat.js'
+import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
 import '../styles/scheduler-composer.css'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
+const platformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const AI_POST_DRAFT_KEY = 'meu-ecoo:ai-post-draft'
 const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 'image/avif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' }
@@ -384,6 +386,8 @@ export function SchedulerPage() {
   const [publishNow, setPublishNow] = useState(false)
   const [selected, setSelected] = useState(['instagram'])
   const [connectedAccounts, setConnectedAccounts] = useState([])
+  const [selectedAccountIds, setSelectedAccountIds] = useState([])
+  const [accountsLoaded, setAccountsLoaded] = useState(false)
   const [files, setFiles] = useState([])
   const [mediaPreviews, setMediaPreviews] = useState([])
   const [mediaMetaByKey, setMediaMetaByKey] = useState({})
@@ -413,6 +417,7 @@ export function SchedulerPage() {
   const validationRequest = useRef(0)
   const publicationPollTimer = useRef(null)
   const sourceFailureId = useRef(null)
+  const accountGroups = useMemo(() => groupAccountsByPerson(connectedAccounts), [connectedAccounts])
 
   useEffect(() => {
     if (['reel', 'story'].includes(igFormat) && igAspect !== 'auto') setIgAspect('auto')
@@ -438,7 +443,16 @@ export function SchedulerPage() {
   }
 
   useEffect(() => {
-    apiFetch('/api/accounts').then(data => setConnectedAccounts(data.data || [])).catch(() => setConnectedAccounts([]))
+    apiFetch('/api/accounts').then(data => {
+      const accounts = data.data || []
+      setConnectedAccounts(accounts)
+      setSelectedAccountIds(accounts.map(account => account.id))
+      setAccountsLoaded(true)
+    }).catch(() => {
+      setConnectedAccounts([])
+      setSelectedAccountIds([])
+      setAccountsLoaded(true)
+    })
   }, [])
 
   useEffect(() => {
@@ -569,6 +583,23 @@ export function SchedulerPage() {
     if (platform === 'tiktok' && !selected.includes(platform) && files.some(file => !file.type.startsWith('video/'))) {
       setError('O TikTok aceita somente um vídeo por publicação. Remova as imagens antes de selecionar o TikTok.')
     }
+  }
+  function toggleAccount(accountId) {
+    const key = accountIdKey(accountId)
+    setSelectedAccountIds(current => current.some(id => accountIdKey(id) === key)
+      ? current.filter(id => accountIdKey(id) !== key)
+      : [...current, accountId])
+  }
+  function selectAllPersonAccounts(personKey, shouldSelect) {
+    const group = accountGroups.find(item => item.key === personKey)
+    if (!group) return
+    const availableIds = group.accounts.filter(account => selected.includes(account.platform)).map(account => account.id)
+    setSelectedAccountIds(current => {
+      const currentKeys = new Set(current.map(accountIdKey))
+      if (shouldSelect) return [...current, ...availableIds.filter(id => !currentKeys.has(accountIdKey(id)))]
+      const groupKeys = new Set(availableIds.map(accountIdKey))
+      return current.filter(id => !groupKeys.has(accountIdKey(id)))
+    })
   }
   function updatePlatformText(platform, value) {
     const key = platform === 'tiktok' ? 'tiktokDescription' : platform
@@ -732,6 +763,8 @@ export function SchedulerPage() {
     validationWorker.postMessage({ ...validationInput, requestId })
   }, [validationWorker, textByPlatform, titleByPlatform, selected, files, publishNow, date, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey, mediaMetaByKey])
   const issues = workerIssues
+  const accountSelectionIssues = accountsLoaded ? buildAccountSelectionIssues(connectedAccounts, selected, selectedAccountIds) : []
+  const blockingIssues = [...issues, ...accountSelectionIssues]
 
   async function uploadFile(file) {
     const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
@@ -747,7 +780,7 @@ export function SchedulerPage() {
 
   async function submit(event) {
     event.preventDefault(); setError(''); setSavedMessage(null); setPublicationStatus(null); setProgress('')
-    if (issues.length > 0) { setError(issues[0].message); return }
+    if (blockingIssues.length > 0) { setError(blockingIssues[0].message); return }
     setLoading(true)
     try {
       const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
@@ -755,8 +788,9 @@ export function SchedulerPage() {
       const media = await uploadWithConcurrency(files, uploadFile, 3, (completed, total) => setProgress(`Enviando mídias (${completed}/${total})...`))
       const scheduledAt = publishNow ? new Date().toISOString() : date
       const platformTexts = Object.fromEntries(Object.entries(textByPlatform).filter(([platform]) => selected.includes(platform)))
+      const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
       setProgress(publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')
-      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
+      const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
       if (sourceFailureId.current) {
         const replacedFailureId = sourceFailureId.current
         sourceFailureId.current = null
@@ -796,18 +830,43 @@ export function SchedulerPage() {
 
     <SchedSection number={1} title="Plataformas">
       <div className="platform-options">{platforms.map(platform => {
-        const connectedAccount = connectedAccounts.find(account => account.platform === platform)
+        const platformAccounts = accountsForPlatform(connectedAccounts, platform)
+        const selectedCount = platformAccounts.filter(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))).length
+        const connectedAccount = platformAccounts.find(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))) || platformAccounts[0]
         const accountLabel = connectedAccount?.handle || connectedAccount?.name
         const isSelected = selected.includes(platform)
-        return <label className={`platform-option platform-option-${platform}`} key={platform}>
+        return <div className={`platform-selection platform-selection-${platform}`} key={platform}><label className={`platform-option platform-option-${platform}`}>
           <input type="checkbox" checked={isSelected} onChange={() => toggle(platform)} aria-label={`${isSelected ? 'Desmarcar' : 'Selecionar'} ${platform}`}/>
           <span className="platform-option-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-6 w-6"/></span>
           <span className="platform-option-name">{platform[0].toUpperCase() + platform.slice(1)}</span>
           <span className="platform-option-hint">{isSelected ? 'Selecionada' : 'Selecionar'}</span>
-          <span className="platform-option-account">{accountLabel ? (accountLabel.startsWith('@') ? accountLabel : `@${accountLabel}`) : 'Nenhuma conta conectada'}</span>
+          <span className="platform-option-account">{selectedCount > 1 ? `${selectedCount} contas selecionadas` : accountLabel ? (accountLabel.startsWith('@') ? accountLabel : `@${accountLabel}`) : 'Nenhuma conta conectada'}</span>
           <span className="platform-option-check" aria-hidden="true">{isSelected ? '✓' : ''}</span>
-        </label>
+        </label></div>
       })}</div>
+      <div className="person-account-groups" aria-label="Contas organizadas por pessoa">
+        <div className="person-account-groups-heading"><div><strong>Contas por pessoa</strong><small>Cada pessoa reúne todas as suas redes. O post será enviado somente às contas marcadas.</small></div><span>{connectedAccounts.length} conta{connectedAccounts.length === 1 ? '' : 's'}</span></div>
+        {accountGroups.length ? <div className="person-account-groups-list">{accountGroups.map(group => {
+          const selectedGroupAccounts = group.accounts.filter(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account)))
+          const groupPlatforms = Array.from(new Set(group.accounts.map(account => platformLabels[account.platform] || account.platform)))
+          return <article className="person-account-group" key={group.key}>
+            <header className="person-account-group-heading"><div><strong>{group.label}</strong><small>{group.accounts.length} conta{group.accounts.length === 1 ? '' : 's'} · {groupPlatforms.join(' · ')}</small></div><div className="person-account-group-actions"><span>{selectedGroupAccounts.length} selecionada{selectedGroupAccounts.length === 1 ? '' : 's'}</span><button type="button" onClick={() => selectAllPersonAccounts(group.key, true)}>Todas</button><button type="button" onClick={() => selectAllPersonAccounts(group.key, false)}>Nenhuma</button></div></header>
+            <div className="person-account-group-list">{group.accounts.map(account => {
+              const accountSelected = selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))
+              const networkSelected = selected.includes(account.platform)
+              const label = account.handle || account.name || account.tokens?.find(token => token.accountName)?.accountName || `Conta ${account.id}`
+              const tokenStatus = account.tokens?.find(token => token.status)?.status || 'unknown'
+              return <label className={`person-account-row${accountSelected ? ' is-selected' : ''}${!networkSelected ? ' is-disabled' : ''}`} key={account.id}>
+                <input type="checkbox" checked={accountSelected} disabled={!networkSelected} onChange={() => toggleAccount(account.id)} aria-label={`Usar ${label} no ${platformLabels[account.platform] || account.platform}`}/>
+                {account.avatarUrl ? <img src={account.avatarUrl} alt="" aria-hidden="true"/> : <span className={`person-account-platform person-account-platform-${account.platform}`} aria-hidden="true"><PlatformIcon platform={account.platform} className="h-4 w-4"/></span>}
+                <span className="person-account-row-copy"><strong>{label}</strong><small>{platformLabels[account.platform] || account.platform}{account.name && account.handle ? ` · ${account.name}` : ''}{account.ownerEmail ? ` · ${account.ownerEmail}` : ''}</small></span>
+                <span className={`person-account-token person-account-token-${tokenStatus}`}>{tokenStatus === 'valid' ? 'Token válido' : tokenStatus === 'expiring' ? 'Expirando' : tokenStatus === 'expired' || tokenStatus === 'error' ? 'Requer atenção' : 'Sem status'}</span>
+                {!networkSelected && <small className="person-account-disabled-note">Selecione a rede</small>}
+              </label>
+            })}</div>
+          </article>
+        })}</div> : <p className="platform-account-empty">Nenhuma conta conectada. Conecte uma conta antes de continuar.</p>}
+      </div>
     </SchedSection>
 
     <SchedSection number={2} title="Mídia e conteúdo">
@@ -857,7 +916,7 @@ export function SchedulerPage() {
       {!publishNow && <label>Data e hora<input required type="datetime-local" value={date} onChange={event => setDate(event.target.value)}/></label>}
     </SchedSection>
 
-    {issues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {issues.length} {issues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
-    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || issues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
+      {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
+    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
   </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>Seu post está na agenda</h3><p>Ele será publicado em <strong>{savedMessage.date}</strong>.</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">Você pode acompanhar ou editar esse agendamento no calendário.</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
 }

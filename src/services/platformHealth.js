@@ -16,18 +16,15 @@ const PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
 // bater direto na rede social.
 const PLATAFORMAS_VIA_ZERNIO = ['instagram', 'facebook', 'tiktok', 'youtube']
 
-// Chamada leve (não conta como publicação) só para verificar se a API da
-// plataforma está respondendo, usando o token/accountId de uma conta
-// conectada qualquer como sonda.
+// Chamada leve (não conta como publicação) só para verificar se a API do
+// provedor está respondendo. A saúde da API não deve depender da existência de
+// uma conta específica: uma conta removida no Zernio retorna "Account not
+// found", mas isso é uma conexão stale, não uma indisponibilidade da API.
 async function pingPlatform(platform, accessToken) {
   if (PLATAFORMAS_VIA_ZERNIO.includes(platform)) {
     try {
-      // accessToken aqui é o zernio_account_id (ver buscarTokenSonda).
-      const health = await zernioClient.getAccountHealth(accessToken)
-      // status "healthy"/"degraded"/"disconnected" observados em teste real
-      // — só "disconnected" (token realmente inválido no Zernio) conta como
-      // falha de disponibilidade; degraded ainda posta.
-      return { ok: health?.status !== 'disconnected', message: health?.status }
+      await zernioClient.listAccounts({ profileId: process.env.ZERNIO_PROFILE_ID, platform, includeOverLimit: true })
+      return { ok: true, message: 'api' }
     } catch (err) {
       return { ok: false, message: err.message || 'erro ao consultar saúde no Zernio' }
     }
@@ -147,12 +144,15 @@ async function verificarSaudePlataformas() {
   }
 }
 
-async function getStatusMap() {
+async function getStatusMap(userId = null) {
+  const accountExists = userId
+    ? 'EXISTS (SELECT 1 FROM contas c WHERE c.platform = ph.platform AND c.user_id = $1)'
+    : 'EXISTS (SELECT 1 FROM contas c WHERE c.platform = ph.platform)'
   const { rows } = await pool.query(`
     SELECT ph.platform, ph.status, ph.checked_at AS "checkedAt",
-           EXISTS (SELECT 1 FROM contas c WHERE c.platform = ph.platform) AS "hasAccount"
+           ${accountExists} AS "hasAccount"
     FROM platform_health ph
-  `)
+  `, userId ? [userId] : [])
   const map = {}
   for (const p of PLATFORMS) map[p] = 'up'
   for (const r of rows) map[r.platform] = r.hasAccount ? r.status : 'up'

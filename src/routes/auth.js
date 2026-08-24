@@ -14,6 +14,7 @@ const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAut
 const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, AUTH_COOKIE, PENDING_2FA_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
 const { DEFAULT_PLAN, PLANS, SUPPORTED_PLATFORMS, getPlanConnectionLimit, getPlanPlatforms, normalizePlan } = require('../config/plans')
+const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
 
 const BCRYPT_COST = 12
 
@@ -77,6 +78,9 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
   if (!isValidEmail(email)) {
     return res.status(400).json({ erro: 'Informe um e-mail válido.' })
+  }
+  if (!isAllowedEmail(email)) {
+    return res.status(403).json({ erro: `Use um e-mail ${allowedEmailDomainLabel()} para acessar a aplicação.` })
   }
 
   let user
@@ -146,6 +150,9 @@ router.post('/register', loginLimiter, async (req, res) => {
   if (!isValidEmail(email)) {
     return res.status(400).json({ erro: 'Informe um e-mail válido.' })
   }
+  if (!isAllowedEmail(email)) {
+    return res.status(403).json({ erro: `O cadastro está disponível somente para e-mails ${allowedEmailDomainLabel()}.` })
+  }
   const erroComplexidade = validarComplexidadeSenha(password)
   if (erroComplexidade) {
     return res.status(400).json({ erro: erroComplexidade })
@@ -182,7 +189,6 @@ router.post('/register', loginLimiter, async (req, res) => {
       plan,
       selectedPlan,
       requiresPayment: true,
-      checkoutUrl: PLANS[selectedPlan]?.checkoutUrl || null,
       allowedPlatforms: selectedPlatforms,
       maxConnections,
     }, token)
@@ -242,8 +248,11 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   if (!email) {
     return res.status(400).json({ erro: 'Informe seu e-mail.' })
   }
-  if (!isValidEmail(email)) {
+    if (!isValidEmail(email)) {
     return res.status(400).json({ erro: 'Informe um e-mail válido.' })
+  }
+  if (!isAllowedEmail(email)) {
+    return res.status(403).json({ erro: `Use um e-mail ${allowedEmailDomainLabel()} para recuperar o acesso.` })
   }
 
   const respostaPadrao = { ok: true, mensagem: 'Se esse e-mail tiver uma conta, enviamos um link de redefinição de senha.' }
@@ -487,6 +496,9 @@ router.get('/google/callback', async (req, res) => {
       if (!profile.email) {
         return res.send(paginaPopupAiConnect({ ok: false, erro: 'Não foi possível obter o e-mail da conta Google.' }))
       }
+      if (!isAllowedEmail(profile.email)) {
+        return res.send(paginaPopupAiConnect({ ok: false, erro: `Use uma conta Google com e-mail ${allowedEmailDomainLabel()}.` }))
+      }
       return res.send(paginaPopupAiConnect({ ok: true, email: profile.email }))
     }
 
@@ -502,6 +514,9 @@ router.get('/google/callback', async (req, res) => {
 
     if (!profile.email) {
       return res.send(friendlyAuthError('Não foi possível obter seu e-mail do Google.', origin))
+    }
+    if (!isAllowedEmail(profile.email)) {
+      return res.send(friendlyAuthError(`Use um e-mail ${allowedEmailDomainLabel()} para acessar a aplicação.`, origin))
     }
 
     let user = await usersRepo.buscarPorGoogleId(profile.id)

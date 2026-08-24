@@ -9,6 +9,7 @@ const { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok } = requ
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
+const { parseSelectedAccountIds, validateSelectedAccounts } = require('../../domain/posts/accountSelection')
 const { ValidationError } = require('../../domain/posts/errors')
 const { registrarLog } = require('../../repositories/logsRepository')
 
@@ -165,8 +166,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // marcada, resolvido mais abaixo). Ver contasRepository.listarContasPorIds.
   let accountIds = null
   try {
-    const parsed = JSON.parse(body.accountIds || 'null')
-    if (Array.isArray(parsed) && parsed.length) accountIds = parsed.map(Number)
+    accountIds = parseSelectedAccountIds(body.accountIds)
   } catch {
     throw new ValidationError('accountIds inválido')
   }
@@ -303,6 +303,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   if (accountIds && contas.length !== accountIds.length) {
     throw new ValidationError('Uma ou mais contas selecionadas não foram encontradas ou não pertencem a você.')
   }
+  const erroDeSelecaoDeContas = accountIds ? validateSelectedAccounts(platforms, contas) : null
+  if (erroDeSelecaoDeContas) throw new ValidationError(erroDeSelecaoDeContas)
   const platformsSemConta = platforms.filter(p => !contas.some(c => c.platform === p))
   if (platformsSemConta.length) {
     const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }

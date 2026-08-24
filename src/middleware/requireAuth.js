@@ -1,6 +1,7 @@
 const usersRepo = require('../repositories/usersRepository')
 const { verificarTokenSessaoDetalhado } = require('../utils/authToken')
 const { AUTH_COOKIE, readCookie } = require('../utils/authCookie')
+const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
 
 async function requireAuth(req, res, next) {
   // Modo público solicitado para a demonstração: todas as requisições usam
@@ -64,13 +65,18 @@ async function requireAuth(req, res, next) {
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
+    if (!isAllowedEmail(user.email)) {
+      if (req.path.startsWith('/api/')) return res.status(403).json({ erro: `A aplicação está disponível somente para e-mails ${allowedEmailDomainLabel()}.` })
+      return res.redirect((process.env.FRONTEND_URL || '') + '/login.html?error=domain_not_allowed')
+    }
+
     const invalidatedAt = user.auth_tokens_invalidated_at ? new Date(user.auth_tokens_invalidated_at).getTime() : 0
     if (invalidatedAt && (!tokenInfo?.iat || tokenInfo.iat <= invalidatedAt)) {
       if (req.path.startsWith('/api/')) return res.status(401).json({ erro: 'Sua sessão foi encerrada. Faça login novamente.' })
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
-    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
+    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planActive: user.planActive !== false, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
     next()
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })

@@ -145,7 +145,7 @@ async function confirmarPagamento({ gatewaySessionId, gatewayPaymentId, amountCe
       [change.id, gatewayPaymentId || null]
     )
     await client.query(
-      `UPDATE users SET plan = $1 WHERE id = $2 AND ativo = TRUE`,
+      `UPDATE users SET plan = $1, plan_active = TRUE, plan_unrestricted = FALSE WHERE id = $2 AND ativo = TRUE`,
       [change.toPlan, change.userId]
     )
     await client.query('COMMIT')

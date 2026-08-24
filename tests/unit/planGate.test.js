@@ -1,4 +1,4 @@
-const { requirePlanModule } = require('../../src/config/plans')
+const { requirePlanModule, requirePaidPlan } = require('../../src/config/plans')
 const { PLANS } = require('../../src/config/plans')
 
 function response() {
@@ -68,5 +68,28 @@ describe('requirePlanModule', () => {
     expect(next).toHaveBeenCalledTimes(1)
     expect(res.statusCode).toBe(403)
     expect(res.body).toMatchObject({ code: 'PLAN_REQUIRED', currentPlan: 'basico' })
+  })
+})
+
+describe('requirePaidPlan', () => {
+  test('bloqueia usuário cujo primeiro pagamento ainda não foi confirmado', () => {
+    const res = response()
+    const next = jest.fn()
+
+    requirePaidPlan({ user: { id: 1, role: 'user', plan: 'basico', planActive: false } }, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(402)
+    expect(res.body).toMatchObject({ code: 'PAYMENT_REQUIRED', currentPlan: 'basico' })
+  })
+
+  test('permite qualquer plano pago após confirmação', () => {
+    const res = response()
+    const next = jest.fn()
+
+    requirePaidPlan({ user: { id: 1, role: 'user', plan: 'pro', planActive: true } }, res, next)
+
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(res.statusCode).toBeNull()
   })
 })

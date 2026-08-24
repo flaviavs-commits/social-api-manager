@@ -141,9 +141,8 @@ webhook assinado confirmar o pagamento.
 Uma troca paga cria no máximo um registro em `billing_plan_changes` por
 usuário e mês. A chave de idempotência é estável entre tentativas, e a
 restrição única do banco impede uma segunda cobrança mesmo com cliques
-repetidos, concorrência ou perda de resposta do gateway. Downgrade para o
-plano Gratuito não gera cobrança. Não existe renovação automática neste
-fluxo.
+repetidos, concorrência ou perda de resposta do gateway. Não existe renovação
+automática neste fluxo.
 
 Configure o Stripe antes de habilitar planos pagos:
 
@@ -156,10 +155,14 @@ PAYMENT_SUCCESS_URL=https://seu-dominio.example/app/perfil?billing=success
 PAYMENT_CANCEL_URL=https://seu-dominio.example/app/perfil?billing=cancelled
 ```
 
-O endpoint do webhook deve ser cadastrado no Stripe como
+O catálogo contém três planos pagos: `basico` (EcooMidia Básico, R$ 52,50/mês,
+2 redes sociais), `pro` (EcooMidia Pro, R$ 100,50/mês, 3 redes sociais) e
+`premium` (EcooMidia Premium, R$ 124,50/mês, 4 redes sociais). Todos incluem
+agendamento, métricas, IA, espaços de trabalho/aprovações e
+relatórios/automações. Não existe plano gratuito. O endpoint do webhook deve ser cadastrado no Stripe como
 `POST /api/billing/stripe/webhook` e receber o corpo bruto para validação da
 assinatura. A API autenticada expõe `GET /api/billing/status` e
-`POST /api/billing/plan-change` com `{ "plan": "criador" }`. Se as chaves não
+`POST /api/billing/plan-change` com `{ "plan": "basico" }`. Se as chaves não
 estiverem configuradas, nenhuma troca paga é ativada nem simulada.
 
 ### Esqueci minha senha
@@ -188,6 +191,13 @@ Cada conta de rede social conectada (`contas.user_id`) e cada post agendado
 (`/api/accounts`, `/api/tokens`, `/api/posts`, `/api/logs`) filtram
 automaticamente pelo usuário autenticado — um usuário comum nunca vê contas,
 tokens, posts ou logs de outro usuário.
+
+O aplicativo não impõe uma quantidade máxima de contas conectadas por usuário
+ou por rede social. A tela de publicação lista todas as contas disponíveis,
+inclusive várias contas da mesma rede, e permite marcar quais devem receber
+aquele post. O conteúdo específico da rede é enviado para cada conta marcada.
+Esse limite de quantidade não substitui eventuais limites comerciais ou de
+rate limit do provedor externo de OAuth/publicação.
 
 ### Administradores
 
@@ -231,21 +241,6 @@ depois disso, use o próprio painel `/admin.html` logado como `super_admin`;
 para criar um novo `super_admin`, edite a coluna `role` diretamente no banco.
 
 ## Configuração das APIs
-
-### Integração de identidade MeuEcoo
-
-O token de login e o token que sincroniza senha são separados. Configure ambos
-somente no servidor; o segundo é exclusivo deste MiniApp e não pode ir ao
-frontend:
-
-```env
-MEU_ECOO_API_URL=https://api.example.com
-MEU_ECOO_SERVICE_TOKEN=token_exclusivo_de_login_parceiro
-MEU_ECOO_CREDENTIAL_SYNC_TOKEN=token_exclusivo_de_escrita_social_api_manager
-```
-
-Sem `MEU_ECOO_CREDENTIAL_SYNC_TOKEN`, a sincronização de senha fica desativada
-de forma segura e o login local continua disponível.
 
 ### Facebook
 
@@ -406,7 +401,7 @@ para a conta Instagram Business vinculada à página:
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/posts` | Lista posts (filtro: `status`) |
-| POST | `/api/posts` | Agendar novo post |
+| POST | `/api/posts` | Agendar novo post; `accountIds` opcional (array JSON) publica somente nas contas selecionadas |
 | DELETE | `/api/posts/:id` | Cancelar post agendado |
 
 #### Analytics

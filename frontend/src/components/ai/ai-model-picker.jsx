@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 
 const FALLBACK_MODELS = [
-  { id: 'local', name: 'Assistente Rápido', provider: 'Sem conta', available: true },
+  { id: 'openrouter', name: 'GPT-4o Mini', provider: 'OpenRouter', available: false },
   { id: 'gemini', name: 'Gemini 2.0 Flash', provider: 'Google', available: false },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', available: false },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', available: false },
   { id: 'gemini-2.5-lite', name: 'Gemini Flash-Lite', provider: 'Google', available: false },
   { id: 'openai', name: 'GPT-4o Mini', provider: 'OpenAI', available: false },
   { id: 'openai-4o', name: 'GPT-4o', provider: 'OpenAI', available: false },
-  { id: 'openrouter', name: 'GPT-OSS 20B', provider: 'OpenRouter', available: false },
   { id: 'claude', name: 'Claude Haiku', provider: 'Anthropic', available: false },
   { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'Anthropic', available: false },
 ]
@@ -52,7 +51,7 @@ export function AiModelPicker({ value, onChange, compact = false, visionOnly = f
     if (NON_TEXT_MODELS.has(model.id)) return false
     return !visionOnly || VISION_MODELS.has(model.id)
   })
-  const selectedValue = visibleModels.some(model => model.id === value) ? value : (visibleModels[0]?.id || value || 'local')
+  const selectedValue = visibleModels.some(model => model.id === value) ? value : (visibleModels[0]?.id || value || 'openrouter')
 
   return <label className={`ai-model-picker${compact ? ' ai-model-picker-compact' : ''}`}>
     <span>{compact ? 'Modelo' : 'Escolha o modelo de IA'}</span>

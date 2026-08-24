@@ -1,5 +1,6 @@
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
+process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
 process.env.ZERNIO_API_KEY = 'test-zernio-key'
 process.env.ZERNIO_PROFILE_ID = 'test-profile'
 
@@ -21,7 +22,7 @@ const zernioClient = require('../../src/infra/social/zernioClient')
 const app = require('../../src/server')
 
 test('exibe a orientação do limite do Zernio ao adicionar uma conta', async () => {
-  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@test.com', role: 'user' })
+  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@allowed.test', role: 'user' })
   zernioClient.connectUrl.mockRejectedValue(Object.assign(new Error('Add a payment method to connect more than 2 accounts.'), { status: 402 }))
 
   const response = await request(app)
@@ -34,7 +35,7 @@ test('exibe a orientação do limite do Zernio ao adicionar uma conta', async ()
 })
 
 test('usa o host atual no retorno do Facebook durante o desenvolvimento', async () => {
-  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@test.com', role: 'user' })
+  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@allowed.test', role: 'user' })
   zernioClient.connectUrl.mockResolvedValue({ authUrl: 'https://www.facebook.com/oauth' })
   process.env.NODE_ENV = 'development'
 
@@ -55,7 +56,7 @@ test('usa o host atual no retorno do Facebook durante o desenvolvimento', async 
 })
 
 test('preserva a página de integrações no retorno do OAuth', async () => {
-  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@test.com', role: 'user' })
+  usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'user@allowed.test', role: 'user' })
   zernioClient.connectUrl.mockResolvedValue({ authUrl: 'https://www.instagram.com/oauth' })
 
   const response = await request(app)
@@ -66,6 +67,28 @@ test('preserva a página de integrações no retorno do OAuth', async () => {
   const state = JSON.parse(Buffer.from(new URL(redirectUrl).searchParams.get('state'), 'base64').toString())
   expect(state.returnTo).toBe('/app/integracoes')
   expect(response.status).toBe(200)
+})
+
+test('entrega o callback OAuth com script same-origin permitido pela CSP e fallback visual', async () => {
+  const response = await request(app)
+    .get('/auth/instagram/zernio-return?state=invalid')
+
+  expect(response.status).toBe(200)
+  const csp = response.headers['content-security-policy'] || response.headers['content-security-policy-report-only']
+  expect(csp).toMatch(/script-src 'self'/)
+  expect(csp).toMatch(/img-src 'self' data: blob: https:/)
+  expect(response.text).toMatch(/src="\/oauth-popup\.js"/)
+  expect(response.text).toMatch(/Fechar janela/)
+  expect(response.text).not.toMatch(/<script>\s*if \(window\.opener\)/)
+})
+
+test('serve o comportamento do popup OAuth como asset same-origin', async () => {
+  const response = await request(app).get('/oauth-popup.js')
+
+  expect(response.status).toBe(200)
+  expect(response.type).toMatch(/javascript/)
+  expect(response.text).toMatch(/window\.opener\.location\.replace/)
+  expect(response.text).toMatch(/showCloseFallback/)
 })
 
 test('orienta quando a etapa interna de seleção do Facebook é aberta diretamente', async () => {

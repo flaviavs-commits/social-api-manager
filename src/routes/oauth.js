@@ -143,33 +143,20 @@ function safeFrontendReturnPath(value) {
 }
 
 function popupSuccess(tiktokUser, returnPath) {
-  // tiktokUser vem do username retornado pela API do TikTok (input externo) —
-  // interpolá-lo direto na string JS permitiria XSS via username malicioso
-  // (ex: "');alert(document.cookie);('"). JSON.stringify escapa o valor com
-  // segurança para o contexto JS, e encodeURIComponent o sanitiza para a URL.
-  const profileScript = tiktokUser
-    ? `window.open('https://www.tiktok.com/@' + encodeURIComponent(${JSON.stringify(String(tiktokUser))}), '_blank');`
-    : '';
+  // O callback é uma página HTML mínima. O comportamento fica em um arquivo
+  // same-origin para não depender de script inline, que é bloqueado pela CSP.
   const frontendUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
   const targetPath = safeFrontendReturnPath(returnPath)
-  const successUrl = JSON.stringify(`${frontendUrl}${targetPath}?connected=true`)
-  return `<!DOCTYPE html><html><body><script>
-    if (window.opener) {
-      window.opener.location.href = ${successUrl};
-      ${profileScript}
-      window.close();
-    } else { window.location.href = ${successUrl}; }
-  </script></body></html>`;
+  const successUrl = `${frontendUrl}${targetPath}?connected=true`
+  const profileUrl = tiktokUser ? `https://www.tiktok.com/@${encodeURIComponent(String(tiktokUser))}` : ''
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conexão concluída</title><style>body{margin:0;padding:24px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}main{max-width:420px;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;text-align:center}p{color:#aeb6c7;line-height:1.5}button{border:0;border-radius:10px;padding:10px 16px;background:#e2b65c;color:#171717;font-weight:700;cursor:pointer}</style></head><body><main><h1>Conexão concluída</h1><p id="oauth-popup-status">Voltando para o Meu Ecoo Mídia…</p><button type="button" id="oauth-popup-close" hidden>Fechar janela</button></main><script src="/oauth-popup.js" data-target-url="${escapeHtml(successUrl)}"${profileUrl ? ` data-profile-url="${escapeHtml(profileUrl)}"` : ''}></script></body></html>`;
 }
 
 function popupError(msg, returnPath) {
   const frontendUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
   const targetPath = safeFrontendReturnPath(returnPath)
-  const errorUrl = JSON.stringify(`${frontendUrl}${targetPath}?error=${encodeURIComponent(String(msg || 'oauth_failed').slice(0, 64))}`)
-  return `<!DOCTYPE html><html><body><script>
-    if (window.opener) { window.opener.location.href = ${errorUrl}; window.close(); }
-    else { window.location.href = ${errorUrl}; }
-  </script></body></html>`;
+  const errorUrl = `${frontendUrl}${targetPath}?error=${encodeURIComponent(String(msg || 'oauth_failed').slice(0, 64))}`
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Falha na conexão</title><style>body{margin:0;padding:24px;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}main{max-width:420px;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;text-align:center}p{color:#aeb6c7;line-height:1.5}button{border:0;border-radius:10px;padding:10px 16px;background:#e2b65c;color:#171717;font-weight:700;cursor:pointer}</style></head><body><main><h1>Não foi possível conectar</h1><p id="oauth-popup-status">Voltando para o Meu Ecoo Mídia…</p><button type="button" id="oauth-popup-close" hidden>Fechar janela</button></main><script src="/oauth-popup.js" data-target-url="${escapeHtml(errorUrl)}"></script></body></html>`;
 }
 
 function escapeHtml(value) {
