@@ -1,6 +1,7 @@
 // Testes de integração — /api/posts/inbox e /api/posts/inbox/unread
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
+process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
 
 const request = require('supertest')
 
@@ -29,7 +30,7 @@ const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
 
-const USER = { id: 1, email: 'u@test.com', role: 'user', plan: 'agencia', full_name: 'U', avatar_url: null, totp_enabled: false }
+const USER = { id: 1, email: 'u@allowed.test', role: 'user', plan: 'premium', full_name: 'U', avatar_url: null, totp_enabled: false }
 let token
 
 beforeEach(() => {

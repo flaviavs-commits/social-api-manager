@@ -8,7 +8,7 @@ function normalizarEmail(email) {
   return email.trim().toLowerCase()
 }
 
-const USER_COLS = 'id, email, role, plan, plan_unrestricted, full_name, avatar_url, totp_enabled, google_id, ativo, criado_em, auth_tokens_invalidated_at'
+const USER_COLS = 'id, email, role, plan, plan_unrestricted, allowed_platforms AS "allowedPlatforms", full_name, avatar_url, totp_enabled, google_id, ativo, criado_em, auth_tokens_invalidated_at'
 
 async function buscarPorEmail(email) {
   const { rows: [user] } = await pool.query(
@@ -45,22 +45,22 @@ async function buscarPorGoogleId(googleId) {
   return user || null
 }
 
-async function criar({ email, fullName, plan = 'gratuito' }) {
+async function criar({ email, fullName, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'] }) {
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (email, full_name, plan, plan_unrestricted)
-     VALUES ($1, $2, $3, FALSE)
+    `INSERT INTO users (email, full_name, plan, plan_unrestricted, allowed_platforms)
+     VALUES ($1, $2, $3, FALSE, $4::text[])
      RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null, plan]
+    [normalizarEmail(email), fullName || null, plan, allowedPlatforms]
   )
   return user
 }
 
-async function criarComGoogle({ email, fullName, googleId, plan = 'gratuito' }) {
+async function criarComGoogle({ email, fullName, googleId, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'] }) {
   const { rows: [user] } = await pool.query(
-    `INSERT INTO users (email, full_name, google_id, plan, plan_unrestricted)
-     VALUES ($1, $2, $3, $4, FALSE)
+    `INSERT INTO users (email, full_name, google_id, plan, plan_unrestricted, allowed_platforms)
+     VALUES ($1, $2, $3, $4, FALSE, $5::text[])
      RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null, googleId, plan]
+    [normalizarEmail(email), fullName || null, googleId, plan, allowedPlatforms]
   )
   return user
 }

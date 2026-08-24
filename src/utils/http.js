@@ -40,6 +40,9 @@ function serverError(res, err, message = 'Erro interno do servidor') {
   if (/^2[23]/.test(code)) {
     return res.status(400).json({ erro: 'Dados inválidos para esta operação' })
   }
+  if (Number.isInteger(err?.statusCode) && err.statusCode >= 400 && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ erro: err.message || message, code: err.code || undefined })
+  }
   res.status(500).json({ erro: message })
 }
 

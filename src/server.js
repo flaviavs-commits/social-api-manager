@@ -378,7 +378,7 @@ app.use('/api', apiLimiter)
 
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=30')
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, plan: req.user.plan, planUnrestricted: req.user.planUnrestricted === true, fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
+  res.json({ id: req.user.id, email: req.user.email, role: req.user.role, plan: req.user.plan, planUnrestricted: req.user.planUnrestricted === true, allowedPlatforms: req.user.allowedPlatforms || [], fullName: req.user.fullName, avatarUrl: req.user.avatarUrl, totpEnabled: req.user.totpEnabled })
 })
 
 app.use('/api/me',       meRoutes)

@@ -5,8 +5,6 @@ jest.mock('../../src/repositories/billingRepository', () => ({
   anexarCheckout: jest.fn(),
   marcarFalha: jest.fn(),
   manterProcessando: jest.fn(),
-  atualizarParaGratuito: jest.fn(),
-  cancelarEmAberto: jest.fn(),
   confirmarPagamento: jest.fn(),
   marcarFalhaPorSession: jest.fn(),
 }))
@@ -22,16 +20,16 @@ const billingRepo = require('../../src/repositories/billingRepository')
 const paymentGateway = require('../../src/services/billing/paymentGateway')
 const billingService = require('../../src/services/billing/billingService')
 
-const user = { id: 7, email: 'cliente@example.com', plan: 'gratuito' }
+const user = { id: 7, email: 'cliente@allowed.test', plan: 'basico' }
 const month = billingService.billingMonth(new Date('2026-08-17T12:00:00Z'))
 
 function change(overrides = {}) {
   return {
     id: 12,
     userId: user.id,
-    fromPlan: 'gratuito',
-    toPlan: 'criador',
-    amountCents: 4900,
+    fromPlan: 'basico',
+    toPlan: 'pro',
+    amountCents: 10050,
     currency: 'brl',
     billingMonth: month,
     idempotencyKey: `plan-change-${user.id}-2026-08`,
@@ -59,22 +57,22 @@ describe('billingService.requestPlanChange', () => {
     billingRepo.anexarCheckout.mockResolvedValue(pending)
     paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_123', url: pending.checkoutUrl })
 
-    const first = await billingService.requestPlanChange({ user, targetPlan: 'criador', now: new Date('2026-08-17T12:00:00Z') })
-    const second = await billingService.requestPlanChange({ user, targetPlan: 'criador', now: new Date('2026-08-17T12:00:00Z') })
+    const first = await billingService.requestPlanChange({ user, targetPlan: 'pro', now: new Date('2026-08-17T12:00:00Z') })
+    const second = await billingService.requestPlanChange({ user, targetPlan: 'pro', now: new Date('2026-08-17T12:00:00Z') })
 
     expect(first.checkoutUrl).toBe(pending.checkoutUrl)
     expect(second.checkoutUrl).toBe(pending.checkoutUrl)
     expect(paymentGateway.createCheckout).toHaveBeenCalledTimes(1)
     expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: 'plan-change-7-2026-08',
-      amountCents: 4900,
+      amountCents: 10050,
     }))
   })
 
   test('recusa uma troca para outro plano depois de já reservar a cobrança mensal', async () => {
-    billingRepo.buscarPorMes.mockResolvedValue(change({ toPlan: 'criador', gatewaySessionId: 'cs_123' }))
+    billingRepo.buscarPorMes.mockResolvedValue(change({ toPlan: 'pro', gatewaySessionId: 'cs_123' }))
 
-    await expect(billingService.requestPlanChange({ user, targetPlan: 'agencia', now: new Date('2026-08-17T12:00:00Z') }))
+    await expect(billingService.requestPlanChange({ user, targetPlan: 'premium', now: new Date('2026-08-17T12:00:00Z') }))
       .rejects.toMatchObject({ code: 'monthly_charge_exists', statusCode: 409 })
     expect(paymentGateway.createCheckout).not.toHaveBeenCalled()
   })
@@ -86,52 +84,45 @@ describe('billingService.requestPlanChange', () => {
     const error = Object.assign(new Error('timeout'), { code: 'gateway_connection_error', uncertain: true })
     paymentGateway.createCheckout.mockRejectedValue(error)
 
-    const result = await billingService.requestPlanChange({ user, targetPlan: 'criador', now: new Date('2026-08-17T12:00:00Z') })
+    const result = await billingService.requestPlanChange({ user, targetPlan: 'pro', now: new Date('2026-08-17T12:00:00Z') })
 
     expect(result).toMatchObject({ status: 'processing', httpStatus: 202, charged: false })
     expect(billingRepo.manterProcessando).toHaveBeenCalledWith(12)
     expect(billingRepo.marcarFalha).not.toHaveBeenCalled()
   })
 
-  test('faz downgrade gratuito sem chamar o gateway', async () => {
-    billingRepo.atualizarParaGratuito.mockResolvedValue({ id: user.id, plan: 'gratuito' })
-    billingRepo.cancelarEmAberto.mockResolvedValue(null)
-
-    const result = await billingService.requestPlanChange({ user: { ...user, plan: 'criador' }, targetPlan: 'gratuito' })
-
-    expect(result).toMatchObject({ status: 'updated', plan: 'gratuito', charged: false })
-    expect(billingRepo.atualizarParaGratuito).toHaveBeenCalledWith(user.id)
-    expect(billingRepo.cancelarEmAberto).toHaveBeenCalledWith(user.id, expect.stringMatching(/^20\d\d-\d\d-01$/))
+  test('rejeita o antigo identificador de plano gratuito', async () => {
+    await expect(billingService.requestPlanChange({ user, targetPlan: 'gratuito' }))
+      .rejects.toMatchObject({ code: 'invalid_plan', statusCode: 400 })
     expect(paymentGateway.createCheckout).not.toHaveBeenCalled()
-    expect(billingRepo.buscarPorMes).not.toHaveBeenCalled()
   })
 })
 
 describe('billingService.handleWebhook', () => {
   test('confirma uma sessão paga por meio do repositório transacional', async () => {
-    billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'criador' })
+      billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro' })
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 4900, currency: 'brl', payment_intent: 'pi_123', metadata: { to_plan: 'criador' } } },
+        data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_123', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'paid' })
     expect(billingRepo.confirmarPagamento).toHaveBeenCalledWith({
       gatewaySessionId: 'cs_123',
       gatewayPaymentId: 'pi_123',
-      amountCents: 4900,
+      amountCents: 10050,
       currency: 'brl',
-      toPlan: 'criador',
+        toPlan: 'pro',
     })
   })
 
   test('não reativa um checkout cancelado depois do downgrade', async () => {
-    billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'cancelled', toPlan: 'criador' })
+      billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'cancelled', toPlan: 'pro' })
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_cancelled', payment_status: 'paid', amount_total: 4900, currency: 'brl', metadata: { to_plan: 'criador' } } },
+        data: { object: { id: 'cs_cancelled', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'ignored' })

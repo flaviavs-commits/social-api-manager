@@ -579,6 +579,77 @@
   line-height: 1.45;
 }
 
+.checkout-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.checkout-platform-option {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.checkout-platform-option:hover:not(:disabled) {
+  border-color: rgb(var(--accent-rgb) / .65);
+  transform: translateY(-1px);
+}
+
+.checkout-platform-option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.checkout-platform-option.is-disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.checkout-platform-symbol {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: rgb(var(--accent-rgb) / .13);
+  color: var(--accent-strong);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.checkout-platform-symbol--instagram { background: rgb(225 48 108 / .14); color: #e1306c; }
+.checkout-platform-symbol--youtube { background: rgb(255 92 92 / .14); color: #ff5c5c; }
+.checkout-platform-symbol--tiktok { background: rgb(37 244 238 / .12); color: #25f4ee; }
+.checkout-platform-symbol--facebook { background: rgb(24 119 242 / .14); color: #5b8def; }
+
+.checkout-platform-option > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.checkout-platform-option strong { font-size: 12px; }
+.checkout-platform-option small { color: var(--muted); font-size: 10px; }
+.checkout-platform-option > b { color: var(--accent-strong); font-size: 16px; text-align: center; }
+
+.checkout-platform-count {
+  margin: -10px 0 0;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .checkout-pix-box span {
   color: var(--green);
   font-size: 11px;
@@ -796,6 +867,7 @@
   .checkout-main { padding: 22px 16px; border-radius: 14px; }
   .checkout-fields--two,
   .checkout-plan-grid,
+  .checkout-platform-grid,
   .checkout-payment-tabs { grid-template-columns: 1fr; }
   .checkout-plan-option p { min-height: 0; }
   .checkout-payment-tabs button { min-height: 52px; }

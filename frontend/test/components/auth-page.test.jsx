@@ -2,9 +2,9 @@ import { parseLoginQuery } from '../../src/pages/auth-page.jsx'
 
 describe('parâmetros da tela de login', () => {
   it('aceita somente o sinalizador de cadastro e planos conhecidos', () => {
-    expect(parseLoginQuery('?register=1&plan=criador')).toEqual({
+    expect(parseLoginQuery('?register=1&plan=pro')).toEqual({
       register: true,
-      selectedPlan: 'criador',
+      selectedPlan: 'pro',
       error: null
     })
   })

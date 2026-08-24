@@ -19,10 +19,18 @@ const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
   name: plan.name,
   price: plan.checkoutPrice,
   cadence: plan.cadence,
+  checkoutUrl: plan.checkoutUrl,
   description: plan.description,
   features: plan.features,
-  featured: plan.id === 'criador',
+  featured: plan.id === 'pro',
 }))
+
+const PLATFORM_OPTIONS = [
+  { id: 'instagram', label: 'Instagram', symbol: '◎' },
+  { id: 'youtube', label: 'YouTube', symbol: '▶' },
+  { id: 'tiktok', label: 'TikTok', symbol: '♪' },
+  { id: 'facebook', label: 'Facebook', symbol: 'f' },
+]
 
 // Parâmetros da tela de autenticação são apenas estado de apresentação. Não
 // devem aceitar HTML, URLs de redirecionamento, planos arbitrários ou texto
@@ -106,6 +114,10 @@ export function LoginPage() {
     try {
       const endpoint = register ? '/auth/login/register' : '/auth/login/login'
       const data = await publicApiFetch(endpoint, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() || undefined, plan: register ? selectedPlan || undefined : undefined }) })
+      if (register && data.requiresPayment && data.selectedPlan && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl)
+        return
+      }
       if (register && data.requiresPayment && data.selectedPlan) {
         const billing = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: data.selectedPlan }) })
         if (!billing.checkoutUrl) throw new ApiError('O checkout não foi criado. Tente novamente em instantes.', 503)
@@ -177,7 +189,7 @@ export function LoginPage() {
   return <AuthCard>
     <h1 className="auth-title">{title}</h1>
     <p className="auth-subtitle">{register ? 'Crie sua conta para começar a organizar suas redes sociais.' : 'Entre para acessar o gerenciador das suas redes sociais'}</p>
-    {register && selectedPlan && <p className="auth-selected-plan">Tier selecionado: <strong>{({ gratuito: 'Gratuito', criador: 'Criador', agencia: 'Agência' })[selectedPlan] || selectedPlan}</strong></p>}
+    {register && selectedPlan && <p className="auth-selected-plan">Tier selecionado: <strong>{PLANS[selectedPlan]?.name || selectedPlan}</strong></p>}
     <Message message={message} />
 
     {flow === 'login-2fa' && <form onSubmit={verifyLoginCode} className="auth-form">
@@ -235,13 +247,22 @@ export function CreateAccountPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [selectedPlatforms, setSelectedPlatforms] = useState(() => initialPlan === 'premium' ? [...(PLANS.premium.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id))] : [])
   const [accepted, setAccepted] = useState(false)
   const [busy, setBusy] = useState(false)
   const [complete, setComplete] = useState(false)
   const [message, setMessage] = useState(null)
   const plan = ACCOUNT_PLANS.find(item => item.id === selectedPlan) || ACCOUNT_PLANS[0]
-  const paidPlan = selectedPlan !== 'gratuito'
+  const paidPlan = Boolean(plan?.checkoutUrl)
+  const connectionLimit = plan.maxConnections || PLATFORM_OPTIONS.length
+  const availablePlatforms = plan.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id)
   const rules = passwordRules(password)
+
+  useEffect(() => {
+    setSelectedPlatforms(current => selectedPlan === 'premium'
+      ? [...availablePlatforms]
+      : current.filter(platform => availablePlatforms.includes(platform)).slice(0, connectionLimit))
+  }, [selectedPlan])
 
   useEffect(() => {
     window.history.replaceState({}, '', `/criar-conta?plan=${selectedPlan}`)
@@ -252,17 +273,30 @@ export function CreateAccountPage() {
     setMessage(null)
   }
 
+  function togglePlatform(platform) {
+    if (selectedPlan === 'premium') return
+    setSelectedPlatforms(current => current.includes(platform)
+      ? current.filter(item => item !== platform)
+      : current.length < connectionLimit ? [...current, platform] : current)
+    setMessage(null)
+  }
+
   async function submit(event) {
     event.preventDefault()
     if (!fullName.trim()) return setMessage({ type: 'error', text: 'Informe seu nome completo.' })
     if (!validEmail(email)) return setMessage({ type: 'error', text: 'Informe um e-mail válido.' })
     if (!Object.values(rules).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.' })
     if (password !== confirmation) return setMessage({ type: 'error', text: 'As senhas não são iguais.' })
+    if (selectedPlatforms.length !== connectionLimit) return setMessage({ type: 'error', text: `Selecione exatamente ${connectionLimit} redes sociais antes de continuar.` })
     if (!accepted) return setMessage({ type: 'error', text: 'Aceite os termos para continuar.' })
     setBusy(true)
     setMessage(null)
     try {
-      const data = await publicApiFetch('/auth/login/register', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), plan: selectedPlan }) })
+      const data = await publicApiFetch('/auth/login/register', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), plan: selectedPlan, selectedPlatforms }) })
+      if (data.requiresPayment && data.selectedPlan && data.checkoutUrl) {
+        window.location.assign(data.checkoutUrl)
+        return
+      }
       if (data.requiresPayment && data.selectedPlan) {
         const billing = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: data.selectedPlan }) })
         if (!billing.checkoutUrl) throw new ApiError('Não foi possível abrir o checkout seguro.')
@@ -280,7 +314,7 @@ export function CreateAccountPage() {
   return <main className="checkout-page">
     <div className="checkout-shell">
       <header className="checkout-header"><a className="checkout-logo" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div><span>Já tem uma conta?</span> <a href="/login.html">Entrar</a></div></header>
-      <div className="checkout-progress"><span className="is-active">01 <small>Conta</small></span><i /><span className="is-active">02 <small>Plano</small></span><i /><span className="is-active">03 <small>Pagamento</small></span></div>
+      <div className="checkout-progress"><span className="is-active">01 <small>Conta</small></span><i /><span className="is-active">02 <small>Plano</small></span><i /><span className="is-active">03 <small>Redes</small></span><i /><span className="is-active">04 <small>Pagamento</small></span></div>
       <div className="checkout-grid">
         <section className="checkout-main">
           <div className="checkout-heading"><p className="checkout-eyebrow">COMECE AGORA</p><h1>Crie sua conta</h1><p>Escolha o plano ideal e tenha tudo para publicar com mais consistência.</p></div>
@@ -292,10 +326,13 @@ export function CreateAccountPage() {
             <div className="checkout-password-rules">{Object.entries({ length: '8+ caracteres', uppercase: 'Uma maiúscula', number: 'Um número', special: 'Um caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div>
             <div className="checkout-section-heading"><span>02</span><div><h2>Escolha seu plano</h2><p>Você pode trocar de plano quando quiser.</p></div></div>
             <div className="checkout-plan-grid">{ACCOUNT_PLANS.map(item => <button type="button" key={item.id} className={`checkout-plan-option${selectedPlan === item.id ? ' is-selected' : ''}${item.featured ? ' is-featured' : ''}`} onClick={() => choosePlan(item.id)}><span className="checkout-plan-check">{selectedPlan === item.id ? '✓' : ''}</span><strong>{item.name}</strong><em>{item.price}<small>/{item.cadence}</small></em><p>{item.description}</p></button>)}</div>
-            <div className="checkout-section-heading"><span>03</span><div><h2>Pagamento seguro</h2><p>{paidPlan ? 'Você será levado ao checkout hospedado do gateway depois de criar a conta.' : 'No plano Gratuito, você não precisa informar pagamento.'}</p></div></div>
-            {paidPlan ? <div className="checkout-pix-box"><strong>Checkout protegido</strong><p>Os dados de pagamento são informados diretamente no gateway. O aplicativo não recebe nem armazena número de cartão, validade ou CVV.</p><span>✓ Uma cobrança por usuário no mês</span></div> : <div className="checkout-free-box"><strong>Você está no plano Gratuito</strong><p>Comece sem cartão e faça upgrade quando precisar de mais recursos.</p></div>}
+            <div className="checkout-section-heading"><span>03</span><div><h2>Escolha suas redes</h2><p>{selectedPlan === 'premium' ? 'No Premium, as quatro redes sociais já estão liberadas.' : `Selecione exatamente ${connectionLimit} redes. Você poderá conectar até ${connectionLimit} contas no plano.`}</p></div></div>
+            <div className="checkout-platform-grid" role="group" aria-label="Redes sociais disponíveis">{PLATFORM_OPTIONS.map(item => { const isSelected = selectedPlatforms.includes(item.id); const isAvailable = availablePlatforms.includes(item.id); const isDisabled = !isAvailable || (selectedPlan !== 'premium' && !isSelected && selectedPlatforms.length >= connectionLimit); return <button type="button" key={item.id} className={`checkout-platform-option${isSelected ? ' is-selected' : ''}${isDisabled ? ' is-disabled' : ''}`} onClick={() => togglePlatform(item.id)} disabled={isDisabled} aria-pressed={isSelected}><span className={`checkout-platform-symbol checkout-platform-symbol--${item.id}`}>{item.symbol}</span><span><strong>{item.label}</strong><small>{isSelected ? 'Liberada no seu plano' : selectedPlan === 'premium' ? 'Incluída no Premium' : 'Selecionar'}</small></span><b>{isSelected ? '✓' : ''}</b></button> })}</div>
+            <p className="checkout-platform-count">{selectedPlatforms.length} de {connectionLimit} redes selecionadas</p>
+            <div className="checkout-section-heading"><span>04</span><div><h2>Pagamento seguro</h2><p>Você será levado ao checkout hospedado do gateway depois de criar a conta.</p></div></div>
+            <div className="checkout-pix-box"><strong>Checkout protegido</strong><p>Os dados de pagamento são informados diretamente no gateway. O aplicativo não recebe nem armazena número de cartão, validade ou CVV.</p><span>✓ Uma cobrança por usuário no mês</span></div>
             <label className="checkout-terms"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> <span>Li e aceito a <a href="/privacy-policy" target="_blank" rel="noreferrer">Política de Privacidade</a> e os <a href="/terms-of-service" target="_blank" rel="noreferrer">Termos de Uso</a>.</span></label>
-            <button className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e ir ao pagamento' : 'Criar minha conta grátis'} <span>→</span></button>
+            <button className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e ir ao pagamento' : 'Continuar'} <span>→</span></button>
             <p className="checkout-security">⌁ Cadastro protegido · Não armazenamos dados sensíveis do cartão</p>
           </form>
         </section>

@@ -2,13 +2,29 @@ const catalog = require('../../config/plans.json')
 
 const PLANS = catalog.plans
 const DEFAULT_PLAN = PLANS[catalog.defaultPlan] ? catalog.defaultPlan : Object.keys(PLANS)[0]
+const PLAN_ALIASES = Object.freeze({ gratuito: 'basico', criador: 'pro', agencia: 'premium' })
+const SUPPORTED_PLATFORMS = Object.freeze(['instagram', 'youtube', 'tiktok', 'facebook'])
+
+function canonicalPlanId(plan) {
+  const candidate = PLAN_ALIASES[plan] || plan
+  return PLANS[candidate] ? candidate : null
+}
 
 function normalizePlan(plan) {
-  return PLANS[plan] ? plan : DEFAULT_PLAN
+  return canonicalPlanId(plan) || DEFAULT_PLAN
 }
 
 function getPlan(plan) {
   return PLANS[normalizePlan(plan)]
+}
+
+function getPlanConnectionLimit(plan) {
+  return Number(getPlan(plan).maxConnections) || SUPPORTED_PLATFORMS.length
+}
+
+function getPlanPlatforms(plan) {
+  const configured = getPlan(plan).availablePlatforms
+  return SUPPORTED_PLATFORMS.filter(platform => configured?.includes(platform))
 }
 
 function hasPlanModule(plan, moduleName) {
@@ -25,13 +41,15 @@ function publicPlanCatalog() {
     priceCents: plan.priceCents,
     currency: plan.currency,
     cadence: plan.cadence,
+    maxConnections: getPlanConnectionLimit(id),
+    availablePlatforms: getPlanPlatforms(id),
     features: plan.features,
   }]))
 }
 
 function requirePlanModule(moduleName) {
   return (req, res, next) => {
-    // Ausência de plano é tratada como o plano padrão (gratuito), nunca como
+    // Ausência de plano é tratada como o plano padrão, nunca como
     // acesso ilimitado. Assim uma migration incompleta ou um registro antigo
     // não transforma uma falha de configuração em autorização.
     if (req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin') return next()
@@ -47,4 +65,4 @@ function requirePlanModule(moduleName) {
   }
 }
 
-module.exports = { PLANS, DEFAULT_PLAN, normalizePlan, getPlan, hasPlanModule, publicPlanCatalog, requirePlanModule }
+module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanPlatforms, hasPlanModule, publicPlanCatalog, requirePlanModule }

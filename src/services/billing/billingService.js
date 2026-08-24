@@ -1,6 +1,6 @@
 const billingRepo = require('../../repositories/billingRepository')
 const paymentGateway = require('./paymentGateway')
-const { DEFAULT_PLAN, PLANS, normalizePlan, publicPlanCatalog } = require('../../config/plans')
+const { DEFAULT_PLAN, PLANS, canonicalPlanId, normalizePlan, publicPlanCatalog } = require('../../config/plans')
 
 class BillingError extends Error {
   constructor(message, statusCode = 400, code = 'billing_error') {
@@ -48,14 +48,6 @@ function resultForChange(change, currentPlan) {
   }
 }
 
-async function cancelOpenCheckout(userId, now) {
-  const cancelled = await billingRepo.cancelarEmAberto(userId, billingMonth(now))
-  if (cancelled?.gatewaySessionId) {
-    await paymentGateway.expireCheckout(cancelled.gatewaySessionId).catch(() => false)
-  }
-  return cancelled
-}
-
 async function requestPlanChange({ user, targetPlan, now = new Date() }) {
   if (!user?.id) throw new BillingError('Usuário não autenticado.', 401, 'not_authenticated')
   if (typeof targetPlan !== 'string' || !PLANS[targetPlan]) {
@@ -64,17 +56,10 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
 
   const currentPlan = normalizePlan(user.plan || DEFAULT_PLAN)
   if (targetPlan === currentPlan) {
-    if (Number(PLANS[targetPlan].priceCents) <= 0) await cancelOpenCheckout(user.id, now)
     return { status: 'unchanged', plan: currentPlan, requestedPlan: targetPlan, charged: false, checkoutUrl: null, charge: null, httpStatus: 200 }
   }
 
   const selectedPlan = PLANS[targetPlan]
-  if (Number(selectedPlan.priceCents) <= 0) {
-    await cancelOpenCheckout(user.id, now)
-    const updated = await billingRepo.atualizarParaGratuito(user.id)
-    if (!updated) throw new BillingError('Não foi possível atualizar o plano agora.', 500, 'plan_update_failed')
-    return { status: 'updated', plan: 'gratuito', requestedPlan: 'gratuito', charged: false, checkoutUrl: null, charge: null, httpStatus: 200 }
-  }
 
   const month = billingMonth(now)
   const idempotencyKey = `plan-change-${user.id}-${month.slice(0, 7)}`
@@ -185,7 +170,7 @@ async function handleWebhook(event) {
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     if (event.type === 'checkout.session.completed' && object.payment_status !== 'paid') return { status: 'pending' }
     const metadata = object.metadata || {}
-    const toPlan = metadata.to_plan && PLANS[metadata.to_plan] ? metadata.to_plan : null
+    const toPlan = canonicalPlanId(metadata.to_plan)
     if (!toPlan) throw new BillingError('Webhook sem plano registrado.', 400, 'invalid_webhook_plan')
     const confirmed = await billingRepo.confirmarPagamento({
       gatewaySessionId: object.id,

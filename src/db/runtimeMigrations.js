@@ -105,14 +105,19 @@ async function ensureAiTables() {
 }
 
 async function ensureUserPlanColumns() {
-  await bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'criador'")
+  await bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'basico'")
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan ON users(plan)')
   await bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_unrestricted BOOLEAN NOT NULL DEFAULT TRUE')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_unrestricted ON users(plan_unrestricted)')
+  await bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_platforms TEXT[] NOT NULL DEFAULT ARRAY['instagram','youtube','tiktok','facebook']::text[]")
+  await bestEffort("UPDATE users SET allowed_platforms = ARRAY['instagram','youtube','tiktok','facebook']::text[] WHERE allowed_platforms IS NULL OR cardinality(allowed_platforms) = 0")
 }
 
 async function ensureBillingTables() {
-  await bestEffort("ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'gratuito'")
+  await bestEffort("ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'basico'")
+  await bestEffort("UPDATE users SET plan = 'basico' WHERE plan = 'gratuito'")
+  await bestEffort("UPDATE users SET plan = 'pro' WHERE plan = 'criador'")
+  await bestEffort("UPDATE users SET plan = 'premium' WHERE plan = 'agencia'")
   await bestEffort(`
     CREATE TABLE IF NOT EXISTS billing_plan_changes (
       id BIGSERIAL PRIMARY KEY,
@@ -138,6 +143,10 @@ async function ensureBillingTables() {
   `)
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_billing_plan_changes_user_month ON billing_plan_changes (user_id, billing_month DESC)')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_billing_plan_changes_gateway_session ON billing_plan_changes (gateway_session_id) WHERE gateway_session_id IS NOT NULL')
+  await bestEffort("UPDATE billing_plan_changes SET from_plan = 'pro' WHERE from_plan = 'criador'")
+  await bestEffort("UPDATE billing_plan_changes SET from_plan = 'premium' WHERE from_plan = 'agencia'")
+  await bestEffort("UPDATE billing_plan_changes SET to_plan = 'pro' WHERE to_plan = 'criador'")
+  await bestEffort("UPDATE billing_plan_changes SET to_plan = 'premium' WHERE to_plan = 'agencia'")
 }
 
 async function runMigrations() {

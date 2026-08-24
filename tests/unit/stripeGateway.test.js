@@ -26,10 +26,10 @@ describe('stripeGateway', () => {
       billingId: 12,
       userId: 7,
       email: 'cliente@example.com',
-      fromPlan: 'gratuito',
-      toPlan: 'criador',
-      planName: 'Criador',
-      amountCents: 4900,
+      fromPlan: 'basico',
+      toPlan: 'pro',
+      planName: 'EcooMidia Pro',
+      amountCents: 10050,
       currency: 'brl',
       billingMonth: '2026-08-01',
       idempotencyKey: 'plan-change-7-2026-08',
@@ -38,7 +38,7 @@ describe('stripeGateway', () => {
     expect(result).toEqual({ id: 'cs_test_123', url: 'https://checkout.stripe.test/cs_test_123' })
     const [, options] = global.fetch.mock.calls[0]
     expect(options.headers['Idempotency-Key']).toBe('plan-change-7-2026-08')
-    expect(String(options.body)).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=4900')
+    expect(String(options.body)).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=10050')
     expect(String(options.body)).not.toMatch(/card|cvv|cvc|number/i)
   })
 

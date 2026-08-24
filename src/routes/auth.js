@@ -13,7 +13,7 @@ const totp = require('../services/totp')
 const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
 const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, AUTH_COOKIE, PENDING_2FA_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
-const { DEFAULT_PLAN, PLANS, normalizePlan } = require('../config/plans')
+const { DEFAULT_PLAN, PLANS, SUPPORTED_PLATFORMS, getPlanConnectionLimit, getPlanPlatforms, normalizePlan } = require('../config/plans')
 
 const BCRYPT_COST = 12
 
@@ -154,11 +154,17 @@ router.post('/register', loginLimiter, async (req, res) => {
     return res.status(400).json({ erro: 'Plano selecionado inválido.' })
   }
   const selectedPlan = requestedPlan ? normalizePlan(requestedPlan) : DEFAULT_PLAN
-  const freePlan = Object.values(PLANS).find(item => Number(item.priceCents) <= 0)?.id || DEFAULT_PLAN
-  // A escolha do plano pago só vira acesso depois da confirmação do gateway.
-  // A conta começa no plano gratuito para que cadastro não seja confundido
-  // com pagamento concluído.
-  const plan = Number(PLANS[selectedPlan]?.priceCents) > 0 ? freePlan : selectedPlan
+  const plan = selectedPlan
+  const maxConnections = getPlanConnectionLimit(selectedPlan)
+  const requestedPlatforms = req.body?.selectedPlatforms
+  const selectedPlatforms = selectedPlan === 'premium'
+    ? [...SUPPORTED_PLATFORMS]
+    : Array.isArray(requestedPlatforms)
+      ? [...new Set(requestedPlatforms.map(platform => String(platform).trim().toLowerCase()))]
+      : getPlanPlatforms(selectedPlan).slice(0, maxConnections)
+  if (!selectedPlatforms || selectedPlatforms.some(platform => !getPlanPlatforms(selectedPlan).includes(platform)) || selectedPlatforms.length !== maxConnections) {
+    return res.status(400).json({ erro: `Escolha exatamente ${maxConnections} rede${maxConnections === 1 ? '' : 's'} social${maxConnections === 1 ? '' : 'is'} antes de continuar.` })
+  }
 
   try {
     const existente = await usersRepo.buscarPorEmail(email)
@@ -166,12 +172,20 @@ router.post('/register', loginLimiter, async (req, res) => {
       return res.status(409).json({ erro: 'Já existe uma conta com esse e-mail.' })
     }
 
-    const user = await usersRepo.criar({ email, fullName, plan })
+    const user = await usersRepo.criar({ email, fullName, plan, allowedPlatforms: selectedPlatforms })
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
     const token = issueAuthSession(res, user.id)
-    respondAuth(res, { ok: true, plan, selectedPlan, requiresPayment: selectedPlan !== plan }, token)
+    respondAuth(res, {
+      ok: true,
+      plan,
+      selectedPlan,
+      requiresPayment: true,
+      checkoutUrl: PLANS[selectedPlan]?.checkoutUrl || null,
+      allowedPlatforms: selectedPlatforms,
+      maxConnections,
+    }, token)
   } catch (err) {
     addLog('err', `Falha ao criar conta: ${safeMessage(err.message)}`)
     res.status(500).json({ erro: 'Não foi possível criar sua conta agora. Tente novamente em alguns instantes.' })

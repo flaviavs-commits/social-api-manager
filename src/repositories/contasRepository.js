@@ -1,5 +1,40 @@
 const pool = require('../db/pool')
 const { decrypt } = require('../services/tokenCrypto')
+const { getPlan, getPlanConnectionLimit, SUPPORTED_PLATFORMS } = require('../config/plans')
+
+function connectionPolicyError(message, code) {
+  const error = new Error(message)
+  error.statusCode = 403
+  error.code = code
+  return error
+}
+
+async function enforceConnectionPolicy({ userId, platform }) {
+  const { rows: [user] } = await pool.query(
+    `SELECT plan, plan_unrestricted, role, allowed_platforms AS "allowedPlatforms"
+       FROM users
+      WHERE id = $1 AND ativo = TRUE`,
+    [userId]
+  )
+  if (!user || user.plan_unrestricted === true || ['admin', 'super_admin'].includes(user.role)) return
+
+  const allowedPlatforms = Array.isArray(user.allowedPlatforms) && user.allowedPlatforms.length
+    ? user.allowedPlatforms
+    : SUPPORTED_PLATFORMS
+  if (!allowedPlatforms.includes(platform)) {
+    throw connectionPolicyError(`A rede ${platform} não está disponível nas redes escolhidas para o seu plano.`, 'PLAN_PLATFORM_NOT_ALLOWED')
+  }
+
+  const { rows: [summary] } = await pool.query(
+    'SELECT COUNT(*)::int AS "totalAccounts" FROM contas WHERE user_id = $1',
+    [userId]
+  )
+  const limit = getPlanConnectionLimit(user.plan)
+  if (Number(summary?.totalAccounts || 0) >= limit) {
+    const planName = getPlan(user.plan).name
+    throw connectionPolicyError(`O ${planName} permite até ${limit} contas conectadas. Desconecte uma conta ou faça upgrade para continuar.`, 'PLAN_CONNECTION_LIMIT_REACHED')
+  }
+}
 
 // ── Stats para o dashboard ────────────────────────────────────────────────────
 async function getDashboardStats(userId, isAdmin) {
@@ -196,6 +231,7 @@ async function listarContasPorIds(ids, userId, isAdmin) {
 
 // ── Criar conta ───────────────────────────────────────────────────────────────
 async function criarConta({ platform, handle, tipo, userId }) {
+  await enforceConnectionPolicy({ userId, platform })
   const { rows } = await pool.query(`
     INSERT INTO contas (platform, handle, tipo, user_id)
     VALUES ($1,$2,$3::tipo_nivel,$4)
@@ -236,6 +272,8 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null, exte
     }
     return existente
   }
+
+  await enforceConnectionPolicy({ userId, platform })
 
   const { rows: [conta] } = await pool.query(`
     INSERT INTO contas (platform, handle, tipo, user_id, avatar_url, external_user_id)

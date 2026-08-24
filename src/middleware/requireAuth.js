@@ -14,7 +14,7 @@ async function requireAuth(req, res, next) {
       id: Number(process.env.REVIEW_MODE_USER_ID) || 38,
       email: 'review-tiktok@demo.local',
       role: 'user',
-      plan: 'criador',
+      plan: 'basico',
       planUnrestricted: true,
       fullName: 'Demonstração',
       avatarUrl: null,
@@ -70,7 +70,7 @@ async function requireAuth(req, res, next) {
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
-    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planUnrestricted: user.plan_unrestricted === true, fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
+    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
     next()
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })

@@ -7,7 +7,7 @@ jest.mock('../../src/db/pool', () => ({
   query: jest.fn().mockResolvedValue({ rows: [] }),
 }))
 jest.mock('../../src/middleware/requireAuth', () => (req, res, next) => {
-  req.user = { id: 1, email: 'test@test.com', role: 'user', plan: 'criador' }
+  req.user = { id: 1, email: 'test@test.com', role: 'user', plan: 'pro' }
   next()
 })
 

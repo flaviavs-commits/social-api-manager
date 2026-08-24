@@ -1,19 +1,26 @@
 {
-  "defaultPlan": "gratuito",
+  "defaultPlan": "basico",
   "plans": {
-    "gratuito": {
-      "id": "gratuito",
-      "name": "Gratuito",
-      "description": "Para começar a organizar sua presença digital.",
-      "price": "Grátis",
-      "checkoutPrice": "R$ 0",
-      "priceCents": 0,
+    "basico": {
+      "id": "basico",
+      "name": "EcooMidia Básico",
+      "description": "Comece a organizar sua presença digital de forma simples.",
+      "price": "R$ 52,50",
+      "checkoutPrice": "R$ 52,50",
+      "priceCents": 5250,
       "currency": "brl",
-      "cadence": "para começar",
+      "cadence": "por mês",
+      "maxConnections": 2,
+      "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
+      "checkoutUrl": "https://buy.stripe.com/8x27sLg7Z3wS0sb5Bp2VG03",
       "features": [
+        "Conexão com 2 redes sociais",
         "Agendamento de publicações",
-        "Conexão com suas redes",
-        "Acompanhamento de métricas"
+        "Acompanhamento de métricas",
+        "IA para ideias e conteúdo",
+        "Espaços de trabalho e aprovações",
+        "Relatórios e automações",
+        "Analise de métricas"
       ],
       "modules": [
         "dashboard",
@@ -22,22 +29,32 @@
         "integracoes",
         "analytics",
         "seguranca",
-        "atividade"
+        "atividade",
+        "ai",
+        "equipe",
+        "relatorios"
       ]
     },
-    "criador": {
-      "id": "criador",
-      "name": "Criador",
-      "description": "Mais ritmo e inteligência para quem publica com frequência.",
-      "price": "Para crescer",
-      "checkoutPrice": "R$ 49",
-      "priceCents": 4900,
+    "pro": {
+      "id": "pro",
+      "name": "EcooMidia Pro",
+      "description": "Publique com mais consistência e inteligência para crescer.",
+      "price": "R$ 100,50",
+      "checkoutPrice": "R$ 100,50",
+      "priceCents": 10050,
       "currency": "brl",
       "cadence": "por mês",
+      "maxConnections": 3,
+      "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
+      "checkoutUrl": "https://buy.stripe.com/eVq6oHbRJ8Rcej1e7V2VG02",
       "features": [
-        "Tudo do plano Gratuito",
+        "Conexão com 3 redes sociais",
+        "Agendamento de publicações",
+        "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
-        "Biblioteca de mídia e filas"
+        "Espaços de trabalho e aprovações",
+        "Relatórios e automações",
+        "Analise de métricas"
       ],
       "modules": [
         "dashboard",
@@ -51,22 +68,31 @@
         "ai",
         "biblioteca",
         "filas",
-        "smartlinks"
+        "smartlinks",
+        "equipe",
+        "relatorios"
       ]
     },
-    "agencia": {
-      "id": "agencia",
-      "name": "Agência",
-      "description": "Colaboração e controle para times que cuidam de várias marcas.",
-      "price": "Para equipes",
-      "checkoutPrice": "R$ 149",
-      "priceCents": 14900,
+    "premium": {
+      "id": "premium",
+      "name": "EcooMidia Premium",
+      "description": "Tenha colaboração e controle para gerenciar várias marcas.",
+      "price": "R$ 124,50",
+      "checkoutPrice": "R$ 124,50",
+      "priceCents": 12450,
       "currency": "brl",
       "cadence": "por mês",
+      "maxConnections": 4,
+      "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
+      "checkoutUrl": "https://buy.stripe.com/00w8wP5tl5F0fn57Jx2VG01",
       "features": [
-        "Tudo do plano Criador",
+        "Conexão com 4 redes sociais",
+        "Agendamento de publicações",
+        "Acompanhamento de métricas",
+        "IA para ideias e conteúdo",
         "Espaços de trabalho e aprovações",
-        "Relatórios e automações"
+        "Relatórios e automações",
+        "Analise de métricas"
       ],
       "modules": [
         "dashboard",

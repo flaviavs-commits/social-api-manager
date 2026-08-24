@@ -4,6 +4,7 @@ import { useApiResource } from '../hooks/use-api-resource.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 import { LoadingState } from '../components/ui/loading-state.jsx'
+import { getPlan } from '../lib/plans.js'
 
 const providers = [
   { platform: 'facebook', provider: 'meta', label: 'Facebook', description: 'Páginas do Facebook' },
@@ -39,7 +40,7 @@ function accountProfileUrl(account) {
   }
 }
 
-export function AccountsPage({ onNavigate }) {
+export function AccountsPage({ onNavigate, user }) {
   const load = useCallback(() => apiFetch('/api/accounts').then(data => data.data || []), [])
   const { value: accounts, loading, error, setError, reload } = useApiResource(load, [])
   const [platform, setPlatform] = useState('facebook')
@@ -52,6 +53,11 @@ export function AccountsPage({ onNavigate }) {
   const [healthLoading, setHealthLoading] = useState(true)
   const accountInputRef = useRef(null)
   const notify = useToast()
+  const plan = getPlan(user?.plan)
+  const connectionLimit = user?.planUnrestricted ? Infinity : (plan.maxConnections || providers.length)
+  const allowedPlatforms = new Set(user?.planUnrestricted || !Array.isArray(user?.allowedPlatforms) || !user.allowedPlatforms.length
+    ? providers.map(item => item.platform)
+    : user.allowedPlatforms)
   const accountsByPlatform = platformName => accounts.filter(account => account.platform === platformName)
   const selectedAccounts = accountsByPlatform(platform)
   const visibleAccounts = selectedAccounts.filter(account => {
@@ -67,6 +73,12 @@ export function AccountsPage({ onNavigate }) {
   const attentionAccounts = accounts.filter(account => ['error', 'expiring', 'missing'].includes(accountTokenStatus(account))).length
   const connectedPlatforms = new Set(accounts.map(account => account.platform)).size
   const healthyApis = providers.filter(provider => platformHealth[provider.platform] === 'up').length
+
+  useEffect(() => {
+    if (allowedPlatforms.has(platform)) return
+    const firstAllowed = providers.find(item => allowedPlatforms.has(item.platform))
+    if (firstAllowed) setPlatform(firstAllowed.platform)
+  }, [platform, user?.allowedPlatforms, user?.planUnrestricted])
 
   const loadHealth = useCallback(() => apiFetch('/api/platform-health').then(data => setPlatformHealth(data.platforms || {})).catch(() => setPlatformHealth({})).finally(() => setHealthLoading(false)), [])
 
@@ -94,6 +106,18 @@ export function AccountsPage({ onNavigate }) {
     const name = accountName.trim()
 
     const selected = providers.find(item => item.platform === platform)
+    if (!selected || !allowedPlatforms.has(platform)) {
+      const message = 'Essa rede social não está disponível nas redes escolhidas para o seu plano.'
+      setError(message)
+      notify(message, 'error')
+      return
+    }
+    if (accounts.length >= connectionLimit && !accounts.some(account => account.platform === platform)) {
+      const message = `Seu plano permite até ${connectionLimit} contas conectadas.`
+      setError(message)
+      notify(message, 'error')
+      return
+    }
     const popup = window.open('', `oauth_${Date.now()}`, 'width=640,height=720')
     setConnecting(true)
     setError('')
@@ -136,21 +160,23 @@ export function AccountsPage({ onNavigate }) {
     <div className="panel-heading"><div><p className="eyebrow">INTEGRAÇÕES</p><h2>Contas conectadas</h2></div></div>
     {error && <p className="error-message" role="alert">{error}</p>}
     {connectionNotice && <p className="account-connection-notice" role="status">{connectionNotice}</p>}
-    <div className="accounts-overview-strip" aria-label="Resumo das integrações"><div><span>Contas conectadas</span><strong>{accounts.length}</strong><small>{connectedPlatforms} redes em uso</small></div><div><span>Precisam de atenção</span><strong className={attentionAccounts ? 'has-warning' : ''}>{attentionAccounts}</strong><small>Tokens expirando ou ausentes</small></div><div><span>APIs disponíveis</span><strong>{healthyApis}/{providers.length}</strong><small>{healthLoading ? 'Verificando agora' : 'Última verificação concluída'}</small></div><div><span>Plataformas</span><strong>{providers.length}</strong><small>Logos disponíveis no sistema</small></div></div>
+    <div className="accounts-overview-strip" aria-label="Resumo das integrações"><div><span>Contas conectadas</span><strong>{accounts.length}{Number.isFinite(connectionLimit) ? `/${connectionLimit}` : ''}</strong><small>{connectedPlatforms} redes em uso</small></div><div><span>Precisam de atenção</span><strong className={attentionAccounts ? 'has-warning' : ''}>{attentionAccounts}</strong><small>Tokens expirando ou ausentes</small></div><div><span>APIs disponíveis</span><strong>{healthyApis}/{providers.length}</strong><small>{healthLoading ? 'Verificando agora' : 'Última verificação concluída'}</small></div><div><span>Plataformas do plano</span><strong>{allowedPlatforms.size}</strong><small>{user?.planUnrestricted ? 'Acesso administrativo' : plan.name}</small></div></div>
     <div className="account-platform-grid" aria-label="Status das plataformas">
       {providers.map(provider => {
         const connected = accountsByPlatform(provider.platform)
         const tokenStatuses = connected.map(account => accountTokenStatus(account))
         const tokenStatus = tokenStatuses.includes('error') ? 'error' : tokenStatuses.includes('expiring') ? 'expiring' : tokenStatuses.includes('valid') ? 'valid' : 'missing'
         const healthStatus = platformHealth[provider.platform] || 'unknown'
-        return <article className={`account-platform-card${connected.length ? ' is-connected' : ''}`} key={provider.platform}>
+        const platformAllowed = allowedPlatforms.has(provider.platform)
+        const canAdd = platformAllowed && (connected.length > 0 || accounts.length < connectionLimit)
+        return <article className={`account-platform-card${connected.length ? ' is-connected' : ''}${!platformAllowed ? ' is-plan-locked' : ''}`} key={provider.platform}>
           <div className="account-platform-card-heading">
             <span className={`account-platform-card-icon account-platform-card-icon-${provider.platform}`} aria-hidden="true"><PlatformIcon platform={provider.platform} className="h-5 w-5" /></span>
             <div><h3>{provider.label}</h3><p>{provider.description}</p></div>
           </div>
-          <div className="account-platform-card-status"><span className={`account-status-dot${connected.length && tokenStatus === 'valid' ? ' is-connected' : ''}${tokenStatus === 'error' ? ' is-error' : tokenStatus === 'expiring' ? ' is-warning' : ''}`} aria-hidden="true" />{connected.length ? `${connected.length} conta${connected.length > 1 ? 's' : ''} conectada${connected.length > 1 ? 's' : ''}` : 'Nenhuma conta conectada'}</div>
+          <div className="account-platform-card-status"><span className={`account-status-dot${connected.length && tokenStatus === 'valid' ? ' is-connected' : ''}${tokenStatus === 'error' ? ' is-error' : tokenStatus === 'expiring' ? ' is-warning' : ''}`} aria-hidden="true" />{!platformAllowed ? 'Não incluída no seu plano' : connected.length ? `${connected.length} conta${connected.length > 1 ? 's' : ''} conectada${connected.length > 1 ? 's' : ''}` : 'Nenhuma conta conectada'}</div>
           <div className={`account-health-status account-health-${healthStatus}`}><span aria-hidden="true">{healthStatus === 'up' ? '●' : healthStatus === 'down' ? '!' : '○'}</span>{healthLoading ? 'Verificando API…' : HEALTH_LABELS[healthStatus] || HEALTH_LABELS.unknown}{tokenStatus === 'error' ? ' · Requer reconexão' : tokenStatus === 'expiring' ? ' · Token expirando' : ''}</div>
-          <button type="button" className="account-platform-card-action" onClick={() => openAddAccount(provider, connected, tokenStatus)}>{connected.length && tokenStatus !== 'valid' ? 'Reconectar' : connected.length ? 'Adicionar outra' : 'Conectar'}</button>
+          <button type="button" className="account-platform-card-action" disabled={!canAdd} onClick={() => openAddAccount(provider, connected, tokenStatus)}>{!platformAllowed ? 'Indisponível' : !canAdd ? 'Limite atingido' : connected.length && tokenStatus !== 'valid' ? 'Reconectar' : connected.length ? 'Adicionar outra' : 'Conectar'}</button>
         </article>
       })}
     </div>
@@ -158,7 +184,7 @@ export function AccountsPage({ onNavigate }) {
       <p className="mb-3 text-sm font-semibold text-zinc-100">Adicionar uma conta</p>
       <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto]">
         <select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Plataforma" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100">
-          {providers.map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
+          {providers.filter(item => allowedPlatforms.has(item.platform)).map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
         </select>
         <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Cole o link da Página (opcional)" aria-label="Link da Página (opcional)" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
         <button type="button" onClick={connect} disabled={connecting} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{connecting ? 'Abrindo…' : 'Conectar'}</button>

@@ -103,31 +103,6 @@ async function manterProcessando(id) {
   )
 }
 
-async function atualizarParaGratuito(userId) {
-  const { rows: [user] } = await pool.query(
-    `UPDATE users
-        SET plan = 'gratuito'
-      WHERE id = $1 AND ativo = TRUE
-     RETURNING id, plan`,
-    [userId]
-  )
-  return user || null
-}
-
-async function cancelarEmAberto(userId, billingMonth) {
-  const { rows: [change] } = await pool.query(
-    `UPDATE billing_plan_changes
-        SET status = 'cancelled', failure_code = 'plan_downgrade',
-            failure_message = 'Checkout cancelado porque o usuário escolheu o plano Gratuito.', updated_at = NOW()
-      WHERE user_id = $1 AND billing_month = $2
-        AND status IN ('pending', 'processing')
-        AND gateway_payment_id IS NULL
-     RETURNING ${BILLING_COLUMNS}`,
-    [userId, billingMonth]
-  )
-  return change || null
-}
-
 // Confirma a cobrança e altera o plano dentro da mesma transação. Webhooks
 // repetidos encontram status = paid e não executam uma segunda alteração.
 async function confirmarPagamento({ gatewaySessionId, gatewayPaymentId, amountCents, currency, toPlan }) {
@@ -202,8 +177,6 @@ module.exports = {
   anexarCheckout,
   marcarFalha,
   manterProcessando,
-  atualizarParaGratuito,
-  cancelarEmAberto,
   confirmarPagamento,
   marcarFalhaPorSession,
 }
