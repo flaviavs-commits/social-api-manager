@@ -18,8 +18,10 @@ const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
   id: plan.id,
   name: plan.name,
   price: plan.checkoutPrice,
+  priceCents: plan.priceCents,
   cadence: plan.cadence,
-  checkoutUrl: plan.checkoutUrl,
+  maxConnections: plan.maxConnections,
+  availablePlatforms: plan.availablePlatforms,
   description: plan.description,
   features: plan.features,
   featured: plan.id === 'pro',
@@ -114,10 +116,6 @@ export function LoginPage() {
     try {
       const endpoint = register ? '/auth/login/register' : '/auth/login/login'
       const data = await publicApiFetch(endpoint, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim() || undefined, plan: register ? selectedPlan || undefined : undefined }) })
-      if (register && data.requiresPayment && data.selectedPlan && data.checkoutUrl) {
-        window.location.assign(data.checkoutUrl)
-        return
-      }
       if (register && data.requiresPayment && data.selectedPlan) {
         const billing = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: data.selectedPlan }) })
         if (!billing.checkoutUrl) throw new ApiError('O checkout não foi criado. Tente novamente em instantes.', 503)
@@ -253,7 +251,7 @@ export function CreateAccountPage() {
   const [complete, setComplete] = useState(false)
   const [message, setMessage] = useState(null)
   const plan = ACCOUNT_PLANS.find(item => item.id === selectedPlan) || ACCOUNT_PLANS[0]
-  const paidPlan = Boolean(plan?.checkoutUrl)
+  const paidPlan = Number(plan?.priceCents) > 0
   const connectionLimit = plan.maxConnections || PLATFORM_OPTIONS.length
   const availablePlatforms = plan.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id)
   const rules = passwordRules(password)
@@ -293,10 +291,6 @@ export function CreateAccountPage() {
     setMessage(null)
     try {
       const data = await publicApiFetch('/auth/login/register', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), plan: selectedPlan, selectedPlatforms }) })
-      if (data.requiresPayment && data.selectedPlan && data.checkoutUrl) {
-        window.location.assign(data.checkoutUrl)
-        return
-      }
       if (data.requiresPayment && data.selectedPlan) {
         const billing = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: data.selectedPlan }) })
         if (!billing.checkoutUrl) throw new ApiError('Não foi possível abrir o checkout seguro.')
