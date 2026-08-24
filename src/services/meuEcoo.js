@@ -15,20 +15,20 @@ const { safeMessage } = require('../utils/redact')
 
 function getConfig() {
   const url = process.env.MEU_ECOO_API_URL
-  const token = process.env.MEU_ECOO_SERVICE_TOKEN
-  if (!url || !token) return null
-  return { url, token }
+  const loginToken = process.env.MEU_ECOO_SERVICE_TOKEN
+  if (!url || !loginToken) return null
+  return { url, loginToken, credentialSyncToken: process.env.MEU_ECOO_CREDENTIAL_SYNC_TOKEN }
 }
 
 async function sincronizarCredencial(email, password, nome) {
   const config = getConfig()
-  if (!config) return
+  if (!config?.credentialSyncToken) return
 
   try {
     await fetch(`${config.url}${PARTNER_SYNC_PATH}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Service-Token': config.token },
-      body: JSON.stringify({ email, password, nome, origemApp: 'social-api-manager' }),
+      headers: { 'Content-Type': 'application/json', 'X-Service-Token': config.credentialSyncToken },
+      body: JSON.stringify({ email, password, nome }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   } catch (err) {
@@ -43,7 +43,7 @@ async function autenticarViaMeuEcoo(email, password) {
   try {
     const res = await fetch(`${config.url}${PARTNER_LOGIN_PATH}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Service-Token': config.token },
+      headers: { 'Content-Type': 'application/json', 'X-Service-Token': config.loginToken },
       body: JSON.stringify({ email, password }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })

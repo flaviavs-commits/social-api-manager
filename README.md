@@ -232,6 +232,21 @@ para criar um novo `super_admin`, edite a coluna `role` diretamente no banco.
 
 ## Configuração das APIs
 
+### Integração de identidade MeuEcoo
+
+O token de login e o token que sincroniza senha são separados. Configure ambos
+somente no servidor; o segundo é exclusivo deste MiniApp e não pode ir ao
+frontend:
+
+```env
+MEU_ECOO_API_URL=https://api.example.com
+MEU_ECOO_SERVICE_TOKEN=token_exclusivo_de_login_parceiro
+MEU_ECOO_CREDENTIAL_SYNC_TOKEN=token_exclusivo_de_escrita_social_api_manager
+```
+
+Sem `MEU_ECOO_CREDENTIAL_SYNC_TOKEN`, a sincronização de senha fica desativada
+de forma segura e o login local continua disponível.
+
 ### Facebook
 
 1. Acesse: https://developers.facebook.com
