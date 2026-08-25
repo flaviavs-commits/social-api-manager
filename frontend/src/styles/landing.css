@@ -13,6 +13,19 @@
   gap: 10px;
 }
 
+.landing-how-link {
+  padding: 9px 4px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.landing-how-link:hover {
+  color: var(--text);
+}
+
 .page-shell .hero {
   max-width: 840px;
   padding: 112px 0 76px;
@@ -248,6 +261,7 @@
 }
 
 .content-grid .felixo-card {
+  grid-column: 1 / -1;
   padding: 28px;
   border-radius: 18px;
 }
@@ -263,6 +277,80 @@
 
 .content-grid .platform-list li {
   font-size: 14px;
+}
+
+.landing-how {
+  grid-column: 1 / -1;
+  padding: 76px 0 18px;
+  text-align: center;
+}
+
+.landing-how-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.landing-how h2 {
+  margin: 20px 0 0;
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.045em;
+}
+
+.landing-how h2 em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.landing-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin-top: 56px;
+  text-align: left;
+}
+
+.landing-step-number {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.landing-step-line {
+  position: relative;
+  height: 1px;
+  margin: 16px 0 25px;
+  background: var(--border);
+}
+
+.landing-step-line::after {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  content: '';
+}
+
+.landing-steps h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.landing-steps p {
+  max-width: 300px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 @media (max-width: 820px) {
@@ -284,6 +372,16 @@
   .tier-card {
     min-height: 0;
   }
+
+  .landing-steps {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    margin-top: 40px;
+  }
+
+  .landing-steps p {
+    max-width: 560px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -303,6 +401,10 @@
 
   .page-shell .hero {
     padding: 76px 0 48px;
+  }
+
+  .landing-how-link {
+    display: none;
   }
 
   .tier-card {
