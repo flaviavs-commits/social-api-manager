@@ -36,7 +36,8 @@ router.get('/renew-tokens', async (req, res) => {
   try {
     await scheduler.renovarTokensProativamente()
     const limpeza = await logsRepo.limparAntigos()
-    res.json({ ok: true, limpeza })
+    const limpezaMidias = await scheduler.executarLimpezaMidias()
+    res.json({ ok: true, limpeza, limpezaMidias })
   } catch (err) {
     console.error('Falha no cron renew-tokens:', safeMessage(err?.stack || err?.message || err))
     res.status(500).json({ ok: false, erro: 'Falha ao renovar tokens e limpar logs.' })

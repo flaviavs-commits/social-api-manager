@@ -98,7 +98,11 @@ async function deletarPost(id, userId, isAdmin) {
   const post = await buscarPostPorId(id, userId, isAdmin)
   if (!post) return false
   const { rowCount } = await pool.query(
-    `UPDATE posts SET status='cancelled' WHERE id=$1 AND status IN ('scheduled', 'published', 'error', 'erro', 'failed', 'partial')`, [id]
+    `UPDATE posts
+        SET status='cancelled',
+            media_cleanup_after = NOW() + INTERVAL '7 days',
+            media_cleaned_at = NULL
+      WHERE id=$1 AND status IN ('scheduled', 'published', 'error', 'erro', 'failed', 'partial')`, [id]
   )
   return rowCount > 0
 }
@@ -139,7 +143,22 @@ async function buscarPostPorId(id, userId, isAdmin) {
 async function atualizarStatusPost(id, status, errorMessage = null) {
   // Limpa next_retry_at ao fechar o post num status final — evita confusão
   // caso o post seja reagendado manualmente depois (ver reagendarParaRetry).
-  await pool.query(`UPDATE posts SET status = $1, error_message = $2, next_retry_at = NULL WHERE id = $3`, [status, errorMessage, id])
+  await pool.query(`
+    UPDATE posts
+       SET status = $1,
+           error_message = $2,
+           next_retry_at = NULL,
+           media_cleanup_after = CASE
+             WHEN $1 = 'published' THEN NOW() + INTERVAL '48 hours'
+             WHEN $1 IN ('partial', 'error', 'erro', 'failed', 'cancelled') THEN NOW() + INTERVAL '7 days'
+             ELSE NULL
+           END,
+           media_cleaned_at = CASE
+             WHEN $1 IN ('scheduled', 'processing') THEN NULL
+             ELSE media_cleaned_at
+           END
+     WHERE id = $3
+  `, [status, errorMessage, id])
 }
 
 async function atualizarErroPublicacaoConta(postAccountId, message = null) {
@@ -215,7 +234,9 @@ async function recuperarPostsProcessingStale() {
     UPDATE posts p
        SET status = 'error',
            error_message = 'Processamento interrompido; publicação precisa ser revisada.',
-           next_retry_at = NULL
+           next_retry_at = NULL,
+           media_cleanup_after = NOW() + INTERVAL '7 days',
+           media_cleaned_at = NULL
      WHERE p.status = 'processing'
        AND p.criado_em < NOW() - INTERVAL '6 hours'
        AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending IS NOT NULL)

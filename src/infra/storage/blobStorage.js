@@ -1,7 +1,7 @@
 // Adapter para o Vercel Blob — geração de URL pré-assinada de upload e escrita direta.
 const path = require('path')
 const crypto = require('crypto')
-const { get, put, presignUrl, issueSignedToken } = require('@vercel/blob')
+const { get, put, del, presignUrl, issueSignedToken } = require('@vercel/blob')
 const { gerarTokenMedia, validarTokenMedia } = require('./mediaToken')
 
 const ALLOWED_MEDIA_TYPES = new Set([
@@ -136,6 +136,23 @@ function isActualBlobUrl(url) {
   }
 }
 
+// Retorna a URL real do objeto para operações administrativas. No modo
+// privado, a aplicação grava uma URL do nosso /media-proxy; o Vercel Blob
+// precisa receber a URL original para excluir o objeto.
+function canonicalBlobUrl(url) {
+  const actualUrl = decodeMediaProxyUrl(url) || url
+  return isActualBlobUrl(actualUrl) ? actualUrl : null
+}
+
+async function excluirBlobs(urls) {
+  const targets = Array.from(new Set((Array.isArray(urls) ? urls : [urls])
+    .map(canonicalBlobUrl)
+    .filter(Boolean)))
+  if (!targets.length) return 0
+  await del(targets)
+  return targets.length
+}
+
 async function readResponseLimited(response, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
   const declared = Number(response.headers.get('content-length') || 0)
   if (declared > maxBytes) throw new Error('Mídia excede o tamanho máximo permitido')
@@ -177,6 +194,6 @@ async function readBlobStreamLimited(blobResult, maxBytes = MAX_UPLOAD_SIZE_BYTE
 
 module.exports = {
   ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES, gerarUploadUrl, salvarBuffer, isBlobUrl,
-  isActualBlobUrl, isPrivateBlobMode, getPrivateBlob, mediaProxyUrl, decodeMediaProxyUrl,
+  isActualBlobUrl, canonicalBlobUrl, excluirBlobs, isPrivateBlobMode, getPrivateBlob, mediaProxyUrl, decodeMediaProxyUrl,
   readResponseLimited, readBlobStreamLimited
 }
