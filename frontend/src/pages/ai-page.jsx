@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
+import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, publicationResultMessage } from '../lib/publicationEvents.js'
 import '../styles/ai-page-publish.css'
 
 // O backend espera até 45s pelo provedor. O OpenRouter pode precisar de alguns
@@ -36,6 +38,9 @@ export function AiPage() {
   const [accountsLoadError, setAccountsLoadError] = useState(false)
   const [publishModalIndex, setPublishModalIndex] = useState(null)
   const [publishPlatform, setPublishPlatform] = useState('instagram')
+  const [publicationDialog, setPublicationDialog] = useState(null)
+  const [publicationProgress, setPublicationProgress] = useState('')
+  const publicationPollTimer = useRef(null)
   const notify = useToast()
 
   useEffect(() => {
@@ -50,6 +55,8 @@ export function AiPage() {
       .catch(() => setAccountsLoadError(true))
       .finally(() => setAccountsLoaded(true))
   }, [])
+
+  useEffect(() => () => clearTimeout(publicationPollTimer.current), [])
 
   async function generate(event) {
     event.preventDefault(); setLoading(true); setError('')
@@ -219,6 +226,48 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     if (publishingIndex === null) setPublishModalIndex(null)
   }
 
+  function publicationStatusFromResponse(data, postId, platforms) {
+    const publishedPost = data.posts?.[0]
+    return publicationResultMessage({
+      event_name: 'post_published',
+      payload: {
+        id: postId,
+        status: publishedPost?.status,
+        platforms: publishedPost?.platforms || platforms,
+        results: publishedPost?.results || [],
+      },
+    })
+  }
+
+  function finishAiPublication(index, result) {
+    const publishStatus = result.type === 'success' ? 'published' : result.type === 'warning' ? 'partial' : 'error'
+    updatePost(index, { publishStatus, imageError: result.type === 'success' ? '' : result.message })
+    setPublicationProgress('')
+    setPublicationDialog(current => current ? { ...current, status: result } : current)
+    notify(result.message, result.type === 'success' ? 'success' : 'error')
+  }
+
+  function monitorAiPublication(index, postId, initialCursor, platforms) {
+    let cursor = initialCursor
+    const poll = async () => {
+      try {
+        const { events = [] } = await apiFetch(`/api/logs/events/since/${cursor}`)
+        if (events.length) cursor = Math.max(cursor, ...events.map(event => Number(event.id) || 0))
+        const result = findPublicationResult(events, postId)
+        if (result) {
+          finishAiPublication(index, result)
+          return
+        }
+      } catch {
+        // Uma falha pontual não encerra o acompanhamento da publicação.
+      }
+      publicationPollTimer.current = setTimeout(poll, 4000)
+    }
+    const labels = platforms.map(platform => PUBLISH_PLATFORMS.find(option => option.id === platform)?.label || platform)
+    setPublicationProgress(`Aguardando confirmação de ${labels.join(' e ')}...`)
+    poll()
+  }
+
   function confirmPublishPlatform() {
     if (publishModalIndex === null || !isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])) return
     const index = publishModalIndex
@@ -238,17 +287,27 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       const isCarousel = post.visualFormat === 'carousel' && platform === 'instagram'
       if (post.visualFormat === 'carousel' && platform !== 'instagram') throw new Error('O carrossel pode ser publicado somente no Instagram.')
       updatePost(index, { publishPlatform: platform, plataformas: platforms })
+      setPublicationDialog({ index, platforms, status: { type: 'processing', message: processingPublicationMessage(platforms) } })
+      setPublicationProgress('Preparando sua publicação...')
       let postWithImage = post
       const hasGeneratedMedia = isCarousel ? postWithImage.carouselImages?.length > 1 : !!postWithImage.imageUrl
       if (!hasGeneratedMedia) {
+        const total = Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8)
+        setPublicationProgress(isCarousel ? `Gerando carrossel (0/${total})...` : 'Gerando imagem...')
         const generated = isCarousel
-          ? await requestCarousel(postWithImage, Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8), current => setImageLoadingProgress({ current, total: Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8) }))
+          ? await requestCarousel(postWithImage, total, current => {
+              setImageLoadingProgress({ current, total })
+              setPublicationProgress(`Gerando carrossel (${current}/${total})...`)
+            })
           : await requestImage(postWithImage)
         postWithImage = { ...postWithImage, ...generated, imageUrl: isCarousel ? null : generated.imageUrl }
         updatePost(index, { ...generated, imageUrl: isCarousel ? null : generated.imageUrl })
       }
+      setPublicationProgress('Enviando mídia para publicação...')
       const uploadedMedia = await uploadGeneratedMedia(postWithImage)
       updatePost(index, { ...uploadedMedia, imageUrl: postWithImage.imageUrl, carouselImages: postWithImage.carouselImages || [], imageModel: postWithImage.imageModel })
+      setPublicationProgress('Enviando publicação para a rede...')
+      const eventCursor = await latestPublicationEventId(apiFetch)
       const data = await apiFetch('/api/ai/schedule', {
         method: 'POST',
         timeoutMs: 60_000,
@@ -257,13 +316,21 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
           posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image' }],
         }),
       })
-      const status = data.posts?.[0]?.status || 'processing'
-      updatePost(index, { publishStatus: status })
-      notify(status === 'published'
-        ? (isCarousel ? 'Carrossel publicado no Instagram.' : 'Post publicado com a imagem gerada.')
-        : 'Post enviado para publicação. A rede ainda está processando a mídia.')
+      const createdPost = data.posts?.[0]
+      if (!createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar sua confirmação. Verifique a atividade do Assistente IA.')
+      const result = publicationStatusFromResponse(data, createdPost.id, platforms)
+      if (result) {
+        finishAiPublication(index, result)
+      } else {
+        updatePost(index, { publishStatus: 'processing' })
+        monitorAiPublication(index, createdPost.id, eventCursor, platforms)
+      }
     } catch (error) {
-      updatePost(index, { imageError: error.message || 'Não foi possível publicar esta ideia.' })
+      const message = error.message || 'Não foi possível concluir a publicação. Tente novamente.'
+      updatePost(index, { imageError: message, publishStatus: 'error' })
+      setPublicationProgress('')
+      setPublicationDialog(current => current ? { ...current, status: { type: 'error', message } } : current)
+      notify(message, 'error')
     } finally {
       setPublishingIndex(null)
     }
@@ -337,7 +404,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         ? <div className="ai-generated-media ai-generated-carousel"><div className="ai-carousel-grid">{post.carouselImages.map((image, imageIndex) => <img key={`${image}-${imageIndex}`} src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} />)}</div><small>Carrossel com {post.carouselImages.length} slides{post.imageModel ? ` · criado com ${post.imageModel}.` : ' · gerado pela IA.'}</small></div>
         : post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pela IA.'}</small></div>}
       {post.imageError && <p className="ai-image-error" role="alert">{post.imageError}</p>}
-      {post.publishStatus && post.publishStatus !== 'published' && <p className="ai-publish-status">Status da publicação: {post.publishStatus === 'processing' ? 'processando pela rede' : post.publishStatus}.</p>}
+      {post.publishStatus && post.publishStatus !== 'published' && <p className={`ai-publish-status ai-publish-status-${post.publishStatus}`}>Status da publicação: {post.publishStatus === 'processing' ? 'aguardando confirmação da rede' : post.publishStatus === 'partial' ? 'publicada parcialmente' : 'não foi possível concluir'}.</p>}
     </div></article>)}</div>
     <button type="button" className="action-button ai-generate-more-button" onClick={generateMore} disabled={loadingMore || loading}>{loadingMore ? 'Gerando mais ideias...' : 'Gerar mais ideias sobre este assunto'}</button>
   </section>}
@@ -363,6 +430,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       <div className="ai-publish-platform-actions"><button type="button" className="secondary-button" onClick={closePublishPlatformModal}>Cancelar</button><button type="button" className="action-button" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])}>{posts[publishModalIndex]?.visualFormat === 'carousel' ? (posts[publishModalIndex]?.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : posts[publishModalIndex]?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</button></div>
     </section>
   </div>}
+  {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onReview={() => setPublicationDialog(null)} onClose={() => setPublicationDialog(null)}/>}
   <section className="panel ai-analytics-insights-panel">
     <div className="ai-panel-heading ai-analytics-insights-heading"><div><p className="eyebrow">INTELIGÊNCIA DE PERFORMANCE</p><h2>O que está acontecendo no seu Analytics?</h2><p>A IA cruza suas métricas reais para indicar quando publicar e qual perfil está evoluindo melhor dentro de cada nicho.</p></div><span className="ai-analytics-insights-icon" aria-hidden="true">◒</span></div>
     <div className="ai-analytics-controls"><label>Período<select value={analyticsDays} onChange={event => setAnalyticsDays(Number(event.target.value))}><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label><button type="button" className="action-button ai-analytics-button" onClick={loadAnalyticsInsights} disabled={analyticsLoading}>{analyticsLoading ? 'Analisando...' : 'Analisar Analytics'}</button></div>

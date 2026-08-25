@@ -171,6 +171,18 @@
   line-height: 1.4;
 }
 
+.ai-publish-status-processing {
+  color: #f0c877;
+}
+
+.ai-publish-status-partial {
+  color: #f0c877;
+}
+
+.ai-publish-status-error {
+  color: #fda4af;
+}
+
 @media (max-width: 767px) {
   .ai-visual-format-options {
     grid-template-columns: 1fr;
