@@ -1,23 +1,15 @@
 const { detectarTemaRestrito } = require('../../../../src/services/ai/contentSafety')
 
 describe('contentSafety', () => {
-  test('bloqueia temas médicos', () => {
-    expect(detectarTemaRestrito('explique os sintomas de uma doença')).toMatchObject({ id: 'medical' })
-  })
-
-  test('bloqueia temas jurídicos', () => {
-    expect(detectarTemaRestrito('crie um post sobre contrato trabalhista')).toMatchObject({ id: 'legal' })
-  })
-
   test('bloqueia conteúdo adulto', () => {
     expect(detectarTemaRestrito('crie conteúdo +18')).toMatchObject({ id: 'adult' })
+    expect(detectarTemaRestrito('crie uma campanha sexual')).toMatchObject({ id: 'adult' })
   })
 
-  test('bloqueia finanças aprofundadas', () => {
-    expect(detectarTemaRestrito('faça uma análise de day trade')).toMatchObject({ id: 'deep_finance' })
-  })
-
-  test('permite temas gerais e educação financeira básica', () => {
+  test('permite finanças, jurídico, saúde e demais assuntos', () => {
+    expect(detectarTemaRestrito('crie um post sobre investimentos e bolsa de valores')).toBeNull()
+    expect(detectarTemaRestrito('explique um contrato trabalhista')).toBeNull()
+    expect(detectarTemaRestrito('fale sobre sintomas de uma doença')).toBeNull()
     expect(detectarTemaRestrito('crie ideias sobre educação financeira para jovens')).toBeNull()
     expect(detectarTemaRestrito('crie um post sobre fotografia de viagens')).toBeNull()
   })
