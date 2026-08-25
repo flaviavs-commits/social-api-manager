@@ -282,6 +282,7 @@
 .landing-how {
   grid-column: 1 / -1;
   padding: 76px 0 18px;
+  scroll-margin-top: 24px;
   text-align: center;
 }
 
