@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
+const { getManagementApiKey, getOrCreateOpenRouterUserKey } = require('../services/openrouterKeyService')
 const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
 const { isBlobUrl } = require('../infra/storage/blobStorage')
@@ -331,6 +332,13 @@ function imageError(message, status = 502, code = 'image_provider_error') {
   return Object.assign(new Error(message), { status, code })
 }
 
+async function getOpenRouterUserKey(pool, userId) {
+  const stored = await getUserApiKey(pool, userId, 'openrouter')
+  if (stored) return stored
+  const provisioned = await getOrCreateOpenRouterUserKey({ pool, userId, encrypt, decrypt })
+  return provisioned?.key || null
+}
+
 async function generateImageWithGemini(descricao, key) {
   const { GoogleGenAI } = require('@google/genai')
   const client = new GoogleGenAI({ apiKey: key })
@@ -375,7 +383,7 @@ function imageProviderOrder(preferredModel, providers) {
 async function generateImageResilient({ descricao, userId, preferredModel = 'auto' }) {
   const [geminiUserKey, openrouterUserKey] = await Promise.all([
     getUserApiKey(pool, userId, 'gemini'),
-    getUserApiKey(pool, userId, 'openrouter'),
+    getOpenRouterUserKey(pool, userId),
   ])
   const credentials = {
     gemini: { key: geminiUserKey || getGeminiApiKey(), userKey: geminiUserKey },
@@ -986,7 +994,9 @@ router.post('/generate', async (req, res) => {
       return montarResposta(parsedGemini.posts || [], modelo, { llm: true })
     }
 
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
+    const userKey = modelo === 'openrouter'
+      ? await getOpenRouterUserKey(pool, req.user.id)
+      : await getUserApiKey(pool, req.user.id, modelo)
 
     // OpenAI pode usar a chave do servidor quando o usuário não tem uma chave
     // própria salva. Claude continua exigindo sua própria chave.
@@ -1607,7 +1617,9 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
   "analise_carrossel": { "recomendacoes": ["..."], "capa_indice": 0 }
 }`
 
-    const userKey = await getUserApiKey(pool, req.user.id, modelo)
+    const userKey = modelo === 'openrouter'
+      ? await getOpenRouterUserKey(pool, req.user.id)
+      : await getUserApiKey(pool, req.user.id, modelo)
     const rawText = await analisarMidiaComModelo({ modelo, prompt, mediaBase64: mediaBase64Resolvido, mimeType: mimeTypeResolvido, mediaItems, userKey, isVideo })
     let parsed
     try { parsed = JSON.parse(rawText.match(/\{[\s\S]*\}/)?.[0] || '{}') } catch { parsed = {} }
@@ -1650,7 +1662,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 router.get('/models', (req, res) => {
   const hasGemini = !!getGeminiApiKey()
   const hasOpenai = !!process.env.OPENAI_API_KEY
-  const hasOpenrouter = !!process.env.OPENROUTER_API_KEY
+  const hasOpenrouter = !!(process.env.OPENROUTER_API_KEY || getManagementApiKey())
   res.json({
     models: [
       { id: 'openrouter',        name: 'GPT-4o Mini (OpenRouter)', provider: 'OpenRouter', available: hasOpenrouter },
@@ -1684,7 +1696,9 @@ router.get('/agent/capabilities', (_req, res) => {
 
 async function gerarTextoParaAgente(prompt, userId, modelo = 'openrouter') {
   const modeloReal = modelo === 'local' ? 'openrouter' : modelo
-  const userKey = await getUserApiKey(pool, userId, modeloReal)
+  const userKey = modeloReal === 'openrouter'
+    ? await getOpenRouterUserKey(pool, userId)
+    : await getUserApiKey(pool, userId, modeloReal)
 
   if (GEMINI_MODEL_IDS[modeloReal]) {
     if (!userKey && !getGeminiApiKey()) return null

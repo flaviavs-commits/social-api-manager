@@ -975,7 +975,7 @@
 
       'aiChat.sureTellMeTopicAgain': 'Claro! Me conta o tema do post novamente 😊',
 
-      'aiChat.noProblemActivatedQuickAssistant': 'Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 brenoaugusto@vitissouls.com). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?',
+      'aiChat.noProblemActivatedQuickAssistant': 'Sem problema! 😊 Ativei o **Assistente Rápido** — ele cria posts prontos na hora, sem precisar de conta nem cartão.\n\nSe quiser textos ainda mais elaborados, a **Vitis Souls** indica o melhor plano de IA (📩 suporte@meuecoomidia.com.br). Mas por agora já dá pra criar seus posts!\n\nPara quais redes você quer postar?',
       'aiChat.greatToConnectAccountEnterKey': 'Para conectar sua conta, informe sua chave de API abaixo. Ela fica salva com segurança e você não precisa inserir de novo.',
       'aiChat.keyConfiguredSuccessfullyWhichNetworks': 'Chave configurada com sucesso! Agora vamos criar seus posts. Para quais redes você quer postar?',
       'aiChat.greatModelWorksNoConfigPrefix': 'O',
@@ -1012,7 +1012,7 @@
       'aiChat.understoodLeaveItToMeSuffix': 'post(s) incrível(is) para você agora...',
 
       'aiChat.hmmCouldNotGeneratePostNow': 'Hmm, não consegui gerar o post agora. Pode tentar novamente? 🙏',
-      'aiChat.usedAllBoostedGenerationsLocal': 'Você usou todas as suas gerações turbinadas de hoje! Já montei seu(s) post(s) no modo padrão — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 brenoaugusto@vitissouls.com',
+      'aiChat.usedAllBoostedGenerationsLocal': 'Você usou todas as suas gerações turbinadas de hoje! Já montei seu(s) post(s) no modo padrão — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações turbinadas? A **Vitis Souls** libera o plano completo 👉 suporte@meuecoomidia.com.br',
       'aiChat.usedAllFreeGenerationsModel': 'Você usou todas as gerações gratuitas de hoje com este modelo! Já montei seu(s) post(s) no modo padrão (Assistente Rápido) — veja abaixo e pode agendar ou publicar normalmente.\n\nQuer mais gerações? Use sua própria chave do Google AI Studio (opcional) ou tente de novo amanhã.',
       'aiChat.boostedModeUnavailableNow': 'O modo turbinado está indisponível agora, mas já montei seu(s) post(s) no modo padrão — veja abaixo, já dá pra agendar ou publicar normalmente. Se quiser tentar o modo turbinado de novo, é só gerar outro em instantes. 😊',
       'aiChat.boostedPostPrefix': 'Post turbinado! Você ainda tem',
@@ -2061,7 +2061,7 @@
 
       'aiChat.sureTellMeTopicAgain': 'Sure! Tell me the post topic again 😊',
 
-      'aiChat.noProblemActivatedQuickAssistant': "No problem! 😊 I've activated the **Quick Assistant** — it creates ready-to-use posts instantly, no account or card needed.\n\nIf you'd like even more polished copy, **Vitis Souls** can recommend the best AI plan (📩 brenoaugusto@vitissouls.com). But for now you can already create your posts!\n\nWhich networks do you want to post to?",
+      'aiChat.noProblemActivatedQuickAssistant': "No problem! 😊 I've activated the **Quick Assistant** — it creates ready-to-use posts instantly, no account or card needed.\n\nIf you'd like even more polished copy, **Vitis Souls** can recommend the best AI plan (📩 suporte@meuecoomidia.com.br). But for now you can already create your posts!\n\nWhich networks do you want to post to?",
       'aiChat.greatToConnectAccountEnterKey': "To connect your account, enter your API key below. It's stored securely and you won't need to enter it again.",
       'aiChat.keyConfiguredSuccessfullyWhichNetworks': "Key configured successfully! Now let's create your posts. Which networks do you want to post to?",
       'aiChat.greatModelWorksNoConfigPrefix': 'The',
@@ -2098,7 +2098,7 @@
       'aiChat.understoodLeaveItToMeSuffix': 'amazing post(s) for you right now...',
 
       'aiChat.hmmCouldNotGeneratePostNow': "Hmm, I couldn't generate the post right now. Want to try again? 🙏",
-      'aiChat.usedAllBoostedGenerationsLocal': "You've used all your boosted generations for today! I've already put together your post(s) in standard mode — see below, you can schedule or publish normally.\n\nWant more boosted generations? **Vitis Souls** unlocks the full plan 👉 brenoaugusto@vitissouls.com",
+      'aiChat.usedAllBoostedGenerationsLocal': "You've used all your boosted generations for today! I've already put together your post(s) in standard mode — see below, you can schedule or publish normally.\n\nWant more boosted generations? **Vitis Souls** unlocks the full plan 👉 suporte@meuecoomidia.com.br",
       'aiChat.usedAllFreeGenerationsModel': "You've used all the free generations for today with this model! I've already put together your post(s) in standard mode (Quick Assistant) — see below, you can schedule or publish normally.\n\nWant more generations? Use your own Google AI Studio key (optional) or try again tomorrow.",
       'aiChat.boostedModeUnavailableNow': "Boosted mode is unavailable right now, but I've already put together your post(s) in standard mode — see below, you can already schedule or publish normally. If you want to try boosted mode again, just generate another one in a moment. 😊",
       'aiChat.boostedPostPrefix': 'Boosted post! You still have',

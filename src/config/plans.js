@@ -45,10 +45,15 @@ function publicPlanCatalog() {
     priceCents: plan.priceCents,
     currency: plan.currency,
     cadence: plan.cadence,
+    aiImageLimit: getPlanImageLimit(id),
     maxConnections: getPlanConnectionLimit(id),
     availablePlatforms: getPlanPlatforms(id),
     features: plan.features,
   }]))
+}
+
+function getPlanImageLimit(plan) {
+  return Math.max(Number(getPlan(plan).aiImageLimit) || 0, 0)
 }
 
 function requirePlanModule(moduleName) {
@@ -83,4 +88,4 @@ function requirePaidPlan(req, res, next) {
   return next()
 }
 
-module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }
+module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanImageLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }

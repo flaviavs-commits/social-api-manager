@@ -10,6 +10,7 @@
       "priceCents": 5250,
       "currency": "brl",
       "cadence": "por mês",
+      "aiImageLimit": 10,
       "maxConnections": 2,
       "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
       "checkoutUrl": "https://buy.stripe.com/8x27sLg7Z3wS0sb5Bp2VG03",
@@ -18,6 +19,7 @@
         "Agendamento de publicações",
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
+        "Até 10 imagens geradas pela assistente de IA por mês",
         "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"
@@ -44,6 +46,7 @@
       "priceCents": 10050,
       "currency": "brl",
       "cadence": "por mês",
+      "aiImageLimit": 15,
       "maxConnections": 3,
       "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
       "checkoutUrl": "https://buy.stripe.com/eVq6oHbRJ8Rcej1e7V2VG02",
@@ -52,6 +55,7 @@
         "Agendamento de publicações",
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
+        "Até 15 imagens geradas pela assistente de IA por mês",
         "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"
@@ -82,6 +86,7 @@
       "priceCents": 12450,
       "currency": "brl",
       "cadence": "por mês",
+      "aiImageLimit": 20,
       "maxConnections": 4,
       "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
       "checkoutUrl": "https://buy.stripe.com/00w8wP5tl5F0fn57Jx2VG01",
@@ -90,6 +95,7 @@
         "Agendamento de publicações",
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
+        "Até 20 imagens geradas pela assistente de IA por mês",
         "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"

@@ -254,7 +254,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         timeoutMs: 60_000,
         body: JSON.stringify({
           publishNow: true,
-          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image' }],
+          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image' }],
         }),
       })
       const status = data.posts?.[0]?.status || 'processing'
