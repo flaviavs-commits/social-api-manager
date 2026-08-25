@@ -3,6 +3,7 @@ import { API_URL, ApiError, apiFetch, publicApiFetch } from '../lib/api.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { DEFAULT_PLAN, PLANS } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
+import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_MIN_LENGTH = 8
@@ -28,10 +29,10 @@ const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
 }))
 
 const PLATFORM_OPTIONS = [
-  { id: 'instagram', label: 'Instagram', symbol: '◎' },
-  { id: 'youtube', label: 'YouTube', symbol: '▶' },
-  { id: 'tiktok', label: 'TikTok', symbol: '♪' },
-  { id: 'facebook', label: 'Facebook', symbol: 'f' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'facebook', label: 'Facebook' },
 ]
 
 // Parâmetros da tela de autenticação são apenas estado de apresentação. Não
@@ -321,7 +322,7 @@ export function CreateAccountPage() {
             <div className="checkout-section-heading"><span>02</span><div><h2>Escolha seu plano</h2><p>Você pode trocar de plano quando quiser.</p></div></div>
             <div className="checkout-plan-grid">{ACCOUNT_PLANS.map(item => <button type="button" key={item.id} className={`checkout-plan-option${selectedPlan === item.id ? ' is-selected' : ''}${item.featured ? ' is-featured' : ''}`} onClick={() => choosePlan(item.id)}><span className="checkout-plan-check">{selectedPlan === item.id ? '✓' : ''}</span><strong>{item.name}</strong><em>{item.price}<small>/{item.cadence}</small></em><p>{item.description}</p></button>)}</div>
             <div className="checkout-section-heading"><span>03</span><div><h2>Escolha suas redes</h2><p>{selectedPlan === 'premium' ? 'No Premium, as quatro redes sociais já estão liberadas.' : `Selecione exatamente ${connectionLimit} redes. Você poderá conectar até ${connectionLimit} contas no plano.`}</p></div></div>
-            <div className="checkout-platform-grid" role="group" aria-label="Redes sociais disponíveis">{PLATFORM_OPTIONS.map(item => { const isSelected = selectedPlatforms.includes(item.id); const isAvailable = availablePlatforms.includes(item.id); const isDisabled = !isAvailable || (selectedPlan !== 'premium' && !isSelected && selectedPlatforms.length >= connectionLimit); return <button type="button" key={item.id} className={`checkout-platform-option${isSelected ? ' is-selected' : ''}${isDisabled ? ' is-disabled' : ''}`} onClick={() => togglePlatform(item.id)} disabled={isDisabled} aria-pressed={isSelected}><span className={`checkout-platform-symbol checkout-platform-symbol--${item.id}`}>{item.symbol}</span><span><strong>{item.label}</strong><small>{isSelected ? 'Liberada no seu plano' : selectedPlan === 'premium' ? 'Incluída no Premium' : 'Selecionar'}</small></span><b>{isSelected ? '✓' : ''}</b></button> })}</div>
+            <div className="checkout-platform-grid" role="group" aria-label="Redes sociais disponíveis">{PLATFORM_OPTIONS.map(item => { const isSelected = selectedPlatforms.includes(item.id); const isAvailable = availablePlatforms.includes(item.id); const isDisabled = !isAvailable || (selectedPlan !== 'premium' && !isSelected && selectedPlatforms.length >= connectionLimit); return <button type="button" key={item.id} className={`checkout-platform-option${isSelected ? ' is-selected' : ''}${isDisabled ? ' is-disabled' : ''}`} onClick={() => togglePlatform(item.id)} disabled={isDisabled} aria-pressed={isSelected}><span className={`checkout-platform-symbol checkout-platform-symbol--${item.id}`}><PlatformIcon platform={item.id} className="checkout-platform-svg" /></span><span><strong>{item.label}</strong><small>{isSelected ? 'Liberada no seu plano' : selectedPlan === 'premium' ? 'Incluída no Premium' : 'Selecionar'}</small></span><b>{isSelected ? '✓' : ''}</b></button> })}</div>
             <p className="checkout-platform-count">{selectedPlatforms.length} de {connectionLimit} redes selecionadas</p>
             <div className="checkout-section-heading"><span>04</span><div><h2>Pagamento seguro</h2><p>Você será levado ao checkout hospedado do gateway depois de criar a conta.</p></div></div>
             <div className="checkout-pix-box"><strong>Checkout protegido</strong><p>Os dados de pagamento são informados diretamente no gateway. O aplicativo não recebe nem armazena número de cartão, validade ou CVV.</p><span>✓ Uma cobrança por usuário no mês</span></div>

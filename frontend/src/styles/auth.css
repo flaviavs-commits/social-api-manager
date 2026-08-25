@@ -633,6 +633,13 @@
 .checkout-platform-symbol--tiktok { background: rgb(37 244 238 / .12); color: #25f4ee; }
 .checkout-platform-symbol--facebook { background: rgb(24 119 242 / .14); color: #5b8def; }
 
+.checkout-platform-svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
 .checkout-platform-option > span:nth-child(2) {
   display: grid;
   min-width: 0;
