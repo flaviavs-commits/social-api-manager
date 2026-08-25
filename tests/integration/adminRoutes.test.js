@@ -1,4 +1,4 @@
-// Testes de integração — /api/admin/users (requireAdmin protege tudo)
+// Testes de integração — /api/admin/users (requireAdmin + escopo próprio)
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
 process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
@@ -50,19 +50,20 @@ describe('GET /api/admin/users', () => {
     expect(res.status).toBe(403)
   })
 
-  test('200 para admin', async () => {
+  test('200 para admin, mas somente com a própria conta', async () => {
     usersRepo.buscarPorId.mockResolvedValue(ADMIN)
-    usersRepo.listarTodos.mockResolvedValue([ADMIN, USER])
+    usersRepo.listarTodos.mockResolvedValue([ADMIN])
     const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${tokenAdmin}`)
     expect(res.status).toBe(200)
-    expect(res.body.data).toHaveLength(2)
+    expect(res.body.data).toEqual([ADMIN])
+    expect(usersRepo.listarTodos).toHaveBeenCalledWith(ADMIN.id)
   })
 })
 
 // ── POST /api/admin/users/:id/role ────────────────────────────────────────────
 
 describe('POST /api/admin/users/:id/role', () => {
-  test('403 para admin (não super_admin)', async () => {
+  test('403 para admin ao alterar outra conta', async () => {
     usersRepo.buscarPorId.mockResolvedValue(ADMIN)
     const res = await request(app)
       .post('/api/admin/users/3/role')
@@ -72,55 +73,45 @@ describe('POST /api/admin/users/:id/role', () => {
   })
 
   test('400 role inválido', async () => {
-    usersRepo.buscarPorId.mockResolvedValue(SUPER)
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
     const res = await request(app)
-      .post('/api/admin/users/3/role')
-      .set('Authorization', `Bearer ${tokenSuper}`)
+      .post(`/api/admin/users/${ADMIN.id}/role`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ role: 'super_admin' })
     expect(res.status).toBe(400)
   })
 
   test('400 id inválido', async () => {
-    usersRepo.buscarPorId.mockResolvedValue(SUPER)
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
     const res = await request(app)
       .post('/api/admin/users/abc/role')
-      .set('Authorization', `Bearer ${tokenSuper}`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ role: 'admin' })
     expect(res.status).toBe(400)
   })
 
-  test('200 super_admin atualiza role', async () => {
-    usersRepo.buscarPorId.mockResolvedValue(SUPER)
-    usersRepo.atualizarRole.mockResolvedValue({ id: 3, email: 'user@allowed.test', role: 'admin' })
+  test('200 admin pode alterar somente o próprio papel', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.atualizarRole.mockResolvedValue({ id: 1, email: ADMIN.email, role: 'user' })
     const res = await request(app)
-      .post('/api/admin/users/3/role')
-      .set('Authorization', `Bearer ${tokenSuper}`)
-      .send({ role: 'admin' })
-    expect(res.status).toBe(200)
-    expect(res.body.user.role).toBe('admin')
-  })
-
-  test('400 super_admin não pode rebaixar a si mesmo se for o único', async () => {
-    usersRepo.buscarPorId.mockResolvedValue(SUPER)
-    usersRepo.contarSuperAdmins.mockResolvedValue(1)
-    const res = await request(app)
-      .post(`/api/admin/users/${SUPER.id}/role`)
-      .set('Authorization', `Bearer ${tokenSuper}`)
+      .post(`/api/admin/users/${ADMIN.id}/role`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ role: 'user' })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
+    expect(res.body.user.role).toBe('user')
   })
 })
 
 // ── POST /api/admin/users/:id/ativo ───────────────────────────────────────────
 
 describe('POST /api/admin/users/:id/ativo', () => {
-  test('400 ativo deve ser boolean', async () => {
+  test('403 para admin comum antes da validação', async () => {
     usersRepo.buscarPorId.mockResolvedValue(ADMIN)
     const res = await request(app)
       .post('/api/admin/users/3/ativo')
       .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ ativo: 'sim' })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(403)
   })
 
   test('400 admin não pode desativar a si mesmo', async () => {
@@ -132,24 +123,12 @@ describe('POST /api/admin/users/:id/ativo', () => {
     expect(res.status).toBe(400)
   })
 
-  test('403 admin comum não pode desativar outro admin', async () => {
+  test('403 admin não pode desativar usuário comum', async () => {
     usersRepo.buscarPorId.mockResolvedValue(ADMIN)
-    usersRepo.buscarPorIdIncluindoInativo.mockResolvedValue({ id: 99, role: 'admin' })
-    const res = await request(app)
-      .post('/api/admin/users/99/ativo')
-      .set('Authorization', `Bearer ${tokenAdmin}`)
-      .send({ ativo: false })
-    expect(res.status).toBe(403)
-  })
-
-  test('200 admin desativa usuário comum', async () => {
-    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
-    usersRepo.buscarPorIdIncluindoInativo.mockResolvedValue({ id: 3, role: 'user' })
-    usersRepo.atualizarAtivo.mockResolvedValue({ id: 3, email: 'user@allowed.test', ativo: false })
     const res = await request(app)
       .post('/api/admin/users/3/ativo')
       .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ ativo: false })
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(403)
   })
 })

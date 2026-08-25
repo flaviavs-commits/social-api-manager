@@ -115,7 +115,10 @@ async function ensureUserPlanColumns() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_active ON users(plan_active)')
   await bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_unrestricted BOOLEAN NOT NULL DEFAULT FALSE')
   await bestEffort('ALTER TABLE users ALTER COLUMN plan_unrestricted SET DEFAULT FALSE')
-  await bestEffort("UPDATE users SET plan_unrestricted = FALSE WHERE role NOT IN ('admin', 'super_admin') OR role IS NULL")
+  // A aplicação opera somente com os papéis admin e user. Converte registros
+  // legados do papel super_admin sem ampliar o escopo de dados de ninguém.
+  await bestEffort("UPDATE users SET role = 'admin' WHERE role = 'super_admin'")
+  await bestEffort("UPDATE users SET plan_unrestricted = FALSE WHERE role <> 'admin' OR role IS NULL")
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_plan_unrestricted ON users(plan_unrestricted)')
   await bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_platforms TEXT[] NOT NULL DEFAULT ARRAY['instagram','youtube','tiktok','facebook']::text[]")
   await bestEffort("UPDATE users SET allowed_platforms = ARRAY['instagram','youtube','tiktok','facebook']::text[] WHERE allowed_platforms IS NULL OR cardinality(allowed_platforms) = 0")

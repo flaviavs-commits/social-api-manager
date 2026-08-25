@@ -82,7 +82,7 @@ describe('atualizarAtivo', () => {
 describe('listarTodos', () => {
   test('converte totalContas para Number', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ id: 1, email: 'a@b.com', totalContas: '3' }] })
-    const result = await repo.listarTodos()
+    const result = await repo.listarTodos(1)
     expect(result[0].totalContas).toBe(3)
     expect(typeof result[0].totalContas).toBe('number')
   })

@@ -1,6 +1,6 @@
 const { Router } = require('express')
 const repo = require('../repositories/logsRepository')
-const { serverError, isAdminRole } = require('../utils/http')
+const { serverError } = require('../utils/http')
 
 const router = Router()
 
@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
     const limit = Number.isInteger(requested) && requested > 0
       ? Math.min(requested, 200)
       : 50
-    const logs = await repo.listarLogs(limit, req.user.id, isAdminRole(req.user.role))
+    const logs = await repo.listarLogs(limit, req.user.id, false)
     res.json({ logs })
   } catch (e) {
     serverError(res, e)
@@ -25,7 +25,7 @@ router.get('/since/:lastId', async (req, res) => {
   try {
     const lastId = Number(req.params.lastId)
     if (!Number.isInteger(lastId) || lastId < 0) return res.status(400).json({ erro: 'lastId inválido' })
-    const logs = await repo.listarLogsDesde(lastId, req.user.id, isAdminRole(req.user.role))
+    const logs = await repo.listarLogsDesde(lastId, req.user.id, false)
     res.json({ logs })
   } catch (e) {
     serverError(res, e)
@@ -38,7 +38,7 @@ router.get('/events/since/:lastId', async (req, res) => {
   try {
     const lastId = Number(req.params.lastId)
     if (!Number.isInteger(lastId) || lastId < 0) return res.status(400).json({ erro: 'lastId inválido' })
-    const events = await repo.listarEventosDesde(lastId, req.user.id, isAdminRole(req.user.role))
+    const events = await repo.listarEventosDesde(lastId, req.user.id, false)
     res.json({ events })
   } catch (e) {
     serverError(res, e)
@@ -48,7 +48,7 @@ router.get('/events/since/:lastId', async (req, res) => {
 // DELETE /api/logs
 router.delete('/', async (req, res) => {
   try {
-    await repo.limparLogs(req.user.id, isAdminRole(req.user.role))
+    await repo.limparLogs(req.user.id, false)
     res.status(204).send()
   } catch (e) {
     serverError(res, e)

@@ -1,6 +1,6 @@
 // Controller HTTP do módulo posts — só traduz req/res para os use-cases,
 // sem regra de negócio nem acesso a dados aqui.
-const { parseId, serverError, isAdminRole } = require('../../utils/http')
+const { parseId, serverError } = require('../../utils/http')
 const { ValidationError } = require('../../domain/posts/errors')
 
 const { gerarUploadUrl } = require('../../use-cases/posts/gerarUploadUrl')
@@ -16,7 +16,10 @@ const { deletarPost } = require('../../use-cases/posts/deletarPost')
 const { repetirPost } = require('../../use-cases/posts/repetirPost')
 
 function ctx(req) {
-  return { userId: req.user.id, userRole: req.user.role, isAdmin: isAdminRole(req.user.role) }
+  // O papel administrativo não amplia o escopo dos dados. Recursos de
+  // sistema usam chamadas internas explícitas; toda requisição do painel é
+  // sempre limitada ao usuário autenticado.
+  return { userId: req.user.id, userRole: req.user.role, isAdmin: false }
 }
 
 async function postUploadUrl(req, res) {

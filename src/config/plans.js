@@ -61,7 +61,7 @@ function requirePlanModule(moduleName) {
     // Ausência de plano é tratada como o plano padrão, nunca como
     // acesso ilimitado. Assim uma migration incompleta ou um registro antigo
     // não transforma uma falha de configuração em autorização.
-    if (req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin') return next()
+    if (req.user?.planUnrestricted === true || req.user?.role === 'admin') return next()
     const currentPlan = normalizePlan(req.user?.plan || DEFAULT_PLAN)
     if (hasPlanModule(currentPlan, moduleName)) return next()
     const plan = getPlan(currentPlan)
@@ -75,7 +75,7 @@ function requirePlanModule(moduleName) {
 }
 
 function requirePaidPlan(req, res, next) {
-  if (req.user?.planUnrestricted === true || req.user?.role === 'admin' || req.user?.role === 'super_admin') return next()
+  if (req.user?.planUnrestricted === true || req.user?.role === 'admin') return next()
 
   const currentPlan = normalizePlan(req.user?.plan || DEFAULT_PLAN)
   if (req.user?.planActive === false || !isPaidPlan(currentPlan)) {

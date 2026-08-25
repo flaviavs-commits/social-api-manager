@@ -143,21 +143,23 @@ async function invalidarSessoes(userId) {
 
 // ── Administração ────────────────────────────────────────────────────────────
 
-async function listarTodos() {
+async function listarTodos(userId) {
+  if (userId === null || userId === undefined) return []
   const { rows } = await pool.query(`
     SELECT
       u.id, u.email, u.full_name AS "fullName", u.role, u.ativo, u.criado_em AS "criadoEm",
       COUNT(c.id) AS "totalContas"
     FROM users u
     LEFT JOIN contas c ON c.user_id = u.id
+    WHERE u.id = $1
     GROUP BY u.id
     ORDER BY u.criado_em ASC
-  `)
+  `, [userId])
   return rows.map(r => ({ ...r, totalContas: Number(r.totalContas) }))
 }
 
 async function contarAdmins() {
-  const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role IN ('admin', 'super_admin') AND ativo = TRUE`)
+  const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND ativo = TRUE`)
   return Number(r.total)
 }
 

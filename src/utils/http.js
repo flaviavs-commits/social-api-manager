@@ -12,10 +12,10 @@ function parseId(value) {
   return Number(value)
 }
 
-// Papéis com acesso administrativo (veem/gerenciam dados de todos os usuários).
-// 'super_admin' é o único que pode promover/despromover outros usuários.
+// Único papel administrativo ativo da aplicação. O papel não amplia o escopo
+// dos dados: cada consulta continua limitada ao usuário autenticado.
 function isAdminRole(role) {
-  return role === 'admin' || role === 'super_admin'
+  return role === 'admin'
 }
 
 // Regra de complexidade de senha, compartilhada por todos os fluxos que

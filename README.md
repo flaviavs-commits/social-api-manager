@@ -5,9 +5,9 @@ Suporta Facebook, Instagram, YouTube e TikTok via OAuth 2.0.
 
 Possui login próprio (e-mail/senha ou Google) com **multi-tenancy**: cada
 usuário só vê e gerencia as contas de redes sociais que ele mesmo conectou.
-Usuários com papel de **administrador** ou **administrador principal**
-(`super_admin`) têm acesso a todos os dados do sistema e a um painel de
-gestão de usuários.
+Esse isolamento vale também para `admin`: o papel administrativo libera
+funcionalidades, mas não amplia a leitura de contas, tokens, posts, analytics,
+logs ou atividades de outro usuário.
 
 ## Agente IA operacional
 
@@ -39,8 +39,7 @@ social-api-manager/
 │   ├── middleware/
 │   │   ├── logger.js              # addLog/requestLogger (grava em logsRepository)
 │   │   ├── requireAuth.js         # Exige sessão ativa; carrega req.user (id/email/role)
-│   │   ├── requireAdmin.js        # Exige role 'admin' ou 'super_admin'
-│   │   └── requireSuperAdmin.js   # Exige role 'super_admin' (única que altera papéis)
+│   │   └── requireAdmin.js        # Exige role 'admin'
 │   ├── repositories/
 │   │   ├── usersRepository.js     # CRUD de usuários + listagem/promoção (admin)
 │   │   ├── credentialsRepository.js # Senha (bcrypt) e token de redefinição, separado de users
@@ -89,7 +88,7 @@ npm start
 O sistema usa **PostgreSQL** via `pg` (`src/db/pool.js`), conectado através da
 variável `DATABASE_URL`. As tabelas principais são:
 
-- `users` — perfil dos usuários do sistema (email, nome, `role`: `super_admin`/`admin`/`user`, `google_id`)
+- `users` — perfil dos usuários do sistema (email, nome, `role`: `admin`/`user`, `google_id`)
 - `credentials` — senha (bcrypt) de cada usuário, separada de `users`; contas criadas via Google não têm linha aqui
 - `session` — sessões de login (gerenciada pelo `connect-pg-simple`)
 - `nichos` — categorias/grupos de contas
@@ -201,44 +200,27 @@ rate limit do provedor externo de OAuth/publicação.
 
 ### Administradores
 
-A coluna `role` em `users` aceita três valores:
+A coluna `role` em `users` aceita dois valores:
 
-| Papel | Vê dados de todos os usuários | Promove/despromove outros usuários |
+| Papel | Vê dados operacionais de todos os usuários | Administração |
 |-------|:---:|:---:|
 | `user` (padrão) | ❌ — só as próprias contas | ❌ |
-| `admin` | ✅ | ❌ |
-| `super_admin` (administrador principal) | ✅ | ✅ |
+| `admin` | ❌ — só os próprios dados | ✅ — somente a própria conta |
 
-Tanto `admin` quanto `super_admin` têm acesso irrestrito aos dados: as
-mesmas rotas que normalmente filtram por dono (`/api/accounts`,
-`/api/tokens`, `/api/posts`, `/api/logs`) retornam os dados de **todos** os
-usuários para esses dois papéis (`src/utils/http.js#isAdminRole`). A
-diferença entre eles é só a gestão de usuários:
+As rotas operacionais sempre aplicam o `user_id` da sessão, inclusive quando o
+usuário é administrador. O painel administrativo também retorna somente a
+própria conta:
 
-- Painel `/admin.html` (link "Administração" só aparece na sidebar para
-  quem tem `admin` ou `super_admin`; `super_admin` ainda recebe um selo "★
-  principal" ao lado do link): lista todos os usuários do sistema, com ações
-  para promover/despromover papel e ativar/desativar contas, e uma tabela de
-  auditoria com todas as contas de redes sociais conectadas, por dono.
+- Painel `/admin.html` (link "Administração" só aparece para `admin`): mostra
+  somente os dados administrativos da própria conta.
 - Rotas `GET/POST /api/admin/*` (em `src/routes/admin.js`) exigem
-  `src/middleware/requireAdmin.js` (`admin` ou `super_admin`); usuários
-  comuns recebem `403`.
-- **Somente `super_admin`** pode chamar `POST /api/admin/users/:id/role`
-  (protegida por `src/middleware/requireSuperAdmin.js`) — um `admin` comum
-  recebe `403` ao tentar promover ou despromover qualquer usuário. Essa rota
-  só aceita promover para `admin` ou `user`; não é possível conceder
-  `super_admin` por ela (esse papel só é atribuído via migration ou acesso
-  direto ao banco, para não vazar esse nível de privilégio por engano).
-- Proteções: não é possível remover o papel do último `super_admin`
-  restante, nem um admin/super_admin desativar a própria conta.
+  `src/middleware/requireAdmin.js`; usuários comuns recebem `403`.
+- As operações de papel e situação rejeitam IDs de outras contas. O admin não
+  pode desativar a própria conta.
 
-O primeiro administrador principal é criado via migration
-(`003_multi_tenancy.sql` cria o primeiro `admin`; `004_super_admin.sql`
-eleva e-mails específicos a `super_admin`), que também atribui a ele todas
-as contas/posts que já existiam no banco antes da migration (para nenhum
-dado pré-existente ficar "sem dono"). Para promover outro usuário a `admin`
-depois disso, use o próprio painel `/admin.html` logado como `super_admin`;
-para criar um novo `super_admin`, edite a coluna `role` diretamente no banco.
+O primeiro administrador é criado via migration (`003_multi_tenancy.sql`), que
+também atribui a ele todas as contas/posts que já existiam no banco antes da
+migration (para nenhum dado pré-existente ficar "sem dono").
 
 ## Configuração das APIs
 
@@ -371,14 +353,13 @@ para a conta Instagram Business vinculada à página:
 | POST | `/auth/login/reset-password` | Definir nova senha a partir do token |
 | GET | `/api/me` | Dados do usuário logado (`id`, `email`, `role`) |
 
-### Administração (`role = 'admin'` ou `'super_admin'`)
+### Administração (`role = 'admin'`)
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET | `/api/admin/users` | Lista todos os usuários do sistema |
-| POST | `/api/admin/users/:id/role` | **Somente `super_admin`** — promove/despromove (`{ "role": "admin" \| "user" }`) |
-| POST | `/api/admin/users/:id/ativo` | Ativa/desativa um usuário (`{ "ativo": true \| false }`) |
-| GET | `/api/admin/accounts` | Lista todas as contas de redes sociais, de todos os usuários |
+| GET | `/api/admin/users` | Retorna somente o administrador autenticado |
+| POST | `/api/admin/users/:id/role` | Altera somente o próprio papel (`{ "role": "admin" \| "user" }`) |
+| POST | `/api/admin/users/:id/ativo` | Não permite desativar a própria conta nem alterar outra conta |
 
 ### Contas
 | Método | Rota | Descrição |

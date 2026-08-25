@@ -387,6 +387,8 @@ app.use('/api/accounts', accountsRoutes)
 app.use('/api/tokens',   requirePlanModule('tokens'), tokensRoutes)
 app.use('/api/logs',     logsRoutes)
 app.use('/api/posts',    postsRoutes)
+// O painel administrativo mostra somente a própria conta. O papel admin não
+// cria um diretório global nem concede acesso aos dados de outros usuários.
 app.use('/api/admin',    requireAdmin, adminRoutes)
 app.use('/api/drafts',   requirePlanModule('rascunhos'), draftsRoutes)
 app.use('/api/saved-texts', savedTextsRoutes)

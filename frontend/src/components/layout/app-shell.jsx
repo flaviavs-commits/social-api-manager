@@ -138,7 +138,7 @@ function MobileBottomNav({ page, onNavigate, onOpenMenu }) {
 }
 
 function userIsAdmin(user) {
-  return user?.role === 'admin' || user?.role === 'super_admin'
+  return user?.role === 'admin'
 }
 
 function notificationKind(item) {

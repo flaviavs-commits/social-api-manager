@@ -3,7 +3,7 @@ import { apiFetch, ApiError } from '../lib/api.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 
-const roleLabels = { super_admin: 'Administrador principal', admin: 'Administrador', user: 'Usuário' }
+const roleLabels = { admin: 'Administrador', user: 'Usuário' }
 
 function Notice({ notice }) {
   return <div className="admin-notice-area"><ThemeSelector />{notice ? <p className={`admin-notice admin-notice--${notice.type}`} role="alert">{notice.text}</p> : null}</div>

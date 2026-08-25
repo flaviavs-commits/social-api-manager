@@ -4,10 +4,17 @@ const { safeMessage } = require('../utils/redact')
 // Um log "pertence" a um usuário se a conta associada (conta_id) for dele,
 // ou se o log foi gravado diretamente com o user_id dele (ex: erro antes de
 // existir uma conta/token, como falha de OAuth ou post sem conta conectada).
-// Logs sem conta_id nem user_id (eventos gerais do sistema) só vão para administradores.
+// Logs sem conta_id nem user_id (eventos gerais do sistema) não pertencem a
+// nenhuma sessão de usuário e nunca entram no histórico privado.
 async function logVisivelPara(log, userId, isAdmin) {
-  if (isAdmin) return true
-  if (log.user_id) return log.user_id === userId
+  if (userId !== null && userId !== undefined) {
+    if (log.user_id) return log.user_id === userId
+    if (!log.conta_id) return false
+  } else if (isAdmin) {
+    return true
+  } else {
+    return false
+  }
   if (!log.conta_id) return false
   const { rows: [row] } = await pool.query(`SELECT user_id FROM contas WHERE id = $1`, [log.conta_id])
   return row && row.user_id === userId
@@ -24,8 +31,11 @@ async function registrarLog({ type, message, platform = null, conta_id = null, u
 }
 
 async function listarLogs(limit = 50, userId, isAdmin) {
-  const where = isAdmin ? '' : `WHERE l.user_id = $2 OR l.conta_id IN (SELECT id FROM contas WHERE user_id = $2)`
-  const params = isAdmin ? [limit] : [limit, userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const where = hasUserScope
+    ? `WHERE l.user_id = $2 OR l.conta_id IN (SELECT id FROM contas WHERE user_id = $2)`
+    : (isAdmin ? '' : 'WHERE FALSE')
+  const params = hasUserScope ? [limit, userId] : [limit]
   const { rows } = await pool.query(`
     SELECT l.id, l.type, l.message, l.platform, l.criado_em AS timestamp
     FROM logs l
@@ -41,8 +51,11 @@ async function listarLogs(limit = 50, userId, isAdmin) {
 // poucos segundos só o que ainda não viu, identificado pelo id do último log
 // recebido na rodada anterior).
 async function listarLogsDesde(lastId, userId, isAdmin) {
-  const where = isAdmin ? 'WHERE l.id > $1' : 'WHERE l.id > $1 AND (l.user_id = $2 OR l.conta_id IN (SELECT id FROM contas WHERE user_id = $2))'
-  const params = isAdmin ? [lastId] : [lastId, userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const where = hasUserScope
+    ? 'WHERE l.id > $1 AND (l.user_id = $2 OR l.conta_id IN (SELECT id FROM contas WHERE user_id = $2))'
+    : (isAdmin ? 'WHERE l.id > $1' : 'WHERE FALSE')
+  const params = hasUserScope ? [lastId, userId] : [lastId]
   const { rows } = await pool.query(`
     SELECT l.id, l.type, l.message, l.platform, l.criado_em AS timestamp
     FROM logs l
@@ -54,17 +67,17 @@ async function listarLogsDesde(lastId, userId, isAdmin) {
 }
 
 async function limparLogs(userId, isAdmin) {
-  if (isAdmin) {
+  if (userId !== null && userId !== undefined) {
+    await pool.query(`DELETE FROM logs WHERE user_id = $1 OR conta_id IN (SELECT id FROM contas WHERE user_id = $1)`, [userId])
+  } else if (isAdmin) {
     await pool.query(`DELETE FROM logs`)
-  } else {
-    await pool.query(`DELETE FROM logs WHERE conta_id IN (SELECT id FROM contas WHERE user_id = $1)`, [userId])
   }
 }
 
 // Grava um evento nomeado (ex: 'post_published', 'youtube_video_ready') para
 // consumo via polling — substitui o antigo broadcast via SSE, que dependia de
 // uma conexão persistente que não existe em ambiente serverless. postUserId
-// null significa visível só para admins (mesma regra usada nos logs).
+// null significa evento geral, sem escopo de usuário.
 async function broadcastEvent(eventName, data, postUserId = null) {
   await pool.query(
     `INSERT INTO app_events (event_name, payload, user_id) VALUES ($1, $2, $3)`,
@@ -72,11 +85,13 @@ async function broadcastEvent(eventName, data, postUserId = null) {
   )
 }
 
-// Eventos mais recentes que lastId, visíveis para o usuário (dele ou, se
-// admin, todos) — mesmo modelo de cursor usado em listarLogsDesde.
+// Eventos mais recentes que lastId, sempre limitados ao usuário autenticado.
 async function listarEventosDesde(lastId, userId, isAdmin) {
-  const where = isAdmin ? 'WHERE id > $1' : 'WHERE id > $1 AND (user_id = $2 OR user_id IS NULL)'
-  const params = isAdmin ? [lastId] : [lastId, userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const where = hasUserScope
+    ? 'WHERE id > $1 AND user_id = $2'
+    : (isAdmin ? 'WHERE id > $1' : 'WHERE FALSE')
+  const params = hasUserScope ? [lastId, userId] : [lastId]
   const { rows } = await pool.query(`
     SELECT id, event_name, payload, criado_em AS timestamp
     FROM app_events

@@ -24,13 +24,21 @@ describe('registrarLog', () => {
 })
 
 describe('listarLogs', () => {
-  test('admin usa query sem filtro de user_id', async () => {
+  test('admin com userId continua limitado ao próprio histórico', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.listarLogs(50, 1, true)
     const sql = pool.query.mock.calls[0][0]
     const params = pool.query.mock.calls[0][1]
+    expect(sql).toContain('user_id = $2')
+    expect(params).toEqual([50, 1])
+  })
+
+  test('rotina interna sem userId pode consultar todos', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarLogs(50, null, true)
+    const sql = pool.query.mock.calls[0][0]
     expect(sql).not.toContain('user_id = $2')
-    expect(params).toEqual([50])
+    expect(pool.query.mock.calls[0][1]).toEqual([50])
   })
 
   test('usuário comum filtra por user_id', async () => {
@@ -43,11 +51,11 @@ describe('listarLogs', () => {
 })
 
 describe('listarLogsDesde', () => {
-  test('admin filtra só por lastId', async () => {
+  test('admin com userId filtra por lastId e userId', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.listarLogsDesde(10, 1, true)
     const params = pool.query.mock.calls[0][1]
-    expect(params).toEqual([10])
+    expect(params).toEqual([10, 1])
   })
 
   test('usuário comum filtra por lastId e userId', async () => {
@@ -59,25 +67,37 @@ describe('listarLogsDesde', () => {
 })
 
 describe('limparLogs', () => {
-  test('admin deleta todos os logs', async () => {
+  test('admin com userId deleta somente seus logs', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.limparLogs(1, true)
     const sql = pool.query.mock.calls[0][0]
-    expect(sql).toMatch(/DELETE FROM logs$/)
+    expect(sql).toContain('WHERE user_id = $1')
+  })
+
+  test('rotina interna sem userId pode limpar todos os logs', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.limparLogs(null, true)
+    expect(pool.query.mock.calls[0][0]).toMatch(/DELETE FROM logs$/)
   })
 
   test('usuário deleta só seus logs', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.limparLogs(3, false)
     const sql = pool.query.mock.calls[0][0]
-    expect(sql).toContain('WHERE conta_id IN')
+    expect(sql).toContain('WHERE user_id = $1 OR conta_id IN')
   })
 })
 
 describe('listarEventosDesde', () => {
-  test('admin filtra só por lastId', async () => {
+  test('admin com userId filtra por lastId e userId', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.listarEventosDesde(5, 1, true)
+    expect(pool.query.mock.calls[0][1]).toEqual([5, 1])
+  })
+
+  test('rotina interna sem userId pode consultar todos os eventos', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    await repo.listarEventosDesde(5, null, true)
     expect(pool.query.mock.calls[0][1]).toEqual([5])
   })
 

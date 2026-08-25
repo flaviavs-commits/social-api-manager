@@ -109,10 +109,10 @@ describe('buscarPostPorId', () => {
     expect(result).toBeNull()
   })
 
-  test('admin pode acessar qualquer post', async () => {
+  test('admin com userId não pode acessar post de outro usuário', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ ...POST, userId: 99, userRole: 'user' }] })
     const result = await repo.buscarPostPorId(1, 1, true)
-    expect(result).not.toBeNull()
+    expect(result).toBeNull()
   })
 
   test('retorna null quando post não existe', async () => {
@@ -250,11 +250,11 @@ describe('listarPostsPublicadosSemExternalId', () => {
     expect(params).toContain(3)
   })
 
-  test('admin não filtra por user_id', async () => {
+  test('admin com userId continua filtrando por user_id', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.listarPostsPublicadosSemExternalId('facebook', 1, true)
     const params = pool.query.mock.calls[0][1]
-    expect(params).toHaveLength(1)
+    expect(params).toEqual(['facebook', 1])
   })
 })
 

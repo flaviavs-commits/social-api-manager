@@ -10,14 +10,14 @@ const { reagendarPost } = require('../../use-cases/posts/reagendarPost')
 const { deletarPost } = require('../../use-cases/posts/deletarPost')
 const logsRepo = require('../../repositories/logsRepository')
 const { getStatusMap } = require('../platformHealth')
-const { isAdminRole, PLATFORMS } = require('../../utils/http')
+const { PLATFORMS } = require('../../utils/http')
 const { getPublicCapabilities } = require('./agentCatalog')
 
 const POST_STATUSES = ['scheduled', 'published', 'partial', 'error', 'cancelled']
 const TOKEN_STATUSES = ['valid', 'expiring', 'expired', 'error']
 
 function context(user) {
-  return { userId: user.id, userRole: user.role, isAdmin: isAdminRole(user.role) }
+  return { userId: user.id, userRole: user.role, isAdmin: false }
 }
 
 function textPreview(value, length = 100) {
@@ -327,7 +327,7 @@ Responda em texto simples. Não use JSON.`
       return { message: `Preset #${id} excluído.`, data: { deleted: true, id }, navigation: 'agendador' }
     }
     case 'platform_health': {
-      const status = await getStatusMap()
+      const status = await getStatusMap(user.id)
       return { message: 'Status das plataformas carregado.', data: { status }, navigation: 'integracoes' }
     }
     case 'list_logs': {

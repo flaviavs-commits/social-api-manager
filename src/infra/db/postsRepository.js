@@ -61,7 +61,10 @@ async function listarPosts({ status, userId, isAdmin, page, limit } = {}) {
   const conds = []
   const params = []
   if (status) { params.push(status); conds.push(`status = $${params.length}`) }
-  if (!isAdmin) { params.push(userId); conds.push(`user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : ''
 
   const paginate = page !== undefined || limit !== undefined
@@ -128,7 +131,8 @@ async function buscarPostPorId(id, userId, isAdmin) {
   `, [id])
   const post = rows[0] || null
   if (!post) return null
-  if (!isAdmin && post.userId !== userId) return null
+  if (userId !== null && userId !== undefined && post.userId !== userId) return null
+  if ((userId === null || userId === undefined) && !isAdmin) return null
   return post
 }
 
@@ -360,7 +364,10 @@ async function listarPublicacoesDosPosts(postIds) {
 async function listarPostsPublicadosSemExternalId(platform, userId, isAdmin) {
   const conds = [`status = 'published'`, `platforms @> ARRAY[$1]::text[]`, `external_post_id IS NULL`]
   const params = [platform]
-  if (!isAdmin) { params.push(userId); conds.push(`user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
     SELECT id, text, platforms, scheduled_at AS "scheduledAt", criado_em, account_id AS "accountId",
@@ -479,10 +486,10 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
   const conds  = [`${calendarDate} >= $1`, `${calendarDate} < $2`, `status <> 'cancelled'`]
   const params = [inicio.toISOString(), fim.toISOString()]
 
-  if (!isAdmin) {
+  if (userId !== null && userId !== undefined) {
     params.push(userId)
     conds.push(`user_id = $${params.length}`)
-  }
+  } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
     SELECT
@@ -505,11 +512,13 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
 }
 
 async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
+  const hasUserScope = userId !== null && userId !== undefined
+  const ownerFilter = hasUserScope ? 'AND user_id = $3' : (isAdmin ? '' : 'AND FALSE')
   const { rows } = await pool.query(
     `UPDATE posts SET scheduled_at = $1
-     WHERE id = $2 AND status = 'scheduled' ${isAdmin ? '' : 'AND user_id = $3'}
+     WHERE id = $2 AND status = 'scheduled' ${ownerFilter}
      RETURNING id`,
-    isAdmin ? [scheduledAt, id] : [scheduledAt, id, userId]
+    hasUserScope ? [scheduledAt, id, userId] : [scheduledAt, id]
   )
   return rows[0] || null
 }

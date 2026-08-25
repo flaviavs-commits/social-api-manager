@@ -26,9 +26,9 @@ describe('parseId', () => {
 })
 
 describe('isAdminRole', () => {
-  test('admin e super_admin retornam true', () => {
+  test('somente admin retorna true', () => {
     expect(isAdminRole('admin')).toBe(true)
-    expect(isAdminRole('super_admin')).toBe(true)
+    expect(isAdminRole('super_admin')).toBe(false)
   })
   test('user e roles desconhecidos retornam false', () => {
     expect(isAdminRole('user')).toBe(false)

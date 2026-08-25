@@ -19,12 +19,13 @@ describe('requireAdmin', () => {
     expect(next).toHaveBeenCalled()
   })
 
-  test('deixa passar se role = super_admin', () => {
+  test('bloqueia role legado super_admin', () => {
     const req = { user: { role: 'super_admin' }, originalUrl: '/api/admin/users' }
     const res = mockRes()
     const next = jest.fn()
     requireAdmin(req, res, next)
-    expect(next).toHaveBeenCalled()
+    expect(next).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(403)
   })
 
   test('retorna 403 para role = user em rota /api/', () => {

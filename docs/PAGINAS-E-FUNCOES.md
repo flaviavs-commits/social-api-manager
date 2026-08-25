@@ -617,7 +617,7 @@ Arquivo: `frontend/src/pages/admin-page.jsx`.
 - Ativar usuário.
 - Desativar usuário.
 - Impedir que o administrador desative a si próprio.
-- Preservar o super administrador.
+- Preservar o isolamento entre administradores e usuários.
 
 **APIs:**
 

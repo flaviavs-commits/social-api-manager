@@ -4,7 +4,6 @@ const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const { getManagementApiKey, getOrCreateOpenRouterUserKey } = require('../services/openrouterKeyService')
-const requireSuperAdmin = require('../middleware/requireSuperAdmin')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
 const { isBlobUrl } = require('../infra/storage/blobStorage')
 const { getCapability, getPublicCapabilities } = require('../services/ai/agentCatalog')
@@ -1181,8 +1180,8 @@ router.get('/chat-messages', async (req, res) => {
 
 // GET /api/ai/activity-log — histórico de atividade do Agente IA.
 // Filtros opcionais: ?status=erro|sucesso|fallback|parcial, ?acao=generate|analyze-media|schedule|publish-now,
-// ?userId=<id>. Usuários comuns veem apenas seus registros; super_admin pode
-// consultar qualquer usuário. Paginado por limit/offset (padrão 100 mais recentes).
+// ?userId=<id> é aceito apenas por compatibilidade, mas o escopo continua sendo
+// sempre o usuário autenticado. Paginado por limit/offset (padrão 100 mais recentes).
 router.get('/activity-log', async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 500)
@@ -1192,12 +1191,7 @@ router.get('/activity-log', async (req, res) => {
     const params = []
     if (req.query.status) { params.push(req.query.status); cond.push(`l.status = $${params.length}`) }
     if (req.query.acao)   { params.push(req.query.acao);   cond.push(`l.acao = $${params.length}`) }
-    const requestedUserId = parseInt(req.query.userId)
-    if (isAdminRole(req.user.role)) {
-      if (Number.isInteger(requestedUserId)) { params.push(requestedUserId); cond.push(`l.user_id = $${params.length}`) }
-    } else {
-      params.push(req.user.id); cond.push(`l.user_id = $${params.length}`)
-    }
+    params.push(req.user.id); cond.push(`l.user_id = $${params.length}`)
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : ''
 
     params.push(limit); const limitIdx = params.length
@@ -1458,7 +1452,7 @@ async function generateImageEndpoint(req, res) {
       descricao: descricao.trim(),
       userId: req.user.id,
       plan: req.user.plan,
-      planUnrestricted: req.user.planUnrestricted === true,
+      planUnrestricted: req.user.planUnrestricted === true || isAdminRole(req.user.role),
       preferredModel: req.body?.modelo || 'auto',
     })
     await registrarAtividadeIA({
@@ -1509,7 +1503,7 @@ router.post('/image/lead', async (req, res) => {
 router.get('/analytics-insights', async (req, res) => {
   try {
     const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90)
-    const data = await buscarAnalytics({ userId: req.user.id, userRole: req.user.role, isAdmin: isAdminRole(req.user.role), days })
+    const data = await buscarAnalytics({ userId: req.user.id, userRole: req.user.role, isAdmin: false, days })
     res.json({ insights: buildAnalyticsInsights(data, days) })
   } catch (err) {
     serverError(res, err)
@@ -1872,7 +1866,7 @@ router.post('/agent', async (req, res) => {
         descricao: args.description,
         userId: req.user.id,
         plan: req.user.plan,
-        planUnrestricted: req.user.planUnrestricted === true,
+        planUnrestricted: req.user.planUnrestricted === true || isAdminRole(req.user.role),
         preferredModel: args.model && args.model !== 'auto' ? args.model : req.body?.modeloImagem || 'auto',
       }),
     })
@@ -1959,8 +1953,7 @@ router.post('/schedule', async (req, res) => {
       // retornaria true por vacuidade, marcando o post como "published" sem
       // nenhuma chamada real à API da rede. Mesmo padrão do Agendador manual
       // (ver use-cases/posts/criarPost.js).
-      const isAdmin = isAdminRole(req.user.role)
-      const contas = await contasRepo.listarContasAtivasPorPlataformas(p.plataformas || [], req.user.id, isAdmin)
+      const contas = await contasRepo.listarContasAtivasPorPlataformas(p.plataformas || [], req.user.id, false)
       const platformsSemConta = (p.plataformas || []).filter(plat => !contas.some(c => c.platform === plat))
       if (platformsSemConta.length) {
         const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }

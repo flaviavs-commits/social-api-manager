@@ -4,7 +4,7 @@ const controller = require('../http/controllers/adminController')
 const router = Router()
 
 router.get('/users', controller.listUsers)
-router.post('/users/:id/role', ...controller.updateRole)
+router.post('/users/:id/role', controller.updateRole)
 router.post('/users/:id/ativo', controller.updateActive)
 
 module.exports = router

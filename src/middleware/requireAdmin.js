@@ -1,5 +1,5 @@
 function requireAdmin(req, res, next) {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'super_admin')) return next()
+  if (req.user && req.user.role === 'admin') return next()
 
   if (req.originalUrl.startsWith('/api/')) {
     return res.status(403).json({ erro: 'Você não tem permissão para acessar esta área.' })

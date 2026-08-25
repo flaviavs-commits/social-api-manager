@@ -15,15 +15,17 @@ const { mapWithConcurrency } = require('../../utils/concurrency')
 const PUBLICATION_CONCURRENCY = 4
 
 // ── Busca a conta+token de uma conta específica ──────────────────────────────
-// Por padrão, restringe ao dono do post. Super admins podem publicar usando
-// qualquer conta conectada no sistema (de qualquer usuário). contaId é sempre
+// Sempre restringe ao dono do post quando userId é informado. contaId é sempre
 // obrigatório no fluxo atual — a resolução de "quais contas usar" já
 // aconteceu antes, em criarPost.js (ver migrations/027_post_accounts.sql);
-// não há mais fallback para "a mais recente conectada".
+// não há fallback para "a mais recente conectada" nem atalho por papel.
 async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId = null) {
   const conds = ['t.platform = $1']
   const params = [platform]
-  if (!isSuperAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isSuperAdmin) conds.push('FALSE')
   if (contaId) { params.push(contaId); conds.push(`c.id = $${params.length}`) }
 
   const { rows } = await pool.query(`
@@ -46,8 +48,9 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
 
 async function buscarTokenPorId(tokenId, userId, isSuperAdmin = false) {
   const params = [tokenId]
-  const owner = isSuperAdmin ? '' : ' AND c.user_id = $2'
-  if (!isSuperAdmin) params.push(userId)
+  const hasUserScope = userId !== null && userId !== undefined
+  const owner = hasUserScope ? ' AND c.user_id = $2' : (isSuperAdmin ? '' : ' AND FALSE')
+  if (hasUserScope) params.push(userId)
   const { rows } = await pool.query(`
     SELECT t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
            t.refresh_token AS "refreshToken", t.account_name AS "accountName",
@@ -69,7 +72,10 @@ async function buscarTokenPorId(tokenId, userId, isSuperAdmin = false) {
 async function listarContasToken(platform, userId, isSuperAdmin = false) {
   const conds = ['t.platform = $1']
   const params = [platform]
-  if (!isSuperAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isSuperAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
     SELECT

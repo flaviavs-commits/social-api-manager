@@ -46,7 +46,10 @@ async function listarTokens({ status, platform, userId, isAdmin } = {}) {
   const params = []
   if (status)   { params.push(status);   conds.push(`t.status = $${params.length}`) }
   if (platform) { params.push(platform); conds.push(`t.platform = $${params.length}`) }
-  if (!isAdmin) { params.push(userId);   conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
   const where = conds.length ? 'WHERE ' + conds.join(' AND ') : ''
 
   const { rows } = await pool.query(`
@@ -224,7 +227,11 @@ async function renovarTokenFacebook(token) {
 async function renovarToken(id, userId, isAdmin) {
   const { rows: [token] } = await pool.query(`SELECT * FROM tokens WHERE id = $1`, [id])
   if (!token) throw new Error('Token não encontrado')
-  if (!isAdmin && !(await tokenPertenceAoUsuario(id, userId))) throw new Error('Token não encontrado')
+  if (userId !== null && userId !== undefined) {
+    if (!(await tokenPertenceAoUsuario(id, userId))) throw new Error('Token não encontrado')
+  } else if (!isAdmin) {
+    throw new Error('Token não encontrado')
+  }
 
   // access_token/refresh_token vêm cifrados do banco — decifra antes de usar
   // nas chamadas de renovação contra a API de cada rede social.
@@ -279,8 +286,9 @@ async function renovarToken(id, userId, isAdmin) {
 // ── Renovar todos os tokens expirados/expirando ────────────────────────────────
 async function renovarTodos(userId, isAdmin) {
   await atualizarStatusTokens()
-  const params = isAdmin ? [] : [userId]
-  const ownerFilter = isAdmin ? '' : `AND c.user_id = $1`
+  const hasUserScope = userId !== null && userId !== undefined
+  const params = hasUserScope ? [userId] : []
+  const ownerFilter = hasUserScope ? `AND c.user_id = $1` : (isAdmin ? '' : 'AND FALSE')
   const { rows: toRenew } = await pool.query(`
     SELECT t.id FROM tokens t
     JOIN contas c ON c.id = t.conta_id
@@ -290,7 +298,7 @@ async function renovarTodos(userId, isAdmin) {
   const results = { renewed: [], requiresManual: [], failed: [] }
 
   for (const { id } of toRenew) {
-    const r = await renovarToken(id, userId, isAdmin)
+    const r = await renovarToken(id, hasUserScope ? userId : null, hasUserScope ? false : isAdmin)
     if (r.success) results.renewed.push(id)
     else if (r.requiresReconnect) results.requiresManual.push(id)
     else results.failed.push(id)
@@ -301,7 +309,11 @@ async function renovarTodos(userId, isAdmin) {
 
 // ── Deletar token ────────────────────────────────────────────────────────────
 async function deletarToken(id, userId, isAdmin) {
-  if (!isAdmin && !(await tokenPertenceAoUsuario(id, userId))) return false
+  if (userId !== null && userId !== undefined) {
+    if (!(await tokenPertenceAoUsuario(id, userId))) return false
+  } else if (!isAdmin) {
+    return false
+  }
   const { rowCount } = await pool.query(`DELETE FROM tokens WHERE id = $1`, [id])
   return rowCount > 0
 }

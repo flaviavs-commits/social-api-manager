@@ -131,7 +131,6 @@ Arquivos principais:
 - `src/routes/me.js`;
 - `src/middleware/requireAuth.js`;
 - `src/middleware/requireAdmin.js`;
-- `src/middleware/requireSuperAdmin.js`;
 - `src/repositories/usersRepository.js`;
 - `src/repositories/credentialsRepository.js`;
 - `src/utils/authToken.js`;
@@ -427,27 +426,23 @@ O token de aprovação deve incluir versão da ação e hash dos argumentos. Ass
 
 ## 7. Contrato de autorização e multi-tenancy
 
-O isolamento por `user_id` está presente em várias consultas e é uma das propriedades mais importantes do sistema. Entretanto, o escopo administrativo precisa ser decidido e aplicado de forma única.
+O isolamento por `user_id` é obrigatório para todos os dados operacionais. O
+papel administrativo não é um escopo de leitura: `admin` só pode consultar e
+alterar os próprios posts, contas, tokens, analytics, logs, atividades e
+configurações. O painel administrativo também recebe somente o próprio
+registro; não existe diretório global de usuários.
 
-Foi observado o seguinte cenário:
+A matriz aplicada é:
 
-- o README descreve que `admin`/`super_admin` veem dados de todos;
-- comentários em `accounts.js` e `tokens.js` dizem que contas e tokens continuam restritos ao proprietário;
-- `postsController` monta contexto com `isAdmin`;
-- alguns controllers passam `false` explicitamente aos repositórios;
-- o agente IA também possui consultas administrativas e consultas sempre restritas ao usuário.
-
-Isso não deve ser resolvido por uma alteração isolada em SQL. Definir uma matriz de autorização:
-
-| Recurso | `user` | `admin` | `super_admin` |
-|---|---|---|---|
-| Próprio perfil | ler/alterar | ler/alterar | ler/alterar |
-| Próprias contas/tokens | ler/alterar | ler/alterar | ler/alterar |
-| Contas/tokens de terceiros | negar | definir explicitamente | definir explicitamente |
-| Posts próprios | ler/alterar conforme estado | definir explicitamente | definir explicitamente |
-| Posts de terceiros | negar | definir explicitamente | definir explicitamente |
-| Usuários | negar | listar/ativar conforme política | papel e operações críticas |
-| Auditoria global | negar | conforme política | sim |
+| Recurso | `user` | `admin` |
+|---|---|---|
+| Próprio perfil | ler/alterar | ler/alterar |
+| Próprias contas/tokens | ler/alterar | ler/alterar |
+| Contas/tokens de terceiros | negar | negar |
+| Posts próprios | ler/alterar conforme estado | ler/alterar conforme estado |
+| Posts de terceiros | negar | negar |
+| Usuários | negar | somente o próprio registro |
+| Auditoria global | negar | negar |
 
 Depois, centralizar em uma policy:
 
@@ -456,7 +451,12 @@ authorization.can(user, 'account:read', account)
 authorization.scope(user, 'posts:read')
 ```
 
-O repositório deve receber um `AccessScope` já resolvido, não uma combinação ambígua de `userId` e booleano `isAdmin` espalhada por toda a aplicação.
+As rotas autenticadas passam sempre o usuário da sessão. Como defesa em
+profundidade, os repositórios também priorizam `userId` quando ele existe,
+mesmo que um chamador informe `isAdmin: true`; consultas globais ficam
+reservadas a rotinas internas sem `userId`. A próxima refatoração recomendada
+é substituir a combinação ambígua de `userId` e booleano `isAdmin` por um
+`AccessScope` explícito.
 
 ## 8. Dependências e fronteiras arquiteturais
 

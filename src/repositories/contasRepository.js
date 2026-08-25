@@ -16,7 +16,7 @@ async function enforceConnectionPolicy({ userId, platform }) {
       WHERE id = $1 AND ativo = TRUE`,
     [userId]
   )
-  if (!user || user.plan_unrestricted === true || ['admin', 'super_admin'].includes(user.role)) return
+  if (!user || user.plan_unrestricted === true || user.role === 'admin') return
 
   const allowedPlatforms = Array.isArray(user.allowedPlatforms) && user.allowedPlatforms.length
     ? user.allowedPlatforms
@@ -58,8 +58,9 @@ async function getDashboardStats(userId, isAdmin) {
       )
   `)
 
-  const ownerFilter = isAdmin ? '' : `WHERE c.user_id = $1`
-  const ownerParams = isAdmin ? [] : [userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const ownerFilter = hasUserScope ? `WHERE c.user_id = $1` : (isAdmin ? '' : 'WHERE FALSE')
+  const ownerParams = hasUserScope ? [userId] : []
 
   // Totais gerais
   const { rows: [summary] } = await pool.query(`
@@ -110,7 +111,10 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
   const conds = []
   const params = []
 
-  if (!isAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
   if (platform) { params.push(platform); conds.push(`c.platform = $${params.length}`) }
   if (tipo)  { params.push(tipo);  conds.push(`c.tipo = $${params.length}::tipo_nivel`) }
   if (ativo !== undefined) { params.push(ativo); conds.push(`c.ativo = $${params.length}`) }
@@ -198,7 +202,10 @@ async function listarContasAtivasPorPlataformas(platforms, userId, isAdmin) {
   if (!platforms.length) return []
   const conds = ['c.platform = ANY($1)', 'c.ativo = true']
   const params = [platforms]
-  if (!isAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
     SELECT c.id, c.platform, c.handle
@@ -218,7 +225,10 @@ async function listarContasPorIds(ids, userId, isAdmin) {
   if (!ids.length) return []
   const conds = ['c.id = ANY($1)', 'c.ativo = true']
   const params = [ids]
-  if (!isAdmin) { params.push(userId); conds.push(`c.user_id = $${params.length}`) }
+  if (userId !== null && userId !== undefined) {
+    params.push(userId)
+    conds.push(`c.user_id = $${params.length}`)
+  } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
     SELECT c.id, c.platform, c.handle
@@ -244,7 +254,8 @@ async function criarConta({ platform, handle, tipo, userId }) {
 async function buscarContaPorId(id, userId, isAdmin) {
   const { rows: [conta] } = await pool.query(`SELECT * FROM contas WHERE id = $1`, [id])
   if (!conta) return null
-  if (!isAdmin && conta.user_id !== userId) return null
+  if (userId !== null && userId !== undefined && conta.user_id !== userId) return null
+  if ((userId === null || userId === undefined) && !isAdmin) return null
   return conta
 }
 
@@ -333,8 +344,9 @@ async function registrarSnapshotSeguidoresInstagram(contaId, followerCount) {
 // Soma diária de seguidores de todas as contas do Instagram do usuário,
 // a partir do dia em que o snapshot começou a ser coletado.
 async function buscarHistoricoSeguidoresInstagram(userId, isAdmin) {
-  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
-  const params = isAdmin ? [] : [userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const ownerFilter = hasUserScope ? 'AND c.user_id = $1' : (isAdmin ? '' : 'AND FALSE')
+  const params = hasUserScope ? [userId] : []
 
   const { rows } = await pool.query(`
     SELECT h.captured_on AS "date", SUM(h.follower_count)::int AS "followerCount"
@@ -361,8 +373,9 @@ async function registrarSnapshotStatsTiktok(contaId, { followerCount, likesCount
 // Soma diária de seguidores/curtidas de todas as contas do TikTok do
 // usuário, a partir do dia em que o snapshot começou a ser coletado.
 async function buscarHistoricoStatsTiktok(userId, isAdmin) {
-  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
-  const params = isAdmin ? [] : [userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const ownerFilter = hasUserScope ? 'AND c.user_id = $1' : (isAdmin ? '' : 'AND FALSE')
+  const params = hasUserScope ? [userId] : []
 
   const { rows } = await pool.query(`
     SELECT h.captured_on AS "date",
@@ -391,8 +404,9 @@ async function registrarSnapshotSeguidoresYoutube(contaId, subscriberCount) {
 // Soma diária de inscritos de todos os canais do YouTube do usuário, a
 // partir do dia em que o snapshot começou a ser coletado.
 async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
-  const ownerFilter = isAdmin ? '' : 'AND c.user_id = $1'
-  const params = isAdmin ? [] : [userId]
+  const hasUserScope = userId !== null && userId !== undefined
+  const ownerFilter = hasUserScope ? 'AND c.user_id = $1' : (isAdmin ? '' : 'AND FALSE')
+  const params = hasUserScope ? [userId] : []
 
   const { rows } = await pool.query(`
     SELECT h.captured_on AS "date", SUM(h.subscriber_count)::int AS "subscriberCount"
