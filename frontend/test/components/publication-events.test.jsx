@@ -27,6 +27,22 @@ describe('publication events', () => {
     expect(processingPublicationMessage(['instagram', 'tiktok'])).toBe('Publicação iniciada com sucesso para Instagram e TikTok. Estamos enviando agora e a confirmação aparecerá aqui em instantes.')
   })
 
+  it('returns a confirmed result after the asynchronous publication succeeds', () => {
+    expect(findPublicationResult([{
+      event_name: 'post_published',
+      payload: {
+        id: 42,
+        status: 'published',
+        platforms: ['instagram'],
+        results: [{ platform: 'instagram', account: '@perfil', success: true }],
+      },
+    }], 42)).toMatchObject({
+      type: 'success',
+      message: 'Publicação confirmada em Instagram. Post #42.',
+      resultSummary: { published: ['Instagram · @perfil'], failures: [] },
+    })
+  })
+
   it('includes the scheduled date and time in the confirmation', () => {
     expect(scheduledPublicationMessage('2026-08-10T15:30:00', ['instagram'])).toContain('Publicação agendada com sucesso para')
     expect(scheduledPublicationMessage('2026-08-10T15:30:00', ['instagram'])).toContain('Ela será enviada para Instagram.')

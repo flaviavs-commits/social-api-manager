@@ -379,6 +379,70 @@ function SchedulerErrorCard({ message, resultSummary, onReview, onClose }) {
   </div>
 }
 
+function PublicationStatusModal({ status, platforms, progress, onReview, onClose }) {
+  if (!status) return null
+
+  const isProcessing = status.type === 'processing'
+  const isSuccess = status.type === 'success'
+  const isWarning = status.type === 'warning'
+  const title = isProcessing
+    ? 'Publicando seu post'
+    : isSuccess
+      ? 'Publicação confirmada'
+      : isWarning
+        ? 'Publicação parcial'
+        : 'Não foi possível concluir a publicação'
+  const kicker = isProcessing
+    ? 'PUBLICAÇÃO EM ANDAMENTO'
+    : isSuccess
+      ? 'TUDO CERTO!'
+      : 'PRECISA DE ATENÇÃO'
+  const platformList = [...new Set((platforms || []).map(platform => platformLabels[platform] || platform))]
+
+  return <div
+    className={`modal-overlay scheduler-publication-overlay scheduler-publication-${status.type}`}
+    role="presentation"
+    onMouseDown={event => { if (!isProcessing && event.target === event.currentTarget) onClose() }}
+  >
+    <section className="modal-content scheduler-publication-modal" role="dialog" aria-modal="true" aria-labelledby="scheduler-publication-title" aria-describedby="scheduler-publication-description">
+      <div className="scheduler-publication-modal-header">
+        <div className="scheduler-publication-icon" aria-hidden="true">
+          {isProcessing ? <span className="scheduler-publication-spinner"/> : isSuccess ? '✓' : '!'}
+        </div>
+        <div className="scheduler-publication-heading">
+          <p className="scheduler-publication-kicker">{kicker}</p>
+          <h2 id="scheduler-publication-title">{title}</h2>
+        </div>
+        {!isProcessing && <button type="button" className="scheduler-publication-close" onClick={onClose} aria-label="Fechar confirmação">×</button>}
+      </div>
+
+      <p id="scheduler-publication-description" className="scheduler-publication-description">
+        {isProcessing
+          ? progress || status.message
+          : isSuccess
+            ? 'A publicação foi confirmada pelo criador de posts e já foi enviada para as redes selecionadas.'
+            : status.message}
+      </p>
+
+      {isProcessing
+        ? <div className="scheduler-publication-waiting" role="status" aria-live="polite">
+            <div className="scheduler-publication-progress-track" aria-hidden="true"><span/></div>
+            <span>Estamos aguardando a confirmação das redes sociais.</span>
+          </div>
+        : <div className="scheduler-publication-result">
+            {status.resultSummary?.published?.length > 0 && <div className="scheduler-result-group is-published"><strong>Publicadas</strong>{status.resultSummary.published.map(label => <span key={label}>✓ {label}</span>)}</div>}
+            {status.resultSummary?.failures?.length > 0 && <div className="scheduler-result-group is-failed"><strong>Não publicadas</strong>{status.resultSummary.failures.map(item => <span key={`${item.label}-${item.error}`}><b>{item.label}</b><small>{item.error}</small></span>)}</div>}
+            {!status.resultSummary && platformList.length > 0 && <div className="scheduler-publication-platforms">{platformList.map(platform => <span key={platform}>✓ {platform}</span>)}</div>}
+          </div>}
+
+      {!isProcessing && <div className="scheduler-publication-actions">
+        {(isWarning || status.type === 'error') && <button type="button" className="scheduler-feedback-primary" onClick={onReview}>Revisar no criador de posts</button>}
+        <button type="button" className="scheduler-feedback-secondary" onClick={onClose}>{isSuccess ? 'Fechar confirmação' : 'Fechar aviso'}</button>
+      </div>}
+    </section>
+  </div>
+}
+
 export function SchedulerPage() {
   const [textByPlatform, setTextByPlatform] = useState({})
   const [titleByPlatform, setTitleByPlatform] = useState({})
@@ -407,6 +471,7 @@ export function SchedulerPage() {
   const [error, setError] = useState('')
   const [savedMessage, setSavedMessage] = useState(null)
   const [publicationStatus, setPublicationStatus] = useState(null)
+  const [publicationModalOpen, setPublicationModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState('')
   const [workerIssues, setWorkerIssues] = useState([])
@@ -435,6 +500,7 @@ export function SchedulerPage() {
   function reviewError() {
     setError('')
     setPublicationStatus(null)
+    setPublicationModalOpen(false)
     window.requestAnimationFrame(() => {
       const editor = document.querySelector('.sched-form')
       editor?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -779,9 +845,13 @@ export function SchedulerPage() {
   }
 
   async function submit(event) {
-    event.preventDefault(); setError(''); setSavedMessage(null); setPublicationStatus(null); setProgress('')
+    event.preventDefault(); setError(''); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
     if (blockingIssues.length > 0) { setError(blockingIssues[0].message); return }
     setLoading(true)
+    if (publishNow) {
+      setPublicationStatus({ type: 'processing', message: processingPublicationMessage(selected) })
+      setPublicationModalOpen(true)
+    }
     try {
       const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
       setProgress(files.length ? 'Enviando mídias...' : 'Validando agendamento...')
@@ -791,6 +861,7 @@ export function SchedulerPage() {
       const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
       setProgress(publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')
       const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, media: JSON.stringify(media), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
+      if (publishNow && !createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar a confirmação. Verifique o histórico de atividades.')
       if (sourceFailureId.current) {
         const replacedFailureId = sourceFailureId.current
         sourceFailureId.current = null
@@ -799,11 +870,12 @@ export function SchedulerPage() {
       if (serverDraftId.current) { apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'DELETE' }).catch(() => {}); serverDraftId.current = null }
       const successMessage = publishNow ? null : scheduledPublicationDetails(date, selected)
       if (!publishNow) { clearComposer(); setSavedMessage(successMessage) }
-      if (publishNow && createdPost?.id) {
-        setPublicationStatus({ type: 'processing', message: processingPublicationMessage(selected) })
-        monitorPublication(createdPost.id, eventCursor)
-      }
-    } catch (caught) { setError(caught.message) } finally { setLoading(false); setProgress('') }
+      if (publishNow && createdPost?.id) monitorPublication(createdPost.id, eventCursor)
+    } catch (caught) {
+      setPublicationStatus(null)
+      setPublicationModalOpen(false)
+      setError(caught.message)
+    } finally { setLoading(false); setProgress('') }
   }
 
   async function saveAsTemplate() {
@@ -825,6 +897,11 @@ export function SchedulerPage() {
   const carouselPlatforms = selected.includes('instagram') && !selected.includes('tiktok') ? ['instagram'] : []
   const carouselLimit = INSTAGRAM_CAROUSEL_MAX_ITEMS
   const isPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
+
+  function closePublicationModal() {
+    setPublicationModalOpen(false)
+    setPublicationStatus(null)
+  }
 
   return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
 
@@ -918,5 +995,5 @@ export function SchedulerPage() {
 
       {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
-  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>Seu post está na agenda</h3><p>Ele será publicado em <strong>{savedMessage.date}</strong>.</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">Você pode acompanhar ou editar esse agendamento no calendário.</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
+  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} previews={mediaPreviews} publishNow={publishNow} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>Seu post está na agenda</h3><p>Ele será publicado em <strong>{savedMessage.date}</strong>.</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">Você pode acompanhar ou editar esse agendamento no calendário.</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
 }
