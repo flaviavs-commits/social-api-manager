@@ -1,4 +1,5 @@
 const postsRepo = require('../../infra/db/postsRepository')
+const contasRepo = require('../../repositories/contasRepository')
 const { criarPost } = require('./criarPost')
 const { ValidationError } = require('../../domain/posts/errors')
 
@@ -26,9 +27,51 @@ async function repetirPost({ id, scheduledAt, userId, userRole, isAdmin }) {
 
   const accounts = Array.isArray(source.accounts) ? source.accounts : []
   const platforms = Array.isArray(source.platforms) ? source.platforms : []
-  const accountIds = accounts.map(account => account.accountId).filter(Boolean)
-  if (!accountIds.length && source.accountId) accountIds.push(source.accountId)
-  if (!accountIds.length) throw new ValidationError('Não foi possível identificar as contas originais desta publicação.')
+  const originalAccountIds = accounts.map(account => account.accountId).filter(Boolean)
+  if (!originalAccountIds.length && source.accountId) originalAccountIds.push(source.accountId)
+
+  // A conexão pode ter sido renovada no provedor desde a publicação original.
+  // Nesse caso, o registro antigo de `contas` é removido e recriado com outro
+  // ID, mesmo que o perfil do Instagram continue sendo o mesmo. Repetir o post
+  // deve usar a conexão ativa atual do próprio usuário, sem abrir mão da
+  // validação de posse feita por listarContasPorIds/listarContasAtivas...
+  let targetAccounts = originalAccountIds.length
+    ? await contasRepo.listarContasPorIds(originalAccountIds, userId, false)
+    : []
+
+  if (targetAccounts.length !== originalAccountIds.length) {
+    const activeAccounts = await contasRepo.listarContasAtivasPorPlataformas(platforms, userId, false)
+    const currentById = new Map(targetAccounts.map(account => [String(account.id ?? account.accountId), account]))
+    const usedIds = new Set()
+    const sourceAccounts = accounts.length ? accounts : []
+
+    targetAccounts = sourceAccounts.length
+      ? sourceAccounts.reduce((resolved, sourceAccount) => {
+          const current = currentById.get(String(sourceAccount.accountId))
+          const sameHandle = activeAccounts.find(account =>
+            account.platform === sourceAccount.platform &&
+            account.handle && sourceAccount.handle &&
+            account.handle === sourceAccount.handle &&
+            !usedIds.has(String(account.id))
+          )
+          const replacement = current || sameHandle || activeAccounts.find(account =>
+            account.platform === sourceAccount.platform && !usedIds.has(String(account.id))
+          )
+          if (replacement && !usedIds.has(String(replacement.id))) {
+            usedIds.add(String(replacement.id))
+            resolved.push(replacement)
+          }
+          return resolved
+        }, [])
+      : activeAccounts
+
+    // Posts antigos podem não ter o vínculo por conta completo. Nesse caso,
+    // mantém a repetição funcional usando as conexões ativas das redes do post.
+    if (!targetAccounts.length) targetAccounts = activeAccounts
+  }
+
+  const accountIds = targetAccounts.map(account => account.id ?? account.accountId).filter(Boolean)
+  if (!accountIds.length) throw new ValidationError('Não foi possível identificar uma conta ativa para esta publicação.')
   const sharedItems = parseJson(source.mediaItems, [])
   const media = mediaForCreate(sharedItems, source.mediaPath, source.mediaType)
   const mediaByPlatform = {}
