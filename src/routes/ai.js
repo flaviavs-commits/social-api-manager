@@ -17,6 +17,7 @@ const { safeMessage } = require('../utils/redact')
 const { registrarAprovacao, consumirAprovacao } = require('../repositories/agentApprovalsRepository')
 const { validarCriacaoPost } = require('../domain/posts/post')
 const { detectarTemaRestrito } = require('../services/ai/contentSafety')
+const { reserveAiImage, releaseAiImage } = require('../services/ai/imageQuota')
 
 const router = Router()
 const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'youtube', 'tiktok']
@@ -380,45 +381,60 @@ function imageProviderOrder(preferredModel, providers) {
 // bloqueado ou resposta vazia em um provedor não chega ao usuário enquanto
 // existir outro provedor configurado. O modelo efetivamente usado é devolvido
 // na resposta para manter a operação transparente.
-async function generateImageResilient({ descricao, userId, preferredModel = 'auto' }) {
-  const [geminiUserKey, openrouterUserKey] = await Promise.all([
-    getUserApiKey(pool, userId, 'gemini'),
-    getOpenRouterUserKey(pool, userId),
-  ])
-  const credentials = {
-    gemini: { key: geminiUserKey || getGeminiApiKey(), userKey: geminiUserKey },
-    openrouter: { key: openrouterUserKey || process.env.OPENROUTER_API_KEY, userKey: openrouterUserKey },
-  }
-  const providers = Object.keys(credentials).filter(provider => credentials[provider].key)
-  if (!providers.length) throw imageError('Nenhum provedor de imagens está configurado.', 402, 'sem_chave')
+async function generateImageResilient({ descricao, userId, plan, planUnrestricted = false, preferredModel = 'auto' }) {
+  // Reserva uma imagem antes da chamada externa. O contador é atômico no
+  // Postgres, então duas solicitações simultâneas não conseguem ultrapassar
+  // a cota do plano. Se todos os provedores falharem, a reserva é devolvida.
+  const quotaReservation = await reserveAiImage({ userId, plan, unrestricted: planUnrestricted })
 
-  const tentados = []
-  const erros = []
-  for (const provider of imageProviderOrder(preferredModel, providers)) {
-    const credential = credentials[provider]
-    tentados.push(provider)
-    try {
-      const result = provider === 'gemini'
-        ? await generateImageWithGemini(descricao, credential.key)
-        : await generateImageWithOpenRouter(descricao, credential.key)
-      const modelo = provider === 'gemini' ? GEMINI_IMAGE_MODEL : OPENROUTER_IMAGE_MODEL
-      return {
-        ...result,
-        modelo,
-        modelosTentados: tentados,
-        fallback: tentados.length > 1,
-        chaveServidor: !credential.userKey,
-      }
-    } catch (error) {
-      erros.push(`${provider}: ${error.message}`)
-      console.error(`[AI Image ${provider}]`, error.message)
+  try {
+    const [geminiUserKey, openrouterUserKey] = await Promise.all([
+      getUserApiKey(pool, userId, 'gemini'),
+      getOpenRouterUserKey(pool, userId),
+    ])
+    const credentials = {
+      gemini: { key: geminiUserKey || getGeminiApiKey(), userKey: geminiUserKey },
+      openrouter: { key: openrouterUserKey || process.env.OPENROUTER_API_KEY, userKey: openrouterUserKey },
     }
-  }
+    const providers = Object.keys(credentials).filter(provider => credentials[provider].key)
+    if (!providers.length) throw imageError('Nenhum provedor de imagens está configurado.', 402, 'sem_chave')
 
-  const failure = imageError('Não foi possível gerar a imagem com os modelos disponíveis. Tente novamente em instantes.', 502)
-  failure.details = erros.join(' | ')
-  failure.modelosTentados = tentados
-  throw failure
+    const tentados = []
+    const erros = []
+    for (const provider of imageProviderOrder(preferredModel, providers)) {
+      const credential = credentials[provider]
+      tentados.push(provider)
+      try {
+        const result = provider === 'gemini'
+          ? await generateImageWithGemini(descricao, credential.key)
+          : await generateImageWithOpenRouter(descricao, credential.key)
+        const modelo = provider === 'gemini' ? GEMINI_IMAGE_MODEL : OPENROUTER_IMAGE_MODEL
+        return {
+          ...result,
+          modelo,
+          modelosTentados: tentados,
+          fallback: tentados.length > 1,
+          chaveServidor: !credential.userKey,
+          ...(quotaReservation.unlimited ? {} : { imageQuota: quotaReservation }),
+        }
+      } catch (error) {
+        erros.push(`${provider}: ${error.message}`)
+        console.error(`[AI Image ${provider}]`, error.message)
+      }
+    }
+
+    const failure = imageError('Não foi possível gerar a imagem com os modelos disponíveis. Tente novamente em instantes.', 502)
+    failure.details = erros.join(' | ')
+    failure.modelosTentados = tentados
+    throw failure
+  } catch (error) {
+    try {
+      await releaseAiImage(quotaReservation, userId)
+    } catch (releaseError) {
+      console.error('[AI Image quota release]', releaseError.message)
+    }
+    throw error
+  }
 }
 
 // Analisa uma imagem ou cenas amostradas de vídeo respeitando o modelo
@@ -1441,6 +1457,8 @@ async function generateImageEndpoint(req, res) {
     const result = await generateImageResilient({
       descricao: descricao.trim(),
       userId: req.user.id,
+      plan: req.user.plan,
+      planUnrestricted: req.user.planUnrestricted === true,
       preferredModel: req.body?.modelo || 'auto',
     })
     await registrarAtividadeIA({
@@ -1853,6 +1871,8 @@ router.post('/agent', async (req, res) => {
       generateImage: args => generateImageResilient({
         descricao: args.description,
         userId: req.user.id,
+        plan: req.user.plan,
+        planUnrestricted: req.user.planUnrestricted === true,
         preferredModel: args.model && args.model !== 'auto' ? args.model : req.body?.modeloImagem || 'auto',
       }),
     })
@@ -1860,7 +1880,7 @@ router.post('/agent', async (req, res) => {
     res.json({ ...result, plan, requiresConfirmation: false })
   } catch (err) {
     await registrarAtividadeIA({ userId: req.user.id, acao: 'agent', status: 'erro', modelo: 'agent', detalhes: err.message })
-    if ([400, 404, 409, 422].includes(Number(err.status))) return res.status(Number(err.status)).json({ erro: err.message })
+    if ([400, 404, 409, 422, 429].includes(Number(err.status))) return res.status(Number(err.status)).json({ erro: err.message, code: err.code || undefined })
     console.error('[AI agent]', err.message)
     serverError(res, err, 'Não foi possível processar a solicitação do agente')
   }
