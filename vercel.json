@@ -1,6 +1,9 @@
 {
   "framework": null,
   "outputDirectory": "public",
+  "crons": [
+    { "path": "/api/cron/media-cleanup", "schedule": "0 3 * * *" }
+  ],
   "redirects": [
     { "source": "/", "destination": "/como-funciona", "permanent": false },
     { "source": "/sobre", "destination": "/como-funciona", "permanent": true }

@@ -44,6 +44,19 @@ router.get('/renew-tokens', async (req, res) => {
   }
 })
 
+// Cron dedicado da Vercel para a limpeza de mídias do Vercel Blob. A rota é
+// encaminhada pela Vercel para a API que roda na Railway e permanece protegida
+// pelo mesmo CRON_SECRET.
+router.get('/media-cleanup', async (req, res) => {
+  try {
+    const limpezaMidias = await scheduler.executarLimpezaMidias()
+    res.json({ ok: true, limpezaMidias })
+  } catch (err) {
+    console.error('Falha no cron media-cleanup:', safeMessage(err?.stack || err?.message || err))
+    res.status(500).json({ ok: false, erro: 'Falha na limpeza automática de mídias.' })
+  }
+})
+
 router.get('/health-check', async (req, res) => {
   try {
     await scheduler.verificarSaudePlataformas()
