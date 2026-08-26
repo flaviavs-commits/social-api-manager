@@ -13,6 +13,7 @@ export function ContentQueuesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [media, setMedia] = useState(null)
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState('PUBLIC_TO_EVERYONE')
   const [form, setForm] = useState({ name: '', text: '', platforms: ['instagram'], days: ['1', '3', '5'], time: '10:00' })
   const notify = useToast()
   const load = useCallback(async () => {
@@ -27,9 +28,6 @@ export function ContentQueuesPage() {
   useEffect(() => { load().catch(error => notify(error.message, 'error')) }, [load, notify])
   function togglePlatform(platform) {
     setForm(current => ({ ...current, platforms: current.platforms.includes(platform) ? current.platforms.filter(item => item !== platform) : [...current.platforms, platform] }))
-    if (platform === 'tiktok' && !form.platforms.includes(platform) && media && !media.file.type.startsWith('video/')) {
-      notify('O TikTok aceita somente um vídeo. Troque a imagem antes de criar a rotina.', 'error')
-    }
   }
   function toggleDay(day) { setForm(current => ({ ...current, days: current.days.includes(day) ? current.days.filter(item => item !== day) : [...current.days, day] })) }
   function selectMedia(event) {
@@ -38,10 +36,6 @@ export function ContentQueuesPage() {
     if (!file) return
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
       notify('Escolha uma imagem ou vídeo válido.', 'error')
-      return
-    }
-    if (form.platforms.includes('tiktok') && !file.type.startsWith('video/')) {
-      notify('O TikTok aceita somente um vídeo.', 'error')
       return
     }
     setMedia(current => {
@@ -69,11 +63,10 @@ export function ContentQueuesPage() {
     if (!form.platforms.length || !form.days.length) return notify('Selecione ao menos uma rede e um dia.', 'error')
     if (form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform)) && !media) return notify('Instagram, YouTube e TikTok precisam de mídia anexada.', 'error')
     if (form.platforms.includes('youtube') && media && !media.file.type.startsWith('video/')) return notify('O YouTube precisa de um vídeo anexado.', 'error')
-    if (form.platforms.includes('tiktok') && media && !media.file.type.startsWith('video/')) return notify('O TikTok aceita somente um vídeo.', 'error')
     setSaving(true)
     try {
       const mediaPath = media ? await uploadMedia(media.file) : null
-      await apiFetch('/api/content-queues', { method: 'POST', body: JSON.stringify({ name: form.name, platforms: form.platforms, content: { text: form.text, ...(mediaPath ? { mediaPath, mediaType: media.file.type, mediaName: media.file.name } : {}) }, recurrence: { days: form.days.map(Number), time: form.time } }) })
+      await apiFetch('/api/content-queues', { method: 'POST', body: JSON.stringify({ name: form.name, platforms: form.platforms, content: { text: form.text, ...(mediaPath ? { mediaPath, mediaType: media.file.type, mediaName: media.file.name } : {}), ...(form.platforms.includes('tiktok') ? { tiktokPrivacyLevel } : {}) }, recurrence: { days: form.days.map(Number), time: form.time } }) })
       setForm(current => ({ ...current, name: '', text: '' }))
       removeMedia()
       await load()
@@ -100,7 +93,7 @@ export function ContentQueuesPage() {
   const selectedPlatforms = platforms.filter(([id]) => form.platforms.includes(id)).map(([, label]) => label)
   const selectedPlatformsLabel = selectedPlatforms.length === 1 ? '1 rede selecionada' : `${selectedPlatforms.length} redes selecionadas`
   const mediaRequired = form.platforms.some(platform => ['instagram', 'youtube', 'tiktok'].includes(platform))
-  const videoOnly = form.platforms.includes('tiktok') || form.platforms.includes('youtube')
+  const videoOnly = form.platforms.includes('youtube')
 
   function formatQueueDays(queue) {
     const queueDays = queue.recurrence?.days || []
@@ -150,7 +143,7 @@ export function ContentQueuesPage() {
             {platforms.map(([id, label]) => <label className={`queues-platform-option${form.platforms.includes(id) ? ' is-selected' : ''}`} key={id}>
               <input type="checkbox" checked={form.platforms.includes(id)} onChange={() => togglePlatform(id)} />
               <span className={`queues-platform-icon queues-platform-${id}`} aria-hidden="true"><PlatformIcon platform={id} className="queues-platform-svg" /></span>
-              <span className="queues-option-copy"><strong>{label}</strong><small>{id === 'instagram' ? 'Feed, Reels e Stories' : id === 'facebook' ? 'Página e perfil' : id === 'youtube' ? 'Canal de vídeos' : 'Vídeos curtos'}</small></span>
+              <span className="queues-option-copy"><strong>{label}</strong><small>{id === 'instagram' ? 'Feed, Reels e Stories' : id === 'facebook' ? 'Página e perfil' : id === 'youtube' ? 'Canal de vídeos' : 'Vídeos e fotos'}</small></span>
               <span className="queues-option-check" aria-hidden="true">{form.platforms.includes(id) ? '✓' : ''}</span>
             </label>)}
           </div>
@@ -159,6 +152,8 @@ export function ContentQueuesPage() {
             <span>{selectedPlatforms.length ? `O mesmo conteúdo será publicado em ${selectedPlatforms.join(', ')}.` : 'Selecione pelo menos uma rede para continuar.'}</span>
           </div>
         </fieldset>
+
+        {form.platforms.includes('tiktok') && <label className="queues-field"><span>Privacidade do TikTok</span><small>Escolha quem poderá ver cada publicação da rotina.</small><select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label>}
 
         <fieldset className="queues-fieldset">
           <legend><span>Quando publicar?</span><small>{selectedDays.length ? selectedDays.join(' · ') : 'Selecione ao menos um dia'}</small></legend>

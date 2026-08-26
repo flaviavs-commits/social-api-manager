@@ -182,7 +182,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('textByPlatform inválido')
   }
 
-  // Título diferente por rede (hoje só o YouTube usa título) — mesmo padrão
+  // Título diferente por rede (YouTube e título de foto do TikTok) — mesmo padrão
   // de textByPlatform. Ver domain/posts/post.js e migrations/032.
   let titleByPlatform = null
   try {

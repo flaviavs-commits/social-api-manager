@@ -26,7 +26,7 @@ async function buscarTiktokCreatorInfo({ contaId, userId, isAdmin }) {
       creatorNickname: conta.handle || null,
       creatorUsername: conta.handle || null,
       creatorAvatarUrl: conta.avatar_url || null,
-      privacyLevelOptions: ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY'],
+      privacyLevelOptions: ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'],
       commentDisabled: false,
       duetDisabled: false,
       stitchDisabled: false,

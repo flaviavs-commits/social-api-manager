@@ -8,7 +8,8 @@ const MAX_TEXT_LENGTH = 5000
 const MAX_YOUTUBE_TITLE_LENGTH = 100
 const MAX_CAPTION_LENGTH = 500
 const YOUTUBE_VISIBILITIES = ['public', 'unlisted', 'private']
-const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'SELF_ONLY']
+const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY']
+const TIKTOK_PHOTO_MAX_ITEMS = 35
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20
 
 // Categorias oficiais da YouTube Data API v3 (videoCategories.list, região
@@ -177,18 +178,27 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   if (platforms.includes('tiktok')) {
     const { itemsResolvidos, mediaTypeResolvido, aspectRatioResolvido } = resolverMidiaDaRede('tiktok', midiaContext)
     if (!itemsResolvidos.length)
-      return 'Falta vídeo para publicar no TikTok. Anexe um vídeo ou desmarque o TikTok.'
-    if (itemsResolvidos.length !== 1 || itemsResolvidos[0].type !== 'video')
-      return 'O TikTok aceita somente um vídeo por publicação. Remova as imagens e os arquivos extras.'
-    if (mediaTypeResolvido === 'video' && aspectRatioResolvido === false)
-      return 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.'
+      return 'Falta imagem ou vídeo para publicar no TikTok. Anexe uma mídia ou desmarque o TikTok.'
+
+    const temVideo = itemsResolvidos.some(item => item.type === 'video')
+    if (temVideo) {
+      if (itemsResolvidos.length !== 1 || itemsResolvidos[0].type !== 'video')
+        return 'O TikTok aceita um vídeo sozinho ou um carrossel somente de fotos. Remova a mistura de mídias e os arquivos extras.'
+      if (mediaTypeResolvido === 'video' && aspectRatioResolvido === false)
+        return 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.'
+    } else {
+      if (!itemsResolvidos.every(item => item.type === 'image'))
+        return 'O TikTok aceita vídeos ou um carrossel somente de fotos.'
+      if (itemsResolvidos.length > TIKTOK_PHOTO_MAX_ITEMS)
+        return `O carrossel de fotos do TikTok aceita no máximo ${TIKTOK_PHOTO_MAX_ITEMS} imagens.`
+    }
   }
 
   // Exigência das Content Sharing Guidelines do TikTok: a privacidade não
   // pode ter um valor default escolhido pelo backend, o usuário precisa
   // selecionar explicitamente na tela antes de publicar.
   if (platforms.includes('tiktok') && !TIKTOK_PRIVACY_LEVELS.includes(tiktokPrivacyLevel))
-    return 'Escolha quem pode ver o vídeo no TikTok antes de publicar.'
+    return 'Escolha quem pode ver a publicação no TikTok antes de publicar.'
 
   if (platforms.includes('instagram')) {
     const { itemsResolvidos, aspectRatioInstagramResolvido } = resolverMidiaDaRede('instagram', midiaContext)
@@ -273,7 +283,7 @@ function decidirStatusPublicacao(results) {
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
   YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
-  INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS,
+  INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS, TIKTOK_PHOTO_MAX_ITEMS,
   INSTAGRAM_CAROUSEL_MAX_ITEMS,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,
   decidirStatusPublicacao

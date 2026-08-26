@@ -12,7 +12,7 @@ const AI_GENERATION_TIMEOUT_MS = 60_000
 const PUBLISH_PLATFORMS = [
   { id: 'instagram', label: 'Instagram', symbol: '◎', hint: 'Imagem obrigatória' },
   { id: 'facebook', label: 'Facebook', symbol: 'f', hint: 'Imagem opcional' },
-  { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Um vídeo obrigatório' },
+  { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Imagem ou vídeo' },
   { id: 'youtube', label: 'YouTube', symbol: '▶', hint: 'Exige vídeo', videoOnly: true },
 ]
 
@@ -38,6 +38,7 @@ export function AiPage() {
   const [accountsLoadError, setAccountsLoadError] = useState(false)
   const [publishModalIndex, setPublishModalIndex] = useState(null)
   const [publishPlatform, setPublishPlatform] = useState('instagram')
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState('PUBLIC_TO_EVERYONE')
   const [publicationDialog, setPublicationDialog] = useState(null)
   const [publicationProgress, setPublicationProgress] = useState('')
   const publicationPollTimer = useRef(null)
@@ -208,7 +209,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   function isPublishPlatformAvailable(platform, targetPost = null) {
     const option = PUBLISH_PLATFORMS.find(item => item.id === platform)
     if (!option || option.videoOnly) return false
-    if (targetPost?.visualFormat === 'carousel' && platform !== 'instagram') return false
+    if (targetPost?.visualFormat === 'carousel' && !['instagram', 'tiktok'].includes(platform)) return false
     if (!accountsLoaded || accountsLoadError) return true
     return accountsForPlatform(platform).length > 0
   }
@@ -269,7 +270,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   }
 
   function confirmPublishPlatform() {
-    if (publishModalIndex === null || !isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])) return
+    if (publishModalIndex === null || !isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex]) || (publishPlatform === 'tiktok' && !tiktokPrivacyLevel)) return
     const index = publishModalIndex
     setPublishModalIndex(null)
     publishWithGeneratedImage(index, publishPlatform)
@@ -284,8 +285,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       const platform = selectedPlatform || post.publishPlatform || post.plataformas?.[0] || 'instagram'
       const platforms = [platform]
       if (platforms.includes('youtube')) throw new Error('O YouTube exige vídeo. Escolha uma ideia para Instagram, Facebook ou TikTok.')
-      const isCarousel = post.visualFormat === 'carousel' && platform === 'instagram'
-      if (post.visualFormat === 'carousel' && platform !== 'instagram') throw new Error('O carrossel pode ser publicado somente no Instagram.')
+      const isCarousel = post.visualFormat === 'carousel' && ['instagram', 'tiktok'].includes(platform)
+      if (post.visualFormat === 'carousel' && !['instagram', 'tiktok'].includes(platform)) throw new Error('O carrossel pode ser publicado somente no Instagram ou TikTok.')
       updatePost(index, { publishPlatform: platform, plataformas: platforms })
       setPublicationDialog({ index, platforms, status: { type: 'processing', message: processingPublicationMessage(platforms) } })
       setPublicationProgress('Preparando sua publicação...')
@@ -313,7 +314,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         timeoutMs: 60_000,
         body: JSON.stringify({
           publishNow: true,
-          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image' }],
+          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image', ...(platform === 'tiktok' ? { tiktokPrivacyLevel } : {}) }],
         }),
       })
       const createdPost = data.posts?.[0]
@@ -378,7 +379,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         <legend>Formato visual opcional</legend>
         <div className="ai-visual-format-options">
           <label className={visualFormat === 'single' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} /><span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span></label>
-          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel do Instagram</strong><small>Uma sequência visual coerente para navegar.</small></span></label>
+          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel de fotos</strong><small>Uma sequência visual coerente para Instagram ou TikTok.</small></span></label>
         </div>
         {visualFormat === 'carousel' && <label className="ai-carousel-count">Quantidade de slides<select value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>{[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}</select></label>}
         <p>O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
@@ -426,7 +427,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
           </label>
         })}
       </div>
-      {posts[publishModalIndex]?.visualFormat === 'carousel' && <p className="ai-carousel-publish-note">Carrosséis são publicados como uma única publicação no Instagram, mantendo a ordem dos slides.</p>}
+      {posts[publishModalIndex]?.visualFormat === 'carousel' && <p className="ai-carousel-publish-note">Carrosséis são publicados como uma única publicação no Instagram ou TikTok, mantendo a ordem dos slides.</p>}
+      {publishPlatform === 'tiktok' && <label className="ai-tiktok-privacy-field">Privacidade do TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="">Selecione...</option><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label>}
       <div className="ai-publish-platform-actions"><button type="button" className="secondary-button" onClick={closePublishPlatformModal}>Cancelar</button><button type="button" className="action-button" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])}>{posts[publishModalIndex]?.visualFormat === 'carousel' ? (posts[publishModalIndex]?.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : posts[publishModalIndex]?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</button></div>
     </section>
   </div>}

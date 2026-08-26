@@ -904,7 +904,7 @@ const PLATFORM_REQUIREMENTS = {
   instagram: { media: 'required', mediaTypes: ['image', 'video'], label: 'Instagram', descricao: 'Exige uma imagem ou vídeo — não publica só texto.' },
   facebook:  { media: 'optional', mediaTypes: ['image', 'video'], label: 'Facebook',  descricao: 'Aceita só texto; imagem/vídeo são opcionais.' },
   youtube:   { media: 'required', mediaTypes: ['video'],          label: 'YouTube',   descricao: 'Exige um vídeo e um título.' },
-  tiktok:    { media: 'required', mediaTypes: ['video'],          label: 'TikTok',    descricao: 'Exige exatamente um vídeo, título de até 90 caracteres e descrição de até 4000 caracteres.' },
+  tiktok:    { media: 'required', mediaTypes: ['image', 'video'], label: 'TikTok',    descricao: 'Exige um vídeo ou um carrossel de até 35 fotos, título de até 90 caracteres e descrição de até 4000 caracteres.' },
 }
 
 // GET /api/ai/requirements?plataformas=instagram,youtube — o que cada rede exige
@@ -1964,6 +1964,8 @@ router.post('/schedule', async (req, res) => {
 
       const post = await repo.criarPost({
         text:              p.texto,
+        textByPlatform:    p.textByPlatform || null,
+        titleByPlatform:   p.titleByPlatform || null,
         platforms:         plataformas,
         scheduledAt:       publishNow ? new Date() : horario,
         repeat:            'none',
@@ -1973,6 +1975,10 @@ router.post('/schedule', async (req, res) => {
         youtubeTitle:      p.titulo || null,
         youtubeVisibility: 'public',
         youtubeIsShort:    null,
+        tiktokPrivacyLevel: p.tiktokPrivacyLevel || null,
+        tiktokDisableComment: p.tiktokDisableComment || false,
+        tiktokDisableDuet:    p.tiktokDisableDuet || false,
+        tiktokDisableStitch:  p.tiktokDisableStitch || false,
         accountId:         p.accountId || null,
         userId:            req.user.id,
         status:            publishNow ? 'processing' : 'scheduled',

@@ -235,7 +235,7 @@ describe('validarCriacaoPost — igFormat', () => {
     expect(validarCriacaoPost(baseArgs({ igFormat: 'post', items }))).toMatch(/no máximo 10 fotos/)
   })
 
-  test('aceita somente um vídeo no TikTok', () => {
+  test('aceita um vídeo ou carrossel de fotos no TikTok', () => {
     expect(validarCriacaoPost(baseArgs({
       platforms: ['tiktok'],
       textByPlatform: { tiktokDescription: 'descrição' },
@@ -247,12 +247,37 @@ describe('validarCriacaoPost — igFormat', () => {
       textByPlatform: { tiktokDescription: 'descrição' },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
       items: [{ path: 'foto.jpg', type: 'image', caption: '' }],
-    }))).toMatch(/somente um vídeo/)
+    }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: [{ path: 'a.jpg', type: 'image', caption: '' }, { path: 'b.jpg', type: 'image', caption: '' }],
+    }))).toBeNull()
+  })
+
+  test('rejeita mistura de vídeo com fotos no TikTok', () => {
     expect(validarCriacaoPost(baseArgs({
       platforms: ['tiktok'],
       textByPlatform: { tiktokDescription: 'descrição' },
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
       items: [{ path: 'a.mp4', type: 'video', caption: '' }, { path: 'b.mp4', type: 'video', caption: '' }],
-    }))).toMatch(/somente um vídeo/)
+    }))).toMatch(/vídeo sozinho ou um carrossel/)
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: [{ path: 'a.mp4', type: 'video', caption: '' }, { path: 'b.jpg', type: 'image', caption: '' }],
+    }))).toMatch(/vídeo sozinho ou um carrossel/)
+  })
+
+  test('rejeita mais de 35 fotos no carrossel do TikTok', () => {
+    const items = Array.from({ length: 36 }, (_, index) => ({ path: `${index}.jpg`, type: 'image', caption: '' }))
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items,
+    }))).toMatch(/no máximo 35 imagens/)
   })
 })

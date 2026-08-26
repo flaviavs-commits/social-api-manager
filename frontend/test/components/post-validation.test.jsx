@@ -107,12 +107,26 @@ describe('buildValidationIssues', () => {
     expect(issues.some(i => i.message.includes('proporção entre 9:16'))).toBe(true)
   })
 
-  it('rejects an image for TikTok', () => {
+  it('accepts an image or photo carousel for TikTok', () => {
     const issues = buildValidationIssues(baseArgs({
       platforms: ['tiktok'],
       files: [{ type: 'image/png' }],
     }))
-    expect(issues.some(i => i.message.includes('somente um vídeo'))).toBe(true)
+    expect(issues.filter(i => i.platform === 'tiktok')).toHaveLength(0)
+
+    const carouselIssues = buildValidationIssues(baseArgs({
+      platforms: ['tiktok'],
+      files: Array.from({ length: 35 }, () => ({ type: 'image/png' })),
+    }))
+    expect(carouselIssues.filter(i => i.platform === 'tiktok')).toHaveLength(0)
+  })
+
+  it('rejects mixed TikTok video and photo media', () => {
+    const issues = buildValidationIssues(baseArgs({
+      platforms: ['tiktok'],
+      files: [{ type: 'video/mp4' }, { type: 'image/png' }],
+    }))
+    expect(issues.some(i => i.message.includes('vídeo sozinho ou um carrossel'))).toBe(true)
   })
 
   it('accepts a wide Instagram Feed image up to 1.91:1', () => {

@@ -11,18 +11,6 @@ const zernioClient = require('./zernioClient')
 // INSTAGRAM_FORMATS) — Zernio usa 'feed'/'reel'/'story'.
 const IG_CONTENT_TYPE = { post: 'feed', reel: 'reel', story: 'story' }
 
-// post.tiktokPrivacyLevel usa os valores da Content Posting API do TikTok
-// (domain/posts/post.js, TIKTOK_PRIVACY_LEVELS) — o mapeamento abaixo para
-// os valores do Zernio (public/private/friends, minúsculo) é uma SUPOSIÇÃO
-// baseada no resumo da doc pública, não confirmada por teste real com um
-// post de TikTok de verdade. Confirmar no primeiro post real de teste desta
-// rede e corrigir aqui se necessário.
-const TIKTOK_PRIVACY = {
-  PUBLIC_TO_EVERYONE: 'public',
-  MUTUAL_FOLLOW_FRIENDS: 'friends',
-  SELF_ONLY: 'private'
-}
-
 function montarMediaItems(post) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   return items.map(item => ({
@@ -139,27 +127,48 @@ async function publicarZernioYoutube(token, post, { requestId } = {}) {
 
 async function publicarZernioTiktok(token, post, { requestId } = {}) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
-  if (items.length !== 1 || items[0].type !== 'video') throw new Error('O TikTok aceita somente um vídeo por publicação.')
+  if (!items.length) throw new Error('TikTok exige uma imagem ou vídeo para publicar.')
+
+  const temVideo = items.some(item => item.type === 'video')
+  if (temVideo && (items.length !== 1 || items[0].type !== 'video')) {
+    throw new Error('O TikTok aceita um vídeo sozinho ou um carrossel somente de fotos.')
+  }
+  if (!temVideo && (!items.every(item => item.type === 'image') || items.length > 35)) {
+    throw new Error('O TikTok aceita até 35 imagens em um carrossel.')
+  }
 
   // Exigência das Content Sharing Guidelines do TikTok (mesma regra de
   // domain/posts/post.js/validarCriacaoPost): a privacidade não pode ter um
   // default silencioso escolhido pelo backend.
-  if (!post.tiktokPrivacyLevel) throw new Error('Escolha quem pode ver o vídeo no TikTok antes de publicar.')
+  if (!post.tiktokPrivacyLevel) throw new Error('Escolha quem pode ver a publicação no TikTok antes de publicar.')
 
   const tiktokDescription = post.textByPlatform?.tiktokDescription || post.text || ''
-  const platformSpecificData = {
-    videoTitle: (post.titleByPlatform?.tiktok || post.text || '').slice(0, 90),
-    disableComment: !!post.tiktokDisableComment,
-    disableDuet: !!post.tiktokDisableDuet,
-    disableStitch: !!post.tiktokDisableStitch,
-    privacy: TIKTOK_PRIVACY[post.tiktokPrivacyLevel] || 'public'
+  const tiktokSettings = {
+    privacy_level: post.tiktokPrivacyLevel,
+    allow_comment: !post.tiktokDisableComment,
+    content_preview_confirmed: true,
+    express_consent_given: true,
+    ...(temVideo
+      ? {
+          allow_duet: !post.tiktokDisableDuet,
+          allow_stitch: !post.tiktokDisableStitch
+        }
+      : {
+          media_type: 'photo',
+          photo_cover_index: 0,
+          ...(tiktokDescription ? { description: tiktokDescription.slice(0, 4000) } : {})
+        })
   }
+  const content = temVideo
+    ? tiktokDescription.slice(0, 2200)
+    : (post.titleByPlatform?.tiktok || tiktokDescription || post.text || '').slice(0, 90)
 
   const response = await zernioClient.createPost({
-    content: tiktokDescription.slice(0, 4000),
+    content,
     publishNow: true,
-    mediaItems: [{ type: 'video', url: mediaUrl(items[0].path) }],
-    platforms: [{ platform: 'tiktok', accountId: token.accessToken, platformSpecificData }]
+    mediaItems: montarMediaItems({ mediaItems: items }),
+    platforms: [{ platform: 'tiktok', accountId: token.accessToken }],
+    tiktokSettings
   }, { requestId })
   const created = postDaResposta(response)
 

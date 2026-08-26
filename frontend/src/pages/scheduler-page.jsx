@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
+import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
@@ -181,7 +181,11 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [analysisNotes, setAnalysisNotes] = useState([])
-  const analysisLimit = selected.includes('instagram') && !selected.includes('tiktok') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : 1
+  const analysisLimit = selected.includes('instagram')
+    ? INSTAGRAM_CAROUSEL_MAX_ITEMS
+    : selected.includes('tiktok')
+      ? TIKTOK_PHOTO_MAX_ITEMS
+      : 1
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
@@ -329,7 +333,7 @@ function PreviewMedia({ platform, previews, igFormat, aspectRequest, mediaProfil
   const media = isVideo
     ? <div className="social-preview-video"><video src={item.url} controls muted playsInline preload="metadata" aria-label="Prévia do vídeo selecionado"/><span className="social-preview-video-badge">Vídeo detectado</span></div>
     : <img src={item.url} alt="Prévia da publicação"/>
-  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>{media}{platform === 'instagram' && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} fotos em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}<small>{previews.length} fotos</small></div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
+  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>{media}{['instagram', 'tiktok'].includes(platform) && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} fotos em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}<small>{previews.length} fotos</small></div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
 }
 
 function PostPreview({ textByPlatform, titleByPlatform, selected, files, previews, publishNow, date, youtubeTitle, igFormat, igAspect, tiktokAspect, youtubeFormat, mediaProfile, accounts }) {
@@ -583,9 +587,6 @@ export function SchedulerPage() {
 
   function toggle(platform) {
     setSelected(value => value.includes(platform) ? value.filter(item => item !== platform) : [...value, platform])
-    if (platform === 'tiktok' && !selected.includes(platform) && files.some(file => !file.type.startsWith('video/'))) {
-      setError('O TikTok aceita somente um vídeo por publicação. Remova as imagens antes de selecionar o TikTok.')
-    }
   }
   function toggleAccount(accountId) {
     const key = accountIdKey(accountId)
@@ -618,24 +619,24 @@ export function SchedulerPage() {
   }
   function addFiles(fileList) {
     const incoming = Array.from(fileList || []).map(normalizeMediaFile)
-    const valid = incoming.filter(file => {
-      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return false
-      return !selected.includes('tiktok') || file.type.startsWith('video/')
-    })
+    const valid = incoming.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
     if (incoming.length !== valid.length) {
-      setError(selected.includes('tiktok')
-        ? 'O TikTok aceita somente arquivos de vídeo. As imagens foram ignoradas.'
-        : 'Alguns arquivos foram ignorados. Selecione somente imagens ou vídeos.')
+      setError('Alguns arquivos foram ignorados. Selecione somente imagens ou vídeos.')
     }
     setFiles(current => {
       const merged = [...current, ...valid]
       const unique = merged.filter((file, index, list) => list.findIndex(item => mediaFileKey(item) === mediaFileKey(file)) === index)
-      if (selected.includes('tiktok') && unique.length > 1) {
-        setError('O TikTok aceita somente um vídeo por publicação. Remova os arquivos extras.')
+      const hasVideo = unique.some(file => file.type.startsWith('video/'))
+      if (selected.includes('tiktok') && hasVideo && unique.length > 1) {
+        setError('O TikTok aceita um vídeo sozinho ou um carrossel somente de fotos. Remova a mistura de mídias e os arquivos extras.')
         return current
       }
-      const carouselLimit = INSTAGRAM_CAROUSEL_MAX_ITEMS
-      if (!selected.includes('tiktok') && unique.length > carouselLimit) {
+      const carouselLimit = selected.includes('instagram')
+        ? INSTAGRAM_CAROUSEL_MAX_ITEMS
+        : selected.includes('tiktok')
+          ? TIKTOK_PHOTO_MAX_ITEMS
+          : INSTAGRAM_CAROUSEL_MAX_ITEMS
+      if (!hasVideo && unique.length > carouselLimit) {
         setError(`Este carrossel pode ter no máximo ${carouselLimit} fotos para as redes selecionadas.`)
         return current
       }
@@ -831,8 +832,8 @@ export function SchedulerPage() {
   }).filter(Boolean).join('\n\n')
 
   const tiktokPreviewAspect = resolvePreviewAspect({ platform: 'tiktok', mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: tiktokAspect, instagramFormat: igFormat })
-  const carouselPlatforms = selected.includes('instagram') && !selected.includes('tiktok') ? ['instagram'] : []
-  const carouselLimit = INSTAGRAM_CAROUSEL_MAX_ITEMS
+  const carouselPlatforms = selected.filter(platform => ['instagram', 'tiktok'].includes(platform))
+  const carouselLimit = selected.includes('instagram') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_PHOTO_MAX_ITEMS
   const isPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
 
   function closePublicationModal() {
@@ -886,7 +887,7 @@ export function SchedulerPage() {
     <SchedSection number={2} title="Mídia e conteúdo">
       <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
       <div className="upload-field-heading"><div><p className="eyebrow">{isPhotoCarousel ? 'CARROSSEL' : mediaProfile?.kind === 'video' ? 'VÍDEO' : mediaProfile?.kind === 'image' ? 'FOTO' : 'MÍDIAS'}</p><strong>{isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Escolha os arquivos da publicação'}</strong></div><span aria-hidden="true">▧</span></div>
-      <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>{carouselPlatforms.length ? 'Adicionar fotos ao carrossel' : 'Escolher arquivo'}</strong><small>{carouselPlatforms.length ? `Feed do Instagram · até ${carouselLimit} fotos` : selected.includes('tiktok') ? 'Somente vídeo · MP4, MOV ou WebM' : 'Imagem ou vídeo · HEIC/HEIF também aceito'}</small></span><input className="upload-picker-input" type="file" multiple={carouselPlatforms.length > 0} accept={selected.includes('tiktok') ? 'video/*' : 'image/*,image/heic,image/heif,video/*'} onChange={selectFiles} aria-label={selected.includes('tiktok') ? 'Selecionar um vídeo para o TikTok' : 'Selecionar imagens ou vídeos'}/></label>
+      <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>{carouselPlatforms.length ? 'Adicionar fotos ao carrossel' : 'Escolher arquivo'}</strong><small>{carouselPlatforms.length ? `${selected.includes('instagram') ? 'Feed do Instagram' : 'TikTok'} · até ${carouselLimit} fotos` : selected.includes('tiktok') ? 'Imagem ou vídeo · carrossel de até 35 fotos' : 'Imagem ou vídeo · HEIC/HEIF também aceito'}</small></span><input className="upload-picker-input" type="file" multiple={carouselPlatforms.length > 0} accept="image/*,image/heic,image/heif,video/*" onChange={selectFiles} aria-label={selected.includes('tiktok') ? 'Selecionar imagens ou vídeo para o TikTok' : 'Selecionar imagens ou vídeos'}/></label>
         <p className="upload-drop-hint">ou arraste os arquivos até aqui · a ordem das fotos será mantida na publicação</p>
       </div>
       {files.length > 0 && <div className={`media-preview-grid${selected.includes('tiktok') ? ' media-preview-grid-tiktok' : ''}`} aria-label="Arquivos selecionados">{mediaPreviews.map((item, index) => <article className="media-preview-card" key={item.key}>
@@ -915,7 +916,7 @@ export function SchedulerPage() {
              {platform === 'instagram' && <div className="platform-composer-settings-grid"><label>Formato Instagram<select value={igFormat} onChange={event => setIgFormat(event.target.value)}><option value="post">Feed</option><option value="reel">Reel</option><option value="story">Story</option></select></label><label>Proporção da prévia Instagram<select value={igAspect} onChange={event => setIgAspect(event.target.value)}>{igFormat === 'post' && <><option value="auto">Automático · detectar</option><option value="square">Foto · 1:1 · 1080 × 1080</option><option value="portrait">Foto · 4:5 · 1080 × 1350</option><option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option></>}{['reel', 'story'].includes(igFormat) && <option value="vertical">Vídeo vertical · 9:16 · 1080 × 1920</option>}</select></label></div>}
              {platform === 'facebook' && <p className="platform-composer-no-settings">Formatos recomendados para o feed: {SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}. A publicação continua aceitando imagem ou vídeo.</p>}
              {platform === 'youtube' && <div className="platform-composer-settings-grid"><label>Título do YouTube<input value={youtubeTitle} onChange={event => setYoutubeTitle(event.target.value)} maxLength={100}/></label><label>Visibilidade<select value={youtubeVisibility} onChange={event => setYoutubeVisibility(event.target.value)}><option value="public">Público</option><option value="unlisted">Não listado</option><option value="private">Privado</option></select></label><label>Feito para crianças (YouTube)<select value={youtubeMadeForKids} onChange={event => setYoutubeMadeForKids(event.target.value)}><option value="">Selecione...</option><option value="false">Não</option><option value="true">Sim</option></select></label><label>Categoria do YouTube<select value={youtubeCategoryId} onChange={event => setYoutubeCategoryId(event.target.value)}><option value="">Automática</option>{youtubeCategories.map(category => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label><label>Formato do YouTube<select value={youtubeFormat} onChange={event => setYoutubeFormat(event.target.value)}><option value="">Automático · 1920 × 1080</option><option value="video">Vídeo · 1920 × 1080</option><option value="short">Short · 1080 × 1920</option></select></label></div>}
-      {platform === 'tiktok' && <div className="platform-composer-settings-grid"><label>Formato do vídeo TikTok<span className="platform-composer-fixed-format">{TIKTOK_VIDEO_DIMENSIONS.label} · vídeo entre 9:16 e 16:9</span></label><label>Privacidade TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="SELF_ONLY">Somente eu</option></select></label><fieldset className="checkbox-group"><legend>Interações do TikTok</legend><div className="checkbox-row"><label><input type="checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)}/> Bloquear comentários</label><label><input type="checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)}/> Bloquear duet</label><label><input type="checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)}/> Bloquear stitch</label></div></fieldset></div>}
+       {platform === 'tiktok' && <div className="platform-composer-settings-grid"><label>Formato do TikTok<span className="platform-composer-fixed-format">{files.length > 1 && isPhotoCarousel ? `Carrossel de fotos · até ${TIKTOK_PHOTO_MAX_ITEMS} imagens` : files[0]?.type.startsWith('image/') ? 'Foto · a API ajusta para 1080 × 1920 px' : `${TIKTOK_VIDEO_DIMENSIONS.label} · vídeo entre 9:16 e 16:9`}</span></label><label>Privacidade TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label><fieldset className="checkbox-group"><legend>Interações do TikTok</legend><div className="checkbox-row"><label><input type="checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)}/> Bloquear comentários</label><label><input type="checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)}/> Bloquear duet</label><label><input type="checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)}/> Bloquear stitch</label></div></fieldset></div>}
           </section>
         </article>
       })}</div></div>}

@@ -2,6 +2,7 @@ const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, PLATFORMS, serverError } = require('../utils/http')
 const { ALLOWED_MEDIA_TYPES, isBlobUrl } = require('../infra/storage/blobStorage')
+const { TIKTOK_PRIVACY_LEVELS } = require('../domain/posts/post')
 
 const router = Router()
 const validTime = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''))
@@ -72,7 +73,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload oficial e ter um formato permitido.' })
     }
     if (platforms.includes('youtube') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) return res.status(400).json({ erro: 'O YouTube precisa de um vídeo anexado.' })
-    if (platforms.includes('tiktok') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) return res.status(400).json({ erro: 'O TikTok aceita somente um vídeo anexado.' })
+    if (platforms.includes('tiktok') && !['image/', 'video/'].some(prefix => String(content.mediaType || '').toLowerCase().startsWith(prefix))) return res.status(400).json({ erro: 'O TikTok precisa de uma imagem ou vídeo anexado.' })
+    if (platforms.includes('tiktok') && !TIKTOK_PRIVACY_LEVELS.includes(content.tiktokPrivacyLevel)) return res.status(400).json({ erro: 'Escolha a privacidade da publicação do TikTok.' })
     const normalized = { days: [...new Set(recurrence.days.map(Number))].sort((a, b) => a - b), time: recurrence.time }
     const next = active ? nextOccurrence(normalized, new Date(), await userTimezone(req.user.id)) : null
     const { rows } = await pool.query('INSERT INTO content_queues (user_id,name,platforms,content,recurrence,next_run_at,active) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id', [req.user.id, name.trim(), platforms, JSON.stringify(content), JSON.stringify(normalized), next, Boolean(active)])

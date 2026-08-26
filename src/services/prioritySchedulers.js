@@ -16,8 +16,8 @@ async function processarFilasRecorrentes() {
     try {
       const content = queue.content || {}
       const platforms = Array.isArray(queue.platforms) ? queue.platforms : []
-      if (platforms.includes('tiktok') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) {
-        throw new Error('O TikTok aceita somente um vídeo anexado.')
+      if (platforms.includes('tiktok') && !['image/', 'video/'].some(prefix => String(content.mediaType || '').toLowerCase().startsWith(prefix))) {
+        throw new Error('O TikTok precisa de uma imagem ou vídeo anexado.')
       }
       const accounts = await contasRepo.listarContasAtivasPorPlataformas(platforms, queue.user_id, false)
       const post = await postsRepo.criarPost({

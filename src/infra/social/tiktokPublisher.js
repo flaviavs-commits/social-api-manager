@@ -98,7 +98,7 @@ async function aguardarStatusPublicacaoTiktok(publishId, accessToken) {
 async function publicarTiktok(token, post) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   if (items.length !== 1 || items[0].type !== 'video') {
-    throw new Error('O TikTok aceita somente um vídeo por publicação.')
+    throw new Error('O adaptador direto legado do TikTok aceita somente um vídeo; contas atuais publicam imagens pelo Zernio.')
   }
 
   // A privacidade e as interações (comentário/duet/stitch) são escolhidas
