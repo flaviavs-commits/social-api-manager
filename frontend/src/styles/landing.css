@@ -97,6 +97,8 @@
 .landing-network-strip .landing-container { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .landing-network-strip p { margin: 0; color: #77777d; font-size: 11px; }
 .landing-network-list { display: flex; align-items: center; gap: 31px; color: #b0adb0; font-size: 12px; font-weight: 600; }
+.landing-network-list span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.landing-platform-icon { width: 15px; height: 15px; flex: 0 0 15px; }
 .landing-network-list span:first-child { color: #db6296; }
 .landing-network-list span:nth-child(2) { color: #7597d2; }
 .landing-network-list span:nth-child(3) { color: #d9d5cd; }
