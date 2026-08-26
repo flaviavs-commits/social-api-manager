@@ -145,16 +145,16 @@ async function atualizarStatusPost(id, status, errorMessage = null) {
   // caso o post seja reagendado manualmente depois (ver reagendarParaRetry).
   await pool.query(`
     UPDATE posts
-       SET status = $1,
+       SET status = $1::varchar,
            error_message = $2,
            next_retry_at = NULL,
            media_cleanup_after = CASE
-             WHEN $1 = 'published' THEN NOW() + INTERVAL '48 hours'
-             WHEN $1 IN ('partial', 'error', 'erro', 'failed', 'cancelled') THEN NOW() + INTERVAL '7 days'
+             WHEN $1::varchar = 'published' THEN NOW() + INTERVAL '48 hours'
+             WHEN $1::varchar IN ('partial', 'error', 'erro', 'failed', 'cancelled') THEN NOW() + INTERVAL '7 days'
              ELSE NULL
            END,
            media_cleaned_at = CASE
-             WHEN $1 IN ('scheduled', 'processing') THEN NULL
+             WHEN $1::varchar IN ('scheduled', 'processing') THEN NULL
              ELSE media_cleaned_at
            END
      WHERE id = $3

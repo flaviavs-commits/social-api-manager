@@ -125,7 +125,10 @@ describe('atualizarStatusPost', () => {
   test('executa UPDATE com status e id', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })
     await repo.atualizarStatusPost(1, 'published')
+    const sql = pool.query.mock.calls[0][0]
     const params = pool.query.mock.calls[0][1]
+    expect(sql).toContain('status = $1::varchar')
+    expect(sql).toContain("WHEN $1::varchar = 'published'")
     expect(params).toEqual(['published', null, 1])
   })
 })
