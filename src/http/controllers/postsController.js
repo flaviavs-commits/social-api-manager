@@ -209,7 +209,7 @@ async function patchPost(req, res) {
       return res.status(400).json({ erro: 'scheduledAt inválido' })
 
     const updated = await reagendarPost({ id, scheduledAt, ...ctx(req) })
-    if (!updated) return res.status(404).json({ erro: 'Post não encontrado ou não agendado' })
+    if (!updated) return res.status(404).json({ erro: 'Post não encontrado ou não pode ser reagendado' })
     res.json({ ok: true })
   } catch (e) {
     serverError(res, e)

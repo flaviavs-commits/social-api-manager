@@ -7,6 +7,7 @@ import '../styles/calendar.css'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
+const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
 const postDateValue = post => post.calendarAt || post.calendar_at || post.publishedAt || post.published_at || post.scheduledAt || post.scheduled_at || post.data_agendamento
 const normalizePostStatus = post => String(post.status || '').trim().toLowerCase()
@@ -57,11 +58,39 @@ function suggestedPasteDate(post) {
   return localDateTimeValue(next)
 }
 
+function suggestedRescheduleDate(post) {
+  const current = new Date(postDateValue(post))
+  if (!Number.isNaN(current.getTime()) && current.getTime() > Date.now()) return localDateTimeValue(current)
+  const next = new Date(Date.now() + 60 * 60 * 1000)
+  next.setSeconds(0, 0)
+  return localDateTimeValue(next)
+}
+
 function formatPasteDate(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime())
     ? 'Escolha o dia e horário'
     : date.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })
+}
+
+function isAccountError(detail) {
+  return /conta.*(?:não encontrada|nao encontrada|não encontrado|nao encontrado|desconect)|token|autoriz|permiss|access|\b401\b|\b403\b|reconect/i.test(detail)
+}
+
+function isUnavailableError(detail) {
+  return !isAccountError(detail) && /não existe|nao existe|não encontrado|nao encontrado|remov|apag|deleted|removed|does not exist|cannot be loaded/i.test(detail)
+}
+
+// A ação disponível no calendário depende da causa registrada. Em especial,
+// uma falha de conteúdo ou autorização não deve ser reenviada sem revisão.
+function postFailureKind(post) {
+  const detail = String(post.errorMessage || post.error_message || '').trim().toLowerCase()
+  if (!detail) return 'unknown'
+  if (isAccountError(detail)) return 'account'
+  if (isUnavailableError(detail)) return 'unavailable'
+  if (/processamento interrompido|aguardando confirmação|timeout|timed out|econnreset|etimedout|enotfound|fetch failed|network|rate.?limit|too many requests|temporariamente indispon|service unavailable|gateway timeout|\b(408|425|429|500|502|503|504|529)\b/.test(detail)) return 'retryable'
+  if (/imagem|image|vídeo|video|mídia|media|formato|tamanho|caract|caption|texto|obrigat|conteúdo|content|duplicate|duplicad/.test(detail)) return 'content'
+  return 'unknown'
 }
 
 function parseMediaItems(post) {
@@ -89,8 +118,7 @@ function CalendarPlatformBadges({ platforms, compact = false }) {
 
 function friendlyPostError(post) {
   const detail = String(post.errorMessage || '').trim()
-  const unavailable = /não existe|nao existe|não encontrado|nao encontrado|remov|apag|deleted|removed|does not exist|cannot be loaded|missing permissions/i.test(detail)
-  if (unavailable) return 'Esta publicação não está mais disponível na rede social. O registro foi mantido no calendário.'
+  if (isUnavailableError(detail)) return 'Esta publicação não está mais disponível na rede social. O registro foi mantido no calendário.'
   if (['partial', 'parcial'].includes(normalizePostStatus(post))) return 'A publicação foi concluída em algumas redes, mas houve uma falha em outra.'
   if (['error', 'erro'].includes(normalizePostStatus(post))) {
     // O backend já remove credenciais e limita mensagens externas; mostrar o
@@ -117,12 +145,14 @@ function CalendarMediaPreview({ post, compact = false }) {
   return <img className={`calendar-media-preview${compact ? ' is-compact' : ''}`} src={source} alt="Prévia do conteúdo publicado" onError={() => setFailed(true)} />
 }
 
-function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRepeat, repeating, repeatDate, onRepeatDateChange, onRepeatSubmit, onRepeatCancel }) {
+function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview, onOpenIntegrations, onRepeat, repeating, repeatDate, onRepeatDateChange, onRepeatSubmit, onRepeatCancel }) {
   const platforms = platformsOf(post)
   const primaryPlatform = platforms[0]
   const error = friendlyPostError(post)
   const status = normalizePostStatus(post)
   const canRepeat = ['published', 'publicado', 'partial', 'parcial'].includes(status)
+  const failureKind = postFailureKind(post)
+  const retryableError = ['error', 'erro'].includes(status) && failureKind === 'retryable'
   const scheduled = isScheduled(post)
   const statusMessage = postStatusMessage(post)
   return (
@@ -139,6 +169,10 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRepeat, repeating, 
         {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar data/horário</button>}
         {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onCopy}>Copiar</button>}
         {scheduled && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir agendamento</button>}
+        {retryableError && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRetryNow}>Tentar publicar novamente</button>}
+        {retryableError && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Reagendar tentativa</button>}
+        {failureKind === 'content' && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onReview}>Revisar no editor</button>}
+        {failureKind === 'account' && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onOpenIntegrations}>Corrigir conexão</button>}
         {canRepeat && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRepeat}>Reagendar este post</button>}
         {canRepeat && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir post publicado</button>}
       </div>
@@ -206,6 +240,19 @@ export function CalendarPage({ onNavigate }) {
     event.preventDefault()
     try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); await reload(); notify('Publicação reagendada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
+  }
+
+  async function retryPost(post) {
+    if (!window.confirm('O processamento foi interrompido sem confirmação. Confira primeiro se a publicação não apareceu na rede social; se ela já tiver sido publicada, uma nova tentativa pode gerar duplicidade. Deseja tentar novamente em aproximadamente 1 minuto?')) return
+    const retryAt = new Date(Date.now() + 60 * 1000)
+    try {
+      await apiFetch(`/api/posts/${post.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: retryAt.toISOString() }) })
+      setSelectedDay(null)
+      setEditing(null)
+      setMessage('Nova tentativa agendada para aproximadamente 1 minuto.')
+      await reload()
+      notify('Nova tentativa de publicação agendada.')
+    } catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 
   async function repeatPost(event) {
@@ -309,8 +356,45 @@ export function CalendarPage({ onNavigate }) {
 
   function openEditor(post) {
     setEditing(post)
-    setDate(localDateTimeValue(postDateValue(post)))
+    setDate(suggestedRescheduleDate(post))
     setSelectedDay(null)
+  }
+
+  function reviewFailure(post) {
+    const selected = Array.isArray(post.platforms) && post.platforms.length ? post.platforms : ['instagram']
+    const textByPlatform = post.textByPlatform && typeof post.textByPlatform === 'object'
+      ? post.textByPlatform
+      : Object.fromEntries(selected.map(platform => [platform, post.text || '']))
+    const media = parseMediaItems(post)[0]
+    const mediaPath = media?.path || media?.url
+    if (mediaPath) {
+      sessionStorage.setItem('meu-ecoo:media-library-selection', JSON.stringify({
+        url: mediaPath,
+        name: media?.name || 'Mídia da publicação',
+        mimeType: media?.type || media?.mimetype || post.mediaType || 'application/octet-stream'
+      }))
+    } else sessionStorage.removeItem('meu-ecoo:media-library-selection')
+    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
+      text: post.text || '',
+      textByPlatform,
+      titleByPlatform: post.titleByPlatform && typeof post.titleByPlatform === 'object' ? post.titleByPlatform : {},
+      selected,
+      publishNow: true,
+      date: '',
+      youtubeTitle: post.youtubeTitle || '',
+      youtubeVisibility: post.youtubeVisibility || 'public',
+      youtubeMadeForKids: post.youtubeMadeForKids == null ? '' : String(post.youtubeMadeForKids),
+      youtubeCategoryId: post.youtubeCategoryId || '',
+      youtubeFormat: post.youtubeFormat || '',
+      igFormat: post.igFormat || 'post',
+      tiktokPrivacyLevel: post.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
+      tiktokDisableComment: Boolean(post.tiktokDisableComment),
+      tiktokDisableDuet: Boolean(post.tiktokDisableDuet),
+      tiktokDisableStitch: Boolean(post.tiktokDisableStitch),
+      sourceFailureId: post.id,
+      savedAt: new Date().toISOString()
+    }))
+    onNavigate('agendador')
   }
 
   function openRepeat(post) {
@@ -375,7 +459,7 @@ export function CalendarPage({ onNavigate }) {
             </button>
           )
         })}
-      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}</span></article>) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => { const failureKind = postFailureKind(post); const retryableError = ['error', 'erro'].includes(normalizePostStatus(post)) && failureKind === 'retryable'; return <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}{retryableError && <><button className="link-button" onClick={() => retryPost(post)}>Tentar novamente</button><button className="link-button" onClick={() => openEditor(post)}>Reagendar</button></>}{failureKind === 'content' && <button className="link-button" onClick={() => reviewFailure(post)}>Revisar</button>}{failureKind === 'account' && <button className="link-button" onClick={() => onNavigate('integracoes')}>Conexão</button>}</span></article> }) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
       {pasting && copiedPost && <section className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
         <div>
@@ -398,13 +482,13 @@ export function CalendarPage({ onNavigate }) {
             </div>
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
-          {selectedDayPosts.length ? <div className="calendar-day-details">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          {selectedDayPosts.length ? <div className="calendar-day-details">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRetryNow={() => retryPost(post)} onReview={() => reviewFailure(post)} onOpenIntegrations={() => onNavigate('integracoes')} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
         </section>
       </div>}
 
       {editing && (
         <section className="calendar-edit-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
-          <h2 className="mb-3 text-lg font-semibold text-zinc-50">Reagendar publicação</h2>
+          <h2 className="mb-3 text-lg font-semibold text-zinc-50">{['error', 'erro'].includes(normalizePostStatus(editing)) ? 'Reagendar tentativa' : 'Reagendar publicação'}</h2>
           <form className="flex flex-wrap items-center gap-3" onSubmit={reschedule}>
             <input
               required

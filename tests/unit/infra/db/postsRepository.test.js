@@ -206,10 +206,14 @@ describe('listarPostsCalendario', () => {
 })
 
 describe('reagendarPost', () => {
-  test('retorna post atualizado quando encontrado', async () => {
+  test('retorna post atualizado quando encontrado, inclusive se estava em erro', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     const result = await repo.reagendarPost({ id: 1, scheduledAt: new Date(), isAdmin: true })
     expect(result).toEqual({ id: 1 })
+    const sql = pool.query.mock.calls[0][0]
+    expect(sql).toContain("status IN ('scheduled', 'agendado', 'error', 'erro', 'failed')")
+    expect(sql).toContain('error_message = NULL')
+    expect(sql).toContain('publication_error = NULL')
   })
 
   test('retorna null quando post não existe ou não é do usuário', async () => {

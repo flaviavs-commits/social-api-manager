@@ -514,7 +514,7 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
 
   const { rows } = await pool.query(`
     SELECT
-      id, text, text_by_platform AS "textByPlatform", platforms, status, repeat,
+      id, text, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform", platforms, status, repeat,
       error_message AS "errorMessage",
       scheduled_at  AS "scheduledAt",
       published_at  AS "publishedAt",
@@ -523,6 +523,15 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
       media_type    AS "mediaType",
       media_items   AS "mediaItems",
       youtube_title AS "youtubeTitle",
+      youtube_visibility AS "youtubeVisibility",
+      youtube_category_id AS "youtubeCategoryId",
+      youtube_format AS "youtubeFormat",
+      youtube_made_for_kids AS "youtubeMadeForKids",
+      ig_format AS "igFormat",
+      tiktok_privacy_level AS "tiktokPrivacyLevel",
+      tiktok_disable_comment AS "tiktokDisableComment",
+      tiktok_disable_duet AS "tiktokDisableDuet",
+      tiktok_disable_stitch AS "tiktokDisableStitch",
       account_id    AS "accountId",
       user_id       AS "userId"
     FROM posts
@@ -536,9 +545,28 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
   const hasUserScope = userId !== null && userId !== undefined
   const ownerFilter = hasUserScope ? 'AND user_id = $3' : (isAdmin ? '' : 'AND FALSE')
   const { rows } = await pool.query(
-    `UPDATE posts SET scheduled_at = $1
-     WHERE id = $2 AND status = 'scheduled' ${ownerFilter}
-     RETURNING id`,
+    `WITH updated AS (
+      UPDATE posts
+         SET scheduled_at = $1,
+             status = CASE
+               WHEN status IN ('error', 'erro', 'failed') THEN 'scheduled'
+               ELSE status
+             END,
+             error_message = NULL,
+             next_retry_at = NULL,
+             media_cleanup_after = NULL,
+             media_cleaned_at = NULL
+       WHERE id = $2
+         AND status IN ('scheduled', 'agendado', 'error', 'erro', 'failed')
+         ${ownerFilter}
+       RETURNING id
+    ), cleared_accounts AS (
+      UPDATE post_accounts
+         SET publication_error = NULL
+       WHERE post_id IN (SELECT id FROM updated)
+       RETURNING post_id
+    )
+    SELECT id FROM updated`,
     hasUserScope ? [scheduledAt, id, userId] : [scheduledAt, id]
   )
   return rows[0] || null
