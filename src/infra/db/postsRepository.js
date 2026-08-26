@@ -46,7 +46,9 @@ async function definirContasDoPost(postId, contas, mediaItemsByPlatform = {}) {
 // publishPost() agora itera por (conta, rede) em vez de só por rede.
 async function listarContasDoPost(postId) {
   const { rows } = await pool.query(`
-    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", pa.provider_request_id AS "providerRequestId", c.platform, c.handle,
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId", pa.provider_request_id AS "providerRequestId",
+           pa.publication_confirmed AS "publicationConfirmed", c.platform, c.handle,
+           c.zernio_account_id AS "zernioAccountId",
            c.avatar_url AS "avatarUrl",
            pa.media_items AS "mediaItems",
            pa.publication_error AS "publicationError"
@@ -161,9 +163,40 @@ async function atualizarStatusPost(id, status, errorMessage = null) {
   `, [status, errorMessage, id])
 }
 
+// Fecha o post somente se ele ainda estiver em processamento. Webhooks por
+// plataforma e o evento rollup da Zernio podem chegar ambos para a mesma
+// publicação; o UPDATE condicional evita log/notificação duplicados.
+async function atualizarStatusPostSeProcessando(id, status, errorMessage = null) {
+  const result = await pool.query(`
+    UPDATE posts
+       SET status = $1::varchar,
+           error_message = $2,
+           next_retry_at = NULL,
+           media_cleanup_after = CASE
+             WHEN $1::varchar = 'published' THEN NOW() + INTERVAL '48 hours'
+             WHEN $1::varchar IN ('partial', 'error', 'erro', 'failed', 'cancelled') THEN NOW() + INTERVAL '7 days'
+             ELSE NULL
+           END,
+           media_cleaned_at = CASE
+             WHEN $1::varchar IN ('scheduled', 'processing') THEN NULL
+             ELSE media_cleaned_at
+           END
+     WHERE id = $3 AND status = 'processing'
+     RETURNING id
+  `, [status, errorMessage, id])
+  // O fallback para undefined mantém os mocks antigos compatíveis; o driver
+  // do Postgres sempre fornece rowCount em produção.
+  return result.rowCount === undefined ? result.rows?.length !== 0 : result.rowCount > 0
+}
+
 async function atualizarErroPublicacaoConta(postAccountId, message = null) {
   if (!postAccountId) return
   await pool.query('UPDATE post_accounts SET publication_error = $1 WHERE id = $2', [message, postAccountId])
+}
+
+async function marcarContaPublicada(postAccountId) {
+  if (!postAccountId) return
+  await pool.query('UPDATE post_accounts SET publication_confirmed = TRUE WHERE id = $1', [postAccountId])
 }
 
 // Marca atomicamente os posts agendados como "processing" antes de publicar,
@@ -476,6 +509,26 @@ async function buscarHistoricoMetricas(postId) {
   return rows
 }
 
+// Pendências do Zernio são indexadas pelo ID do post agrupador retornado por
+// POST /v1/posts. O ID é a ponte entre o callback externo e o post local.
+async function listarPostsComZernioPendentePorPostId(zernioPostId) {
+  const { rows } = await pool.query(`
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId",
+           pa.instagram_pending AS "instagramPending",
+           pa.publication_error AS "publicationError",
+           p.id, p.text, p.platforms, p.status, p.user_id AS "userId",
+           u.role AS "userRole", c.platform, c.handle,
+           c.zernio_account_id AS "zernioAccountId"
+    FROM post_accounts pa
+    JOIN posts p ON p.id = pa.post_id
+    JOIN contas c ON c.id = pa.account_id
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE pa.instagram_pending->>'provider' = 'zernio'
+      AND pa.instagram_pending->>'zernioPostId' = $1
+  `, [String(zernioPostId)])
+  return rows
+}
+
 // Último snapshot conhecido de cada (post, rede). O Analytics usa este
 // resultado quando a publicação não entra na pequena janela de atualização
 // ao vivo, evitando uma chamada externa por publicação a cada refresh.
@@ -573,13 +626,13 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 }
 
 module.exports = {
-  criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost,
+  criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost, atualizarStatusPostSeProcessando,
   reservarPostsPendentes, recuperarPostsProcessingStale, reagendarParaRetry,
-  definirContasDoPost, listarContasDoPost, atualizarErroPublicacaoConta,
+  definirContasDoPost, listarContasDoPost, atualizarErroPublicacaoConta, marcarContaPublicada,
   obterProviderRequestId,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
-  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, existePendenciaInstagramNoPost,
+  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, listarPostsComZernioPendentePorPostId, existePendenciaInstagramNoPost,
   registrarSnapshotMetricas, buscarHistoricoMetricas, listarUltimosSnapshotsMetricas,
   listarPostsCalendario, reagendarPost
 }

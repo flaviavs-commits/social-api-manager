@@ -269,6 +269,37 @@ GOOGLE_CLIENT_SECRET=GOCSPX-abcdef123456
 GOOGLE_REDIRECT_URI=http://localhost:3000/oauth/google/callback
 ```
 
+### Confirmação de publicações via Zernio
+
+As publicações feitas por Facebook, Instagram, TikTok e YouTube via Zernio
+retornam primeiro como `processing`. A confirmação final chega de forma
+assíncrona no endpoint público:
+
+```text
+POST https://seu-dominio.example/webhooks/zernio
+```
+
+Configure no ambiente da aplicação um segredo forte:
+
+```env
+ZERNIO_WEBHOOK_SECRET=um_segredo_aleatorio_longo
+```
+
+No dashboard/API da Zernio, crie um webhook apontando para esse endereço, com
+o mesmo segredo e os eventos `post.published`, `post.partial`, `post.failed`,
+`post.platform.published` e `post.platform.failed`. O endpoint valida a
+assinatura HMAC, grava cada evento uma única vez e responde rapidamente; o
+processamento também é retomado pelo cron se a aplicação reiniciar.
+
+Consulte a documentação oficial em:
+https://docs.zernio.com/webhooks
+
+Para cadastrar essa configuração usando a `ZERNIO_API_KEY` do ambiente, use:
+
+```bash
+npm run zernio:webhook:register
+```
+
 ### TikTok
 
 1. Acesse: https://developers.tiktok.com

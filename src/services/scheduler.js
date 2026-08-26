@@ -11,6 +11,7 @@ const { mapWithConcurrency } = require('../utils/concurrency')
 const { processarFilasRecorrentes, processarRelatoriosAgendados } = require('./prioritySchedulers')
 const { dispatchWebhook } = require('./webhookService')
 const { limparMidiasExpiradas } = require('./mediaCleanupService')
+const { processarZernioWebhooksPendentes } = require('./zernioWebhookService')
 
 const POST_CONCURRENCY = 4
 
@@ -216,6 +217,14 @@ async function processarPrimeirosComentarios() {
 }
 
 async function processarPendentes() {
+  // Drena callbacks persistidos da Zernio antes da reconciliação por polling.
+  // Se a instância reiniciou depois de devolver 200 ao provedor, o resultado
+  // ainda será processado sem depender de uma nova entrega externa.
+  try {
+    await processarZernioWebhooksPendentes()
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao processar webhooks da Zernio: ${err.message}`, platform: null })
+  }
   try { await processarFilasRecorrentes() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar fila recorrente: ${err.message}`, platform: null }) }
   try { await processarRelatoriosAgendados() } catch (err) { await registrarLog({ type: 'err', message: `Erro ao processar relatório agendado: ${err.message}`, platform: null }) }
   try {

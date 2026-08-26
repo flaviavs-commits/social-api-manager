@@ -25,6 +25,7 @@ async function ensurePostAccounts() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_accounts_pending ON post_accounts(id) WHERE instagram_pending IS NOT NULL')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS media_items JSONB')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS publication_error TEXT')
+  await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS publication_confirmed BOOLEAN NOT NULL DEFAULT FALSE')
   await bestEffort('ALTER TABLE post_accounts ADD COLUMN IF NOT EXISTS provider_request_id TEXT')
   await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS idx_post_accounts_provider_request_id ON post_accounts(provider_request_id) WHERE provider_request_id IS NOT NULL')
   // Remove credenciais que versões antigas gravavam no estado operacional.
@@ -60,6 +61,29 @@ async function ensureZernioProfiles() {
   await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_zernio_profile_id ON users (zernio_profile_id) WHERE zernio_profile_id IS NOT NULL')
   await bestEffort('ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_profile_id TEXT')
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_contas_zernio_profile_id ON contas (zernio_profile_id) WHERE zernio_profile_id IS NOT NULL')
+}
+
+async function ensureZernioWebhookEvents() {
+  await bestEffort(`
+    CREATE TABLE IF NOT EXISTS zernio_webhook_events (
+      id BIGSERIAL PRIMARY KEY,
+      event_id TEXT NOT NULL UNIQUE,
+      event_name TEXT NOT NULL,
+      payload JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'processing', 'processed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      next_attempt_at TIMESTAMPTZ,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      processed_at TIMESTAMPTZ
+    )
+  `)
+  await bestEffort(`
+    CREATE INDEX IF NOT EXISTS idx_zernio_webhook_events_pending
+      ON zernio_webhook_events (next_attempt_at, received_at)
+      WHERE status IN ('pending', 'processing')
+  `)
 }
 
 async function ensurePostPublications() {
@@ -211,6 +235,7 @@ async function runMigrations() {
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT'),
     bestEffort('ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_account_id TEXT'),
     ensureZernioProfiles(),
+    ensureZernioWebhookEvents(),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo'"),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'pt-BR'"),
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS default_platform TEXT'),

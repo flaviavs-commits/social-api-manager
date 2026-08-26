@@ -43,6 +43,8 @@
     { "source": "/oauth/tiktok/callback/:path*", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/callback/:path*" },
     { "source": "/oauth/tiktok/webhook", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/webhook" },
     { "source": "/oauth/tiktok/webhook/:path*", "destination": "https://social-api-manager-production.up.railway.app/oauth/tiktok/webhook/:path*" },
+    { "source": "/webhooks/zernio", "destination": "https://social-api-manager-production.up.railway.app/webhooks/zernio" },
+    { "source": "/webhooks/zernio/:path*", "destination": "https://social-api-manager-production.up.railway.app/webhooks/zernio/:path*" },
     { "source": "/media-proxy/:token/:encoded", "destination": "https://social-api-manager-production.up.railway.app/media-proxy/:token/:encoded" }
   ]
 }

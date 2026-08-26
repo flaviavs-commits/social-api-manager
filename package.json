@@ -14,6 +14,7 @@
     "test:all": "npm test && npm run test:components",
     "test:components": "vitest run --config frontend/vitest.config.js",
     "security:preflight": "node scripts/security-preflight.js",
+    "zernio:webhook:register": "node scripts/register-zernio-webhook.js",
     "db:migrate:security:local": "node scripts/apply-security-migration-local.js"
   },
   "jest": {

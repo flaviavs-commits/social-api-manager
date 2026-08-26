@@ -137,6 +137,20 @@ async function getPost(postId) {
   return zernioFetch(`/posts/${postId}`)
 }
 
+// Configurações de webhook são gerenciadas com a mesma API key usada para
+// publicar. Mantemos esses métodos no cliente para permitir o cadastro
+// controlado do endpoint da aplicação sem duplicar autenticação HTTP.
+async function listWebhookSettings() {
+  return zernioFetch('/webhooks/settings')
+}
+
+async function createWebhookSettings({ name, url, secret, events, isActive = true } = {}) {
+  return zernioFetch('/webhooks/settings', {
+    method: 'POST',
+    body: { name, url, ...(secret ? { secret } : {}), events, isActive }
+  })
+}
+
 // Inbox de comentários do Zernio. Facebook/Instagram conectados via Zernio
 // não entregam um access token da Meta para a nossa aplicação; o Zernio é quem
 // autentica na rede social e exige o accountId da conta conectada.
@@ -219,7 +233,7 @@ async function getYoutubePlaylists(accountId) {
 module.exports = {
   ZernioError,
   connectUrl, listAccounts, listFacebookPages, selectFacebookPage, getAccountHealth, disconnectAccount, listProfiles, createProfile,
-  createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
+  createPost, getPost, listWebhookSettings, createWebhookSettings, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
   getPostComments, replyToComment,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
   getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,

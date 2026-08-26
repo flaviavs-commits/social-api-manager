@@ -307,6 +307,12 @@ async function publicarNaConta(account, post, isSuperAdmin) {
       })
     }
 
+    // O sucesso não depende de existir um ID público imediatamente (algumas
+    // respostas do TikTok/Zernio podem disponibilizá-lo só depois). A marca
+    // separada permite fechar o resultado local sem tratar esse caso como
+    // falha.
+    if (!data?.simulado) await postsRepo.marcarContaPublicada(account.postAccountId)
+
     if (data?.simulado) {
       await registrarLog({
         type: 'warn',
@@ -399,6 +405,7 @@ async function finalizarInstagramPendentes() {
       if (externalId) {
         await postsRepo.salvarPublicacaoExterna(postId, { externalPostId: externalId, externalPlatform: 'instagram', publishedAt: new Date().toISOString(), accountId: linha.accountId })
       }
+      await postsRepo.marcarContaPublicada(linha.postAccountId)
       await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
 
@@ -461,6 +468,7 @@ async function finalizarZernioPendentes() {
         accountId: linha.accountId,
         firstCommentHandled: true
       })
+      await postsRepo.marcarContaPublicada(linha.postAccountId)
       await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
 
@@ -493,7 +501,7 @@ async function fecharStatusSeSemPendencias(postId, linha) {
       platform: c.platform,
       accountId: c.accountId,
       account: c.handle || undefined,
-      success: publicadasSet.has(`${c.platform}:${c.accountId}`),
+      success: c.publicationConfirmed === true || publicadasSet.has(`${c.platform}:${c.accountId}`),
       ...(c.publicationError ? { error: c.publicationError } : {})
   }))
 
@@ -505,7 +513,8 @@ async function fecharStatusSeSemPendencias(postId, linha) {
     .filter(result => result.success === false)
     .map(result => `${result.platform || 'Rede social'}${result.account ? ` (${result.account})` : ''}: ${result.error || 'A rede não informou o motivo.'}`)
     .join(' | ') || null
-  await postsRepo.atualizarStatusPost(postId, status, status === 'published' ? null : failureDetails)
+  const fechado = await postsRepo.atualizarStatusPostSeProcessando(postId, status, status === 'published' ? null : failureDetails)
+  if (!fechado) return
   const resumo = status === 'published'
     ? 'publicado com sucesso em todas as plataformas'
     : status === 'partial'
@@ -520,4 +529,50 @@ async function fecharStatusSeSemPendencias(postId, linha) {
   broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
 
-module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, finalizarZernioPendentes }
+// Aplica uma confirmação recebida do webhook da Zernio. Cada chamada de
+// publicação cria um post próprio no Zernio para uma conta, então o ID do
+// post externo identifica de forma segura a linha post_accounts local.
+async function confirmarPublicacaoZernio({ zernioPostId, platform, zernioAccountId = null, success, externalPostId = null, publishedAt = null, error = null }) {
+  if (!zernioPostId) return { matched: 0 }
+
+  const pendentes = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
+  const candidatos = pendentes.filter(linha => {
+    if (platform && linha.platform !== platform) return false
+    if (!zernioAccountId) return true
+    return linha.zernioAccountId && String(linha.zernioAccountId) === String(zernioAccountId)
+  })
+  if (!candidatos.length) return { matched: 0 }
+
+  await Promise.all(candidatos.map(async linha => {
+    const pending = linha.instagramPending || {}
+    const accountName = pending.accountName || linha.handle || 'conta conectada'
+    const platLabel = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }[linha.platform] || linha.platform
+
+    if (success) {
+      if (externalPostId) {
+        await postsRepo.salvarPublicacaoExterna(linha.id, {
+          externalPostId,
+          externalPlatform: linha.platform,
+          publishedAt: publishedAt || new Date().toISOString(),
+          accountId: linha.accountId,
+          firstCommentHandled: true
+        })
+      }
+      await postsRepo.marcarContaPublicada(linha.postAccountId)
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
+      await postsRepo.limparInstagramPending(linha.postAccountId)
+      await registrarLog({ type: 'ok', message: `Post publicado no ${platLabel} na conta "${accountName}" com sucesso! ✓`, platform: linha.platform, conta_id: linha.accountId, user_id: linha.userId })
+    } else {
+      const motivo = error || 'A Zernio não informou o motivo da falha.'
+      await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, motivo)
+      await postsRepo.limparInstagramPending(linha.postAccountId)
+      await registrarLog({ type: 'err', message: `Não foi possível publicar no ${platLabel} na conta "${accountName}": ${motivo}`, platform: linha.platform, conta_id: linha.accountId, user_id: linha.userId })
+    }
+
+    await fecharStatusSeSemPendencias(linha.id, linha)
+  }))
+
+  return { matched: candidatos.length }
+}
+
+module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, finalizarZernioPendentes, confirmarPublicacaoZernio }

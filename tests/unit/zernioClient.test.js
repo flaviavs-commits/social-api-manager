@@ -10,7 +10,7 @@ jest.mock('../../src/infra/http/requestJson', () => ({
 }))
 
 const { requestJson, HttpClientError } = require('../../src/infra/http/requestJson')
-const { createPost, ZernioError } = require('../../src/infra/social/zernioClient')
+const { createPost, createWebhookSettings, ZernioError } = require('../../src/infra/social/zernioClient')
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -42,4 +42,26 @@ test('preserva status e detalhes do duplicate retornado pelo Zernio', async () =
     status: 409,
     details: { details: { existingPostId: 'existing-1' } }
   })
+})
+
+test('cadastra webhook com segredo e eventos de publicação', async () => {
+  requestJson.mockResolvedValue({ webhook: { _id: 'wh-1' } })
+
+  await createWebhookSettings({
+    name: 'Social API Manager',
+    url: 'https://app.example/webhooks/zernio',
+    secret: 'secret-1',
+    events: ['post.published']
+  })
+
+  expect(requestJson).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
+    method: 'POST',
+    body: {
+      name: 'Social API Manager',
+      url: 'https://app.example/webhooks/zernio',
+      secret: 'secret-1',
+      events: ['post.published'],
+      isActive: true
+    }
+  }))
 })
