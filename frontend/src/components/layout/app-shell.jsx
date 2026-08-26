@@ -106,6 +106,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
       {(userIsAdmin(user)) && <a
         href="/admin.html"
         title="Administração"
+        data-tutorial-target="administracao"
         className="mx-3 mb-3 rounded-lg border border-subtle px-3 py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:border-gold/40 hover:text-gold"
       >
         Administração

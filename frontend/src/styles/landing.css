@@ -193,7 +193,7 @@
 .landing-plan h3 { margin: 11px 0 0; color: #f1ece3; font-family: Georgia, 'Times New Roman', serif; font-size: 23px; font-weight: 400; line-height: 1.05; letter-spacing: -.04em; white-space: pre-line; }
 .landing-plan-price { text-align: right; }
 .landing-plan-price strong, .landing-plan-price small { display: block; white-space: nowrap; }
-.landing-plan-price strong { color: #eee8dd; font-size: 21px; font-weight: 500; letter-spacing: -.06em; }
+.landing-plan-price strong { color: #eee8dd; font-size: clamp(29px, 2.6vw, 34px); font-weight: 650; line-height: .98; letter-spacing: -.06em; }
 .landing-plan-price small { margin-top: 3px; color: #85858b; font-size: 12px; }
 .landing-plan > p { min-height: 38px; margin: 23px 0 18px; color: var(--landing-muted); font-size: 15px; line-height: 1.55; text-wrap: pretty; }
 .landing-plan ul { display: grid; gap: 10px; padding: 0; margin: 0; color: #b4b0aa; list-style: none; font-size: 14px; line-height: 1.45; }
@@ -270,4 +270,262 @@
   .report-metrics strong { font-size: 14px; }
   .landing-feature, .landing-plan { padding: 22px; }
   .landing-footer-inner > div { flex-wrap: wrap; gap: 10px 17px; }
+}
+
+/*
+ * The public page has its own visual language, but it still follows the
+ * application's persisted theme. The product previews remain dark so they
+ * read as screenshots of the product; the surrounding landing page uses the
+ * same semantic light tokens as the authenticated application.
+ */
+html[data-theme='light'] .landing-page {
+  --landing-bg: var(--app-bg);
+  --landing-surface: var(--surface);
+  --landing-border: var(--border);
+  --landing-text: var(--text);
+  --landing-muted: var(--text-muted);
+  --landing-soft: var(--text-secondary);
+  --landing-gold: var(--accent);
+  --landing-gold-soft: var(--accent-strong);
+  --landing-section-bg: var(--surface-3);
+  --landing-heading: var(--text);
+  --landing-body-strong: var(--text-secondary);
+  --landing-control-bg: var(--surface-2);
+  --landing-control-border: var(--border-hover);
+  --landing-price: var(--text);
+}
+
+html[data-theme='light'] .landing-nav-wrap {
+  border-bottom-color: var(--border);
+}
+
+html[data-theme='light'] .landing-nav-cta,
+html[data-theme='light'] .landing-btn--primary,
+html[data-theme='light'] .landing-plan-btn.is-primary {
+  color: var(--on-accent) !important;
+}
+
+html[data-theme='light'] .landing-btn--ghost {
+  color: var(--landing-soft);
+  border-color: var(--landing-border);
+}
+
+html[data-theme='light'] .landing-btn--ghost:hover {
+  color: var(--landing-text);
+  border-color: var(--landing-control-border);
+  background: var(--landing-surface);
+}
+
+html[data-theme='light'] .landing-play {
+  border-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-avatars span {
+  border-color: var(--landing-bg);
+}
+
+html[data-theme='light'] .landing-avatars span:nth-child(4) {
+  color: var(--landing-gold);
+  background: var(--accent-glow);
+}
+
+html[data-theme='light'] .landing-network-strip,
+html[data-theme='light'] .landing-results {
+  background: var(--landing-section-bg);
+  border-color: var(--landing-border);
+}
+
+html[data-theme='light'] .landing-network-list {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .landing-network-list span:nth-child(3) {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .landing-feature {
+  background: var(--landing-surface);
+  border-color: var(--landing-border);
+}
+
+html[data-theme='light'] .landing-feature--featured {
+  background: linear-gradient(120deg, var(--landing-surface), var(--surface-2));
+}
+
+html[data-theme='light'] .landing-feature h3,
+html[data-theme='light'] .landing-steps h3,
+html[data-theme='light'] .landing-plan h3,
+html[data-theme='light'] .landing-contact h2 {
+  color: var(--landing-heading);
+}
+
+html[data-theme='light'] .calendar-mock {
+  background: var(--surface-2);
+  border-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .calendar-head {
+  color: var(--landing-body-strong);
+  border-bottom-color: var(--landing-border);
+}
+
+html[data-theme='light'] .calendar-head span,
+html[data-theme='light'] .calendar-week {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .calendar-days span {
+  color: var(--landing-body-strong);
+  background: var(--landing-surface);
+}
+
+html[data-theme='light'] .landing-stat-bars {
+  border-bottom-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-approval {
+  background: var(--surface-2);
+  border-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-approval b {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .landing-approval small {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .landing-ai-box {
+  background: var(--surface-2);
+  border-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-ai-box p {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .landing-result-copy li {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .report-card {
+  background: var(--landing-surface);
+  border-color: var(--landing-control-border);
+  box-shadow: var(--shadow-md);
+}
+
+html[data-theme='light'] .report-head > div:first-child {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .period-switch {
+  background: var(--surface-2);
+}
+
+html[data-theme='light'] .period-switch button {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .period-switch button.selected {
+  color: var(--landing-gold);
+  background: var(--accent-glow);
+}
+
+html[data-theme='light'] .report-card > p,
+html[data-theme='light'] .report-metrics small {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .report-card > p b {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .report-metrics > div {
+  background: var(--surface-3);
+}
+
+html[data-theme='light'] .report-metrics strong {
+  color: var(--landing-heading);
+}
+
+html[data-theme='light'] .report-insight {
+  background: rgb(167 137 228 / .1);
+  border-color: rgb(124 90 179 / .28);
+}
+
+html[data-theme='light'] .report-insight p {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .report-insight b {
+  color: #6941a5;
+}
+
+html[data-theme='light'] .landing-step-line {
+  background: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-steps p {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .landing-plan {
+  background: var(--landing-surface);
+  border-color: var(--landing-border);
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-theme='light'] .landing-plan.is-popular {
+  border-color: rgb(var(--accent-rgb) / .72);
+  background: linear-gradient(145deg, rgb(var(--accent-rgb) / .1), var(--landing-surface) 58%);
+  box-shadow: 0 12px 30px rgb(var(--accent-rgb) / .12);
+}
+
+html[data-theme='light'] .landing-popular-badge {
+  color: var(--on-accent);
+}
+
+html[data-theme='light'] .landing-plan-price strong {
+  color: var(--landing-price);
+}
+
+html[data-theme='light'] .landing-plan-price small {
+  color: var(--landing-muted);
+}
+
+html[data-theme='light'] .landing-plan > p,
+html[data-theme='light'] .landing-plan ul {
+  color: var(--landing-body-strong);
+}
+
+html[data-theme='light'] .landing-plan-btn {
+  color: var(--landing-body-strong);
+  border-color: var(--landing-control-border);
+}
+
+html[data-theme='light'] .landing-plan-btn:hover {
+  color: var(--landing-heading);
+  background: var(--accent-glow);
+}
+
+html[data-theme='light'] .landing-contact {
+  background: radial-gradient(circle at 50% 0, rgb(var(--accent-rgb) / .12), transparent 38%), var(--landing-surface);
+  border-top-color: var(--landing-border);
+}
+
+html[data-theme='light'] .landing-footer {
+  color: var(--landing-muted);
+  background: var(--surface-2);
+  border-top-color: var(--landing-border);
+}
+
+html[data-theme='light'] .landing-nav-links {
+  background: var(--landing-surface);
+  border-color: var(--landing-border);
+  box-shadow: var(--shadow-md);
+}
+
+html[data-theme='light'] .landing-nav-links a:hover {
+  background: var(--surface-2);
 }

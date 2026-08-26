@@ -42,7 +42,7 @@ export function ThemeSelector() {
     window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
   }, [theme])
 
-  return <div className="theme-selector" role="group" aria-label="Tema da interface">
+  return <div className="theme-selector" data-tutorial-target="tema" role="group" aria-label="Tema da interface">
     <button type="button" className={theme === 'light' ? 'is-active' : ''} aria-pressed={theme === 'light'} onClick={() => setTheme('light')}>
       <span aria-hidden="true">☀</span><span>Claro</span>
     </button>

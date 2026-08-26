@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from 'react'
 // — por isso a experiência é a de "caminhar pela aplicação" e não apenas ler
 // uma lista de dicas. Passos com "target" (sem "page") destacam um elemento
 // fixo do topo do app (ex.: botão de criar post) sem trocar de tela.
-// A lista cobre todos os itens do menu, então serve tanto de primeiro
-// contato quanto de referência completa para quem quiser revê-la depois.
+// A lista cobre os itens do menu e as ferramentas globais. Além do resumo,
+// cada módulo pode trazer uma lista de ações para o tour funcionar como uma
+// referência rápida, não apenas como uma apresentação superficial.
 // O número "passo X de Y" não é escrito à mão em cada item — é calculado a
 // partir da posição no array (ver `stepEyebrow` abaixo), então adicionar,
 // remover ou reordenar passos nunca deixa a contagem desatualizada.
@@ -14,102 +15,256 @@ const STEPS = [
   {
     eyebrow: 'BEM-VINDO(A)',
     title: 'Vamos conhecer o Meu Ecoo Mídia',
-    body: 'Este tour mostra todas as áreas da plataforma, uma de cada vez. Leva poucos minutos e você pode revê-lo quando quiser, pelo ícone 🎓 no topo da tela.'
+    body: 'Este tour mostra como conectar suas redes, criar conteúdo, organizar a agenda, acompanhar resultados e trabalhar em equipe. Você pode revê-lo quando quiser pelo ícone 🎓 no topo da tela.',
+    tips: [
+      'Use Próximo para avançar e Voltar para revisar uma etapa.',
+      'O tour abre cada tela automaticamente para mostrar onde encontrar os recursos.',
+      'No celular, abra Mais para acessar os módulos que não ficam na barra inferior.'
+    ]
   },
   {
     page: 'dashboard',
     title: 'Seu painel principal',
-    body: 'O Dashboard reúne publicações, agendamentos, falhas recentes e quantas redes sociais já estão conectadas — sua visão geral do dia a dia.'
+    body: 'O Dashboard é o ponto de partida para entender o que precisa da sua atenção e decidir o próximo passo.',
+    tips: [
+      'Veja totais de publicações, agendamentos, contas conectadas e redes ativas.',
+      'Acompanhe visualizações, interações, taxa de interação e tendência por período e rede.',
+      'Leia os insights de conteúdo e melhor horário baseados nos dados reais disponíveis.',
+      'Busque publicações recentes e filtre entre todas, publicadas, agendadas e com falha.',
+      'Revise falhas no editor, corrija a agenda ou abra o Analytics para investigar.'
+    ]
+  },
+  {
+    target: 'tema',
+    title: 'Ajuste a experiência do app',
+    body: 'No topo você encontra preferências e atalhos que deixam a rotina mais rápida e confortável.',
+    tips: [
+      'Alterne entre os temas Claro e Escuro; a escolha fica salva neste dispositivo.',
+      'Use ? para consultar os atalhos de teclado: C cria um post, D abre o Dashboard e Esc fecha janelas.',
+      'O ícone de mensagens leva direto ao Inbox.',
+      'O sino mostra atualizações recentes de publicações e abre o histórico completo de Atividades.'
+    ]
   },
   {
     target: 'criar-post',
-    title: 'Criar um post de qualquer tela',
-    body: 'Este botão fica sempre visível no topo do app. Clique nele a qualquer momento para começar uma publicação nova, sem precisar navegar até o Criador de Posts.'
+    title: 'Crie um post de qualquer tela',
+    body: 'O botão + Criar Novo Post permanece no topo do app. Use-o para abrir o Criador de Posts sem voltar ao menu.',
+    tips: [
+      'Você também pode pressionar C quando não estiver digitando em um campo.',
+      'No celular, a ação Criar fica disponível na barra inferior.'
+    ]
   },
   {
     page: 'agendador',
-    title: 'Criador de Posts',
-    body: 'Escreva o conteúdo, anexe fotos ou vídeos e escolha em quais redes publicar. Você pode publicar na hora ou agendar para o melhor momento.'
+    title: 'Criador de Posts: produza e publique',
+    body: 'Este é o centro da operação. Monte uma publicação, adapte-a para cada rede, revise a prévia e escolha entre publicar agora ou agendar.',
+    tips: [
+      'Escolha Instagram, Facebook, YouTube e/ou TikTok e selecione as contas específicas que receberão o post.',
+      'Escreva um texto diferente para cada rede e, quando disponível, use título e primeiro comentário.',
+      'Envie imagens, vídeos ou fotos para carrossel; arraste arquivos, reorganize a ordem e remova o que não quiser.',
+      'Use uma mídia já salva na Biblioteca e confira a prévia realista por rede, formato, proporção e resolução.',
+      'Configure opções do Instagram (Feed, Reel ou Story), YouTube (título, categoria, formato e público infantil) e TikTok (privacidade, comentários, duetos e stitches).',
+      'No Facebook e Instagram, pesquise e associe um local quando essa opção fizer sentido.',
+      'A IA visual pode analisar a imagem ou cenas do vídeo e sugerir descrição, hashtags e texto por rede.',
+      'Salve como rascunho/modelo, acompanhe o progresso e use o painel de pendências antes de publicar ou agendar.'
+    ]
   },
   {
     page: 'calendario',
-    title: 'Calendário',
-    body: 'Veja tudo o que está agendado ou já foi publicado, organizado por dia, semana ou mês, para nunca perder o ritmo das postagens.'
+    title: 'Calendário: organize a agenda',
+    body: 'Visualize seu planejamento editorial e ajuste publicações sem precisar recriar o conteúdo.',
+    tips: [
+      'Navegue entre meses, volte para Hoje e filtre o calendário por rede social.',
+      'Alterne entre a visualização de calendário e lista.',
+      'Abra um dia para ver texto, plataformas, mídia e status de cada publicação.',
+      'Edite data e horário ou arraste um agendamento para outro dia.',
+      'Copie um agendamento para criar uma nova publicação e use Reagendar para repetir um post publicado.',
+      'Exclua um agendamento antes do envio ou remova do calendário um post já publicado; isso não apaga a publicação da rede social.'
+    ]
   },
   {
     page: 'rascunhos',
-    title: 'Baú de Ideias',
-    body: 'Ideias que ainda não estão prontas ficam salvas aqui, sem se perder, até você decidir publicar ou agendar.'
+    title: 'Baú de Ideias: não perca trabalhos em andamento',
+    body: 'Guarde conteúdos incompletos, ideias rápidas e publicações que precisam de revisão antes de voltar ao Criador de Posts.',
+    tips: [
+      'Crie um rascunho rápido apenas com texto para registrar uma ideia.',
+      'Busque por texto ou título e filtre por plataforma e tipo.',
+      'Veja as mídias associadas, reabra o conteúdo no editor e continue de onde parou.',
+      'Exclua rascunhos que não fazem mais sentido.'
+    ]
   },
   {
     page: 'analytics',
-    title: 'Relatórios',
-    body: 'Acompanhe alcance, engajamento e o desempenho de cada publicação, separado por rede social.'
+    title: 'Relatórios: transforme métricas em decisões',
+    body: 'Consulte os dados reais das redes conectadas em uma visão executiva e em relatórios detalhados por conta e publicação.',
+    tips: [
+      'Escolha a rede, a aba de comunidade, conteúdo ou audiência e um período de 7, 30 ou 90 dias.',
+      'Compare períodos quando essa opção estiver disponível e acompanhe visualizações, curtidas, comentários, compartilhamentos e salvamentos.',
+      'Analise crescimento de seguidores/inscritos, evolução diária, melhores horários, decadência de conteúdo e demografia quando a rede fornecer esses dados.',
+      'Abra o relatório detalhado de uma conta e consulte os vídeos do TikTok.',
+      'Exporte o recorte atual em CSV ou gere uma versão para imprimir/salvar em PDF.',
+      'Configure relatórios agendados por e-mail; os dados são atualizados automaticamente enquanto a tela está visível.'
+    ]
   },
   {
     page: 'inbox',
-    title: 'Inbox',
-    body: 'Comentários e mensagens das suas redes conectadas chegam até aqui, para você responder sem sair da plataforma.'
+    title: 'Inbox: cuide da sua comunidade',
+    body: 'Concentre as publicações com interações e responda aos comentários sem alternar entre várias redes.',
+    tips: [
+      'Monitore Instagram, Facebook e YouTube e veja quantos comentários não lidos pedem atenção.',
+      'Pesquise uma publicação e filtre por rede ou por não lidos/já lidos.',
+      'Selecione uma ou várias publicações e marque os comentários como vistos.',
+      'Abra a conversa para visualizar a mídia, ler os comentários e responder quando a plataforma permitir.',
+      'Seus filtros ficam salvos neste dispositivo para a próxima visita.'
+    ]
   },
   {
     target: 'notificacoes',
-    title: 'Notificações',
-    body: 'O sino avisa sobre falhas de publicação e outros eventos recentes, com acesso rápido ao histórico completo de atividades.'
+    title: 'Notificações e acompanhamento',
+    body: 'O sino reúne atualizações recentes para você perceber rapidamente quando uma publicação foi concluída, está processando ou precisa de atenção.',
+    tips: [
+      'Veja sucessos, pendências, alertas e falhas de publicação no popover do topo.',
+      'Use Ver histórico completo para consultar a Central de Atividades.'
+    ]
   },
   {
     page: 'integracoes',
-    title: 'Contas conectadas',
-    body: 'Conecte Instagram, Facebook, YouTube e TikTok por aqui — é o primeiro passo para publicar direto pela plataforma.'
+    title: 'Contas conectadas: ligue suas redes',
+    body: 'Conecte as contas que você administra para liberar publicação, comentários e métricas dentro do Meu Ecoo Mídia.',
+    tips: [
+      'Conecte Instagram, Facebook, YouTube e TikTok por autorização segura.',
+      'Adicione mais de uma conta da mesma rede e pesquise a conta que precisa encontrar.',
+      'Filtre por situação do token, reconecte contas expiradas e consulte a saúde operacional das APIs.',
+      'Abra o perfil público quando houver endereço disponível ou desconecte uma conta que não usa mais.',
+      'Quando o problema for credencial, vá direto para Tokens.'
+    ]
   },
   {
     page: 'tokens',
-    title: 'Tokens',
-    body: 'Gerencie os tokens de acesso usados nas integrações com cada rede social, incluindo renovação e revogação quando necessário.'
+    title: 'Tokens: mantenha as autorizações saudáveis',
+    body: 'Tenha visibilidade sobre as credenciais das contas conectadas sem expor o segredo completo.',
+    tips: [
+      'Busque por conta ou rede e filtre por plataforma.',
+      'Filtre tokens válidos, expirando, expirados ou com erro.',
+      'Renove uma credencial individual ou use Renovar todos para corrigir várias de uma vez.',
+      'Confira última utilização e vencimento e revogue tokens que não devem mais ser usados.'
+    ]
   },
   {
     page: 'seguranca',
-    title: 'Segurança',
-    body: 'Ative a autenticação em dois fatores e acompanhe as sessões ativas da sua conta por aqui.'
+    title: 'Segurança: proteja seu acesso',
+    body: 'Adicione uma camada extra ao login com autenticação em dois fatores (2FA).',
+    tips: [
+      'Inicie a configuração informando sua senha atual.',
+      'Escaneie o QR Code no Google Authenticator, Authy ou outro app compatível; também é possível usar a chave manual.',
+      'Confirme o código de seis dígitos para ativar a proteção.',
+      'Para desativar o 2FA, informe um código atual do autenticador.'
+    ]
   },
   {
     page: 'atividade',
-    title: 'Atividades',
-    body: 'Consulte o histórico recente da sua conta: publicações, logins e outras ações importantes, tudo em ordem cronológica.'
+    title: 'Atividades: acompanhe tudo o que aconteceu',
+    body: 'A Central de Atividades é o histórico operacional da sua conta e ajuda a investigar publicações, conexões e alterações.',
+    tips: [
+      'Consulte até 200 eventos recentes em ordem cronológica.',
+      'Filtre por sucesso, erro ou informação e pesquise uma mensagem específica.',
+      'Atualize a lista para buscar os eventos mais recentes.',
+      'Limpe todo o histórico somente depois de confirmar a ação.'
+    ]
   },
   {
     page: 'ai',
-    title: 'Assistente de IA',
-    body: 'Peça legendas, ideias de conteúdo e sugestões de horário de publicação para o Assistente de IA a qualquer momento.'
+    title: 'Assistente IA: planeje, crie e aprenda',
+    body: 'Descreva o que quer publicar e use a IA para gerar ideias, imagens e leituras práticas do seu desempenho.',
+    tips: [
+      'Informe um tema e gere até três sugestões; depois peça mais ideias sem apagar as anteriores.',
+      'Escolha o modelo disponível, edite o texto e gere uma imagem única ou um carrossel de 3 a 8 slides para Instagram.',
+      'Escolha a rede e a conta compatível para publicar a sugestão; o YouTube exige mídia de vídeo.',
+      'Acompanhe o status da publicação e consulte o diagnóstico das execuções do agente.',
+      'Analise os últimos 7, 30 ou 90 dias para descobrir melhor horário, período do dia, perfis e nichos com melhor sinal.',
+      'Use as recomendações como apoio: a IA trabalha com os dados reais disponíveis e o limite depende do seu plano.'
+    ]
   },
   {
     page: 'biblioteca',
-    title: 'Biblioteca de mídia',
-    body: 'Centralize fotos e vídeos já enviados para reutilizar em novas publicações sem precisar subir os arquivos de novo.'
+    title: 'Biblioteca: organize seu acervo',
+    body: 'Centralize imagens e vídeos reutilizáveis para deixar a criação mais rápida e o material da marca mais organizado.',
+    tips: [
+      'Crie pastas, escolha o destino do upload e envie arquivos para o seu acervo.',
+      'Busque por nome e filtre por pasta; veja prévias, tamanho e tags.',
+      'Use uma mídia diretamente no Criador de Posts ou remova arquivos que não precisa mais.',
+      'Peça à IA sugestões de conteúdo com base em nicho, período, redes escolhidas e seus Analytics.',
+      'Salve uma sugestão no Baú de Ideias para desenvolver depois.'
+    ]
   },
   {
     page: 'filas',
-    title: 'Repetidor de posts',
-    body: 'Automatize publicações que se repetem em intervalos regulares, sem precisar recriar o mesmo conteúdo toda vez.'
+    title: 'Repetidor de posts: automatize rotinas',
+    body: 'Crie uma fila recorrente para transformar um conteúdo em uma rotina de publicação nos dias e horários escolhidos.',
+    tips: [
+      'Dê um nome à fila, escreva o conteúdo e escolha as redes que participarão.',
+      'Defina um ou mais dias da semana e o horário de execução.',
+      'Inclua mídia quando necessário e confira a próxima execução.',
+      'Ative, pause ou exclua uma fila a qualquer momento.'
+    ]
   },
   {
     page: 'smartlinks',
-    title: 'Smartlinks',
-    body: 'Crie um link único na bio que reúne vários destinos e converta cliques em oportunidades reais para o seu negócio.'
+    title: 'Smartlinks: um endereço para todos os seus links',
+    body: 'Monte uma página pública para sua bio com os destinos mais importantes da marca e acompanhe os cliques.',
+    tips: [
+      'Defina nome interno, título, descrição e logo da página.',
+      'Cadastre links no formato texto | URL e organize seus canais, produtos ou campanhas.',
+      'Abra a página pública e copie o endereço /go/slug para usar na bio.',
+      'Edite o slug/URL, acompanhe cliques por link e exclua páginas que não usa mais.'
+    ]
   },
   {
     page: 'equipe',
-    title: 'Equipe',
-    body: 'Aprove conteúdos antes da publicação e organize quem faz o quê na sua operação, com papéis diferentes para cada pessoa.'
+    title: 'Equipe: colabore com aprovação',
+    body: 'Separe operações por cliente ou marca e mantenha um fluxo claro de colaboração antes do envio às redes.',
+    tips: [
+      'Crie e selecione espaços de trabalho para cada cliente, marca ou projeto.',
+      'Adicione colaboradores já cadastrados e defina Editor, Aprovador ou Administrador.',
+      'Escolha uma publicação e envie uma solicitação para revisão.',
+      'Acompanhe solicitações pendentes e aprove ou rejeite o conteúdo.',
+      'Personalize o nome exibido e a cor da identidade visual do espaço.'
+    ]
   },
   {
     page: 'perfil',
-    title: 'Seu perfil',
-    body: 'Atualize seus dados, preferências de notificação e veja seu plano de uso. É também aqui que você encontra este tutorial para rever quando quiser.'
+    title: 'Perfil, preferências e plano',
+    body: 'Use seu perfil para manter seus dados e preferências em dia, controlar a sessão e entender o que está disponível no seu plano.',
+    tips: [
+      'Altere nome, avatar, fuso horário, idioma e plataforma padrão.',
+      'Escolha quais notificações receber por e-mail: publicações, falhas e comentários.',
+      'Troque sua senha, encerre a sessão atual ou saia de todos os dispositivos.',
+      'Consulte o uso de IA, compare os planos e escolha um plano pelo checkout seguro.',
+      'Acesse rapidamente Contas, Tokens e Atividades.',
+      'Aqui você pode iniciar ou rever este tutorial guiado.'
+    ]
+  },
+  {
+    target: 'administracao',
+    title: 'Administração (quando disponível)',
+    body: 'Administradores encontram aqui os controles da plataforma para acompanhar e manter as contas de usuários.',
+    tips: [
+      'Consulte e pesquise usuários, papéis, situação e quantidade de contas conectadas.',
+      'Promova ou rebaixe administradores respeitando as regras de segurança.',
+      'Ative ou desative usuários; a própria conta do administrador não pode ser desativada.',
+      'Este menu aparece somente para quem possui permissão de administrador.'
+    ]
   },
   {
     eyebrow: 'TUDO PRONTO',
     title: 'Você já conhece toda a plataforma! 🎉',
-    body: 'Agora é só começar a criar. Se precisar rever qualquer passo, o tutorial fica sempre disponível pelo ícone 🎓 no topo da tela.',
+    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use a IA para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
+    tips: [
+      'Comece conectando as redes que deseja administrar.',
+      'Use o Criador de Posts para publicar agora, agendar, salvar um rascunho ou criar um modelo.',
+      'Volte ao Calendário, Inbox e Relatórios para acompanhar a operação.',
+      'Se precisar de ajuda, consulte o tutorial novamente ou abra o Suporte no rodapé do Perfil.'
+    ],
     final: true
   }
 ]
@@ -127,7 +282,8 @@ function stepEyebrow(step, index) {
 const MOBILE_REACHABLE_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'inbox', 'perfil'])
 
 function stepNeedsMobileSidebar(step) {
-  if (!step || step.target) return false
+  if (!step) return false
+  if (step.target) return step.target === 'administracao'
   return Boolean(step.page) && !MOBILE_REACHABLE_PAGES.has(step.page)
 }
 
@@ -284,6 +440,10 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSi
       </div>
 
       <p className="tutorial-body" aria-live="polite">{step.body}</p>
+
+      {step.tips?.length > 0 && <ul className="tutorial-features" aria-label="O que você pode fazer nesta área">
+        {step.tips.map(tip => <li key={tip}><span aria-hidden="true">✓</span><span>{tip}</span></li>)}
+      </ul>}
 
       <div className="tutorial-progress" aria-label={`Passo ${index + 1} de ${STEPS.length}`}>
         <span style={{ width: `${((index + 1) / STEPS.length) * 100}%` }} />
