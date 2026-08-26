@@ -256,9 +256,16 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     // O identificador é persistido antes da chamada externa e reutilizado por
     // retries, deploys e instâncias concorrentes do scheduler.
     const providerRequestId = await postsRepo.obterProviderRequestId(account.postAccountId)
+    const metadata = {
+      app: 'social-api-manager',
+      clienteId: String(post.userId),
+      postId: String(post.id),
+      postAccountId: String(account.postAccountId),
+      platform
+    }
     let data
     try {
-      data = await publisher(token, post, { requestId: providerRequestId })
+      data = await publisher(token, post, { requestId: providerRequestId, metadata })
     } catch (err) {
       const duplicateId = existingZernioPostId(err)
       if (!duplicateId) throw err
@@ -532,10 +539,14 @@ async function fecharStatusSeSemPendencias(postId, linha) {
 // Aplica uma confirmação recebida do webhook da Zernio. Cada chamada de
 // publicação cria um post próprio no Zernio para uma conta, então o ID do
 // post externo identifica de forma segura a linha post_accounts local.
-async function confirmarPublicacaoZernio({ zernioPostId, platform, zernioAccountId = null, success, externalPostId = null, publishedAt = null, error = null }) {
+async function confirmarPublicacaoZernio({ zernioPostId, platform, zernioAccountId = null, metadata = null, success, externalPostId = null, publishedAt = null, error = null }) {
   if (!zernioPostId) return { matched: 0 }
 
-  const pendentes = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
+  let pendentes = metadata
+    ? await postsRepo.listarPostsComZernioPendentePorMetadata({ ...metadata, zernioPostId })
+    : []
+  // Compatibilidade com publicações criadas antes da adoção do metadata.
+  if (!pendentes.length) pendentes = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
   const candidatos = pendentes.filter(linha => {
     if (platform && linha.platform !== platform) return false
     if (!zernioAccountId) return true

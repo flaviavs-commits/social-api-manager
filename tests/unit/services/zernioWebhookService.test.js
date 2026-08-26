@@ -17,7 +17,8 @@ jest.mock('../../../src/infra/social/publisher', () => ({
 }))
 
 jest.mock('../../../src/infra/db/postsRepository', () => ({
-  listarPostsComZernioPendentePorPostId: jest.fn()
+  listarPostsComZernioPendentePorPostId: jest.fn(),
+  listarPostsComZernioPendentePorMetadata: jest.fn()
 }))
 
 const repo = require('../../../src/repositories/zernioWebhooksRepository')
@@ -37,6 +38,7 @@ function signed(payload) {
 beforeEach(() => {
   process.env.ZERNIO_WEBHOOK_SECRET = SECRET
   jest.clearAllMocks()
+  postsRepo.listarPostsComZernioPendentePorMetadata.mockResolvedValue([])
 })
 
 test('valida a assinatura sobre o corpo bruto', () => {
@@ -70,7 +72,14 @@ test('recusa assinatura inválida sem enfileirar payload', async () => {
 })
 
 test('converte post.published em confirmação local com o ID da plataforma', async () => {
-  postsRepo.listarPostsComZernioPendentePorPostId.mockResolvedValue([{
+  const metadata = {
+    app: 'social-api-manager',
+    clienteId: '7',
+    postId: '303',
+    postAccountId: '9',
+    platform: 'instagram'
+  }
+  postsRepo.listarPostsComZernioPendentePorMetadata.mockResolvedValue([{
     id: 303,
     postAccountId: 9,
     accountId: 4,
@@ -85,14 +94,17 @@ test('converte post.published em confirmação local com o ID da plataforma', as
     timestamp: '2026-08-26T21:51:00.000Z',
     post: {
       _id: 'zp-1',
+      metadata,
       platforms: [{ platform: 'instagram', status: 'published', platformPostId: 'ig-1' }]
     }
   })
 
   expect(result).toEqual({ matched: 1 })
   expect(publisher.confirmarPublicacaoZernio).toHaveBeenCalledWith(expect.objectContaining({
-    zernioPostId: 'zp-1', platform: 'instagram', success: true, externalPostId: 'ig-1'
+    zernioPostId: 'zp-1', platform: 'instagram', success: true, externalPostId: 'ig-1', metadata
   }))
+  expect(postsRepo.listarPostsComZernioPendentePorMetadata).toHaveBeenCalledWith({ ...metadata, zernioPostId: 'zp-1' })
+  expect(postsRepo.listarPostsComZernioPendentePorPostId).not.toHaveBeenCalled()
 })
 
 test('processa a falha por plataforma com o motivo recebido', async () => {

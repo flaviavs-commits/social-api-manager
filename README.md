@@ -291,6 +291,11 @@ o mesmo segredo e os eventos `post.published`, `post.partial`, `post.failed`,
 assinatura HMAC, grava cada evento uma única vez e responde rapidamente; o
 processamento também é retomado pelo cron se a aplicação reiniciar.
 
+Cada publicação enviada à Zernio leva um `metadata` com `clienteId`, `postId`,
+`postAccountId` e `platform`. O webhook usa esses dados para confirmar a linha
+exata da publicação no banco; eventos antigos sem metadata continuam usando o
+ID do post da Zernio como fallback.
+
 Consulte a documentação oficial em:
 https://docs.zernio.com/webhooks
 

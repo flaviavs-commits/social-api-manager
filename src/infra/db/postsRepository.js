@@ -529,6 +529,53 @@ async function listarPostsComZernioPendentePorPostId(zernioPostId) {
   return rows
 }
 
+// Usa o metadata devolvido pelo webhook como vínculo primário. Os valores
+// numéricos são validados antes de entrar nos parâmetros para que um metadata
+// malformado nunca amplie a consulta para outro cliente.
+async function listarPostsComZernioPendentePorMetadata({ zernioPostId, postId, postAccountId, clienteId, platform } = {}) {
+  const providerId = String(zernioPostId || '').trim()
+  if (!providerId) return []
+
+  const conds = [
+    `pa.instagram_pending->>'provider' = 'zernio'`,
+    `pa.instagram_pending->>'zernioPostId' = $1`
+  ]
+  const params = [providerId]
+  const addPositiveInteger = (value, sql) => {
+    const parsed = Number(value)
+    if (!Number.isInteger(parsed) || parsed <= 0) return
+    params.push(parsed)
+    conds.push(`${sql} = $${params.length}`)
+  }
+
+  addPositiveInteger(postId, 'p.id')
+  addPositiveInteger(postAccountId, 'pa.id')
+  addPositiveInteger(clienteId, 'p.user_id')
+  if (typeof platform === 'string' && platform.trim()) {
+    params.push(platform.trim().toLowerCase())
+    conds.push(`c.platform = $${params.length}`)
+  }
+
+  // Metadata sem nenhuma chave local não é uma correlação; o chamador pode
+  // então cair no lookup legado somente pelo ID do post Zernio.
+  if (params.length === 1) return []
+
+  const { rows } = await pool.query(`
+    SELECT pa.id AS "postAccountId", pa.account_id AS "accountId",
+           pa.instagram_pending AS "instagramPending",
+           pa.publication_error AS "publicationError",
+           p.id, p.text, p.platforms, p.status, p.user_id AS "userId",
+           u.role AS "userRole", c.platform, c.handle,
+           c.zernio_account_id AS "zernioAccountId"
+    FROM post_accounts pa
+    JOIN posts p ON p.id = pa.post_id
+    JOIN contas c ON c.id = pa.account_id
+    LEFT JOIN users u ON u.id = p.user_id
+    WHERE ${conds.join(' AND ')}
+  `, params)
+  return rows
+}
+
 // Último snapshot conhecido de cada (post, rede). O Analytics usa este
 // resultado quando a publicação não entra na pequena janela de atualização
 // ao vivo, evitando uma chamada externa por publicação a cada refresh.
@@ -632,7 +679,7 @@ module.exports = {
   obterProviderRequestId,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
-  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, listarPostsComZernioPendentePorPostId, existePendenciaInstagramNoPost,
+  salvarInstagramPending, limparInstagramPending, listarPostsComInstagramPendente, listarPostsComZernioPendentePorPostId, listarPostsComZernioPendentePorMetadata, existePendenciaInstagramNoPost,
   registrarSnapshotMetricas, buscarHistoricoMetricas, listarUltimosSnapshotsMetricas,
   listarPostsCalendario, reagendarPost
 }

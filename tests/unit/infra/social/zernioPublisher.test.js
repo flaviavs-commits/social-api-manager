@@ -86,3 +86,25 @@ test('mantém o vídeo como mídia única e envia as opções específicas de v�
     allow_stitch: false
   })
 })
+
+test('envia metadata para correlacionar o webhook com a publicação local', async () => {
+  const metadata = {
+    app: 'social-api-manager',
+    clienteId: '7',
+    postId: '303',
+    postAccountId: '9',
+    platform: 'tiktok'
+  }
+
+  await publicarZernioTiktok(
+    { accessToken: 'zernio-account-1' },
+    {
+      mediaItems: [{ path: 'photo.jpg', type: 'image' }],
+      text: 'Uma foto',
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE'
+    },
+    { metadata }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].metadata).toEqual(metadata)
+})

@@ -50,7 +50,12 @@ function postDaResposta(response) {
   return created
 }
 
-async function publicarZernioInstagram(token, post, { requestId } = {}) {
+function metadataDaPublicacao(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  return Object.keys(metadata).length ? metadata : null
+}
+
+async function publicarZernioInstagram(token, post, { requestId, metadata } = {}) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
   const platformSpecificData = {}
@@ -65,6 +70,7 @@ async function publicarZernioInstagram(token, post, { requestId } = {}) {
     content: post.text || '',
     publishNow: true,
     mediaItems: montarMediaItems(post),
+    ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
       platform: 'instagram',
       accountId: token.accessToken,
@@ -76,7 +82,7 @@ async function publicarZernioInstagram(token, post, { requestId } = {}) {
   return extrairDadosDaPlataforma(created, 'instagram')
 }
 
-async function publicarZernioFacebook(token, post, { requestId } = {}) {
+async function publicarZernioFacebook(token, post, { requestId, metadata } = {}) {
   const platformSpecificData = {}
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
 
@@ -84,6 +90,7 @@ async function publicarZernioFacebook(token, post, { requestId } = {}) {
     content: post.text || '',
     publishNow: true,
     mediaItems: montarMediaItems(post),
+    ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
       platform: 'facebook',
       accountId: token.accessToken,
@@ -95,7 +102,7 @@ async function publicarZernioFacebook(token, post, { requestId } = {}) {
   return extrairDadosDaPlataforma(created, 'facebook')
 }
 
-async function publicarZernioYoutube(token, post, { requestId } = {}) {
+async function publicarZernioYoutube(token, post, { requestId, metadata } = {}) {
   const items = post.mediaItems?.length
     ? post.mediaItems
     : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
@@ -114,6 +121,7 @@ async function publicarZernioYoutube(token, post, { requestId } = {}) {
     content: post.text || '',
     publishNow: true,
     mediaItems: [{ type: 'video', url: mediaUrl(videos[0].path) }],
+    ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
       platform: 'youtube',
       accountId: token.accessToken,
@@ -125,7 +133,7 @@ async function publicarZernioYoutube(token, post, { requestId } = {}) {
   return extrairDadosDaPlataforma(created, 'youtube')
 }
 
-async function publicarZernioTiktok(token, post, { requestId } = {}) {
+async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   if (!items.length) throw new Error('TikTok exige uma imagem ou vídeo para publicar.')
 
@@ -167,6 +175,7 @@ async function publicarZernioTiktok(token, post, { requestId } = {}) {
     content,
     publishNow: true,
     mediaItems: montarMediaItems({ mediaItems: items }),
+    ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{ platform: 'tiktok', accountId: token.accessToken }],
     tiktokSettings
   }, { requestId })

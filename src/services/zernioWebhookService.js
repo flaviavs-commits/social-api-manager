@@ -53,6 +53,12 @@ function postFromPayload(payload) {
   return payload?.post || payload?.data?.post || null
 }
 
+function metadataFromPost(post, payload) {
+  const metadata = post?.metadata || payload?.metadata
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  return metadata
+}
+
 function platformEntries(post) {
   if (Array.isArray(post?.platforms)) return post.platforms
   if (post?.platforms && typeof post.platforms === 'object') return Object.values(post.platforms)
@@ -99,6 +105,7 @@ async function processarPayload(payload) {
   if (!zernioPostId) return { matched: 0 }
 
   let post = postFromPayload(payload)
+  const payloadMetadata = metadataFromPost(post, payload)
   let entries = platformEntries(post)
   // O rollup parcial precisa da situação de cada plataforma para distinguir
   // sucesso de falha. Se o payload vier reduzido, consulta o post uma vez.
@@ -108,7 +115,13 @@ async function processarPayload(payload) {
     entries = platformEntries(post)
   }
 
-  const pending = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
+  const metadata = metadataFromPost(post, payload) || payloadMetadata
+  let pending = metadata
+    ? await postsRepo.listarPostsComZernioPendentePorMetadata({ ...metadata, zernioPostId })
+    : []
+  // Compatibilidade com eventos sem metadata e com posts criados antes desta
+  // correlação existir.
+  if (!pending.length) pending = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
   if (!pending.length) return { matched: 0 }
 
   const eventPlatform = PLATFORM_EVENTS.has(eventName) ? platformName(payload.platform) : null
@@ -138,6 +151,7 @@ async function processarPayload(payload) {
       zernioPostId,
       platform: line.platform,
       zernioAccountId: eventAccountId || entryAccountId(eventEntry),
+      metadata,
       success,
       externalPostId: externalPostId(eventEntry),
       publishedAt: eventEntry.publishedAt || payload.timestamp || new Date().toISOString(),

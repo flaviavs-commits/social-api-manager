@@ -283,6 +283,28 @@ describe('listarPostsComInstagramPendente', () => {
   })
 })
 
+describe('listarPostsComZernioPendentePorMetadata', () => {
+  test('restringe a pendência pelo metadata local', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+
+    await repo.listarPostsComZernioPendentePorMetadata({
+      zernioPostId: 'zp-1',
+      postId: '303',
+      postAccountId: '9',
+      clienteId: '7',
+      platform: 'Instagram'
+    })
+
+    const [sql, params] = pool.query.mock.calls[0]
+    expect(sql).toContain("pa.instagram_pending->>'zernioPostId' = $1")
+    expect(sql).toContain('p.id = $2')
+    expect(sql).toContain('pa.id = $3')
+    expect(sql).toContain('p.user_id = $4')
+    expect(sql).toContain('c.platform = $5')
+    expect(params).toEqual(['zp-1', 303, 9, 7, 'instagram'])
+  })
+})
+
 describe('buscarHistoricoMetricas', () => {
   test('retorna histórico por postId', async () => {
     const rows = [{ date: '2026-07-01', likes: 50 }]
