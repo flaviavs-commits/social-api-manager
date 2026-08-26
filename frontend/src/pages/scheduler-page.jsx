@@ -414,6 +414,7 @@ function PreviewVideo({ src, platform }) {
 
   useEffect(() => {
     let active = true
+    let seeked = false
     const video = videoRef.current
     if (!video) return undefined
 
@@ -435,17 +436,44 @@ function PreviewVideo({ src, platform }) {
         // incompleto. O vídeo continua sendo exibido diretamente nesse caso.
       }
     }
-    const scheduleCapture = () => {
-      if (typeof video.requestVideoFrameCallback === 'function') {
-        video.requestVideoFrameCallback(captureFrame)
+    // Esperar dois paints garante que o frame buscado pelo seek já foi
+    // efetivamente decodificado e pintado, evitando capturar um frame
+    // borrado/incompleto (comum logo após o primeiro keyframe do vídeo).
+    const waitTwoPaints = () => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(captureFrame))
       } else {
-        window.requestAnimationFrame(captureFrame)
+        setTimeout(captureFrame, 0)
       }
     }
-    const handleDecodedData = () => scheduleCapture()
+    const scheduleCapture = () => {
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        video.requestVideoFrameCallback(waitTwoPaints)
+      } else {
+        waitTwoPaints()
+      }
+    }
+    // Busca um instante um pouco à frente do início: o frame exatamente em
+    // t=0 costuma ser o menos nítido (antes do primeiro keyframe completo).
+    const seekToSharpFrame = () => {
+      if (seeked) { scheduleCapture(); return }
+      seeked = true
+      const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
+      const target = Math.min(0.15, duration ? duration / 2 : 0.15)
+      if (target <= 0) { scheduleCapture(); return }
+      const handleSeeked = () => { video.removeEventListener('seeked', handleSeeked); scheduleCapture() }
+      video.addEventListener('seeked', handleSeeked)
+      try {
+        video.currentTime = target
+      } catch {
+        video.removeEventListener('seeked', handleSeeked)
+        scheduleCapture()
+      }
+    }
+    const handleDecodedData = () => seekToSharpFrame()
     video.addEventListener('loadeddata', handleDecodedData)
     video.addEventListener('canplay', handleDecodedData)
-    if (video.readyState >= 2) scheduleCapture()
+    if (video.readyState >= 2) seekToSharpFrame()
 
     return () => {
       active = false
