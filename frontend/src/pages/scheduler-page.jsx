@@ -483,8 +483,10 @@ function PreviewVideo({ src, platform }) {
   }, [src])
 
   return <div className={`social-preview-video social-preview-video-${platform}`}>
-    <video ref={videoRef} className={frame ? 'social-preview-video-source is-frame-hidden' : 'social-preview-video-source'} src={src} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden={Boolean(frame)} aria-label="Prévia do vídeo selecionado"/>
-    {frame && <img className="social-preview-video-frame" src={frame} alt="Quadro inicial do vídeo selecionado"/>}
+    <video ref={videoRef} className="social-preview-video-source is-frame-hidden" src={src} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden="true"/>
+    {frame
+      ? <img className="social-preview-video-frame" src={frame} alt="Quadro inicial do vídeo selecionado"/>
+      : <div className="social-preview-video-placeholder" aria-hidden="true" />}
     <span className="social-preview-video-badge">Vídeo detectado</span>
   </div>
 }

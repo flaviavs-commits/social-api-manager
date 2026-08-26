@@ -102,6 +102,14 @@
   pointer-events: none;
 }
 
+.social-preview-video-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: #000;
+  pointer-events: none;
+}
+
 /* Browser-native controls can render a large translucent mask over the frame. */
 .social-preview-video video::-webkit-media-controls,
 .social-preview-video video::-webkit-media-controls-enclosure {
