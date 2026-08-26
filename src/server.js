@@ -29,6 +29,7 @@ const { router: reportSchedulesRoutes } = require('./routes/reportSchedules')
 const { apiRouter: smartlinksRoutes, publicRouter: publicSmartlinksRoutes } = require('./routes/smartlinks')
 const workspacesRoutes = require('./routes/workspaces')
 const webhooksRoutes = require('./routes/webhooks')
+const zernioWebhookRoutes = require('./routes/zernioWebhook')
 const apiKeysRoutes = require('./routes/apiKeys')
 const apiV1Routes = require('./routes/apiV1')
 const { router: billingRoutes, handleStripeWebhook } = require('./routes/billing')
@@ -114,6 +115,11 @@ app.use('/oauth/tiktok/webhook', express.json({
 // fica fora do requireAuth porque é chamado pelo gateway, não pelo navegador.
 app.use('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }))
 app.post('/api/billing/stripe/webhook', handleStripeWebhook)
+
+// O callback da Zernio é público, mas autenticado pela assinatura HMAC. O
+// parser raw precisa estar antes do express.json() global para preservar os
+// bytes exatos usados no cálculo da assinatura.
+app.use('/webhooks/zernio', express.raw({ type: 'application/json', limit: '256kb' }), zernioWebhookRoutes)
 
 // O agendador envia miniaturas comprimidas das imagens para a análise visual
 // conjunta de carrosséis. Mantém um limite explícito para não aceitar corpos
