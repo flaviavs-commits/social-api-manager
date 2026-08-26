@@ -53,18 +53,10 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
         tone: String(args.tone || 'casual'),
       })
       const firstPost = result?.posts?.[0] || {}
-      let imageResult
-      try {
-        imageResult = await generateImage({ description: instruction.slice(0, 4000), model: String(args.model || 'auto') })
-      } catch (error) {
-        // O texto continua útil mesmo quando nenhum provedor de imagem está
-        // configurado ou quando a geração visual excede o tempo disponível.
-        return {
-          message: 'O texto do post ficou pronto, mas não consegui gerar a imagem agora. Revise o conteúdo e tente gerar o visual novamente.',
-          data: { ...result, imageUnavailable: true, postDraft: { text: firstPost.texto || firstPost.text || instruction } },
-          navigation: 'ai',
-        }
-      }
+      // Uma solicitação que exige imagem nunca pode terminar como sucesso
+      // somente com texto. O gerador já tenta os provedores disponíveis e,
+      // se todos falharem, o erro chega ao usuário para uma nova tentativa.
+      const imageResult = await generateImage({ description: instruction.slice(0, 4000), model: String(args.model || 'auto') })
       if (!imageResult?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
       return {
         message: 'Preparei uma ideia de post com imagem. Revise o texto e use o botão para continuar no Criador de Posts.',
