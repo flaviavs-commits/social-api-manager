@@ -83,6 +83,61 @@ function compressImageForAnalysis(file) {
   })
 }
 
+function waitForDecodedVideoFrame(video) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let frameRequested = false
+    let frameTimeout
+    const cleanup = () => {
+      clearTimeout(frameTimeout)
+      video.removeEventListener('loadeddata', requestFrame)
+      video.removeEventListener('canplay', requestFrame)
+      video.removeEventListener('error', fail)
+    }
+    const finish = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+    const fail = (error = new Error('O navegador não conseguiu decodificar um frame do vídeo.')) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(error)
+    }
+    const waitOnePaint = () => {
+      const paint = () => finish()
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(paint))
+      } else {
+        setTimeout(paint, 0)
+      }
+    }
+    const requestFrame = () => {
+      if (settled || frameRequested || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return
+      frameRequested = true
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        try {
+          video.requestVideoFrameCallback(() => finish())
+          // Fallback para navegadores que expõem a API, mas não disparam o
+          // callback quando o elemento está pausado após um seek.
+          frameTimeout = setTimeout(waitOnePaint, 1000)
+          return
+        } catch {
+          // Alguns navegadores expõem a API, mas podem recusá-la durante um seek.
+        }
+      }
+      waitOnePaint()
+    }
+    video.addEventListener('loadeddata', requestFrame)
+    video.addEventListener('canplay', requestFrame)
+    video.addEventListener('error', fail)
+    frameTimeout = setTimeout(() => fail(), 8_000)
+    requestFrame()
+  })
+}
+
 function captureVideoFramesForAnalysis(file) {
   return new Promise((resolve, reject) => {
     const sourceUrl = URL.createObjectURL(file)
@@ -94,9 +149,49 @@ function captureVideoFramesForAnalysis(file) {
     let frameIndex = 0
     let duration = 0
     const frames = []
+    let capturing = false
     video.muted = true
     video.playsInline = true
-    video.preload = 'metadata'
+    video.preload = 'auto'
+    const seekToCurrentFrame = () => {
+      const target = frameTimes[frameIndex] || 0
+      if (Math.abs(video.currentTime - target) < 0.01) {
+        void captureCurrentFrame()
+      } else {
+        video.currentTime = target
+      }
+    }
+    async function captureCurrentFrame() {
+      if (finished || capturing) return
+      capturing = true
+      try {
+        await waitForDecodedVideoFrame(video)
+        if (finished) return
+        if (!video.videoWidth || !video.videoHeight) throw new Error(`Não foi possível capturar um frame de ${file.name}.`)
+        const maxDimension = 768
+        const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+        canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error(`Não foi possível preparar um frame de ${file.name}.`)
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const frame = { ...canvasToAnalysisData(canvas), mediaKind: 'video', timestamp: frameTimes[frameIndex] || 0, frameIndex: frameIndex + 1, frameCount: frameTimes.length, duration }
+        frames.push(frame)
+        frameIndex += 1
+        if (frameIndex < frameTimes.length) {
+          seekToCurrentFrame()
+          return
+        }
+        finished = true
+        resolve({ frames, duration })
+        cleanup()
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(`Não foi possível capturar um frame de ${file.name}.`))
+      } finally {
+        capturing = false
+      }
+    }
     video.onloadedmetadata = () => {
       try {
         duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
@@ -105,30 +200,10 @@ function captureVideoFramesForAnalysis(file) {
         // sequência sem precisar enviar o arquivo de vídeo inteiro.
         const percentages = duration > 8 ? [0.04, 0.28, 0.52, 0.76, 0.96] : [0.05, 0.35, 0.65, 0.95]
         frameTimes = Array.from(new Set(percentages.map(percent => Math.min(Math.max(duration * percent, 0), Math.max(duration - 0.05, 0)))))
-        video.currentTime = frameTimes[0] || 0
+        seekToCurrentFrame()
       } catch { fail(new Error(`Não foi possível preparar ${file.name}.`)) }
     }
-    video.onseeked = () => {
-      if (finished) return
-      try {
-        const maxDimension = 768
-        const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight))
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
-        canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
-        const frame = { ...canvasToAnalysisData(canvas), mediaKind: 'video', timestamp: frameTimes[frameIndex] || 0, frameIndex: frameIndex + 1, frameCount: frameTimes.length, duration }
-        frames.push(frame)
-        frameIndex += 1
-        if (frameIndex < frameTimes.length) {
-          video.currentTime = frameTimes[frameIndex]
-          return
-        }
-        finished = true
-        resolve({ frames, duration })
-        cleanup()
-      } catch { fail(new Error(`Não foi possível capturar um frame de ${file.name}.`)) }
-    }
+    video.onseeked = () => { void captureCurrentFrame() }
     video.onerror = () => fail(new Error(`Não foi possível ler ${file.name}.`))
     video.src = sourceUrl
     video.load()
@@ -209,6 +284,10 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       const isCarousel = !hasVideo && targets.length > 1
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
+        // A análise de vídeo extrai até cinco frames e passa por um modelo de
+        // visão. O backend aceita até 45s; o cliente precisa sobreviver além
+        // desse limite para não abortar uma resposta válida.
+        timeoutMs: 60_000,
         body: JSON.stringify({
           mediaItems,
           mediaKind: hasVideo ? 'video' : 'image',
@@ -238,9 +317,15 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       }
     } catch (caught) {
       const message = caught?.message || ''
-      setAnalysisError(message.includes('limite') || message.includes('429')
+      const hasVideo = files.some(file => file.type.startsWith('video/'))
+      const mediaLabel = hasVideo ? 'vídeo' : files.length > 1 ? 'imagens' : 'imagem'
+      setAnalysisError(caught?.status === 408 || message.toLowerCase().includes('tempo esgotado')
+        ? `A análise do ${mediaLabel} demorou mais que o esperado. Tente novamente em instantes.`
+        : message.includes('limite') || message.includes('429')
         ? 'O modelo de IA atingiu o limite de requisições. Tente novamente em instantes.'
-        : 'As imagens não puderam ser analisadas. Confira os arquivos e tente novamente.')
+        : message.startsWith('O navegador não conseguiu') || message.startsWith('Não foi possível')
+          ? message
+          : `Não foi possível analisar o ${mediaLabel}. Confira o arquivo e tente novamente.`)
     }
     setBusy(false)
   }
