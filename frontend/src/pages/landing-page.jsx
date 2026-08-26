@@ -72,9 +72,19 @@ export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    if (window.location.pathname !== '/como-funciona') return
-    const section = document.getElementById('como-funciona')
-    if (section) window.requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }))
+    const previousScrollRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+
+    if (window.location.pathname === '/como-funciona') {
+      const section = document.getElementById('como-funciona')
+      if (section) window.requestAnimationFrame(() => section.scrollIntoView({ block: 'start' }))
+    } else {
+      if (window.location.hash) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`)
+      window.scrollTo(0, 0)
+      window.requestAnimationFrame(() => window.scrollTo(0, 0))
+    }
+
+    return () => { window.history.scrollRestoration = previousScrollRestoration }
   }, [])
 
   return <main className="landing-page" id="inicio">
