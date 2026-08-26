@@ -409,18 +409,30 @@ function previewAspectOptions(platform, instagramFormat, mediaKind) {
 }
 
 function PreviewVideo({ src, platform }) {
-  const videoRef = useRef(null)
   const [frame, setFrame] = useState('')
 
   useEffect(() => {
     let active = true
-    let seeked = false
-    const video = videoRef.current
-    if (!video) return undefined
+    let finished = false
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+    video.crossOrigin = 'anonymous'
 
     setFrame('')
+
+    const cleanup = () => {
+      video.onloadedmetadata = null
+      video.onseeked = null
+      video.onerror = null
+      video.removeAttribute('src')
+      video.load()
+    }
+
     const captureFrame = () => {
-      if (!active || !video.videoWidth || !video.videoHeight) return
+      if (finished || !active) return
+      if (!video.videoWidth || !video.videoHeight) return
       try {
         const maxWidth = 1280
         const scale = Math.min(1, maxWidth / video.videoWidth)
@@ -430,12 +442,15 @@ function PreviewVideo({ src, platform }) {
         const context = canvas.getContext('2d')
         if (!context) return
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        finished = true
         if (active) setFrame(canvas.toDataURL('image/jpeg', 0.92))
+        cleanup()
       } catch {
         // Alguns navegadores não permitem ler o frame em situações de decode
-        // incompleto. O vídeo continua sendo exibido diretamente nesse caso.
+        // incompleto. O espaço fica com o placeholder nesse caso.
       }
     }
+
     // Esperar dois paints garante que o frame buscado pelo seek já foi
     // efetivamente decodificado e pintado, evitando capturar um frame
     // borrado/incompleto (comum logo após o primeiro keyframe do vídeo).
@@ -446,44 +461,33 @@ function PreviewVideo({ src, platform }) {
         setTimeout(captureFrame, 0)
       }
     }
-    const scheduleCapture = () => {
-      if (typeof video.requestVideoFrameCallback === 'function') {
-        video.requestVideoFrameCallback(waitTwoPaints)
-      } else {
-        waitTwoPaints()
-      }
-    }
-    // Busca um instante um pouco à frente do início: o frame exatamente em
-    // t=0 costuma ser o menos nítido (antes do primeiro keyframe completo).
-    const seekToSharpFrame = () => {
-      if (seeked) { scheduleCapture(); return }
-      seeked = true
+
+    video.onloadedmetadata = () => {
+      // Só buscamos um frame específico depois que a metadata (dimensões e
+      // duração reais) está disponível — buscar antes disso pode fazer o
+      // navegador decodificar um frame incompleto/de baixa qualidade.
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
       const target = Math.min(0.15, duration ? duration / 2 : 0.15)
-      if (target <= 0) { scheduleCapture(); return }
-      const handleSeeked = () => { video.removeEventListener('seeked', handleSeeked); scheduleCapture() }
-      video.addEventListener('seeked', handleSeeked)
+      if (target <= 0) { waitTwoPaints(); return }
       try {
         video.currentTime = target
       } catch {
-        video.removeEventListener('seeked', handleSeeked)
-        scheduleCapture()
+        waitTwoPaints()
       }
     }
-    const handleDecodedData = () => seekToSharpFrame()
-    video.addEventListener('loadeddata', handleDecodedData)
-    video.addEventListener('canplay', handleDecodedData)
-    if (video.readyState >= 2) seekToSharpFrame()
+    video.onseeked = () => waitTwoPaints()
+    video.onerror = () => cleanup()
+
+    video.src = src
+    video.load()
 
     return () => {
       active = false
-      video.removeEventListener('loadeddata', handleDecodedData)
-      video.removeEventListener('canplay', handleDecodedData)
+      cleanup()
     }
   }, [src])
 
   return <div className={`social-preview-video social-preview-video-${platform}`}>
-    <video ref={videoRef} className="social-preview-video-source is-frame-hidden" src={src} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden="true"/>
     {frame
       ? <img className="social-preview-video-frame" src={frame} alt="Quadro inicial do vídeo selecionado"/>
       : <div className="social-preview-video-placeholder" aria-hidden="true" />}
