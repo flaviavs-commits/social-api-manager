@@ -7,7 +7,7 @@ jest.mock('../../../../src/infra/social/mediaFetch', () => ({
 }))
 
 const zernioClient = require('../../../../src/infra/social/zernioClient')
-const { publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
+const { publicarZernioInstagram, publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
 
 function zernioResponse() {
   return {
@@ -107,4 +107,43 @@ test('envia metadata para correlacionar o webhook com a publicação local', asy
   )
 
   expect(zernioClient.createPost.mock.calls[0][0].metadata).toEqual(metadata)
+})
+
+test('identifica vídeo do Instagram sem enviar contentType feed', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'ig-post-1',
+      platforms: [{ platform: 'instagram', platformPostId: 'ig-post-1', platformPostUrl: 'https://instagram.com/reel/1' }]
+    }
+  })
+
+  await publicarZernioInstagram(
+    { accessToken: 'instagram-account-1' },
+    { mediaItems: [{ path: 'video.mp4', type: 'video' }], text: 'Vídeo', igFormat: 'post' }
+  )
+
+  const body = zernioClient.createPost.mock.calls[0][0]
+  expect(body.mediaItems).toEqual([{ type: 'video', url: 'https://cdn.test/video.mp4' }])
+  expect(body.platforms[0]).toEqual({
+    platform: 'instagram',
+    accountId: 'instagram-account-1',
+    platformSpecificData: { shareToFeed: true }
+  })
+  expect(body.platforms[0].platformSpecificData.contentType).toBeUndefined()
+})
+
+test('usa contentType story somente para story do Instagram', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'ig-story-1',
+      platforms: [{ platform: 'instagram', platformPostId: 'ig-story-1' }]
+    }
+  })
+
+  await publicarZernioInstagram(
+    { accessToken: 'instagram-account-1' },
+    { mediaItems: [{ path: 'story.mp4', type: 'video' }], text: 'Story', igFormat: 'story' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].platforms[0].platformSpecificData).toEqual({ contentType: 'story' })
 })

@@ -8,8 +8,10 @@ const { mediaUrl } = require('./mediaFetch')
 const zernioClient = require('./zernioClient')
 
 // post.igFormat usa 'post'/'reel'/'story' (domain/posts/post.js,
-// INSTAGRAM_FORMATS) — Zernio usa 'feed'/'reel'/'story'.
-const IG_CONTENT_TYPE = { post: 'feed', reel: 'reel', story: 'story' }
+// INSTAGRAM_FORMATS). Na API da Zernio, feed é o default e não deve ser
+// enviado como contentType. O único contentType explícito é story; um vídeo
+// único é detectado pelo item type=video e publicado como Reel.
+const IG_CONTENT_TYPE = { story: 'story' }
 
 function montarMediaItems(post) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
@@ -58,8 +60,14 @@ function metadataDaPublicacao(metadata) {
 async function publicarZernioInstagram(token, post, { requestId, metadata } = {}) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
+  const items = post.mediaItems?.length ? post.mediaItems : [{ path: post.mediaPath, type: post.mediaType }]
+  const videoUnico = items.length === 1 && items[0].type === 'video'
   const platformSpecificData = {}
   if (post.igFormat && IG_CONTENT_TYPE[post.igFormat]) platformSpecificData.contentType = IG_CONTENT_TYPE[post.igFormat]
+  // A Zernio transforma vídeo único em Reel. Mantemos a exibição no feed,
+  // salvo quando o usuário escolheu Story, sem mandar contentType=feed (valor
+  // que a API não reconhece como tipo explícito).
+  if (videoUnico && post.igFormat !== 'story') platformSpecificData.shareToFeed = true
   // O Zernio posta o primeiro comentário nativamente no momento da
   // publicação — não precisa do fluxo separado via cron
   // (post_first_comments/processarPrimeirosComentarios em scheduler.js), que
@@ -69,7 +77,7 @@ async function publicarZernioInstagram(token, post, { requestId, metadata } = {}
   const response = await zernioClient.createPost({
     content: post.text || '',
     publishNow: true,
-    mediaItems: montarMediaItems(post),
+    mediaItems: montarMediaItems({ ...post, mediaItems: items }),
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
       platform: 'instagram',

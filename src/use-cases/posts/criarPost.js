@@ -5,7 +5,7 @@ const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const { processarPost } = require('../../services/scheduler')
 const { probeVideo } = require('../../infra/storage/videoProbe')
-const { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok } = require('../../infra/storage/mediaConverter')
+const { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok, converterVideoParaInstagram } = require('../../infra/storage/mediaConverter')
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
@@ -104,12 +104,29 @@ async function normalizarVideosTiktok(files, probes) {
   }))
 }
 
-async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false } = {}) {
+async function normalizarVideosInstagram(files) {
+  return Promise.all(files.map(async file => {
+    if (!file.mimetype.startsWith('video/')) return file
+
+    const response = await fetch(file.url)
+    if (!response.ok) throw new Error('Não foi possível baixar o vídeo para preparar a versão do Instagram.')
+    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const outputBuffer = await converterVideoParaInstagram(inputBuffer)
+    const url = await salvarBuffer(`${crypto.randomUUID()}-instagram.mp4`, outputBuffer, 'video/mp4')
+    return { ...file, url, mimetype: 'video/mp4' }
+  }))
+}
+
+async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false, normalizarInstagram = false } = {}) {
   const dimensoesPorPath = {}
   let files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath)
   let probes = await probarVideos(files)
   if (normalizarTiktok && platforms.includes('tiktok')) {
     files = await normalizarVideosTiktok(files, probes)
+    probes = await probarVideos(files)
+  }
+  if (normalizarInstagram && platforms.includes('instagram')) {
+    files = await normalizarVideosInstagram(files)
     probes = await probarVideos(files)
   }
   const items = montarItensMedia(files, captions)
@@ -255,17 +272,30 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // resultado alimenta tanto a validação por rede (domain/posts/post.js)
   // quanto o que é gravado em post_accounts.media_items por conta. TikTok
   // sempre entra aqui quando está entre as plataformas e é uma foto, para
-  // preservar a mídia por rede sem afetar a versão compartilhada. Se o
-  // usuário escolheu mídia independente, ela continua sendo respeitada.
+  // preservar a mídia por rede sem afetar a versão compartilhada. Vídeo do
+  // Instagram também ganha uma cópia MP4/H.264 própria, pois a normalização
+  // exigida pela API não deve alterar o arquivo usado pelas outras redes.
+  // Se o usuário escolheu mídia independente, ela continua sendo respeitada.
   const platformsComMidiaPropria = Object.keys(mediaByPlatform).filter(p => platforms.includes(p))
   const tiktokPrecisaDeVersaoPropria = platforms.includes('tiktok') && !platformsComMidiaPropria.includes('tiktok') && ['image', 'video'].includes(mediaType)
-  const todasComMidiaPropria = tiktokPrecisaDeVersaoPropria ? [...platformsComMidiaPropria, 'tiktok'] : platformsComMidiaPropria
+  const instagramPrecisaDeVersaoPropria = platforms.includes('instagram') && !platformsComMidiaPropria.includes('instagram') && mediaType === 'video'
+  const todasComMidiaPropria = Array.from(new Set([
+    ...platformsComMidiaPropria,
+    ...(tiktokPrecisaDeVersaoPropria ? ['tiktok'] : []),
+    ...(instagramPrecisaDeVersaoPropria ? ['instagram'] : [])
+  ]))
 
   const resultadosPorPlataforma = await Promise.all(
     todasComMidiaPropria.map(p => {
-      const origemMedia = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? media : mediaByPlatform[p]
-      const origemCaptions = p === 'tiktok' && tiktokPrecisaDeVersaoPropria ? captions : (captionsByPlatform[p] || [])
-      return processarMidia(origemMedia, origemCaptions, [p], igFormat, { normalizarTiktok: p === 'tiktok' })
+      const usaMidiaCompartilhada =
+        (p === 'tiktok' && tiktokPrecisaDeVersaoPropria) ||
+        (p === 'instagram' && instagramPrecisaDeVersaoPropria)
+      const origemMedia = usaMidiaCompartilhada ? media : mediaByPlatform[p]
+      const origemCaptions = usaMidiaCompartilhada ? captions : (captionsByPlatform[p] || [])
+      return processarMidia(origemMedia, origemCaptions, [p], igFormat, {
+        normalizarTiktok: p === 'tiktok',
+        normalizarInstagram: p === 'instagram'
+      })
     })
   )
   const itemsByPlatform = {}

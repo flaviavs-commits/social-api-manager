@@ -86,6 +86,22 @@
   mix-blend-mode: normal;
 }
 
+.social-preview-video-source.is-frame-hidden {
+  visibility: hidden;
+}
+
+.social-preview-video-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  pointer-events: none;
+}
+
 /* Browser-native controls can render a large translucent mask over the frame. */
 .social-preview-video video::-webkit-media-controls,
 .social-preview-video video::-webkit-media-controls-enclosure {
@@ -94,6 +110,7 @@
 
 .social-preview-video-badge {
   position: absolute;
+  z-index: 2;
   right: 9px;
   bottom: 9px;
   padding: 4px 7px;
@@ -103,6 +120,18 @@
   font-size: 9px;
   font-weight: 700;
   pointer-events: none;
+}
+
+.social-preview-format-note {
+  margin: -2px 0 8px;
+  color: #aeb4c5;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.social-preview-carousel-dots,
+.social-preview-tiktok-overlay {
+  z-index: 2;
 }
 
 .media-detection-panel,

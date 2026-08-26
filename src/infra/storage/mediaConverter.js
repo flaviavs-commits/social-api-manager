@@ -71,4 +71,45 @@ async function converterVideoParaTiktok(inputBuffer) {
   }
 }
 
-module.exports = { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok }
+// Normaliza uma cópia exclusiva para o Instagram. O upload direto aceita
+// vários contêineres, mas o Instagram exige MP4/MOV com vídeo H.264 e 30 fps.
+// A largura é limitada a 1080 px sem cortar nem distorcer o enquadramento; a
+// cópia original continua disponível para as outras redes.
+async function converterVideoParaInstagram(inputBuffer) {
+  const inputPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-instagram-input`)
+  const outputPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-instagram-output.mp4`)
+  await fs.promises.writeFile(inputPath, inputBuffer)
+
+  try {
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-map', '0:v:0',
+          '-map', '0:a:0?',
+          '-vf', "scale=w='min(1080,iw)':h=-2",
+          '-r', '30',
+          '-pix_fmt', 'yuv420p',
+          '-profile:v', 'high',
+          '-level', '4.1',
+          '-crf', '20',
+          '-preset', 'veryfast',
+          '-ar', '48000',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-movflags', '+faststart'
+        ])
+        .format('mp4')
+        .on('end', resolve)
+        .on('error', reject)
+        .save(outputPath)
+    })
+    return await fs.promises.readFile(outputPath)
+  } finally {
+    await fs.promises.unlink(inputPath).catch(() => {})
+    await fs.promises.unlink(outputPath).catch(() => {})
+  }
+}
+
+module.exports = { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok, converterVideoParaInstagram }
