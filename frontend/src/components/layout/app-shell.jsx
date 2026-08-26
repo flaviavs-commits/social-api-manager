@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AiAssistantWidget } from '../ai/ai-assistant-widget.jsx'
 import { apiFetch, logout } from '../../lib/api.js'
 import { ToastProvider, useToast } from '../ui/toast.jsx'
@@ -144,16 +144,34 @@ function userIsAdmin(user) {
 
 function notificationKind(item) {
   const message = String(item?.message || '').toLowerCase()
-  if (item?.type === 'err' || /falhou|falha|não foi possível|não conseguiu|erro/.test(message)) return 'error'
+  if (item?.type === 'err') return 'error'
+  if (item?.type === 'warn') return 'warning'
+  if (/falhou|falha|não foi possível|não conseguiu|erro/.test(message)) return 'error'
   if (/aguardando|processando|pendente|enviado para/.test(message)) return 'pending'
-  if (item?.type === 'warn' || /parcial|atenção/.test(message)) return 'warning'
+  if (/parcial|atenção/.test(message)) return 'warning'
   return item?.type === 'ok' ? 'success' : 'info'
 }
 
 const NOTIFICATION_KIND_LABELS = { success: 'Sucesso', error: 'Erro', pending: 'Em processamento', warning: 'Atenção', info: 'Atualização' }
 
 function isPublicationNotification(item) {
-  return /post|publicaç|publicado|publicar|carrossel|comentário/.test(String(item?.message || '').toLowerCase())
+  return /^post #\d+\s+(?:publicado com sucesso|publicado parcialmente|falhou ao publicar)/.test(String(item?.message || '').toLowerCase())
+}
+
+function mergeNotifications(current, incoming) {
+  const byId = new Map()
+  ;[...incoming, ...current].forEach(item => byId.set(item.id, item))
+  return [...byId.values()]
+    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
+    .slice(0, 5)
+}
+
+function notificationPreferenceEnabled(item, user) {
+  const preferences = user?.notificationPreferences || {}
+  const kind = notificationKind(item)
+  if (kind === 'success') return preferences.published !== false
+  if (kind === 'warning' || kind === 'error') return preferences.failures !== false
+  return true
 }
 
 function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
@@ -161,11 +179,76 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const notificationCursor = useRef(0)
+  const notificationPolling = useRef(false)
+  const notificationsInitialized = useRef(false)
+  const notify = useToast()
+
+  useEffect(() => {
+    let active = true
+    notificationsInitialized.current = false
+
+    async function primeNotifications() {
+      if (!active || notificationPolling.current) return
+      notificationPolling.current = true
+      let primed = false
+      try {
+        const result = await apiFetch('/api/logs?limit=30')
+        const logs = result.logs || []
+        if (!active) return
+        notificationCursor.current = Math.max(0, ...logs.map(item => Number(item.id) || 0))
+        setNotifications(logs.filter(isPublicationNotification).slice(0, 5))
+        primed = true
+      } catch {
+        // A falha no polling não deve bloquear a navegação do painel.
+      } finally {
+        if (active) notificationsInitialized.current = primed
+        notificationPolling.current = false
+      }
+    }
+
+    async function pollNotifications() {
+      if (!active || !notificationsInitialized.current || notificationPolling.current) return
+      notificationPolling.current = true
+      try {
+        const result = await apiFetch(`/api/logs/since/${notificationCursor.current}`)
+        const logs = result.logs || []
+        if (logs.length) notificationCursor.current = Math.max(notificationCursor.current, ...logs.map(item => Number(item.id) || 0))
+        const publicationLogs = logs.filter(isPublicationNotification)
+        if (!active || !publicationLogs.length) return
+
+        setNotifications(current => mergeNotifications(current, publicationLogs))
+        const visibleNotifications = publicationLogs.filter(item => notificationPreferenceEnabled(item, user))
+        if (!visibleNotifications.length) return
+        setUnreadNotifications(current => current + visibleNotifications.length)
+        visibleNotifications.forEach(item => {
+          const kind = notificationKind(item)
+          notify(item.message, kind === 'error' ? 'error' : kind === 'warning' ? 'warning' : 'success')
+        })
+      } catch {
+        // Mantém o cursor para tentar novamente no próximo intervalo.
+      } finally {
+        notificationPolling.current = false
+      }
+    }
+
+    primeNotifications()
+    const interval = window.setInterval(() => {
+      if (notificationsInitialized.current) pollNotifications()
+      else primeNotifications()
+    }, 15_000)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [notify, user])
 
   async function toggleNotifications() {
     const nextOpen = !notificationsOpen
     setNotificationsOpen(nextOpen)
     if (!nextOpen) return
+    setUnreadNotifications(0)
     setNotificationsLoading(true)
     try {
       const result = await apiFetch('/api/logs?limit=30')
@@ -202,7 +285,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         <div className="notification-control">
           <button aria-label="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
-            {notifications.length > 0 && <span className="notification-dot" aria-label={`${notifications.length} notificações`} />}
+            {unreadNotifications > 0 && <span className="notification-dot" aria-label={`${unreadNotifications} notificações novas`} />}
           </button>
           {notificationsOpen && <div className="notification-popover" role="dialog" aria-label="Notificações recentes">
             <div className="notification-popover-heading"><strong>Notificações</strong><span>Recentes</span></div>

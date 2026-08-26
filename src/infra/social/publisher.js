@@ -506,6 +506,17 @@ async function fecharStatusSeSemPendencias(postId, linha) {
     .map(result => `${result.platform || 'Rede social'}${result.account ? ` (${result.account})` : ''}: ${result.error || 'A rede não informou o motivo.'}`)
     .join(' | ') || null
   await postsRepo.atualizarStatusPost(postId, status, status === 'published' ? null : failureDetails)
+  const resumo = status === 'published'
+    ? 'publicado com sucesso em todas as plataformas'
+    : status === 'partial'
+      ? `publicado parcialmente${failureDetails ? `: ${failureDetails}` : ' (algumas plataformas falharam)'}`
+      : `falhou ao publicar em todas as plataformas${failureDetails ? `: ${failureDetails}` : ''}`
+  await registrarLog({
+    type: status === 'error' ? 'err' : status === 'partial' ? 'warn' : 'ok',
+    message: `Post #${postId} ${resumo}`,
+    platform: null,
+    user_id: linha.userId
+  })
   broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
 

@@ -76,7 +76,7 @@ async function requireAuth(req, res, next) {
       return res.redirect((process.env.FRONTEND_URL || '') + '/login.html')
     }
 
-    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planActive: user.planActive !== false, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false }
+    req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planActive: user.planActive !== false, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false, notificationPreferences: user.notificationPreferences || {} }
     next()
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })

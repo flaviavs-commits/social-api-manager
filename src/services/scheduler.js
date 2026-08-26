@@ -77,7 +77,7 @@ async function processarPost(post) {
       : 'falhou ao publicar em todas as plataformas'
 
     await registrarLog({
-      type: status === 'error' ? 'err' : 'ok',
+      type: status === 'error' ? 'err' : status === 'partial' ? 'warn' : 'ok',
       message: `Post #${post.id} ${resumo}`,
       platform: null,
       user_id: post.userId

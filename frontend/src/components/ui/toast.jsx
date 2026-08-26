@@ -14,7 +14,7 @@ export function ToastProvider({ children }) {
   return <ToastContext.Provider value={notify}>
     {children}
     <div className="toast-stack" aria-live="polite" aria-atomic="true">
-      {toasts.map(toast => <div className={`toast toast-${toast.type}`} key={toast.id} role={toast.type === 'error' ? 'alert' : 'status'}><span aria-hidden="true">{toast.type === 'error' ? '!' : '✓'}</span>{toast.message}</div>)}
+      {toasts.map(toast => <div className={`toast toast-${toast.type}`} key={toast.id} role={toast.type === 'error' ? 'alert' : 'status'}><span aria-hidden="true">{toast.type === 'error' || toast.type === 'warning' ? '!' : '✓'}</span>{toast.message}</div>)}
     </div>
   </ToastContext.Provider>
 }
