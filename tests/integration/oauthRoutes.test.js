@@ -13,8 +13,11 @@ jest.mock('../../src/repositories/usersRepository', () => {
 })
 jest.mock('../../src/infra/social/zernioClient', () => {
   const actual = jest.requireActual('../../src/infra/social/zernioClient')
-  return { ...actual, connectUrl: jest.fn() }
+  return { ...actual, connectUrl: jest.fn(), createProfile: jest.fn() }
 })
+jest.mock('../../src/services/zernioProfileService', () => ({
+  ensureZernioProfile: jest.fn().mockResolvedValue('profile-user-7'),
+}))
 
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 const usersRepo = require('../../src/repositories/usersRepository')
@@ -45,6 +48,7 @@ test('usa o host atual no retorno do Facebook durante o desenvolvimento', async 
 
   expect(response.status).toBe(200)
   const [, , redirectUrl, options] = zernioClient.connectUrl.mock.calls.at(-1)
+  expect(zernioClient.connectUrl.mock.calls.at(-1)[1]).toBe('profile-user-7')
   expect(options).toEqual({ headless: true })
   const parsedRedirect = new URL(redirectUrl)
   expect(parsedRedirect.hostname).toBe('127.0.0.1')
@@ -64,6 +68,7 @@ test('preserva a página de integrações no retorno do OAuth', async () => {
     .set('Authorization', `Bearer ${gerarTokenSessao(7)}`)
 
   const [, , redirectUrl] = zernioClient.connectUrl.mock.calls.at(-1)
+  expect(zernioClient.connectUrl.mock.calls.at(-1)[1]).toBe('profile-user-7')
   const state = JSON.parse(Buffer.from(new URL(redirectUrl).searchParams.get('state'), 'base64').toString())
   expect(state.returnTo).toBe('/app/integracoes')
   expect(response.status).toBe(200)

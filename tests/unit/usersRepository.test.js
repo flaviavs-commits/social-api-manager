@@ -135,6 +135,19 @@ describe('vincularGoogleId', () => {
   })
 })
 
+describe('perfil de conexão', () => {
+  test('busca o profileId do usuário', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ zernioProfileId: 'profile-1' }] })
+    expect(await repo.buscarZernioProfileId(1)).toBe('profile-1')
+  })
+
+  test('salva o profileId do usuário', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ zernioProfileId: 'profile-1' }] })
+    expect(await repo.salvarZernioProfileId(1, 'profile-1')).toBe('profile-1')
+    expect(pool.query.mock.calls[0][1]).toEqual(['profile-1', 1])
+  })
+})
+
 describe('ativarTotp / desativarTotp', () => {
   test('ativarTotp executa UPDATE totp_enabled = TRUE', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })

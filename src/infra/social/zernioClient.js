@@ -110,6 +110,18 @@ async function listProfiles() {
   return zernioFetch('/profiles')
 }
 
+async function createProfile({ name, description, color } = {}) {
+  if (!name) throw new Error('Nome do perfil de conexão não informado')
+  return zernioFetch('/profiles', {
+    method: 'POST',
+    body: {
+      name,
+      ...(description ? { description } : {}),
+      ...(color ? { color } : {})
+    }
+  })
+}
+
 // requestId identifica uma operação lógica, não uma tentativa HTTP. Ele deve
 // ser reutilizado quando requestJson repetir uma chamada após timeout/erro de
 // rede, para que o Zernio devolva o post original em vez de criar outro.
@@ -206,7 +218,7 @@ async function getYoutubePlaylists(accountId) {
 
 module.exports = {
   ZernioError,
-  connectUrl, listAccounts, listFacebookPages, selectFacebookPage, getAccountHealth, disconnectAccount, listProfiles,
+  connectUrl, listAccounts, listFacebookPages, selectFacebookPage, getAccountHealth, disconnectAccount, listProfiles, createProfile,
   createPost, getPost, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
   getPostComments, replyToComment,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,

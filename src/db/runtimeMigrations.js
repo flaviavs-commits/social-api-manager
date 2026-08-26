@@ -52,6 +52,16 @@ async function ensureMetricHistory() {
   await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS post_metrics_history_post_platform_day ON post_metrics_history (post_id, platform, captured_on)')
 }
 
+async function ensureZernioProfiles() {
+  // Mantém cada coluna criada antes do índice correspondente. runMigrations
+  // executa os demais blocos em paralelo, então essas dependências precisam
+  // ficar agrupadas aqui para não haver uma primeira inicialização parcial.
+  await bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS zernio_profile_id TEXT')
+  await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_zernio_profile_id ON users (zernio_profile_id) WHERE zernio_profile_id IS NOT NULL')
+  await bestEffort('ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_profile_id TEXT')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_contas_zernio_profile_id ON contas (zernio_profile_id) WHERE zernio_profile_id IS NOT NULL')
+}
+
 async function ensurePostPublications() {
   await bestEffort(`
     CREATE TABLE IF NOT EXISTS post_publications (
@@ -200,6 +210,7 @@ async function runMigrations() {
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT'),
     bestEffort('ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_account_id TEXT'),
+    ensureZernioProfiles(),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo'"),
     bestEffort("ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'pt-BR'"),
     bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS default_platform TEXT'),

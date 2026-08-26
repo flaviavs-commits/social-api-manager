@@ -15,7 +15,7 @@ function sumMetrics(profile, names) {
 
 function profileFor(data, account) {
   const profiles = data.accountAnalytics?.platforms?.[account.platform] || []
-  return profiles.find(profile => String(profile.localAccountId) === String(account.id) || String(profile.providerAccountId) === String(account.zernioAccountId)) || profiles[0] || null
+  return profiles.find(profile => String(profile.localAccountId) === String(account.id)) || profiles[0] || null
 }
 
 function audienceFor(data, account, profile) {
@@ -53,7 +53,6 @@ function accountStatus(account, profile) {
   const statuses = (account.tokens || []).map(token => token.status).filter(Boolean)
   if (statuses.includes('expired') || statuses.includes('error')) return { label: 'Atenção necessária', className: 'is-warning' }
   if (!statuses.length) return { label: 'Sem token ativo', className: 'is-warning' }
-  if (!account.zernioAccountId && account.platform !== 'youtube') return { label: 'Reconectar analytics', className: 'is-warning' }
   if (profile?.errors?.length && !profile.totals && !profile.metrics) return { label: 'Analytics indisponível', className: 'is-warning' }
   return { label: 'Conectado', className: 'is-ready' }
 }

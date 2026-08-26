@@ -69,6 +69,27 @@ async function vincularGoogleId(userId, googleId) {
   await pool.query(`UPDATE users SET google_id = $1 WHERE id = $2`, [googleId, userId])
 }
 
+async function buscarZernioProfileId(userId) {
+  const { rows: [row] } = await pool.query(
+    'SELECT zernio_profile_id AS "zernioProfileId" FROM users WHERE id = $1 AND ativo = TRUE',
+    [userId]
+  )
+  return row?.zernioProfileId || null
+}
+
+async function salvarZernioProfileId(userId, profileId) {
+  const { rows: [row] } = await pool.query(
+    `UPDATE users
+        SET zernio_profile_id = $1
+      WHERE id = $2 AND ativo = TRUE
+        AND (zernio_profile_id IS NULL OR zernio_profile_id = $1)
+      RETURNING zernio_profile_id AS "zernioProfileId"`,
+    [profileId, userId]
+  )
+  if (!row) throw new Error('Não foi possível vincular o perfil de conexão ao cliente')
+  return row.zernioProfileId
+}
+
 // ── 2FA (TOTP) ─────────────────────────────────────────────────────────────
 // Guarda o segredo cifrado e (durante o setup) ainda não habilitado — só vira
 // enabled depois que o usuário confirma o primeiro código (ativarTotp).
@@ -186,6 +207,7 @@ async function atualizarAtivo(id, ativo) {
 
 module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
+  buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
   listarTodos, contarAdmins, contarSuperAdmins, atualizarRole, atualizarAtivo
 }

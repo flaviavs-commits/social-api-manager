@@ -212,9 +212,12 @@ async function metricsSeguidoresAtuaisInstagram(token) {
 // Mesmo dado, mas para contas migradas para o Zernio (docs.zernio.com) —
 // token.accessToken deixa de ser um access_token real assim que a conta
 // migra, então busca via GET /v1/accounts, que já traz followersCount pronto.
-async function metricsSeguidoresAtuaisInstagramZernio(zernioAccountId) {
-  const { accounts } = await zernioClient.listAccounts()
-  const conta = accounts.find(a => a._id === zernioAccountId)
+async function metricsSeguidoresAtuaisInstagramZernio(token) {
+  const { accounts } = await zernioClient.listAccounts({
+    profileId: token.zernioProfileId || process.env.ZERNIO_PROFILE_ID,
+    platform: 'instagram'
+  })
+  const conta = accounts.find(a => String(a._id || a.accountId || a.id) === String(token.zernioAccountId))
   if (!conta) throw new Error('Conta Instagram não encontrada no Zernio')
   return conta.followersCount ?? conta.metadata?.profileData?.followersCount ?? null
 }
@@ -228,7 +231,7 @@ async function buscarSeriesSeguidoresInstagram(userId, isAdmin) {
 
   await Promise.allSettled(tokens.map(async t => {
     const followerCount = t.zernioAccountId
-      ? await metricsSeguidoresAtuaisInstagramZernio(t.zernioAccountId)
+      ? await metricsSeguidoresAtuaisInstagramZernio(t)
       : await metricsSeguidoresAtuaisInstagram({ accessToken: t.accessToken })
     if (followerCount != null) await contasRepo.registrarSnapshotSeguidoresInstagram(t.contaId, followerCount)
   }))
@@ -311,9 +314,12 @@ async function buscarDemografiaInstagram(userId, isAdmin) {
 // GET /v1/accounts, que já traz followersCount/likesCount/videoCount
 // prontos (sem precisar de scope user.info.stats próprio). Contas ainda na
 // integração direta (não reconectadas) continuam pela Content Posting API.
-async function metricsStatsAtuaisTiktokZernio(zernioAccountId) {
-  const { accounts } = await zernioClient.listAccounts()
-  const conta = accounts.find(a => a._id === zernioAccountId)
+async function metricsStatsAtuaisTiktokZernio(token) {
+  const { accounts } = await zernioClient.listAccounts({
+    profileId: token.zernioProfileId || process.env.ZERNIO_PROFILE_ID,
+    platform: 'tiktok'
+  })
+  const conta = accounts.find(a => String(a._id || a.accountId || a.id) === String(token.zernioAccountId))
   if (!conta) throw new Error('Conta TikTok não encontrada no Zernio')
   const extra = conta.metadata?.profileData?.extraData || {}
   return {
@@ -344,9 +350,12 @@ async function metricsInscritosAtuaisYoutube(token) {
   return stats?.subscriberCount != null ? Number(stats.subscriberCount) : null
 }
 
-async function metricsInscritosAtuaisYoutubeZernio(zernioAccountId) {
-  const { accounts } = await zernioClient.listAccounts()
-  const conta = accounts.find(a => a._id === zernioAccountId)
+async function metricsInscritosAtuaisYoutubeZernio(token) {
+  const { accounts } = await zernioClient.listAccounts({
+    profileId: token.zernioProfileId || process.env.ZERNIO_PROFILE_ID,
+    platform: 'youtube'
+  })
+  const conta = accounts.find(a => String(a._id || a.accountId || a.id) === String(token.zernioAccountId))
   if (!conta) throw new Error('Canal YouTube não encontrado no Zernio')
   return conta.subscriberCount
     ?? conta.subscribersCount
@@ -523,7 +532,7 @@ async function buscarSeriesInscritosYoutube(userId, isAdmin) {
 
   await Promise.allSettled(tokens.map(async t => {
     const subscriberCount = t.zernioAccountId
-      ? await metricsInscritosAtuaisYoutubeZernio(t.zernioAccountId)
+      ? await metricsInscritosAtuaisYoutubeZernio(t)
       : await metricsInscritosAtuaisYoutube({ accessToken: t.accessToken })
     if (subscriberCount != null) await contasRepo.registrarSnapshotSeguidoresYoutube(t.contaId, subscriberCount)
   }))
@@ -540,7 +549,7 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
 
   await Promise.allSettled(tokens.map(async t => {
     const stats = t.zernioAccountId
-      ? await metricsStatsAtuaisTiktokZernio(t.zernioAccountId)
+      ? await metricsStatsAtuaisTiktokZernio(t)
       : await metricsStatsAtuaisTiktok({ accessToken: t.accessToken })
     await contasRepo.registrarSnapshotStatsTiktok(t.contaId, stats)
   }))
@@ -553,11 +562,11 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
 // GET /v1/analytics, devolvendo o catálogo que o Zernio já sincronizou para
 // a conta. O filtro local continua necessário porque a tela exibe várias
 // contas e a API pode retornar posts de mais de uma publicação.
-async function metricsVideosTiktokZernio(zernioAccountId) {
-  const { posts } = await zernioClient.getAnalytics()
+async function metricsVideosTiktokZernio(token) {
+  const { posts } = await zernioClient.getAnalytics({ accountId: token.zernioAccountId })
   const videos = []
   for (const post of posts) {
-    const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && p.accountId === zernioAccountId)
+    const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && String(p.accountId) === String(token.zernioAccountId))
     if (!plataforma) continue
     const a = plataforma.analytics || {}
     videos.push({
@@ -612,7 +621,7 @@ async function buscarVideosTiktok(userId, isAdmin) {
   const resultados = await Promise.allSettled(
     tokens.map(async t => {
       const { videos } = t.zernioAccountId
-        ? await metricsVideosTiktokZernio(t.zernioAccountId)
+        ? await metricsVideosTiktokZernio(t)
         : await metricsVideosTiktok({ accessToken: t.accessToken })
       return videos.map(v => ({ ...v, accountId: t.contaId, accountName: t.accountName }))
     })
@@ -633,7 +642,8 @@ async function buscarHistoricoPostZernio(publications, userId, isAdmin) {
     const token = await buscarContaToken(publication.platform, userId, isAdmin, publication.accountId)
     if (!token?.zernioAccountId) return null
     const timeline = await zernioClient.getPostTimeline({
-      postId: publication.externalPostId
+      postId: publication.externalPostId,
+      accountId: token.zernioAccountId
     })
     return {
       platform: publication.platform,

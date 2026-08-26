@@ -124,7 +124,6 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
   const { rows } = await pool.query(`
     SELECT
       c.id, c.platform, c.handle, c.tipo, c.ativo, c.criado_em, c.avatar_url AS "avatarUrl",
-      c.zernio_account_id AS "zernioAccountId",
       c.user_id AS "userId", u.email AS "ownerEmail",
       JSON_AGG(
         JSON_BUILD_OBJECT(
@@ -160,7 +159,8 @@ async function listarContas({ platform, tipo, ativo, userId, isAdmin } = {}) {
 // indisponibilidade temporária do Zernio nunca apaga dados por engano.
 async function listarIdsZernioDoUsuario(userId) {
   const { rows } = await pool.query(
-    `SELECT id, zernio_account_id AS "zernioAccountId"
+    `SELECT id, zernio_account_id AS "zernioAccountId",
+            zernio_profile_id AS "zernioProfileId"
        FROM contas
       WHERE user_id = $1 AND zernio_account_id IS NOT NULL`,
     [userId]
@@ -168,19 +168,22 @@ async function listarIdsZernioDoUsuario(userId) {
   return rows
 }
 
-async function removerContasZernioAusentes(userId, zernioAccountIds) {
+async function removerContasZernioAusentes(userId, zernioAccountIds, zernioProfileId) {
   const ids = Array.isArray(zernioAccountIds) ? zernioAccountIds.filter(Boolean) : []
+  const profileFilter = zernioProfileId ? ' AND zernio_profile_id = $3' : ''
+  const profileParams = zernioProfileId ? [zernioProfileId] : []
   const linkedIds = ids.length
     ? (await pool.query(
       `SELECT id FROM contas
         WHERE user_id = $1
           AND zernio_account_id IS NOT NULL
-          AND NOT (zernio_account_id = ANY($2::text[]))`,
-      [userId, ids]
+          AND NOT (zernio_account_id = ANY($2::text[]))${profileFilter}`,
+      [userId, ids, ...profileParams]
     )).rows.map(row => row.id)
     : (await pool.query(
-      `SELECT id FROM contas WHERE user_id = $1 AND zernio_account_id IS NOT NULL`,
-      [userId]
+      `SELECT id FROM contas
+         WHERE user_id = $1 AND zernio_account_id IS NOT NULL${profileFilter}`,
+      [userId, ...profileParams]
     )).rows.map(row => row.id)
 
   if (!linkedIds.length) return 0
@@ -299,8 +302,14 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null, exte
 // migradas para essa integração (Facebook/Instagram/TikTok), onde o Zernio
 // detém o token OAuth real e nosso lado só guarda esse identificador para
 // chamar a API deles. Ver migrations/040 e src/infra/social/zernioClient.js.
-async function definirZernioAccountId(contaId, zernioAccountId) {
-  await pool.query(`UPDATE contas SET zernio_account_id = $1 WHERE id = $2`, [zernioAccountId, contaId])
+async function definirZernioAccountId(contaId, zernioAccountId, zernioProfileId = null) {
+  await pool.query(
+    `UPDATE contas
+        SET zernio_account_id = $1,
+            zernio_profile_id = COALESCE($2, zernio_profile_id)
+      WHERE id = $3`,
+    [zernioAccountId, zernioProfileId, contaId]
+  )
 }
 
 // Localiza todas as contas conectadas (de qualquer usuário) cujo ID externo

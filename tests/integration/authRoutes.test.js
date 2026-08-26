@@ -28,6 +28,9 @@ jest.mock('../../src/services/meuEcoo', () => ({
   sincronizarCredencial: jest.fn().mockResolvedValue(undefined),
   autenticarViaMeuEcoo: jest.fn().mockResolvedValue(false),
 }))
+jest.mock('../../src/services/zernioProfileService', () => ({
+  bestEffortEnsureZernioProfile: jest.fn().mockResolvedValue(null),
+}))
 
 const usersRepo = require('../../src/repositories/usersRepository')
 const credRepo  = require('../../src/repositories/credentialsRepository')

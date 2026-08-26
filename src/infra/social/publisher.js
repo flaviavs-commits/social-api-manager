@@ -33,7 +33,7 @@ async function buscarContaToken(platform, userId, isSuperAdmin = false, contaId 
       t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
       t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.external_user_id AS "externalUserId",
-      c.zernio_account_id AS "zernioAccountId"
+      c.zernio_account_id AS "zernioAccountId", c.zernio_profile_id AS "zernioProfileId"
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
     WHERE ${conds.join(' AND ')}
@@ -55,7 +55,8 @@ async function buscarTokenPorId(tokenId, userId, isSuperAdmin = false) {
     SELECT t.id AS token_id, t.conta_id AS "contaId", t.access_token AS "accessToken",
            t.refresh_token AS "refreshToken", t.account_name AS "accountName",
            t.status, t.expires_at AS "expiresAt", c.handle AS handle,
-           c.external_user_id AS "externalUserId", c.zernio_account_id AS "zernioAccountId"
+           c.external_user_id AS "externalUserId", c.zernio_account_id AS "zernioAccountId",
+           c.zernio_profile_id AS "zernioProfileId"
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
     WHERE t.id = $1${owner}
@@ -81,7 +82,8 @@ async function listarContasToken(platform, userId, isSuperAdmin = false) {
     SELECT
       t.id AS token_id, t.conta_id AS "contaId", t.platform, t.access_token AS "accessToken",
       t.refresh_token AS "refreshToken", t.account_name AS "accountName",
-      t.status, t.expires_at AS "expiresAt", c.handle AS handle, c.zernio_account_id AS "zernioAccountId"
+      t.status, t.expires_at AS "expiresAt", c.handle AS handle,
+      c.zernio_account_id AS "zernioAccountId", c.zernio_profile_id AS "zernioProfileId"
     FROM tokens t
     JOIN contas c ON c.id = t.conta_id
     WHERE ${conds.join(' AND ')}

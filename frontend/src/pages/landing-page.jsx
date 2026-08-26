@@ -29,8 +29,7 @@ function Icon({ name, size = 18 }) {
 
 function Logo({ footer = false }) {
   return <a className={`landing-logo${footer ? ' landing-logo--footer' : ''}`} href="/" aria-label="MeuEcooMidia, início">
-    <span className="landing-logo-mark">M</span>
-    <span>Meu<span>Ecoo</span>Midia</span>
+    <img className="landing-logo-img" src="/logo.png" alt="MeuEcooMidia" />
   </a>
 }
 
@@ -42,7 +41,7 @@ function DashboardMock() {
   ]
 
   return <div className="landing-dashboard" aria-label="Demonstração do painel MeuEcooMidia">
-    <div className="dashboard-topbar"><div className="dashboard-mini-logo">M</div><div className="dashboard-search">⌕ &nbsp;Buscar na plataforma</div><div className="dashboard-user">BA</div></div>
+    <div className="dashboard-topbar"><div className="dashboard-mini-logo" aria-hidden="true"><img src="/logo-icon.png" alt="" /></div><div className="dashboard-search">⌕ &nbsp;Buscar na plataforma</div><div className="dashboard-user">BA</div></div>
     <div className="dashboard-body">
       <aside className="dashboard-sidebar"><span className="is-active">⌂</span><span>□</span><span>◇</span><span>≋</span></aside>
       <div className="dashboard-content">
@@ -61,7 +60,7 @@ function CalendarMock() {
 }
 
 function ReportMock() {
-  return <div className="report-card"><div className="report-head"><div><span className="landing-logo-mark landing-logo-mark--small">M</span><b>Relatório de desempenho</b></div><div className="period-switch"><button>7 dias</button><button className="selected">30 dias</button><button>90 dias</button></div></div><p>Visão geral • <b>30 dias</b></p><div className="report-metrics"><div><small>Visualizações</small><strong>48,6k</strong><span>↗ 28%</span></div><div><small>Interações</small><strong>3.842</strong><span>↗ 17%</span></div><div><small>Taxa de interação</small><strong>7,9%</strong><span>↗ 1,4%</span></div></div><div className="report-insight"><Icon name="sparkle" size={18} /><p><b>Leitura rápida</b> Seus Reels tiveram 2,4× mais alcance. Repita temas educativos em vídeos curtos.</p></div></div>
+  return <div className="report-card"><div className="report-head"><div><span className="landing-logo-mark landing-logo-mark--small" aria-hidden="true"><img src="/logo-icon.png" alt="" /></span><b>Relatório de desempenho</b></div><div className="period-switch"><button>7 dias</button><button className="selected">30 dias</button><button>90 dias</button></div></div><p>Visão geral • <b>30 dias</b></p><div className="report-metrics"><div><small>Visualizações</small><strong>48,6k</strong><span>↗ 28%</span></div><div><small>Interações</small><strong>3.842</strong><span>↗ 17%</span></div><div><small>Taxa de interação</small><strong>7,9%</strong><span>↗ 1,4%</span></div></div><div className="report-insight"><Icon name="sparkle" size={18} /><p><b>Leitura rápida</b> Seus Reels tiveram 2,4× mais alcance. Repita temas educativos em vídeos curtos.</p></div></div>
 }
 
 function FeatureIcon({ name, tone = '' }) {

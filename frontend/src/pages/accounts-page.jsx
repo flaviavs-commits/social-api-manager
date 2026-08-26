@@ -48,6 +48,7 @@ export function AccountsPage({ onNavigate, user }) {
   const [accountSearch, setAccountSearch] = useState('')
   const [accountStatusFilter, setAccountStatusFilter] = useState('all')
   const [connecting, setConnecting] = useState(false)
+  const [disconnectingId, setDisconnectingId] = useState(null)
   const [connectionNotice, setConnectionNotice] = useState('')
   const [platformHealth, setPlatformHealth] = useState({})
   const [healthLoading, setHealthLoading] = useState(true)
@@ -92,10 +93,10 @@ export function AccountsPage({ onNavigate, user }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('connected') === 'true') {
-      setConnectionNotice('Conta conectada e sincronizada com o dashboard do Zernio.')
-      notify('Conta sincronizada com o Zernio.')
+      setConnectionNotice('Conta conectada e sincronizada com sucesso.')
+      notify('Conta sincronizada com sucesso.')
     } else if (params.get('error')) {
-      setConnectionNotice('A autorização não foi concluída. Nenhuma conta foi sincronizada com o Zernio.')
+      setConnectionNotice('A autorização não foi concluída. Nenhuma conta foi sincronizada.')
     }
     if (params.has('connected') || params.has('error')) {
       window.history.replaceState({}, '', window.location.pathname)
@@ -152,8 +153,10 @@ export function AccountsPage({ onNavigate, user }) {
 
   async function remove(id) {
     if (!window.confirm('Deseja realmente desconectar esta conta?')) return
+    setDisconnectingId(id)
     try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); await loadHealth(); notify('Conta desconectada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
+    finally { setDisconnectingId(null) }
   }
 
   return <section className="page-view accounts-page"><section className="panel accounts-panel">
@@ -176,6 +179,16 @@ export function AccountsPage({ onNavigate, user }) {
           </div>
           <div className="account-platform-card-status"><span className={`account-status-dot${connected.length && tokenStatus === 'valid' ? ' is-connected' : ''}${tokenStatus === 'error' ? ' is-error' : tokenStatus === 'expiring' ? ' is-warning' : ''}`} aria-hidden="true" />{!platformAllowed ? 'Não incluída no seu plano' : connected.length ? `${connected.length} conta${connected.length > 1 ? 's' : ''} conectada${connected.length > 1 ? 's' : ''}` : 'Nenhuma conta conectada'}</div>
           <div className={`account-health-status account-health-${healthStatus}`}><span aria-hidden="true">{healthStatus === 'up' ? '●' : healthStatus === 'down' ? '!' : '○'}</span>{healthLoading ? 'Verificando API…' : HEALTH_LABELS[healthStatus] || HEALTH_LABELS.unknown}{tokenStatus === 'error' ? ' · Requer reconexão' : tokenStatus === 'expiring' ? ' · Token expirando' : ''}</div>
+          {connected.length > 0 && <div className="account-platform-card-accounts" aria-label={`Contas conectadas em ${provider.label}`}>
+            {connected.map(account => {
+              const accountLabel = account.name || account.handle || `Conta de ${provider.label}`
+              const accountStatus = accountTokenStatus(account)
+              return <div className="account-platform-card-account" key={account.id}>
+                <span className="account-platform-card-account-copy"><strong title={accountLabel}>{accountLabel}</strong><small>{TOKEN_STATUS_LABELS[accountStatus] || 'Status não verificado'}</small></span>
+                <button type="button" className="account-platform-card-disconnect" disabled={disconnectingId === account.id} onClick={() => remove(account.id)} aria-label={`Desconectar ${accountLabel}`}>{disconnectingId === account.id ? 'Removendo…' : 'Desconectar'}</button>
+              </div>
+            })}
+          </div>}
           <button type="button" className="account-platform-card-action" disabled={!canAdd} onClick={() => openAddAccount(provider, connected, tokenStatus)}>{!platformAllowed ? 'Indisponível' : !canAdd ? 'Limite atingido' : connected.length && tokenStatus !== 'valid' ? 'Reconectar' : connected.length ? 'Adicionar outra' : 'Conectar'}</button>
         </article>
       })}

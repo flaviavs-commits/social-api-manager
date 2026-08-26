@@ -80,7 +80,7 @@ function Message({ message }) {
 }
 
 function AuthCard({ children }) {
-  return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a>{children}<CopyrightNotice /></section></main>
+  return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a>{children}<CopyrightNotice /></section></main>
 }
 
 export function LoginPage() {
@@ -304,11 +304,11 @@ export function CreateAccountPage() {
     } finally { setBusy(false) }
   }
 
-  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>Planos pagos abrem um checkout seguro e só são ativados após a confirmação do gateway.</small><CopyrightNotice /></section></main>
+  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>Planos pagos abrem um checkout seguro e só são ativados após a confirmação do gateway.</small><CopyrightNotice /></section></main>
 
   return <main className="checkout-page">
     <div className="checkout-shell">
-      <header className="checkout-header"><a className="checkout-logo" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia" /></a><div><span>Já tem uma conta?</span> <a href="/login.html">Entrar</a></div></header>
+      <header className="checkout-header"><a className="checkout-logo" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><span>Já tem uma conta?</span> <a href="/login.html">Entrar</a></div></header>
       <div className="checkout-progress"><span className="is-active">01 <small>Conta</small></span><i /><span className="is-active">02 <small>Plano</small></span><i /><span className="is-active">03 <small>Redes</small></span><i /><span className="is-active">04 <small>Pagamento</small></span></div>
       <div className="checkout-grid">
         <section className="checkout-main">

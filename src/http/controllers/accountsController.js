@@ -8,12 +8,22 @@ async function reconciliarContasZernio(userId) {
   if (!locais.length) return
 
   try {
-    const resposta = await zernioClient.listAccounts({
-      profileId: process.env.ZERNIO_PROFILE_ID,
-      includeOverLimit: true
-    })
-    const idsAtivos = (resposta.accounts || []).map(account => account._id || account.accountId || account.id).filter(Boolean)
-    const removidas = await accounts.removerContasZernioAusentes(userId, idsAtivos)
+    // Contas legadas sem profile_id continuam no perfil antigo compartilhado;
+    // não as reconciliamos contra o novo perfil do cliente.
+    const porPerfil = new Map()
+    for (const local of locais) {
+      if (!local.zernioProfileId) continue
+      const grupo = porPerfil.get(local.zernioProfileId) || []
+      grupo.push(local)
+      porPerfil.set(local.zernioProfileId, grupo)
+    }
+
+    let removidas = 0
+    for (const [profileId] of porPerfil) {
+      const resposta = await zernioClient.listAccounts({ profileId, includeOverLimit: true })
+      const idsAtivos = (resposta.accounts || []).map(account => account._id || account.accountId || account.id).filter(Boolean)
+      removidas += await accounts.removerContasZernioAusentes(userId, idsAtivos, profileId)
+    }
     if (removidas) addLog('info', `${removidas} conexão(ões) removida(s) após sincronização com o Zernio`, null, null, userId)
   } catch (error) {
     // Falha no provedor não deve impedir o usuário de ver e gerenciar as
@@ -44,7 +54,8 @@ async function getById(req, res) {
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
     const account = await accounts.buscarContaPorId(id, req.user.id, false)
     if (!account) return res.status(404).json({ erro: 'Conta não encontrada' })
-    res.json(account)
+    const { zernio_account_id: _remoteAccountId, zernio_profile_id: _remoteProfileId, ...publicAccount } = account
+    res.json(publicAccount)
   } catch (error) { serverError(res, error) }
 }
 

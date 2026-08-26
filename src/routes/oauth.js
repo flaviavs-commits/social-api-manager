@@ -9,6 +9,7 @@ const { addLog } = require('../middleware/logger');
 const requireAuth = require('../middleware/requireAuth');
 const { safeStringify } = require('../utils/redact');
 const { encrypt, decrypt } = require('../services/tokenCrypto')
+const { ensureZernioProfile } = require('../services/zernioProfileService')
 
 // Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
@@ -288,6 +289,40 @@ function zernioRedirectUrl(req, route, state) {
   return `${getOAuthBaseUrl(req)}/auth/${route}/zernio-return?state=${encodeURIComponent(state)}`;
 }
 
+function resolveZernioProfileId(stateData, returnedProfileId) {
+  const expected = stateData?.zernioProfileId ? String(stateData.zernioProfileId).trim() : ''
+  const returned = returnedProfileId ? String(returnedProfileId).trim() : ''
+  if (expected && returned && expected !== returned) {
+    throw new Error('Perfil de conexão inconsistente')
+  }
+  if (expected) return expected
+
+  // O fallback global existe somente para callbacks iniciados antes da
+  // migração por cliente. Nessa compatibilidade, o profileId da URL precisa
+  // coincidir com o perfil legado configurado; não confiamos nele sozinho.
+  const legacyProfileId = String(process.env.ZERNIO_PROFILE_ID || '').trim()
+  if (legacyProfileId) {
+    if (returned && returned !== legacyProfileId) throw new Error('Perfil de conexão inconsistente')
+    return legacyProfileId
+  }
+
+  throw new Error('Perfil de conexão ausente')
+}
+
+async function startZernioConnection(req, { platform, route, accountName, returnTo, headless = true }) {
+  const zernioProfileId = await ensureZernioProfile(req.user.id)
+  const state = await issueState({
+    accountName,
+    returnTo,
+    platform,
+    userId: req.user.id,
+    zernioProfileId
+  })
+  const redirectUrl = zernioRedirectUrl(req, route, state)
+  const result = await zernioClient.connectUrl(platform, zernioProfileId, redirectUrl, { headless })
+  return { ...result, zernioProfileId }
+}
+
 function connectionStartError(res, err, platform, providerLabel, userId) {
   const label = providerLabel || platform;
   const prefix = `Falha ao iniciar OAuth ${label}`;
@@ -296,8 +331,8 @@ function connectionStartError(res, err, platform, providerLabel, userId) {
   if (status === 402) {
     addLog('err', `${prefix}: limite de conexões do provedor atingido`, platform, null, userId);
     return res.status(402).json({
-      error: 'O limite gratuito de contas conectadas foi atingido. Adicione um método de pagamento no Zernio para conectar mais contas.',
-      detail: 'Adicione um método de pagamento no Zernio para conectar mais contas. Nenhuma conta foi adicionada.'
+      error: 'O limite de contas conectadas foi atingido. Verifique seu método de pagamento ou entre em contato com o suporte.',
+      detail: 'Nenhuma conta foi adicionada.'
     });
   }
 
@@ -341,7 +376,7 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
     externalUserId: zernioAccountId
   });
 
-  await contasRepo.definirZernioAccountId(conta.id, zernioAccountId);
+  await contasRepo.definirZernioAccountId(conta.id, zernioAccountId, profileId);
 
   // Sem token real pra guardar (o Zernio detém o token) — grava o próprio
   // accountId do Zernio no lugar do access_token (já é uma string opaca) e
@@ -366,16 +401,14 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
 // (startOAuth, oauthMap.facebook = 'meta').
 
 router.get('/meta', requireAuth, async (req, res) => {
-  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'facebook');
+  const configError = checkEnv(['ZERNIO_API_KEY'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, returnTo } = req.query;
   const platform = 'facebook';
-  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
-  const redirectUrl = zernioRedirectUrl(req, 'meta', state);
 
   try {
-    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl, { headless: true });
+    const { authUrl } = await startZernioConnection(req, { platform, route: 'meta', accountName, returnTo });
     addLog('info', `OAuth Facebook (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
@@ -396,6 +429,12 @@ router.get('/meta/zernio-return', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
+  let zernioProfileId
+  try { zernioProfileId = resolveZernioProfileId(meta, profileId) } catch {
+    addLog('err', 'Falha no retorno do Zernio (Facebook): perfil inconsistente', platform, null, meta.userId)
+    return res.send(popupError('oauth_failed', meta.returnTo))
+  }
+
   if (step === 'select_page') {
     const parsedUserProfile = parseZernioUserProfile(userProfile)
     if (!tempToken || !parsedUserProfile) {
@@ -405,7 +444,7 @@ router.get('/meta/zernio-return', async (req, res) => {
     try {
       const pendingId = await savePendingFacebookConnection({
         userId: meta.userId,
-        profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+        profileId: zernioProfileId,
         tempToken,
         userProfile: parsedUserProfile,
         connectToken: connectToken || alternateConnectToken,
@@ -413,7 +452,7 @@ router.get('/meta/zernio-return', async (req, res) => {
         returnTo: meta.returnTo
       })
       const { pages = [] } = await zernioClient.listFacebookPages(
-        profileId || process.env.ZERNIO_PROFILE_ID,
+        zernioProfileId,
         tempToken,
         connectToken || alternateConnectToken
       )
@@ -430,7 +469,7 @@ router.get('/meta/zernio-return', async (req, res) => {
 
   try {
     const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
-      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      profileId: zernioProfileId,
       accountId: accountId || account_id,
       id,
       username: username || userName,
@@ -601,16 +640,14 @@ router.post('/meta/sdk-login', requireAuth, async (req, res) => {
 // mesmo fluxo popup+postMessage que as outras redes já usam.
 
 router.get('/instagram', requireAuth, async (req, res) => {
-  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'instagram');
+  const configError = checkEnv(['ZERNIO_API_KEY'], 'instagram');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, returnTo } = req.query;
   const platform = 'instagram';
-  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
-  const redirectUrl = zernioRedirectUrl(req, 'instagram', state);
 
   try {
-    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    const { authUrl } = await startZernioConnection(req, { platform, route: 'instagram', accountName, returnTo });
     addLog('info', `OAuth Instagram (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
@@ -631,9 +668,15 @@ router.get('/instagram/zernio-return', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
+  let zernioProfileId
+  try { zernioProfileId = resolveZernioProfileId(meta, profileId) } catch {
+    addLog('err', 'Falha no retorno do Zernio (Instagram): perfil inconsistente', platform, null, meta.userId)
+    return res.send(popupError('oauth_failed', meta.returnTo))
+  }
+
   try {
     const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
-      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      profileId: zernioProfileId,
       accountId: accountId || account_id,
       id,
       username: username || userName,
@@ -653,16 +696,14 @@ router.get('/instagram/zernio-return', async (req, res) => {
 // /google/callback permanece abaixo apenas para não quebrar instalações com
 // contas legadas; novas conexões passam sempre por estas duas rotas.
 router.get('/google', requireAuth, async (req, res) => {
-  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'youtube');
+  const configError = checkEnv(['ZERNIO_API_KEY'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, returnTo } = req.query;
   const platform = 'youtube';
-  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
-  const redirectUrl = zernioRedirectUrl(req, 'google', state);
 
   try {
-    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    const { authUrl } = await startZernioConnection(req, { platform, route: 'google', accountName, returnTo });
     addLog('info', `OAuth YouTube (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     return res.json({ authUrl });
   } catch (err) {
@@ -681,9 +722,15 @@ router.get('/google/zernio-return', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
+  let zernioProfileId
+  try { zernioProfileId = resolveZernioProfileId(meta, profileId) } catch {
+    addLog('err', 'Falha no retorno do Zernio (YouTube): perfil inconsistente', platform, null, meta.userId)
+    return res.send(popupError('oauth_failed', meta.returnTo))
+  }
+
   try {
     const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
-      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      profileId: zernioProfileId,
       accountId: accountId || account_id,
       id,
       username: username || userName,
@@ -865,16 +912,14 @@ const TIKTOK_SCOPES = [
 // também elimina o mecanismo que já causou um crash-loop histórico (INSERT
 // duplicado de PKCE em oauth_pkce_state ao reconectar).
 router.get('/tiktok', requireAuth, async (req, res) => {
-  const configError = checkEnv(['ZERNIO_API_KEY', 'ZERNIO_PROFILE_ID'], 'tiktok');
+  const configError = checkEnv(['ZERNIO_API_KEY'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
   const { accountName, returnTo } = req.query;
   const platform = 'tiktok';
-  const state = await issueState({ accountName, returnTo, platform, userId: req.user.id });
-  const redirectUrl = zernioRedirectUrl(req, 'tiktok', state);
 
   try {
-    const { authUrl } = await zernioClient.connectUrl(platform, process.env.ZERNIO_PROFILE_ID, redirectUrl);
+    const { authUrl } = await startZernioConnection(req, { platform, route: 'tiktok', accountName, returnTo });
     addLog('info', `OAuth TikTok (via Zernio) iniciado para "${accountName}"`, platform, null, req.user.id);
     res.json({ authUrl });
   } catch (err) {
@@ -895,9 +940,15 @@ router.get('/tiktok/zernio-return', async (req, res) => {
     return res.send(popupError('oauth_failed'));
   }
 
+  let zernioProfileId
+  try { zernioProfileId = resolveZernioProfileId(meta, profileId) } catch {
+    addLog('err', 'Falha no retorno do Zernio (TikTok): perfil inconsistente', platform, null, meta.userId)
+    return res.send(popupError('oauth_failed', meta.returnTo))
+  }
+
   try {
     const conta = await syncZernioAccount(platform, meta.userId, meta.accountName, {
-      profileId: profileId || process.env.ZERNIO_PROFILE_ID,
+      profileId: zernioProfileId,
       accountId: accountId || account_id,
       id,
       username: username || userName,

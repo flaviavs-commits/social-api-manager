@@ -15,6 +15,7 @@ const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCook
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
 const { DEFAULT_PLAN, PLANS, SUPPORTED_PLATFORMS, getPlanConnectionLimit, getPlanPlatforms, normalizePlan } = require('../config/plans')
 const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
+const { bestEffortEnsureZernioProfile } = require('../services/zernioProfileService')
 
 const BCRYPT_COST = 12
 
@@ -182,6 +183,9 @@ router.post('/register', loginLimiter, async (req, res) => {
     const user = await usersRepo.criar({ email, fullName, plan, allowedPlatforms: selectedPlatforms })
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
+    // O cadastro não deve ficar indisponível se o provedor externo estiver
+    // temporariamente fora do ar; a conexão social tenta provisionar de novo.
+    void bestEffortEnsureZernioProfile(user.id)
     addLog('ok', 'Conta criada com sucesso', null, null, user.id)
     const token = issueAuthSession(res, user.id)
     respondAuth(res, {
@@ -532,6 +536,10 @@ router.get('/google/callback', async (req, res) => {
         })
       }
     }
+
+    // Provisionamento invisível e idempotente: o usuário continua podendo
+    // entrar mesmo se a API externa estiver indisponível neste momento.
+    void bestEffortEnsureZernioProfile(user.id)
 
     const baseUrl = origin || process.env.FRONTEND_URL || ''
 

@@ -20,10 +20,14 @@ const PLATAFORMAS_VIA_ZERNIO = ['instagram', 'facebook', 'tiktok', 'youtube']
 // provedor está respondendo. A saúde da API não deve depender da existência de
 // uma conta específica: uma conta removida no Zernio retorna "Account not
 // found", mas isso é uma conexão stale, não uma indisponibilidade da API.
-async function pingPlatform(platform, accessToken) {
+async function pingPlatform(platform, credential) {
   if (PLATAFORMAS_VIA_ZERNIO.includes(platform)) {
     try {
-      await zernioClient.listAccounts({ profileId: process.env.ZERNIO_PROFILE_ID, platform, includeOverLimit: true })
+      await zernioClient.listAccounts({
+        profileId: credential?.zernioProfileId || process.env.ZERNIO_PROFILE_ID,
+        platform,
+        includeOverLimit: true
+      })
       return { ok: true, message: 'api' }
     } catch (err) {
       return { ok: false, message: err.message || 'erro ao consultar saúde no Zernio' }
@@ -40,7 +44,7 @@ async function pingPlatform(platform, accessToken) {
       return { ok: false, message: 'plataforma desconhecida' }
     }
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal: controller.signal })
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${credential?.accessToken}` }, signal: controller.signal })
 
     // 401/403 = token inválido, não é a API estar fora do ar — não conta como falha de disponibilidade
     if (res.status === 401 || res.status === 403) return { ok: true }
@@ -63,12 +67,13 @@ async function buscarTokenSonda(platform) {
   // para não depender de decifrar o "access_token" fake.
   if (PLATAFORMAS_VIA_ZERNIO.includes(platform)) {
     const { rows } = await pool.query(`
-      SELECT c.zernio_account_id AS "zernioAccountId"
+      SELECT c.zernio_account_id AS "zernioAccountId",
+             c.zernio_profile_id AS "zernioProfileId"
       FROM tokens t JOIN contas c ON c.id = t.conta_id
       WHERE t.platform = $1 AND t.status != 'expired' AND c.zernio_account_id IS NOT NULL
       ORDER BY t.id DESC LIMIT 1
     `, [platform])
-    return rows[0]?.zernioAccountId || null
+    return rows[0] || null
   }
 
   const { rows } = await pool.query(`
@@ -79,7 +84,7 @@ async function buscarTokenSonda(platform) {
     LIMIT 1
   `, [platform])
   if (!rows[0]) return null
-  return decrypt(rows[0].accessToken)
+    return { accessToken: decrypt(rows[0].accessToken) }
 }
 
 async function atualizarStatus(platform, ok, message) {
@@ -128,13 +133,13 @@ async function marcarApiOperacionalSemConta(platform) {
 async function verificarSaudePlataformas() {
   for (const platform of PLATFORMS) {
     try {
-      const token = await buscarTokenSonda(platform)
-      if (!token) {
+      const credential = await buscarTokenSonda(platform)
+      if (!credential) {
         await marcarApiOperacionalSemConta(platform)
         continue // sem conta conectada nessa plataforma, nada a verificar
       }
 
-      const { ok, message } = await pingPlatform(platform, token)
+      const { ok, message } = await pingPlatform(platform, credential)
       await atualizarStatus(platform, ok, message)
     } catch (err) {
       // Erro na própria checagem (ex: query no banco) não deve marcar a

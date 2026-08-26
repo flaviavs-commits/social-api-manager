@@ -28,7 +28,7 @@ function safeError(error) {
   return {
     code: error?.code || null,
     status: error?.status || null,
-    message: /API_KEY|access.?token|refresh.?token|secret/i.test(message)
+    message: /API_KEY|access.?token|refresh.?token|secret|zernio/i.test(message)
       ? 'Relatório indisponível para esta conexão.'
       : message
   }

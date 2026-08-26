@@ -61,7 +61,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
       className={`app-sidebar sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}${collapsed ? ' is-collapsed' : ''}`}
     >
       <a href="/app/dashboard" onClick={event => { event.preventDefault(); onNavigate('dashboard') }} aria-label="Meu Ecoo Mídia - ir para o dashboard" className="group flex flex-col items-center gap-2 border-b border-subtle px-5 py-5 text-center">
-        <img src="/logo.svg" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
+        <img src="/logo.png" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
         <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
       </a>
       <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={collapsed ? 'Expandir menu' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
