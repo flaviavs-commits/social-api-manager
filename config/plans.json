@@ -32,7 +32,13 @@
         "analytics",
         "seguranca",
         "atividade",
+        "rascunhos",
         "ai",
+        "biblioteca",
+        "filas",
+        "smartlinks",
+        "inbox",
+        "tokens",
         "equipe",
         "relatorios"
       ]
@@ -73,6 +79,8 @@
         "biblioteca",
         "filas",
         "smartlinks",
+        "inbox",
+        "tokens",
         "equipe",
         "relatorios"
       ]

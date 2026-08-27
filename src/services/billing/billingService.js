@@ -148,11 +148,12 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
   }
 }
 
-async function getStatus({ userId, currentPlan }) {
+async function getStatus({ userId, currentPlan, planActive }) {
   const month = billingMonth()
   const charge = await billingRepo.buscarPorMes(userId, month)
   return {
     currentPlan: normalizePlan(currentPlan || DEFAULT_PLAN),
+    planActive: planActive !== false,
     plans: publicPlanCatalog(),
     billingMonth: month,
     charge: publicCharge(charge),

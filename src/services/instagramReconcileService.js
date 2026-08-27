@@ -87,7 +87,11 @@ async function reconciliarPostsInstagram(userId, isSuperAdmin) {
       await postsRepo.salvarPublicacaoExterna(candidato.post.id, {
         externalPostId: media.id,
         externalPlatform: 'instagram',
-        publishedAt: media.timestamp
+        publishedAt: media.timestamp,
+        // A reconciliação também conhece a conta que devolveu a mídia. Sem
+        // esse vínculo, cada refresh inseria outra linha sem account_id e o
+        // Analytics contava o mesmo post várias vezes.
+        accountId: conta.contaId
       })
       if (!candidato.post.accountId) {
         await postsRepo.definirAccountIdSeVazio(candidato.post.id, conta.contaId)

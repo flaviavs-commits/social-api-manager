@@ -63,6 +63,13 @@ function requirePlanModule(moduleName) {
     // não transforma uma falha de configuração em autorização.
     if (req.user?.planUnrestricted === true || req.user?.role === 'admin') return next()
     const currentPlan = normalizePlan(req.user?.plan || DEFAULT_PLAN)
+    if (req.user?.planActive === false || !isPaidPlan(currentPlan)) {
+      return res.status(402).json({
+        erro: 'Confirme o pagamento do seu plano para usar este recurso.',
+        code: 'PAYMENT_REQUIRED',
+        currentPlan,
+      })
+    }
     if (hasPlanModule(currentPlan, moduleName)) return next()
     const plan = getPlan(currentPlan)
     return res.status(403).json({

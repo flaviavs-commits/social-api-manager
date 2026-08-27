@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { AppShell } from './components/layout/app-shell.jsx'
 import { DashboardPage } from './pages/dashboard-page.jsx'
 import { ModulePage } from './pages/module-page.jsx'
+import { PlanGate } from './components/ui/plan-gate.jsx'
+import { hasActivePlanModule } from './lib/plans.js'
 import { CreateAccountPage, LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
 import { AdminPage } from './pages/admin-page.jsx'
 import { apiFetch } from './lib/api.js'
@@ -68,7 +70,11 @@ function App() {
     setPage(nextPage)
   }
   return <AppShell page={page} onPageChange={navigate} user={user}>
-    {page === 'dashboard' ? <DashboardPage onNavigate={navigate} /> : <ModulePage type={page} onNavigate={navigate} user={user} onUserChange={updateUser} />}
+    {page === 'dashboard'
+      ? user && !hasActivePlanModule(user.plan, 'dashboard', user.planActive, user.planUnrestricted)
+        ? <PlanGate currentPlan={user.plan} moduleName="dashboard" planActive={user.planActive} />
+        : <DashboardPage onNavigate={navigate} />
+      : <ModulePage type={page} onNavigate={navigate} user={user} onUserChange={updateUser} />}
   </AppShell>
 }
 

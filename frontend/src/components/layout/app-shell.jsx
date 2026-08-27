@@ -5,7 +5,7 @@ import { ToastProvider, useToast } from '../ui/toast.jsx'
 import { ThemeSelector } from '../ui/theme-selector.jsx'
 import { AppTutorial } from '../ui/app-tutorial.jsx'
 import { getTutorialStatus, markTutorialCompleted, markTutorialSeen, TUTORIAL_OPEN_EVENT } from '../../lib/tutorial.js'
-import { getPlan, hasPlanModule } from '../../lib/plans.js'
+import { getPlan, hasActivePlanModule } from '../../lib/plans.js'
 import { CopyrightNotice } from '../ui/copyright-notice.jsx'
 
 const icons = {
@@ -69,7 +69,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
       <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
         {navigation.map(([key, label]) => {
           const active = page === key
-          const locked = user && !hasPlanModule(user.plan, key, user.planUnrestricted)
+          const locked = user && !hasActivePlanModule(user.plan, key, user.planActive, user.planUnrestricted)
           return (
             <button
               key={key}

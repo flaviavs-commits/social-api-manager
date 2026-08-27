@@ -58,6 +58,11 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         notificationPreferences: { ...DEFAULT_NOTIFICATIONS, ...(data.notificationPreferences || {}) }
       })
       setBilling(billingStatus)
+      if (billingStatus?.currentPlan) {
+        const planPatch = { plan: billingStatus.currentPlan, planActive: billingStatus.planActive !== false }
+        setProfile(current => ({ ...current, ...planPatch }))
+        onUserChange?.(planPatch)
+      }
     }).catch(caught => setError(caught.message)).finally(() => setLoading(false))
   }, [])
 
@@ -73,7 +78,14 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       attempts += 1
       const status = await apiFetch('/api/billing/status').catch(() => null)
       if (!active) return
-      if (status) setBilling(status)
+      if (status) {
+        setBilling(status)
+        if (status.currentPlan) {
+          const planPatch = { plan: status.currentPlan, planActive: status.planActive !== false }
+          setProfile(current => ({ ...current, ...planPatch }))
+          onUserChange?.(planPatch)
+        }
+      }
       if (status?.charge?.status !== 'paid' && attempts < 6) timer = window.setTimeout(poll, 2000)
     }
     void poll()

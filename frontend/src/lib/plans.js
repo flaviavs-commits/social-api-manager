@@ -15,6 +15,10 @@ export function hasPlanModule(plan, moduleName, unrestricted = false) {
   return unrestricted || getPlan(plan).modules.includes(moduleName)
 }
 
+export function hasActivePlanModule(plan, moduleName, planActive = true, unrestricted = false) {
+  return unrestricted || (planActive !== false && hasPlanModule(plan, moduleName))
+}
+
 export function minimumPlanForModule(moduleName) {
   return Object.values(PLANS).find(plan => plan.modules.includes(moduleName)) || getPlan(DEFAULT_PLAN)
 }

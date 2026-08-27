@@ -83,6 +83,10 @@ function AuthCard({ children }) {
   return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a>{children}<CopyrightNotice /></section></main>
 }
 
+function appPathForPlan(planActive) {
+  return planActive === false ? '/app/perfil' : '/app.html'
+}
+
 export function LoginPage() {
   const initialQuery = useMemo(() => parseLoginQuery(window.location.search), [])
   const { selectedPlan, error: queryError } = initialQuery
@@ -131,11 +135,11 @@ export function LoginPage() {
         return
       }
       if (data.passwordUpgradeRecommended) {
-        const redirectTimer = window.setTimeout(() => window.location.assign('/app.html'), 6000)
+        const redirectTimer = window.setTimeout(() => window.location.assign(appPathForPlan(data.planActive)), 6000)
         setMessage({ type: 'warning', text: 'Sua senha atual ainda funciona, mas é mais curta que o padrão de segurança. Para proteger melhor sua conta, recomendamos trocar por uma senha com 8 a 72 caracteres.', action: { label: 'Trocar senha agora', onClick: () => { window.clearTimeout(redirectTimer); setFlow('forgot-email'); setMessage(null) } } })
         return
       }
-      window.location.assign('/app.html')
+      window.location.assign(appPathForPlan(data.planActive))
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Não foi possível conectar ao servidor.' })
     } finally {
@@ -148,8 +152,8 @@ export function LoginPage() {
     if (!/^\d{6}$/.test(code)) return setMessage({ type: 'error', text: 'Digite o código de 6 dígitos do app autenticador.' })
     setBusy(true)
     try {
-      await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code }) })
-      window.location.assign('/app.html')
+      const data = await publicApiFetch('/auth/login/verify-2fa', { method: 'POST', body: JSON.stringify({ code }) })
+      window.location.assign(appPathForPlan(data.planActive))
     } catch (error) {
       setMessage({ type: 'error', text: error.message || 'Não foi possível verificar o código.' })
     } finally { setBusy(false) }

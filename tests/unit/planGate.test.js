@@ -19,18 +19,17 @@ describe('requirePlanModule', () => {
       checkoutUrl: 'https://buy.stripe.com/8x27sLg7Z3wS0sb5Bp2VG03',
     })
     expect(PLANS.basico.features).toContain('Analise de métricas')
-    expect(PLANS.basico.modules).toEqual(expect.arrayContaining(['analytics', 'ai', 'equipe', 'relatorios']))
+    expect(PLANS.basico.modules).toEqual(expect.arrayContaining(['analytics', 'ai', 'equipe', 'relatorios', 'inbox', 'tokens', 'biblioteca']))
   })
 
-  test('bloqueia acesso direto ao módulo fora do plano', () => {
+  test('libera todos os módulos depois que o plano Básico está ativo', () => {
     const res = response()
     const next = jest.fn()
 
-    requirePlanModule('inbox')({ user: { id: 1, role: 'user', plan: 'basico' } }, res, next)
+    requirePlanModule('inbox')({ user: { id: 1, role: 'user', plan: 'basico', planActive: true } }, res, next)
 
-    expect(next).not.toHaveBeenCalled()
-    expect(res.statusCode).toBe(403)
-    expect(res.body).toMatchObject({ code: 'PLAN_REQUIRED', requiredModule: 'inbox' })
+    expect(next).toHaveBeenCalledTimes(1)
+    expect(res.statusCode).toBeNull()
   })
 
   test('mantém no Pro os módulos anunciados de equipe e relatórios', () => {
@@ -45,29 +44,49 @@ describe('requirePlanModule', () => {
       'Relatórios e automações',
       'Analise de métricas',
     ]))
-    expect(PLANS.pro.modules).toEqual(expect.arrayContaining(['equipe', 'relatorios']))
+    expect(PLANS.pro.modules).toEqual(expect.arrayContaining(['equipe', 'relatorios', 'inbox', 'tokens', 'biblioteca']))
   })
 
   test('permite o módulo quando o plano contém a funcionalidade', () => {
     const res = response()
     const next = jest.fn()
 
-    requirePlanModule('tokens')({ user: { id: 1, role: 'user', plan: 'premium' } }, res, next)
+    requirePlanModule('tokens')({ user: { id: 1, role: 'user', plan: 'premium', planActive: true } }, res, next)
 
     expect(next).toHaveBeenCalledTimes(1)
     expect(res.statusCode).toBeNull()
   })
 
-  test('mantém administradores liberados, mas falha fechado sem plano', () => {
+  test('mantém administradores liberados', () => {
     const res = response()
     const next = jest.fn()
 
     requirePlanModule('inbox')({ user: { id: 1, role: 'admin', plan: 'basico' } }, res, next)
-    requirePlanModule('inbox')({ user: { id: 2, role: 'user' } }, res, next)
 
     expect(next).toHaveBeenCalledTimes(1)
-    expect(res.statusCode).toBe(403)
-    expect(res.body).toMatchObject({ code: 'PLAN_REQUIRED', currentPlan: 'basico' })
+    expect(res.statusCode).toBeNull()
+  })
+
+  test('bloqueia qualquer módulo se o pagamento está pendente', () => {
+    const res = response()
+    const next = jest.fn()
+
+    requirePlanModule('inbox')({ user: { id: 2, role: 'user', plan: 'pro', planActive: false } }, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(402)
+    expect(res.body).toMatchObject({ code: 'PAYMENT_REQUIRED', currentPlan: 'pro' })
+  })
+
+  test('falha fechado sem plano', () => {
+    const res = response()
+    const next = jest.fn()
+
+    requirePlanModule('inbox')({ user: { id: 3, role: 'user', planActive: false } }, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.statusCode).toBe(402)
+    expect(res.body).toMatchObject({ code: 'PAYMENT_REQUIRED', currentPlan: 'basico' })
   })
 })
 

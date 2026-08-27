@@ -100,7 +100,26 @@ async function ensurePostPublications() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_post_publications_post_id ON post_publications(post_id)')
   await bestEffort('ALTER TABLE post_publications ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES contas(id) ON DELETE SET NULL')
   await bestEffort('ALTER TABLE post_publications DROP CONSTRAINT IF EXISTS post_publications_post_id_platform_key')
+  // Versões antigas da reconciliação inseriam uma linha sem account_id a cada
+  // atualização. Mantém a primeira linha de cada publicação repetida antes
+  // de criar a proteção para o ramo legado sem conta.
+  await bestEffort(`
+    DELETE FROM post_publications duplicate
+    USING (
+      SELECT post_id, platform, external_post_id, MIN(id) AS keep_id
+      FROM post_publications
+      WHERE account_id IS NULL AND external_post_id IS NOT NULL
+      GROUP BY post_id, platform, external_post_id
+    ) keeper
+    WHERE duplicate.account_id IS NULL
+      AND duplicate.external_post_id IS NOT NULL
+      AND duplicate.post_id = keeper.post_id
+      AND duplicate.platform = keeper.platform
+      AND duplicate.external_post_id = keeper.external_post_id
+      AND duplicate.id <> keeper.keep_id
+  `)
   await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS post_publications_post_platform_account ON post_publications (post_id, platform, account_id) WHERE account_id IS NOT NULL')
+  await bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS post_publications_post_platform_external_null_account ON post_publications (post_id, platform, external_post_id) WHERE account_id IS NULL AND external_post_id IS NOT NULL')
   await bestEffort(`
     INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
     SELECT id, external_platform, external_post_id, published_at

@@ -17,7 +17,7 @@ const planChangeLimiter = rateLimit({
 
 router.get('/status', async (req, res) => {
   try {
-    res.json(await billingService.getStatus({ userId: req.user.id, currentPlan: req.user.plan }))
+    res.json(await billingService.getStatus({ userId: req.user.id, currentPlan: req.user.plan, planActive: req.user.planActive }))
   } catch (error) {
     await addLog('err', `Falha ao carregar status de cobrança: ${error.message}`, null, null, req.user.id)
     res.status(500).json({ erro: 'Não foi possível carregar o status da cobrança agora.' })

@@ -10,6 +10,7 @@ const requireAuth = require('../middleware/requireAuth');
 const { safeStringify } = require('../utils/redact');
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const { ensureZernioProfile } = require('../services/zernioProfileService')
+const { requirePaidPlan } = require('../config/plans')
 
 // Estado do PKCE do TikTok fica no Postgres (tabela oauth_pkce_state), não em
 // memória — entre o início do OAuth e o callback, a requisição pode cair numa
@@ -400,7 +401,7 @@ async function syncZernioAccount(platform, userId, accountName, remoteHint = {})
 // popup+redirect das demais redes — troca refletida no editor React
 // (startOAuth, oauthMap.facebook = 'meta').
 
-router.get('/meta', requireAuth, async (req, res) => {
+router.get('/meta', requireAuth, requirePaidPlan, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY'], 'facebook');
   if (configError) return res.status(400).json(configError);
 
@@ -639,7 +640,7 @@ router.post('/meta/sdk-login', requireAuth, async (req, res) => {
 // para onde o usuário volta depois de autorizar. Isso permite manter o
 // mesmo fluxo popup+postMessage que as outras redes já usam.
 
-router.get('/instagram', requireAuth, async (req, res) => {
+router.get('/instagram', requireAuth, requirePaidPlan, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY'], 'instagram');
   if (configError) return res.status(400).json(configError);
 
@@ -695,7 +696,7 @@ router.get('/instagram/zernio-return', async (req, res) => {
 // O YouTube é conectado pelo OAuth hospedado da Zernio. A rota antiga
 // /google/callback permanece abaixo apenas para não quebrar instalações com
 // contas legadas; novas conexões passam sempre por estas duas rotas.
-router.get('/google', requireAuth, async (req, res) => {
+router.get('/google', requireAuth, requirePaidPlan, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
@@ -748,7 +749,7 @@ router.get('/google/zernio-return', async (req, res) => {
 
 // Mantém somente a rota de callback para instalações antigas; a rota de início
 // legada fica fora do caminho público para que novas conexões usem Zernio.
-router.get('/google/legacy', requireAuth, async (req, res) => {
+router.get('/google/legacy', requireAuth, requirePaidPlan, async (req, res) => {
   const configError = checkEnv(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'], 'youtube');
   if (configError) return res.status(400).json(configError);
 
@@ -911,7 +912,7 @@ const TIKTOK_SCOPES = [
 // consumirPkceVerifier ficam como código morto, não removido ainda). Isso
 // também elimina o mecanismo que já causou um crash-loop histórico (INSERT
 // duplicado de PKCE em oauth_pkce_state ao reconectar).
-router.get('/tiktok', requireAuth, async (req, res) => {
+router.get('/tiktok', requireAuth, requirePaidPlan, async (req, res) => {
   const configError = checkEnv(['ZERNIO_API_KEY'], 'tiktok');
   if (configError) return res.status(400).json(configError);
 
@@ -962,7 +963,7 @@ router.get('/tiktok/zernio-return', async (req, res) => {
   }
 });
 
-router.get('/tiktok/google', requireAuth, async (req, res) => {
+router.get('/tiktok/google', requireAuth, requirePaidPlan, async (req, res) => {
   await iniciarOAuthTiktok(req, res, {
     scopes: TIKTOK_SCOPES,
     stateExtra: { via: 'google' },

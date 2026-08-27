@@ -389,17 +389,17 @@ app.get('/api/me', (req, res) => {
 
 app.use('/api/me',       meRoutes)
 app.use('/api/billing',  billingRoutes)
-app.use('/api/accounts', accountsRoutes)
+app.use('/api/accounts', requirePaidPlan, accountsRoutes)
 app.use('/api/tokens',   requirePlanModule('tokens'), tokensRoutes)
-app.use('/api/logs',     logsRoutes)
+app.use('/api/logs',     requirePaidPlan, logsRoutes)
 app.use('/api/posts',    postsRoutes)
 // O painel administrativo mostra somente a própria conta. O papel admin não
 // cria um diretório global nem concede acesso aos dados de outros usuários.
 app.use('/api/admin',    requireAdmin, adminRoutes)
 app.use('/api/drafts',   requirePlanModule('rascunhos'), draftsRoutes)
-app.use('/api/saved-texts', savedTextsRoutes)
-app.use('/api/platform-presets', platformPresetsRoutes)
-app.use('/api/push',     pushRoutes)
+app.use('/api/saved-texts', requirePaidPlan, savedTextsRoutes)
+app.use('/api/platform-presets', requirePaidPlan, platformPresetsRoutes)
+app.use('/api/push',     requirePaidPlan, pushRoutes)
 app.use('/api/ai',       requirePlanModule('ai'), requirePaidPlan, aiRoutes)
 app.use('/api/media-assets', requirePlanModule('biblioteca'), mediaAssetsRoutes)
 app.use('/api/media-folders', requirePlanModule('biblioteca'), mediaFoldersRoutes)
@@ -408,9 +408,9 @@ app.use('/api/report-schedules', requirePlanModule('relatorios'), reportSchedule
 app.use('/api/smartlinks', requirePlanModule('smartlinks'), smartlinksRoutes)
 app.use('/api/workspaces', requirePlanModule('equipe'), workspacesRoutes)
 app.use('/api/webhooks', webhooksRoutes)
-app.use('/api/api-keys', apiKeysRoutes)
+app.use('/api/api-keys', requirePaidPlan, apiKeysRoutes)
 
-app.get('/api/platform-health', asyncHandler(async (req, res) => {
+app.get('/api/platform-health', requirePaidPlan, asyncHandler(async (req, res) => {
   const { getStatusMap } = require('./services/platformHealth')
   res.json({ platforms: await getStatusMap(req.user.id) })
 }))

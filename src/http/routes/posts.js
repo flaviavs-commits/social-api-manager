@@ -2,7 +2,7 @@ const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
 const { createRateLimitStore } = require('../../infra/http/postgresRateLimitStore')
 const controller = require('../controllers/postsController')
-const { requirePlanModule } = require('../../config/plans')
+const { requirePlanModule, requirePaidPlan } = require('../../config/plans')
 
 const router = Router()
 const requireInboxPlan = requirePlanModule('inbox')
@@ -16,6 +16,10 @@ const uploadLimiter = rateLimit({
 })
 
 router.post('/upload-url', uploadLimiter, controller.postUploadUrl)
+
+// O upload de avatar do perfil usa a rota acima e continua disponível antes
+// do pagamento. O restante desta API pertence aos módulos do produto.
+router.use(requirePaidPlan)
 
 router.get('/inbox/unread', requireInboxPlan, controller.getInboxUnread)
 router.post('/inbox/seen', requireInboxPlan, controller.postInboxSeen)

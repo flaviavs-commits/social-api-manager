@@ -348,6 +348,7 @@ async function salvarPublicacaoExterna(id, { externalPostId, externalPlatform, p
     const { rows } = await pool.query(
       `INSERT INTO post_publications (post_id, platform, external_post_id, published_at)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING
        RETURNING id`,
       [id, externalPlatform, externalPostId, publishedAt]
     )
@@ -404,9 +405,12 @@ async function atualizarStatusPrimeiroComentario(id, status, errorMessage = null
 async function listarPublicacoesDosPosts(postIds) {
   if (!postIds.length) return []
   const { rows } = await pool.query(
-    `SELECT post_id AS "postId", platform, account_id AS "accountId", external_post_id AS "externalPostId", published_at AS "publishedAt"
+    `SELECT DISTINCT ON (post_id, platform, external_post_id)
+            post_id AS "postId", platform, account_id AS "accountId", external_post_id AS "externalPostId", published_at AS "publishedAt"
      FROM post_publications
-     WHERE post_id = ANY($1) AND external_post_id IS NOT NULL`,
+     WHERE post_id = ANY($1) AND external_post_id IS NOT NULL
+     ORDER BY post_id, platform, external_post_id,
+              (account_id IS NOT NULL) DESC, id DESC`,
     [postIds]
   )
   return rows

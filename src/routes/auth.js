@@ -136,7 +136,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     addLog('ok', 'Login realizado com sucesso', null, null, user.id)
     await revokeSessions(user.id)
     const token = issueAuthSession(res, user.id)
-    respondAuth(res, { ok: true, passwordUpgradeRecommended }, token)
+    respondAuth(res, { ok: true, planActive: user.planActive !== false, passwordUpgradeRecommended }, token)
   } catch (err) {
     addLog('err', `Falha no login: ${safeMessage(err.message)}`, null, null, user?.id)
     res.status(500).json({ erro: 'Não foi possível entrar agora. Tente novamente em alguns instantes.' })
@@ -238,7 +238,8 @@ router.post('/verify-2fa', loginLimiter, async (req, res) => {
     await revokeSessions(userId)
     const token = issueAuthSession(res, userId)
     clearPending2faCookie(res)
-    respondAuth(res, { ok: true }, token)
+    const user = await usersRepo.buscarPorId(userId)
+    respondAuth(res, { ok: true, planActive: user?.planActive !== false }, token)
   } catch (err) {
     addLog('err', `Falha no login com 2FA: ${safeMessage(err.message)}`, null, null, userId)
     res.status(500).json({ erro: 'Não foi possível verificar o código agora. Tente novamente.' })
@@ -552,7 +553,7 @@ router.get('/google/callback', async (req, res) => {
     addLog('ok', 'Login com Google realizado com sucesso', null, null, user.id)
     await revokeSessions(user.id)
     issueAuthSession(res, user.id)
-    res.redirect(baseUrl + '/app.html')
+    res.redirect(baseUrl + (user.planActive === false ? '/app/perfil' : '/app.html'))
   } catch (err) {
     addLog('err', `Falha no login com Google: ${safeMessage(err.message)}`)
     res.send(friendlyAuthError('Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.', origin))

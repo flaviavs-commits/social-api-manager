@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { LoadingState } from '../components/ui/loading-state.jsx'
 import { PlanGate } from '../components/ui/plan-gate.jsx'
-import { hasPlanModule } from '../lib/plans.js'
+import { hasActivePlanModule } from '../lib/plans.js'
 
 const SchedulerPage = lazy(() => import('./scheduler-page.jsx').then(module => ({ default: module.SchedulerPage })))
 const CalendarPage = lazy(() => import('./calendar-page.jsx').then(module => ({ default: module.CalendarPage })))
@@ -55,7 +55,10 @@ const descriptions = {
 }
 
 export function ModulePage({ type, onNavigate, user, onUserChange }) {
-  if (user && !hasPlanModule(user.plan, type, user.planUnrestricted)) return <PlanGate currentPlan={user.plan} moduleName={type} />
+  // O perfil é a área onde a pessoa escolhe e paga o plano, portanto precisa
+  // continuar acessível antes da ativação. Os demais módulos dependem do
+  // pagamento confirmado.
+  if (type !== 'perfil' && user && !hasActivePlanModule(user.plan, type, user.planActive, user.planUnrestricted)) return <PlanGate currentPlan={user.plan} moduleName={type} planActive={user.planActive} />
   const Page = PAGES_BY_TYPE[type]
   if (Page) return <Suspense fallback={<section className="page-view"><section className="panel"><LoadingState>Carregando módulo...</LoadingState></section></section>}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange}/></Suspense>
   const [title, description] = descriptions[type] || ['Módulo', 'Área da aplicação']

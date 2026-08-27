@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
-import { accountAnalyticsPlatformTotals } from '../lib/analytics-format.js'
 
 const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 'Publicada', publicado: 'Publicado', failed: 'Falhou', erro: 'Falhou', error: 'Falhou', partial: 'Parcial', processing: 'Processando' }
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
@@ -225,24 +224,14 @@ export function DashboardPage({ onNavigate }) {
   const selectedAnalyticsRows = analyticsPlatform === 'all'
     ? analyticsRows
     : analyticsRows.filter(row => row.platform === analyticsPlatform)
-  const selectedPlatforms = analyticsPlatform === 'all'
-    ? DASHBOARD_PLATFORMS
-    : DASHBOARD_PLATFORMS.filter(([platform]) => platform === analyticsPlatform)
   const selectedPlatformLabel = PERFORMANCE_PLATFORM_FILTERS.find(([platform]) => platform === analyticsPlatform)?.[1] || 'Todas as redes'
-  const accountTotals = accountAnalyticsPlatformTotals(analytics?.accountAnalytics)
-  const totalForPlatform = (platform, key, fallback) => accountTotals[platform]?.[key]?.hasData
-    ? accountTotals[platform][key].value
-    : fallback
-  const totalViews = selectedPlatforms.reduce((total, [platform]) => total + totalForPlatform(
-    platform,
-    'views',
-    selectedAnalyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + metricValue(row.metrics, 'views'), 0)
-  ), 0)
-  const totalEngagement = selectedPlatforms.reduce((total, [platform]) => total + totalForPlatform(
-    platform,
-    'engagement',
-    selectedAnalyticsRows.filter(row => row.platform === platform).reduce((sum, row) => sum + engagementValue(row.metrics), 0)
-  ), 0)
+  // O cartão e o gráfico representam o mesmo recorte: publicações com
+  // métricas disponíveis, filtradas pela rede e pelo período selecionados.
+  // Totais de conta têm outra semântica (alcance/insights do perfil) e não
+  // podem substituir a soma das publicações sem deixar o cartão diferente
+  // das barras exibidas logo abaixo.
+  const totalViews = selectedAnalyticsRows.reduce((total, row) => total + metricValue(row.metrics, 'views'), 0)
+  const totalEngagement = selectedAnalyticsRows.reduce((total, row) => total + engagementValue(row.metrics), 0)
   const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
   const topEngagementPosts = useMemo(() => [...selectedAnalyticsRows]
     .sort((a, b) => engagementValue(b.metrics) - engagementValue(a.metrics))
