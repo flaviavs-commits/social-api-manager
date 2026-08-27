@@ -29,6 +29,9 @@
 .landing-nav-links a, .landing-login-link { color: var(--landing-muted); font-size: 15px; text-decoration: none; transition: color .2s ease; }
 .landing-nav-links a:hover, .landing-login-link:hover { color: var(--landing-text); }
 .landing-nav-actions { display: flex; align-items: center; gap: 22px; }
+.landing-theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; color: var(--landing-gold); background: var(--landing-surface); border: 1px solid var(--landing-border); border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer; transition: background .2s ease, border-color .2s ease, color .2s ease, transform .2s ease; }
+.landing-theme-toggle:hover { color: var(--landing-text); border-color: var(--landing-gold); background: rgb(231 169 46 / .12); transform: translateY(-1px); }
+.landing-theme-toggle:focus-visible { outline: 2px solid var(--landing-gold); outline-offset: 2px; }
 .landing-nav-cta { display: inline-flex; align-items: center; gap: 10px; padding: 12px 17px; color: #16120b !important; background: var(--landing-gold); border-radius: 7px; font-size: 15px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .2s ease, transform .2s ease; }
 .landing-nav-cta:hover, .landing-btn--primary:hover, .landing-plan-btn.is-primary:hover { background: var(--landing-gold-soft); transform: translateY(-1px); }
 .landing-menu-button { display: none; padding: 5px; color: var(--landing-text); background: none; border: 0; cursor: pointer; }
@@ -257,6 +260,7 @@
   .landing-container { width: min(100% - 30px, 430px); }
   .landing-logo-img { height: 44px; }
   .landing-nav-cta { display: none; }
+  .landing-theme-toggle { width: 34px; height: 34px; font-size: 14px; }
   .landing-dashboard { padding: 8px; }
   .dashboard-body { min-height: 255px; }
   .dashboard-content { padding: 12px 10px; }

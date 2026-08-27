@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { PLANS } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
+import { ThemeToggleButton } from '../components/ui/theme-selector.jsx'
 
 const plans = Object.values(PLANS).map((plan, index) => ({
   ...plan,
@@ -87,7 +88,7 @@ export function LandingPage() {
   }, [])
 
   return <main className="landing-page" id="inicio">
-    <header className="landing-nav-wrap"><nav className="landing-nav landing-container" aria-label="Navegação principal"><Logo /><button className="landing-menu-button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(current => !current)}><Icon name="menu" size={22} /></button><div className={`landing-nav-links${menuOpen ? ' is-open' : ''}`}><a href="#recursos" onClick={() => setMenuOpen(false)}>Recursos</a><a href="#como-funciona" onClick={() => setMenuOpen(false)}>Como funciona</a><a href="#resultados" onClick={() => setMenuOpen(false)}>Resultados</a><a href="#planos" onClick={() => setMenuOpen(false)}>Planos</a></div><div className="landing-nav-actions"><a className="landing-login-link" href="/login.html">Entrar</a><a className="landing-nav-cta" href="#planos" onClick={() => setMenuOpen(false)}>Conhecer os planos <Icon name="arrow" size={16} /></a></div></nav></header>
+    <header className="landing-nav-wrap"><nav className="landing-nav landing-container" aria-label="Navegação principal"><Logo /><button className="landing-menu-button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(current => !current)}><Icon name="menu" size={22} /></button><div className={`landing-nav-links${menuOpen ? ' is-open' : ''}`}><a href="#recursos" onClick={() => setMenuOpen(false)}>Recursos</a><a href="#como-funciona" onClick={() => setMenuOpen(false)}>Como funciona</a><a href="#resultados" onClick={() => setMenuOpen(false)}>Resultados</a><a href="#planos" onClick={() => setMenuOpen(false)}>Planos</a></div><div className="landing-nav-actions"><ThemeToggleButton className="landing-theme-toggle"/><a className="landing-login-link" href="/login.html">Entrar</a><a className="landing-nav-cta" href="#planos" onClick={() => setMenuOpen(false)}>Conhecer os planos <Icon name="arrow" size={16} /></a></div></nav></header>
 
     <section className="landing-hero landing-container"><div className="landing-hero-copy"><div className="landing-eyebrow"><span className="landing-live-dot" /> Gestão inteligente para redes sociais</div><h1>Sua marca mais longe.<br /><em>Seu trabalho mais simples.</em></h1><p>Planeje, publique e acompanhe os resultados de todas as suas redes sociais em um único lugar — com dados que ajudam você a decidir o próximo passo.</p><div className="landing-hero-actions"><a className="landing-btn landing-btn--primary" href="#planos">Ver planos e preços <Icon name="arrow" /></a><a className="landing-btn landing-btn--ghost" href="#como-funciona"><span className="landing-play"><Icon name="play" size={14} /></span> Ver como funciona</a></div><div className="landing-trust"><div className="landing-avatars"><span>LA</span><span>MS</span><span>RC</span><span>+8k</span></div><p><b>Mais tempo para criar.</b><br />Menos tempo entre abas e planilhas.</p></div></div><DashboardMock /></section>
 

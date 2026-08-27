@@ -29,6 +29,42 @@ export function useTheme() {
   return theme
 }
 
+// Botão único (alterna claro/escuro num clique) para superfícies fora do
+// app autenticado, como a landing page — usa o mesmo mecanismo de
+// persistência e o mesmo evento global do ThemeSelector, então o tema
+// escolhido aqui também vale para o app quando a pessoa entrar.
+export function ThemeToggleButton({ className = '' }) {
+  const [theme, setTheme] = useState(getStoredTheme)
+
+  useEffect(() => {
+    const nextTheme = applyTheme(theme)
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+    } catch {
+      // A preferência continua funcionando mesmo quando o storage está indisponível.
+    }
+    window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
+  }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = event => setTheme(event.detail === 'light' ? 'light' : 'dark')
+    window.addEventListener('meu-ecoo:themechange', handleThemeChange)
+    return () => window.removeEventListener('meu-ecoo:themechange', handleThemeChange)
+  }, [])
+
+  const isLight = theme === 'light'
+  return <button
+    type="button"
+    className={`theme-toggle-button${className ? ` ${className}` : ''}`}
+    onClick={() => setTheme(isLight ? 'dark' : 'light')}
+    aria-pressed={isLight}
+    aria-label={isLight ? 'Mudar para o tema escuro' : 'Mudar para o tema claro'}
+    title={isLight ? 'Tema escuro' : 'Tema claro'}
+  >
+    <span aria-hidden="true">{isLight ? '☾' : '☀'}</span>
+  </button>
+}
+
 export function ThemeSelector() {
   const [theme, setTheme] = useState(getStoredTheme)
 
