@@ -72,6 +72,10 @@ async function create(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível criar a conta') }
 }
 
+function contaZernioJaDesconectada(error) {
+  return error?.name === 'ZernioError' && [404, 410].includes(Number(error.status))
+}
+
 async function remove(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -80,17 +84,23 @@ async function remove(req, res) {
     if (!account) return res.status(404).json({ erro: 'Conta não encontrada' })
 
     // A conta local e a conexão no Zernio precisam ter o mesmo ciclo de vida.
-    // Se a API externa falhar, mantemos o registro local para não criar uma
-    // conexão órfã no dashboard do Zernio.
+    // Se o Zernio já não encontrar a conexão, a operação é idempotente:
+    // removemos também o registro local em vez de devolver um falso erro 500.
     if (account.zernio_account_id) {
-      await zernioClient.disconnectAccount(account.zernio_account_id)
+      try {
+        await zernioClient.disconnectAccount(account.zernio_account_id)
+      } catch (error) {
+        if (!contaZernioJaDesconectada(error)) throw error
+      }
     }
 
     const removed = await accounts.deletarConta(id, req.user.id, false)
     if (!removed) return res.status(404).json({ erro: 'Conta não encontrada' })
     addLog('info', `Conta ID ${id} deletada`)
     res.json({ deleted: true })
-  } catch (error) { serverError(res, error) }
+  } catch (error) {
+    serverError(res, error, 'Não foi possível desconectar esta conta agora. Tente novamente em instantes.')
+  }
 }
 
 module.exports = { getStats, list, getById, create, remove }
