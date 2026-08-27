@@ -84,7 +84,10 @@ function compressImageForAnalysis(file) {
   })
 }
 
-function waitForDecodedVideoFrame(video) {
+// Exportada para teste unitário direto (frontend/test/components/preview-video-frame.test.jsx):
+// é o mecanismo que a prévia usa para não capturar um frame de vídeo borrado/
+// incompleto (ver PreviewVideo mais abaixo).
+export function waitForDecodedVideoFrame(video) {
   return new Promise((resolve, reject) => {
     let settled = false
     let frameRequested = false
@@ -431,7 +434,7 @@ function PreviewVideo({ src, platform }) {
       video.load()
     }
 
-    const captureFrame = () => {
+    const drawFrame = () => {
       if (finished || !active) return
       if (!video.videoWidth || !video.videoHeight) return
       try {
@@ -452,15 +455,20 @@ function PreviewVideo({ src, platform }) {
       }
     }
 
-    // Esperar dois paints garante que o frame buscado pelo seek já foi
-    // efetivamente decodificado e pintado, evitando capturar um frame
-    // borrado/incompleto (comum logo após o primeiro keyframe do vídeo).
-    const waitTwoPaints = () => {
-      if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => requestAnimationFrame(captureFrame))
-      } else {
-        setTimeout(captureFrame, 0)
+    // Usa a mesma confirmação de frame decodificado (requestVideoFrameCallback,
+    // com fallback de dois paints) já validada na captura para a IA — esperar
+    // apenas dois paints de relógio, sem essa confirmação, podia render um
+    // frame borrado/incompleto logo após o seek para perto do primeiro
+    // keyframe do vídeo, especialmente em decodificadores acelerados por GPU.
+    const captureFrame = async () => {
+      if (finished || !active) return
+      try {
+        await waitForDecodedVideoFrame(video)
+      } catch {
+        // Sem confirmação do navegador, tentamos desenhar mesmo assim — o
+        // placeholder cobre o caso de o desenho abaixo falhar de vez.
       }
+      drawFrame()
     }
 
     video.onloadedmetadata = () => {
@@ -468,15 +476,15 @@ function PreviewVideo({ src, platform }) {
       // duração reais) está disponível — buscar antes disso pode fazer o
       // navegador decodificar um frame incompleto/de baixa qualidade.
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
-      const target = Math.min(0.15, duration ? duration / 2 : 0.15)
-      if (target <= 0) { waitTwoPaints(); return }
+      const target = Math.min(0.3, duration ? duration / 2 : 0.3)
+      if (target <= 0) { void captureFrame(); return }
       try {
         video.currentTime = target
       } catch {
-        waitTwoPaints()
+        void captureFrame()
       }
     }
-    video.onseeked = () => waitTwoPaints()
+    video.onseeked = () => { void captureFrame() }
     video.onerror = () => cleanup()
 
     video.src = src
