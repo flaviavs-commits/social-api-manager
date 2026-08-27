@@ -10,6 +10,7 @@ import { useToast } from '../components/ui/toast.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
+import { HeartIcon, CommentIcon, ShareArrowIcon, BookmarkIcon, ThumbsUpIcon, GlobeIcon, MoreIcon, MusicNoteIcon, DislikeIcon, RemixIcon, SendPlaneIcon } from '../components/ui/preview-icons.jsx'
 import '../styles/scheduler-composer.css'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
@@ -495,17 +496,153 @@ function PreviewVideo({ src, platform }) {
   </div>
 }
 
-function PreviewMedia({ platform, previews, igFormat, aspectRequest, mediaProfile, accountHandle }) {
+function PreviewMedia({ platform, previews, igFormat, aspectRequest, mediaProfile, fill = false }) {
   const item = previews[0]
   const isVideo = item?.file.type.startsWith('video/')
   const aspect = resolvePreviewAspect({ platform, mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: aspectRequest, instagramFormat: igFormat })
-  const aspectClass = `is-${aspect.key}`
+  const aspectClass = fill ? 'is-fill' : `is-${aspect.key}`
   const mediaClass = isVideo ? 'is-video' : item ? 'is-photo' : ''
   if (!item) return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass} is-empty`} style={{ '--preview-aspect': String(aspect.ratio) }}><span aria-hidden="true">＋</span><small>Adicione uma imagem ou vídeo</small></div>
   const media = isVideo
     ? <PreviewVideo src={item.url} platform={platform}/>
     : <img src={item.url} alt="Prévia da publicação"/>
-  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>{media}{['instagram', 'tiktok'].includes(platform) && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} fotos em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}<small>{previews.length} fotos</small></div>}{platform === 'tiktok' && <div className="social-preview-tiktok-overlay"><strong>{accountHandle}</strong><span>♡ 0</span><span>💬 0</span><span>↗</span></div>}</div>
+  return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>
+    {media}
+    {['instagram', 'tiktok'].includes(platform) && previews.length > 1 && <div className="social-preview-carousel-dots" aria-label={`${previews.length} fotos em carrossel`}>{previews.slice(0, 5).map((preview, index) => <span className={index === 0 ? 'is-active' : ''} key={preview.key}/>)}<small>{previews.length} fotos</small></div>}
+  </div>
+}
+
+function PreviewAvatar({ platform, avatarUrl, size = '' }) {
+  return <span className={`pv-avatar pv-avatar-${platform}${size ? ` pv-avatar-${size}` : ''}`}>{avatarUrl ? <img src={avatarUrl} alt=""/> : <PlatformIcon platform={platform} className="h-4 w-4"/>}</span>
+}
+
+// --- Instagram --------------------------------------------------------
+
+function InstagramFeedCard({ accountLabel, accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption }) {
+  return <>
+    <div className="pv-header">
+      <PreviewAvatar platform="instagram" avatarUrl={avatarUrl}/>
+      <div className="pv-header-text"><strong>{accountLabel}</strong></div>
+      <MoreIcon className="pv-more"/>
+    </div>
+    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+    <div className="pv-ig-actions">
+      <div className="pv-ig-actions-left"><HeartIcon/><CommentIcon/><ShareArrowIcon/></div>
+      <BookmarkIcon/>
+    </div>
+    <p className="pv-ig-likes">Curtido por <strong>0 pessoas</strong></p>
+    <p className={`pv-ig-caption${caption ? '' : ' is-placeholder'}`}><strong>{accountHandle}</strong> {caption || 'O texto da sua publicação aparecerá aqui.'}</p>
+    <span className="pv-ig-time">AGORA MESMO</span>
+  </>
+}
+
+function InstagramFullBleedCard({ accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption, isStory }) {
+  return <div className="pv-fullbleed">
+    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    {isStory && <div className="pv-story-progress" aria-hidden="true"><span/><span className="is-empty"/><span className="is-empty"/></div>}
+    <div className="pv-fullbleed-top">
+      <PreviewAvatar platform="instagram" avatarUrl={avatarUrl} size="sm"/>
+      <strong>{accountHandle}</strong>
+      {!isStory && <span className="pv-fullbleed-time">agora</span>}
+      {!isStory && <span className="pv-fullbleed-follow">Seguir</span>}
+      {isStory && <MoreIcon className="pv-more pv-more-light"/>}
+    </div>
+    {!isStory && <div className="pv-reel-rail">
+      <span className="pv-reel-rail-item"><HeartIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><CommentIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><SendPlaneIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item pv-reel-rail-more"><MoreIcon/></span>
+      <span className="pv-reel-disc" aria-hidden="true"><PlatformIcon platform="instagram" className="h-3 w-3"/></span>
+    </div>}
+    {!isStory ? <div className="pv-fullbleed-bottom">
+      <p className={`pv-fullbleed-caption${caption ? '' : ' is-placeholder'}`}>{caption || 'O texto da sua publicação aparecerá aqui.'}</p>
+      <span className="pv-fullbleed-audio"><MusicNoteIcon/> Áudio original · {accountHandle}</span>
+    </div> : <div className="pv-story-replybar"><span>Enviar mensagem</span><HeartIcon className="pv-story-replybar-icon"/><ShareArrowIcon className="pv-story-replybar-icon"/></div>}
+  </div>
+}
+
+// --- Facebook -----------------------------------------------------------
+
+function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, caption }) {
+  return <>
+    <div className="pv-header">
+      <PreviewAvatar platform="facebook" avatarUrl={avatarUrl}/>
+      <div className="pv-header-text"><strong>{accountLabel}</strong><small>Agora · <GlobeIcon/></small></div>
+      <MoreIcon className="pv-more"/>
+    </div>
+    <p className={`pv-fb-text${caption ? '' : ' is-placeholder'}`}>{caption || 'O texto da sua publicação aparecerá aqui.'}</p>
+    <PreviewMedia platform="facebook" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+    <div className="pv-fb-stats"><span className="pv-fb-stats-reactions"><i className="pv-fb-reaction-dot"><ThumbsUpIcon/></i>0</span><span>0 comentários · 0 compartilhamentos</span></div>
+    <div className="pv-fb-actions">
+      <button type="button"><ThumbsUpIcon/> Curtir</button>
+      <button type="button"><CommentIcon/> Comentar</button>
+      <button type="button"><ShareArrowIcon/> Compartilhar</button>
+    </div>
+  </>
+}
+
+// --- YouTube --------------------------------------------------------------
+
+function YoutubeVideoCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title, duration }) {
+  return <>
+    <div className="pv-yt-thumb-wrap">
+      <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+      {mediaProfile?.kind === 'video' && <span className="pv-yt-duration">{formatDuration(duration)}</span>}
+    </div>
+    <div className="pv-yt-meta">
+      <PreviewAvatar platform="youtube" avatarUrl={avatarUrl}/>
+      <div className="pv-yt-meta-text"><strong className={title ? '' : 'is-placeholder'}>{title || 'Título do seu vídeo aparecerá aqui'}</strong><small>{accountLabel} · 0 visualizações · agora</small></div>
+      <MoreIcon className="pv-more"/>
+    </div>
+  </>
+}
+
+function YoutubeShortCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title }) {
+  return <div className="pv-fullbleed pv-short">
+    <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    <span className="pv-short-badge">Shorts</span>
+    <div className="pv-short-rail">
+      <span className="pv-reel-rail-item"><HeartIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><DislikeIcon/></span>
+      <span className="pv-reel-rail-item"><CommentIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><ShareArrowIcon/></span>
+      <span className="pv-reel-rail-item"><RemixIcon/></span>
+      <PreviewAvatar platform="youtube" avatarUrl={avatarUrl} size="sm"/>
+    </div>
+    <div className="pv-fullbleed-bottom">
+      <strong className={`pv-short-title${title ? '' : ' is-placeholder'}`}>{title || 'Título do seu vídeo aparecerá aqui'}</strong>
+      <small>{accountLabel}</small>
+    </div>
+  </div>
+}
+
+// --- TikTok --------------------------------------------------------------
+
+function TiktokCard({ accountHandle, avatarUrl, previews, mediaProfile, aspectRequest, caption, title }) {
+  return <div className="pv-fullbleed pv-tt">
+    <PreviewMedia platform="tiktok" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    <div className="pv-reel-rail pv-tt-rail">
+      <span className="pv-tt-avatar"><PreviewAvatar platform="tiktok" avatarUrl={avatarUrl} size="sm"/><i className="pv-tt-plus" aria-hidden="true">+</i></span>
+      <span className="pv-reel-rail-item"><HeartIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><CommentIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><BookmarkIcon/><b>0</b></span>
+      <span className="pv-reel-rail-item"><ShareArrowIcon/><b>0</b></span>
+      <span className="pv-tt-disc" aria-hidden="true"><MusicNoteIcon/></span>
+    </div>
+    <div className="pv-fullbleed-bottom">
+      <strong>{accountHandle}</strong>
+      {title && <p className="pv-tt-title">{title}</p>}
+      <p className={`pv-fullbleed-caption${caption ? '' : ' is-placeholder'}`}>{caption || 'A descrição da sua publicação aparecerá aqui.'}</p>
+      <span className="pv-fullbleed-audio"><MusicNoteIcon/> som original · {accountHandle}</span>
+    </div>
+  </div>
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0))
+  const minutes = Math.floor(total / 60)
+  const secs = total % 60
+  return `${minutes}:${String(secs).padStart(2, '0')}`
 }
 
 function PostPreview({ textByPlatform, titleByPlatform, selected, files, previews, publishNow, date, youtubeTitle, igFormat, igAspect, tiktokAspect, youtubeFormat, mediaProfile, accounts }) {
@@ -516,27 +653,40 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, preview
   }, [activePlatform, availablePlatforms.join(',')])
   const activeText = activePlatform === 'tiktok' ? (textByPlatform.tiktokDescription || '') : (textByPlatform[activePlatform] || '')
   const activeTitle = titleByPlatform[activePlatform] || ''
-  const isYoutube = activePlatform === 'youtube'
-  const isTiktok = activePlatform === 'tiktok'
-  const isFacebook = activePlatform === 'facebook'
   const connectedAccount = accounts.find(account => account.platform === activePlatform)
   const rawHandle = connectedAccount?.handle || connectedAccount?.name || ''
   const accountLabel = rawHandle || 'Sua marca'
   const accountHandle = rawHandle ? (rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`) : '@sua_marca'
+  const avatarUrl = connectedAccount?.avatarUrl || ''
   const requestedAspect = activePlatform === 'instagram' ? igAspect : activePlatform === 'tiktok' ? tiktokAspect : activePlatform === 'youtube' && youtubeFormat === 'short' ? 'vertical' : 'auto'
   const resolvedAspect = resolvePreviewAspect({ platform: activePlatform, mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: requestedAspect, instagramFormat: igFormat })
   const mediaLabel = mediaProfile ? `${mediaProfile.kind === 'video' ? 'Vídeo' : 'Foto'} · ${resolvedAspect.label}` : resolvedAspect.label
   const instagramVideoIsReel = activePlatform === 'instagram' && mediaProfile?.kind === 'video' && igFormat !== 'story'
+  const isInstagramStory = activePlatform === 'instagram' && igFormat === 'story'
+  const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory || instagramVideoIsReel)
+  const isYoutubeShort = activePlatform === 'youtube' && youtubeFormat === 'short'
+  const isFullBleedCard = isInstagramFullBleed || activePlatform === 'tiktok' || isYoutubeShort
   const formatLabel = activePlatform === 'instagram' ? `${instagramVideoIsReel ? 'Reel automático' : ['reel', 'story'].includes(igFormat) ? (igFormat === 'reel' ? 'Reel' : 'Story') : 'Feed'} · ${mediaLabel}` : activePlatform === 'youtube' ? `${youtubeFormat === 'short' ? 'Short' : 'Vídeo'} · ${mediaLabel}` : activePlatform === 'tiktok' && mediaProfile?.kind === 'video' ? `Vídeo para TikTok · ${TIKTOK_VIDEO_DIMENSIONS.label}` : activePlatform === 'tiktok' ? `TikTok · ${mediaLabel}` : `Feed · ${mediaLabel}`
   const resolutionHint = socialMediaResolutionHint(activePlatform, { instagramFormat: igFormat, youtubeFormat, mediaKind: mediaProfile?.kind })
   return <aside className="post-preview" aria-label="Pré-visualização da publicação">
     <div className="post-preview-heading"><div><p className="eyebrow">PREVIEW REALISTA</p><h3>Veja em cada rede</h3></div><span className="post-preview-status">{publishNow ? 'Agora' : date ? 'Agendada' : 'Rascunho'}</span></div>
     <div className="preview-network-tabs" role="tablist" aria-label="Prévia por rede social">{availablePlatforms.map(platform => <button type="button" role="tab" aria-selected={activePlatform === platform} className={`preview-network-tab preview-network-tab-${platform}${activePlatform === platform ? ' is-active' : ''}`} key={platform} onClick={() => setActivePlatform(platform)}><span className="preview-network-tab-icon"><PlatformIcon platform={platform} className="h-4 w-4"/></span>{previewLabels[platform]}</button>)}</div>
-     <div className="social-preview-format"><span>Formato simulado</span><strong>{formatLabel}</strong><small>Resolução recomendada: {resolutionHint}</small></div><div className="social-preview-detection" role="status"><span className={mediaProfile?.kind === 'video' ? 'is-video' : 'is-image'}>{mediaProfile ? mediaKindLabel(mediaProfile.kind) : 'Aguardando mídia'}</span><small>{mediaProfile?.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'A proporção será detectada ao adicionar a mídia.'}</small></div>{instagramVideoIsReel && <p className="social-preview-format-note">Vídeo único será enviado como Reel e compartilhado no feed.</p>}<div className={`social-preview-card social-preview-card-${activePlatform}`}>
-      <div className="social-preview-account"><span className={`social-preview-avatar social-preview-avatar-${activePlatform}`}>{connectedAccount?.avatarUrl ? <img src={connectedAccount.avatarUrl} alt=""/> : <PlatformIcon platform={activePlatform} className="h-4 w-4"/>}</span><div><strong>{accountLabel}</strong><small>{previewLabels[activePlatform]} · agora</small></div><span className="social-preview-more" aria-hidden="true">•••</span></div>
-      {isYoutube ? <><PreviewMedia platform={activePlatform} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} accountHandle={accountHandle}/><div className="social-preview-youtube-copy"><strong>{youtubeTitle || activeText || 'Título do seu vídeo aparecerá aqui'}</strong><small>{accountLabel} · 0 visualizações · agora</small></div></> : isTiktok ? <><PreviewMedia platform={activePlatform} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} accountHandle={accountHandle}/><div className="social-preview-tiktok-copy"><strong>{activeTitle || 'Adicione um título para o TikTok'}</strong><p className={`social-preview-caption${activeText ? '' : ' is-placeholder'}`}>{activeText || 'A descrição da sua publicação aparecerá aqui.'}</p></div></> : isFacebook ? <><p className={`social-preview-caption${activeText ? '' : ' is-placeholder'}`}>{activeText || 'O texto da sua publicação aparecerá aqui.'}</p><PreviewMedia platform={activePlatform} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} accountHandle={accountHandle}/><div className="social-preview-actions"><span>♡</span><span>◯</span><span>↗</span><small>{files.length ? `${files.length} mídia${files.length > 1 ? 's' : ''}` : 'Sem mídia'}</small></div></> : <><PreviewMedia platform={activePlatform} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} accountHandle={accountHandle}/><div className="social-preview-actions"><span>♡</span><span>◯</span><span>↗</span><small>{files.length ? `${files.length} mídia${files.length > 1 ? 's' : ''}` : 'Sem mídia'}</small></div><p className={`social-preview-caption${activeText ? '' : ' is-placeholder'}`}>{activeText || 'O texto da sua publicação aparecerá aqui.'}</p></>}
+     <div className="social-preview-format"><span>Formato simulado</span><strong>{formatLabel}</strong><small>Resolução recomendada: {resolutionHint}</small></div><div className="social-preview-detection" role="status"><span className={mediaProfile?.kind === 'video' ? 'is-video' : 'is-image'}>{mediaProfile ? mediaKindLabel(mediaProfile.kind) : 'Aguardando mídia'}</span><small>{mediaProfile?.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'A proporção será detectada ao adicionar a mídia.'}</small></div>{instagramVideoIsReel && <p className="social-preview-format-note">Vídeo único será enviado como Reel e compartilhado no feed.</p>}<div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
+      {activePlatform === 'instagram' ? (
+        isInstagramFullBleed
+          ? <InstagramFullBleedCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} caption={activeText} isStory={isInstagramStory}/>
+          : <InstagramFeedCard accountLabel={accountLabel} accountHandle={accountHandle} avatarUrl={avatarUrl} previews={previews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={mediaProfile} caption={activeText}/>
+      ) : activePlatform === 'facebook' ? (
+        <FacebookCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={previews} mediaProfile={mediaProfile} aspectRequest={requestedAspect} caption={activeText}/>
+      ) : activePlatform === 'youtube' ? (
+        isYoutubeShort
+          ? <YoutubeShortCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={previews} mediaProfile={mediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText}/>
+          : <YoutubeVideoCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={previews} mediaProfile={mediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText} duration={mediaProfile?.duration}/>
+      ) : (
+        <TiktokCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={previews} mediaProfile={mediaProfile} aspectRequest={requestedAspect} caption={activeText} title={activeTitle}/>
+      )}
     </div>
-    <p className="post-preview-hint">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta.</p>
+    <p className="post-preview-hint">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta. {files.length > 1 && !['instagram', 'tiktok'].includes(activePlatform) ? `${files.length} mídias selecionadas — apenas a primeira aparece na prévia desta rede.` : ''}</p>
   </aside>
 }
 
@@ -906,6 +1056,7 @@ export function SchedulerPage() {
       width: meta?.width || 0,
       height: meta?.height || 0,
       ratio: meta?.width && meta?.height ? meta.width / meta.height : null,
+      duration: meta?.duration || 0,
     }
   }, [files, mediaMetaByKey])
 

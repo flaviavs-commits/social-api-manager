@@ -119,8 +119,12 @@
 .social-preview-video-badge {
   position: absolute;
   z-index: 2;
+  top: auto;
+  left: auto;
   right: 9px;
   bottom: 9px;
+  width: fit-content;
+  height: fit-content;
   padding: 4px 7px;
   color: #fff;
   background: rgb(0 0 0 / 0.68);
