@@ -87,7 +87,7 @@ async function getCalendar(req, res) {
 async function getPosts(req, res) {
   try {
     const { status } = req.query
-    if (status !== undefined && !['scheduled', 'published', 'partial', 'error', 'cancelled'].includes(status))
+    if (status !== undefined && !['scheduled', 'pending_approval', 'rejected', 'published', 'partial', 'error', 'cancelled'].includes(status))
       return res.status(400).json({ erro: 'status inválido' })
 
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)

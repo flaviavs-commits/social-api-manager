@@ -309,10 +309,16 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     shortElegivelByPlatform[p] = resultadosPorPlataforma[i].shortElegivel
   })
 
+  // Um post enviado para aprovação também fica fora do fluxo do cron até que
+  // um aprovador o libere. Assim a revisão acontece antes de qualquer envio
+  // para as redes.
+  const requiresApproval = body.requiresApproval === 'true' || body.requiresApproval === true
+
   // "Publicar agora" cria o post já como 'processing' (em vez de 'scheduled')
   // para que o cron do agendamento nunca o veja e dispare uma segunda
   // publicação concorrente — quem publica é só esta requisição, na sequência.
   const publishNow = body.publishNow === 'true' || body.publishNow === true
+  if (requiresApproval && publishNow) throw new ValidationError('Desative "Publicar agora" para enviar o conteúdo para aprovação.')
 
   const erro = validarCriacaoPost({
     text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel,
@@ -374,19 +380,21 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     locationId: temFacebookOuInstagram ? (locationId || null) : null,
     locationName: temFacebookOuInstagram ? (locationName || null) : null,
     firstComment: firstComment?.trim() || null,
-    accountId: null, userId, status: publishNow ? 'processing' : 'scheduled'
+    accountId: null, userId, status: requiresApproval ? 'pending_approval' : publishNow ? 'processing' : 'scheduled'
   })
 
   await postsRepo.definirContasDoPost(post.id, contas, itemsByPlatform)
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
-  console.info(`[posts] #${post.id} pronto para ${publishNow ? 'publicação' : 'agendamento'} em ${Date.now() - startedAt}ms`)
+  console.info(`[posts] #${post.id} pronto para ${requiresApproval ? 'aprovação' : publishNow ? 'publicação' : 'agendamento'} em ${Date.now() - startedAt}ms`)
 
   // O histórico é observabilidade: uma falha ao gravá-lo não pode desfazer
   // nem impedir a criação do post já persistido.
   try {
     await registrarLog({
       type: publishNow ? 'info' : 'ok',
-      message: publishNow ? `Post #${post.id} criado e enviado para publicação` : `Post #${post.id} agendado com sucesso`,
+      message: requiresApproval
+        ? `Post #${post.id} enviado para aprovação`
+        : publishNow ? `Post #${post.id} criado e enviado para publicação` : `Post #${post.id} agendado com sucesso`,
       platform: null,
       user_id: userId
     })
@@ -394,7 +402,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     console.error(`Não foi possível registrar a criação do post #${post.id}:`, logError.message)
   }
 
-  if (!publishNow) return { post: { ...post, warnings }, status: 201 }
+  if (!publishNow) return { post: { ...post, status: requiresApproval ? 'pending_approval' : post.status, warnings }, status: 201 }
 
   // I/O externo (upload/processamento da rede social) não deve manter a
   // requisição HTTP aberta. O mesmo pipeline do scheduler conclui status,

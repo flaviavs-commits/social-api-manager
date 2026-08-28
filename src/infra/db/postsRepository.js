@@ -104,7 +104,7 @@ async function deletarPost(id, userId, isAdmin) {
         SET status='cancelled',
             media_cleanup_after = NOW() + INTERVAL '7 days',
             media_cleaned_at = NULL
-      WHERE id=$1 AND status IN ('scheduled', 'published', 'error', 'erro', 'failed', 'partial')`, [id]
+      WHERE id=$1 AND status IN ('scheduled', 'pending_approval', 'rejected', 'published', 'error', 'erro', 'failed', 'partial')`, [id]
   )
   return rowCount > 0
 }
