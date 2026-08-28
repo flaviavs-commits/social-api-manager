@@ -19,6 +19,14 @@ const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const AI_POST_DRAFT_KEY = 'meu-ecoo:ai-post-draft'
 const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 'image/avif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' }
 
+// O TikTok usa uma chave de estado diferente porque o formulário separa
+// título e descrição, mas o payload ainda precisa considerar a rede `tiktok`.
+export function textsForSelectedPlatforms(textByPlatform = {}, selected = []) {
+  return Object.fromEntries(Object.entries(textByPlatform).filter(([key]) => (
+    selected.includes(key) || (key === 'tiktokDescription' && selected.includes('tiktok'))
+  )))
+}
+
 function normalizeMediaFile(file) {
   if (file.type) return file
   const extension = file.name.split('.').pop()?.toLowerCase()
@@ -1185,7 +1193,7 @@ export function SchedulerPage() {
         .filter(([platform]) => selected.includes(platform))
         .map(([platform, platformFiles]) => [platform, uploadedItems(platformFiles)]))
       const scheduledAt = publishNow ? new Date().toISOString() : date
-      const platformTexts = Object.fromEntries(Object.entries(textByPlatform).filter(([platform]) => selected.includes(platform)))
+      const platformTexts = textsForSelectedPlatforms(textByPlatform, selected)
       const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
       setProgress(publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')
       const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, media: JSON.stringify(media), mediaByPlatform: JSON.stringify(mediaByPlatform), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
