@@ -616,6 +616,95 @@
   border-top: 1px solid var(--border);
 }
 
+.platform-composer-media {
+  display: grid;
+  gap: 9px;
+  margin: 0 15px 15px;
+  padding: 12px;
+  border: 1px dashed var(--border-hover);
+  border-radius: 9px;
+  background: rgb(var(--app-bg-rgb) / 0.3);
+}
+
+.platform-composer-media-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.platform-composer-media-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.platform-composer-media-heading strong {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.platform-composer-media-heading span,
+.platform-composer-media-picker small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.platform-composer-media-clear {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: var(--platform-accent);
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.platform-composer-media-picker {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--app-bg);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.platform-composer-media-picker:hover,
+.platform-composer-media-clear:hover {
+  color: var(--platform-accent);
+}
+
+.platform-composer-media-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.platform-composer-media-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.platform-composer-media-list span {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 7px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: rgb(var(--app-bg-rgb) / 0.7);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .platform-composer-settings-heading > div {
   display: grid;
   gap: 3px;

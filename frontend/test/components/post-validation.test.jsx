@@ -121,6 +121,18 @@ describe('buildValidationIssues', () => {
     expect(carouselIssues.filter(i => i.platform === 'tiktok')).toHaveLength(0)
   })
 
+  it('valida a mídia própria de cada rede quando ela substitui a compartilhada', () => {
+    const tiktokVideo = { type: 'video/mp4', name: 'tiktok.mp4', lastModified: 2, size: 20 }
+    const issues = buildValidationIssues(baseArgs({
+      platforms: ['instagram', 'tiktok'],
+      files: [{ type: 'image/png', name: 'instagram.png', lastModified: 1, size: 10 }],
+      filesByPlatform: { tiktok: [tiktokVideo] },
+      videoMetaByKey: { 'tiktok.mp4-2-20': { width: 1080, height: 1920 } },
+      textByPlatform: { instagram: 'Texto do Instagram', tiktokDescription: 'Descrição do TikTok' },
+    }))
+    expect(issues).toEqual([])
+  })
+
   it('rejects mixed TikTok video and photo media', () => {
     const issues = buildValidationIssues(baseArgs({
       platforms: ['tiktok'],

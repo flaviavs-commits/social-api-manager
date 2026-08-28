@@ -54,11 +54,12 @@ export function readVideoMeta(file) {
 // Retorna a lista de pendências para o post atual. `youtubeMadeForKids` é a
 // string do <select> ('', 'true' ou 'false'), não um boolean — mesmo padrão
 // já usado por youtubeVisibility/igFormat/tiktokPrivacyLevel neste formulário.
-export function buildValidationIssues({ text = '', textByPlatform = {}, titleByPlatform = {}, tiktokDescription = '', platforms, files, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey = {}, mediaMetaByKey = {} }) {
+export function buildValidationIssues({ text = '', textByPlatform = {}, titleByPlatform = {}, tiktokDescription = '', platforms, files, filesByPlatform = {}, publishNow, scheduledAt, youtubeTitle, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, videoMetaByKey = {}, mediaMetaByKey = {} }) {
   const issues = []
-  const hasMedia = files.length > 0
-  const videoFiles = files.filter(file => file.type.startsWith('video/'))
-  const hasVideo = videoFiles.length > 0
+  const mediaForPlatform = platform => Object.prototype.hasOwnProperty.call(filesByPlatform, platform) && filesByPlatform[platform]?.length
+    ? filesByPlatform[platform]
+    : files
+  const hasMedia = files.length > 0 || Object.values(filesByPlatform).some(platformFiles => platformFiles?.length > 0)
   const textForPlatform = platform => {
     const key = platform === 'tiktok' && Object.prototype.hasOwnProperty.call(textByPlatform, 'tiktokDescription')
       ? 'tiktokDescription'
@@ -95,6 +96,8 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
     issues.push({ platform: null, message: 'A data de publicação não pode estar no passado.' })
 
   if (platforms.includes('youtube')) {
+    const youtubeFiles = mediaForPlatform('youtube')
+    const hasVideo = youtubeFiles.some(file => file.type.startsWith('video/'))
     if (!hasVideo)
       issues.push({ platform: 'youtube', message: 'Falta vídeo para publicar no YouTube — anexe um vídeo ou desmarque o YouTube.' })
     if (!youtubeTitle.trim())
@@ -104,17 +107,20 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
   }
 
   if (platforms.includes('tiktok')) {
-    if (!hasMedia)
+    const tiktokFiles = mediaForPlatform('tiktok')
+    const videoFiles = tiktokFiles.filter(file => file.type.startsWith('video/'))
+    const hasVideo = videoFiles.length > 0
+    if (!tiktokFiles.length)
       issues.push({ platform: 'tiktok', message: 'Falta imagem ou vídeo para publicar no TikTok — anexe uma mídia ou desmarque o TikTok.' })
     else if (videoFiles.length) {
-      if (files.length !== 1 || videoFiles.length !== 1)
+      if (tiktokFiles.length !== 1 || videoFiles.length !== 1)
         issues.push({ platform: 'tiktok', message: 'O TikTok aceita um vídeo sozinho ou um carrossel somente de fotos. Remova a mistura de mídias e os arquivos extras.' })
-      const meta = videoFiles.length === 1 && files.length === 1
+      const meta = videoFiles.length === 1 && tiktokFiles.length === 1
         ? videoMetaByKey[mediaFileKey(videoFiles[0])]
         : null
       if (meta && !isAspectRatioValidForTiktok(meta))
         issues.push({ platform: 'tiktok', message: 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.' })
-    } else if (files.length > TIKTOK_PHOTO_MAX_ITEMS) {
+    } else if (tiktokFiles.length > TIKTOK_PHOTO_MAX_ITEMS) {
       issues.push({ platform: 'tiktok', message: `O carrossel de fotos do TikTok aceita no máximo ${TIKTOK_PHOTO_MAX_ITEMS} imagens.` })
     }
     if (!TIKTOK_PRIVACY_LEVELS.includes(tiktokPrivacyLevel))
@@ -122,20 +128,21 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
   }
 
   if (platforms.includes('instagram')) {
-    if (!hasMedia)
+    const instagramFiles = mediaForPlatform('instagram')
+    if (!instagramFiles.length)
       issues.push({ platform: 'instagram', message: 'Falta imagem ou vídeo para publicar no Instagram — anexe uma mídia ou desmarque o Instagram.' })
-    if (igFormat === 'story' && files.length > 1)
+    if (igFormat === 'story' && instagramFiles.length > 1)
       issues.push({ platform: 'instagram', message: 'Stories não suporta carrossel — escolha Feed ou remova os itens extras.' })
-    if (files.length > 1) {
+    if (instagramFiles.length > 1) {
       if (igFormat && igFormat !== 'post')
         issues.push({ platform: 'instagram', message: 'O carrossel do Instagram está disponível no Feed — escolha Feed ou remova as fotos extras.' })
-      if (files.some(file => !file.type.startsWith('image/')))
+      if (instagramFiles.some(file => !file.type.startsWith('image/')))
         issues.push({ platform: 'instagram', message: 'O carrossel do Instagram aceita somente fotos neste agendador. Remova os vídeos ou publique uma mídia única.' })
-      if (files.length > INSTAGRAM_CAROUSEL_MAX_ITEMS)
+      if (instagramFiles.length > INSTAGRAM_CAROUSEL_MAX_ITEMS)
         issues.push({ platform: 'instagram', message: `O carrossel do Instagram aceita no máximo ${INSTAGRAM_CAROUSEL_MAX_ITEMS} fotos.` })
     }
-    if (files.length === 1) {
-      const file = files[0]
+    if (instagramFiles.length === 1) {
+      const file = instagramFiles[0]
       const meta = mediaMetaByKey[mediaFileKey(file)]
       if (meta && !isAspectRatioValidForInstagram(meta, igFormat)) {
         const faixaLabel = igFormat === 'reel' || igFormat === 'story'

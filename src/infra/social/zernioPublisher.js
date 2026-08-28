@@ -158,7 +158,7 @@ async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
   // default silencioso escolhido pelo backend.
   if (!post.tiktokPrivacyLevel) throw new Error('Escolha quem pode ver a publicação no TikTok antes de publicar.')
 
-  const tiktokDescription = post.textByPlatform?.tiktokDescription || post.text || ''
+  const tiktokDescription = post.textByPlatform?.tiktokDescription || post.textByPlatform?.tiktok || post.text || ''
   const tiktokSettings = {
     privacy_level: post.tiktokPrivacyLevel,
     allow_comment: !post.tiktokDisableComment,

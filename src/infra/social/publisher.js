@@ -194,7 +194,12 @@ async function publicarNaConta(account, post, isSuperAdmin) {
   // rede (compatível com posts antigos/de 1 conta só). Ver domain/posts/post.js,
   // migrations/029 e o front (getCustomizationUnits()).
   const chaveConta = `${platform}:${account.accountId}`
-  const textoResolvido = post.textByPlatform?.[chaveConta] ?? post.textByPlatform?.[platform] ?? post.text
+  // O editor usa `tiktokDescription` porque o TikTok separa título (content)
+  // da descrição longa (tiktokSettings.description). Sem este caso, a
+  // validação aceitava a descrição, mas o publisher caía em `post.text` (nulo
+  // no agendador React) e enviava o vídeo/fotos sem descrição.
+  const textoTikTok = post.textByPlatform?.tiktokDescription ?? post.textByPlatform?.tiktok
+  const textoResolvido = post.textByPlatform?.[chaveConta] ?? (platform === 'tiktok' ? textoTikTok : post.textByPlatform?.[platform]) ?? post.text
   // Título diferente por rede — opcional, cai no título principal do YouTube
   // (post.youtubeTitle) quando a rede não tem entrada própria em
   // title_by_platform. Ver domain/posts/post.js e migrations/032.
