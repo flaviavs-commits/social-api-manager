@@ -15,7 +15,7 @@ const STEPS = [
   {
     eyebrow: 'BEM-VINDO(A)',
     title: 'Vamos conhecer o Meu Ecoo Mídia',
-    body: 'Este tour mostra como conectar suas redes, criar conteúdo, organizar a agenda, acompanhar resultados e trabalhar em equipe. Você pode revê-lo quando quiser pelo ícone 🎓 no topo da tela.',
+    body: 'Este tour mostra como conectar suas redes, criar conteúdo, organizar a agenda e acompanhar resultados. Você pode revê-lo quando quiser pelo ícone 🎓 no topo da tela.',
     tips: [
       'Use Próximo para avançar e Voltar para revisar uma etapa.',
       'O tour abre cada tela automaticamente para mostrar onde encontrar os recursos.',
@@ -217,18 +217,6 @@ const STEPS = [
       'Cadastre links no formato texto | URL e organize seus canais, produtos ou campanhas.',
       'Abra a página pública e copie o endereço /go/slug para usar na bio.',
       'Edite o slug/URL, acompanhe cliques por link e exclua páginas que não usa mais.'
-    ]
-  },
-  {
-    page: 'equipe',
-    title: 'Equipe: colabore com aprovação',
-    body: 'Separe operações por cliente ou marca e mantenha um fluxo claro de colaboração antes do envio às redes.',
-    tips: [
-      'Crie e selecione espaços de trabalho para cada cliente, marca ou projeto.',
-      'Adicione colaboradores já cadastrados e defina Editor, Aprovador ou Administrador.',
-      'Escolha uma publicação e envie uma solicitação para revisão.',
-      'Acompanhe solicitações pendentes e aprove ou rejeite o conteúdo.',
-      'Personalize o nome exibido e a cor da identidade visual do espaço.'
     ]
   },
   {

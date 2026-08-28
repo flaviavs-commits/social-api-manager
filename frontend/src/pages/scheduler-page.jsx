@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
+import { TEAM_APPROVAL_UI_ENABLED } from '../lib/feature-flags.js'
 import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { SchedSection } from '../components/ui/sched-section.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
@@ -811,7 +812,9 @@ export function SchedulerPage() {
   }, [])
 
   useEffect(() => {
+    if (!TEAM_APPROVAL_UI_ENABLED) return undefined
     apiFetch('/api/workspaces').then(data => setWorkspaces(data.workspaces || [])).catch(() => setWorkspaces([]))
+    return undefined
   }, [])
 
   useEffect(() => {
@@ -862,7 +865,7 @@ export function SchedulerPage() {
         setTitleByPlatform(savedTitles)
         setDate(savedDraft.date || '')
         setPublishNow(Boolean(savedDraft.publishNow))
-        setApprovalWorkspaceId(savedDraft.approvalWorkspaceId ? String(savedDraft.approvalWorkspaceId) : '')
+        setApprovalWorkspaceId(TEAM_APPROVAL_UI_ENABLED && savedDraft.approvalWorkspaceId ? String(savedDraft.approvalWorkspaceId) : '')
         setSelected(savedSelected)
         setYoutubeTitle(savedDraft.youtubeTitle || '')
         setYoutubeVisibility(savedDraft.youtubeVisibility || 'public')
@@ -891,7 +894,7 @@ export function SchedulerPage() {
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)
@@ -1183,7 +1186,7 @@ export function SchedulerPage() {
   async function submit(event) {
     event.preventDefault(); setError(''); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
     if (blockingIssues.length > 0) { setError(blockingIssues[0].message); return }
-    const requestingApproval = Boolean(approvalWorkspaceId)
+    const requestingApproval = TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)
     if (requestingApproval && publishNow) { setError('Desative "Publicar agora" para enviar o conteúdo para aprovação.'); return }
     setLoading(true)
     if (publishNow) {
@@ -1340,7 +1343,7 @@ export function SchedulerPage() {
     </SchedSection>
 
     <SchedSection number={3} title="Agendamento">
-      {workspaces.length > 0 && <div className={`approval-request-card${approvalWorkspaceId ? ' is-active' : ''}`}>
+      {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className={`approval-request-card${approvalWorkspaceId ? ' is-active' : ''}`}>
         <div className="approval-request-copy"><span className="approval-request-icon" aria-hidden="true">✓</span><div><strong>Revisar antes de publicar</strong><small>O post ficará bloqueado até um aprovador aceitar.</small></div></div>
         <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }}/><span>{approvalWorkspaceId ? 'Ativado' : 'Ativar'}</span></label>
         {approvalWorkspaceId && <label className="approval-workspace-select">Espaço de aprovação<select value={approvalWorkspaceId} onChange={event => { setApprovalWorkspaceId(event.target.value); setPublishNow(false) }}>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label>}
@@ -1354,5 +1357,5 @@ export function SchedulerPage() {
 
       {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : approvalWorkspaceId ? 'enviar para aprovação' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
-  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
+  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
 }

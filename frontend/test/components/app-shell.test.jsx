@@ -39,8 +39,14 @@ describe('AppShell', () => {
   it('locks all product navigation before payment confirmation', () => {
     render(<AppShell page="dashboard" onPageChange={() => {}} user={{ plan: 'basico', planActive: false }}>x</AppShell>)
 
-    expect(screen.getAllByText('Plano')).toHaveLength(15)
+    expect(screen.getAllByText('Plano')).toHaveLength(14)
     expect(screen.queryByText('Ativo')).not.toBeInTheDocument()
+  })
+
+  it('keeps the team feature hidden from the application navigation', () => {
+    render(<AppShell page="dashboard" onPageChange={() => {}}>x</AppShell>)
+
+    expect(screen.queryByRole('button', { name: 'Equipe' })).not.toBeInTheDocument()
   })
 
   it('supports desktop shortcuts for creating a post and opening help', () => {

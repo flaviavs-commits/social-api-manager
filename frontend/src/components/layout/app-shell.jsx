@@ -7,6 +7,7 @@ import { AppTutorial } from '../ui/app-tutorial.jsx'
 import { getTutorialStatus, markTutorialCompleted, markTutorialSeen, TUTORIAL_OPEN_EVENT } from '../../lib/tutorial.js'
 import { getPlan, hasActivePlanModule } from '../../lib/plans.js'
 import { CopyrightNotice } from '../ui/copyright-notice.jsx'
+import { TEAM_APPROVAL_UI_ENABLED } from '../../lib/feature-flags.js'
 
 const icons = {
   dashboard: 'M4 4h7v7H4V4Zm9 0h7v4h-7V4Zm0 7h7v9h-7v-9ZM4 14h7v6H4v-6Z',
@@ -42,7 +43,7 @@ const navigation = [
   ['filas', 'Repetidor de posts']
   ,['smartlinks', 'Smartlinks']
   ,['equipe', 'Equipe']
-]
+].filter(([key]) => key !== 'equipe' || TEAM_APPROVAL_UI_ENABLED)
 
 function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   const d = icons[name]

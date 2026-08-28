@@ -11,6 +11,7 @@ import { CreateAccountPage, LoginPage, ResetPasswordPage, VerifyTwoFactorPage } 
 import { AdminPage } from './pages/admin-page.jsx'
 import { apiFetch } from './lib/api.js'
 import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
+import { TEAM_APPROVAL_UI_ENABLED } from './lib/feature-flags.js'
 import './styles/tokens.css'
 import './styles/app.css'
 import './styles/modules.css'
@@ -44,6 +45,7 @@ const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
+  if (segment === 'equipe' && !TEAM_APPROVAL_UI_ENABLED) return 'dashboard'
   return APP_PAGES.has(segment) ? segment : 'dashboard'
 }
 
@@ -53,6 +55,7 @@ function App() {
   const updateUser = patch => setUser(current => ({ ...(current || {}), ...patch }))
   useEffect(() => {
     if (window.location.pathname === '/app/automacoes') window.history.replaceState({}, '', '/app/dashboard')
+    if (window.location.pathname === '/app/equipe' && !TEAM_APPROVAL_UI_ENABLED) window.history.replaceState({}, '', '/app/dashboard')
   }, [])
   useEffect(() => {
     let active = true
@@ -65,6 +68,7 @@ function App() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
   const navigate = nextPage => {
+    if (nextPage === 'equipe' && !TEAM_APPROVAL_UI_ENABLED) return
     if (!APP_PAGES.has(nextPage) || nextPage === page) return
     window.history.pushState({}, '', `/app/${nextPage}`)
     setPage(nextPage)
