@@ -1300,6 +1300,8 @@ export function SchedulerPage() {
       </div>
     </SchedSection>
 
+    <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
+
     <SchedSection number={2} title="Mídia e conteúdo">
       <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
       <div className="upload-field-heading"><div><p className="eyebrow">{isPhotoCarousel ? 'CARROSSEL' : mediaProfile?.kind === 'video' ? 'VÍDEO' : mediaProfile?.kind === 'image' ? 'FOTO' : 'MÍDIAS'}</p><strong>{isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Escolha os arquivos da publicação'}</strong></div><span aria-hidden="true">▧</span></div>
@@ -1339,7 +1341,6 @@ export function SchedulerPage() {
           </section>
         </article>
       })}</div></div>}
-      <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
     </SchedSection>
 
     <SchedSection number={3} title="Agendamento">
