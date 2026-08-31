@@ -3,13 +3,16 @@ import { useEffect, useState } from 'react'
 export const THEME_STORAGE_KEY = 'meu-ecoo:theme:v2'
 
 export function getStoredTheme() {
-  return 'light'
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
 }
 
-export function applyTheme() {
-  const nextTheme = 'light'
+export function applyTheme(theme) {
+  const nextTheme = theme === 'light' ? 'light' : 'dark'
   document.documentElement.dataset.theme = nextTheme
-  document.documentElement.classList.add('light-mode-forced')
   document.documentElement.style.colorScheme = nextTheme
   return nextTheme
 }
@@ -26,34 +29,61 @@ export function useTheme() {
   return theme
 }
 
-// Indicador de tema para superfícies fora do app autenticado, como a landing
-// page. O projeto inteiro permanece permanentemente no modo claro.
+// Botão único (alterna claro/escuro num clique) para superfícies fora do
+// app autenticado, como a landing page — usa o mesmo mecanismo de
+// persistência e o mesmo evento global do ThemeSelector, então o tema
+// escolhido aqui também vale para o app quando a pessoa entrar.
 export function ThemeToggleButton({ className = '' }) {
-  return <button
-    type="button"
-    className={`theme-toggle-button${className ? ` ${className}` : ''}`}
-    aria-pressed="true"
-    aria-label="Modo claro ativo"
-    title="Modo claro ativo"
-  >
-    <span aria-hidden="true">☀</span>
-  </button>
-}
+  const [theme, setTheme] = useState(getStoredTheme)
 
-export function ThemeSelector() {
   useEffect(() => {
-    const nextTheme = applyTheme()
+    const nextTheme = applyTheme(theme)
     try {
       localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
     } catch {
       // A preferência continua funcionando mesmo quando o storage está indisponível.
     }
     window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
+  }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = event => setTheme(event.detail === 'light' ? 'light' : 'dark')
+    window.addEventListener('meu-ecoo:themechange', handleThemeChange)
+    return () => window.removeEventListener('meu-ecoo:themechange', handleThemeChange)
   }, [])
 
+  const isLight = theme === 'light'
+  return <button
+    type="button"
+    className={`theme-toggle-button${className ? ` ${className}` : ''}`}
+    onClick={() => setTheme(isLight ? 'dark' : 'light')}
+    aria-pressed={isLight}
+    aria-label={isLight ? 'Mudar para o tema escuro' : 'Mudar para o tema claro'}
+    title={isLight ? 'Tema escuro' : 'Tema claro'}
+  >
+    <span aria-hidden="true">{isLight ? '☾' : '☀'}</span>
+  </button>
+}
+
+export function ThemeSelector() {
+  const [theme, setTheme] = useState(getStoredTheme)
+
+  useEffect(() => {
+    const nextTheme = applyTheme(theme)
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+    } catch {
+      // A preferência continua funcionando mesmo quando o storage está indisponível.
+    }
+    window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
+  }, [theme])
+
   return <div className="theme-selector" data-tutorial-target="tema" role="group" aria-label="Tema da interface">
-    <button type="button" className="is-active" aria-pressed="true" aria-label="Modo claro ativo">
+    <button type="button" className={theme === 'light' ? 'is-active' : ''} aria-pressed={theme === 'light'} onClick={() => setTheme('light')}>
       <span aria-hidden="true">☀</span><span>Claro</span>
+    </button>
+    <button type="button" className={theme === 'dark' ? 'is-active' : ''} aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}>
+      <span aria-hidden="true">☾</span><span>Escuro</span>
     </button>
   </div>
 }
