@@ -2066,3 +2066,9 @@ html[data-theme='light'] .app-shell-modern .analytics-network-selector-top .anal
   border-color: rgb(var(--accent-rgb) / .48);
   background: rgb(var(--accent-rgb) / .12);
 }
+
+html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytics-insight-chart,
+html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytics-demographic-category,
+html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytics-demographic-detail {
+  background: var(--surface);
+}
