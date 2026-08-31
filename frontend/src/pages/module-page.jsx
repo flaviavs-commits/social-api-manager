@@ -48,7 +48,7 @@ const descriptions = {
   seguranca: ['Segurança', 'Proteja sua conta e gerencie a autenticação em 2 fatores.'],
   atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
-  biblioteca: ['Biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
+  biblioteca: ['Sua biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
  filas: ['Repetidor de posts', 'Automatize publicações que se repetem.'],
   smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],
   equipe: ['Equipe', 'Aprove conteúdos e organize sua operação.'],

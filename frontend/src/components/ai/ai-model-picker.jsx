@@ -15,6 +15,12 @@ const FALLBACK_MODELS = [
 const VISION_MODELS = new Set(['gemini', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-lite', 'openai', 'openai-4o', 'openrouter', 'claude', 'claude-sonnet'])
 const NON_TEXT_MODELS = new Set(['openrouter-image'])
 
+function visibleModelLabel(model) {
+  const name = String(model.name || '').replace(/\s*\(OpenRouter\)/gi, '').trim()
+  const provider = String(model.provider || '').trim()
+  return provider && !/^openrouter$/i.test(provider) ? `${name} · ${provider}` : name
+}
+
 export function AiModelPicker({ value, onChange, compact = false, visionOnly = false }) {
   const [models, setModels] = useState(FALLBACK_MODELS)
   const [loading, setLoading] = useState(true)
@@ -57,7 +63,7 @@ export function AiModelPicker({ value, onChange, compact = false, visionOnly = f
     <span>{compact ? 'Modelo' : 'Escolha o modelo de IA'}</span>
     <select value={selectedValue} onChange={changeModel} disabled={loading} aria-label="Modelo de IA">
       {visibleModels.map(model => <option key={model.id} value={model.id}>
-        {model.name} · {model.provider}{model.available ? '' : ' · configure sua chave'}
+        {visibleModelLabel(model)}{model.available ? '' : ' · configure sua chave'}
       </option>)}
     </select>
     {!compact && <small>Você pode trocar o modelo a qualquer momento. Para provedores externos, configure sua chave de API.</small>}

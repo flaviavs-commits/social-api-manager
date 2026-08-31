@@ -269,13 +269,19 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [analysisNotes, setAnalysisNotes] = useState([])
+  const [videoDescription, setVideoDescription] = useState('')
   const analysisLimit = selected.includes('instagram')
     ? INSTAGRAM_CAROUSEL_MAX_ITEMS
     : selected.includes('tiktok')
       ? TIKTOK_PHOTO_MAX_ITEMS
       : 1
   const hasVideo = files.some(file => file.type.startsWith('video/'))
-  const hasVideoContext = Boolean(contexto.trim())
+  const hasVideoContext = Boolean(videoDescription.trim())
+  const analysisContext = hasVideo ? videoDescription.trim() : contexto.trim()
+
+  useEffect(() => {
+    if (!hasVideo) setVideoDescription('')
+  }, [hasVideo])
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
@@ -285,7 +291,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       return
     }
     if (hasVideo && !hasVideoContext) {
-      setAnalysisError('Descreva no conteúdo da publicação o que acontece no vídeo antes de gerar a descrição.')
+      setAnalysisError('Escreva em uma frase sobre o que o vídeo fala antes de gerar a descrição.')
       return
     }
     setBusy(true)
@@ -314,8 +320,8 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           videoFrameCount: targetHasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
           carousel: isCarousel,
           plataformas: requestedPlatforms,
-          contexto,
-          melhorar: Boolean(contexto.trim()),
+          contexto: analysisContext,
+          melhorar: Boolean(analysisContext),
           modelo: MEDIA_AI_MODEL,
         }),
       })
@@ -332,7 +338,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           ...(response.analise_carrossel?.recomendacoes || []),
         ].filter(Boolean))
         const mediaLabel = targetHasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
-        setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaLabel} para ${suggestions.length} rede(s).`)
+        setSuccessMessage(`${analysisContext ? 'Descrição melhorada' : 'Descrição gerada'} e aplicada aos campos de ${suggestions.length} rede(s), considerando ${mediaLabel}.`)
       }
     } catch (caught) {
       const message = caught?.message || ''
@@ -363,12 +369,17 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'IA visual'}
         </span>
       </div>
-      <p className="media-ai-generator-copy">{hasVideo ? (hasVideoContext ? 'A IA analisa o que você descreveu na publicação e o vídeo para melhorar a descrição.' : 'Para vídeos, descreva no conteúdo da publicação o que acontece. A IA usará esse texto e o vídeo para melhorar a descrição.') : contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
+      <p className="media-ai-generator-copy">{hasVideo ? 'Conte em uma frase do que o vídeo fala. A IA usará esse contexto e as cenas para melhorar a descrição.' : contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
+      {hasVideo && <label className="media-ai-video-context">
+        <span className="media-ai-video-context-label"><strong>Sobre o que é este vídeo?</strong><small>Uma frase curta já é suficiente</small></span>
+        <textarea value={videoDescription} onChange={event => { setVideoDescription(event.target.value); setAnalysisError(''); setSuccessMessage('') }} maxLength={500} placeholder="Ex.: Mostro como organizar uma rotina de estudos em poucos passos." aria-label="Descreva em uma frase sobre o que o vídeo fala" />
+        <small className="media-ai-video-context-hint">Esse texto serve de direção para a IA e não substitui as descrições finais das redes.</small>
+      </label>}
       <div className="media-ai-generator-footer">
         <div className="media-ai-generator-hints" aria-live="polite">
           {!files.length && <span><b>1</b> Selecione uma imagem ou vídeo</span>}
           {!selected.length && <span><b>2</b> Selecione ao menos uma rede social</span>}
-          {hasVideo && !hasVideoContext && <span><b>2</b> Descreva no conteúdo da publicação o que acontece no vídeo</span>}
+          {hasVideo && !hasVideoContext && <span><b>2</b> Escreva uma frase sobre o vídeo</span>}
           {files.length > analysisLimit && <span>As primeiras {analysisLimit} mídias serão analisadas.</span>}
           {ready && !analysisError && !successMessage && <span className="media-ai-generator-ready">Pronto para analisar sua mídia.</span>}
           {analysisError && <span className="media-ai-generator-error" role="alert">{analysisError}</span>}
@@ -376,7 +387,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           {analysisNotes.length > 0 && <span className="media-ai-generator-notes">{analysisNotes.slice(0, 2).join(' · ')}</span>}
         </div>
         <button type="button" className="media-ai-generator-button" onClick={analyzeMedia} disabled={busy || !ready}>
-          <span aria-hidden="true">{busy ? '◌' : '✦'}</span>{busy ? 'Analisando mídia…' : contexto.trim() ? 'Melhorar descrição' : 'Gerar descrição'}
+          <span aria-hidden="true">{busy ? '◌' : '✦'}</span>{busy ? 'Analisando mídia…' : analysisContext ? 'Melhorar descrição' : 'Gerar descrição'}
         </button>
       </div>
     </div>

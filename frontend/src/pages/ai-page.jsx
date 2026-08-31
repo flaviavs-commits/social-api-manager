@@ -9,12 +9,33 @@ import '../styles/ai-page-publish.css'
 // O backend espera até 45s pelo provedor. O OpenRouter pode precisar de alguns
 // segundos adicionais para devolver a resposta ou o fallback do servidor.
 const AI_GENERATION_TIMEOUT_MS = 60_000
+const AI_ACTIVITY_LABELS = {
+  generate: 'Conteúdo gerado com IA',
+  'analyze-media': 'Descrição de mídia gerada',
+  'image-generate': 'Imagem gerada com IA',
+  'chat-message': 'Conversa com a IA',
+  schedule: 'Agendamento processado',
+  'publish-now': 'Publicação processada',
+}
 const PUBLISH_PLATFORMS = [
   { id: 'instagram', label: 'Instagram', symbol: '◎', hint: 'Imagem obrigatória' },
   { id: 'facebook', label: 'Facebook', symbol: 'f', hint: 'Imagem opcional' },
   { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Imagem ou vídeo' },
   { id: 'youtube', label: 'YouTube', symbol: '▶', hint: 'Exige vídeo', videoOnly: true },
 ]
+
+function formatAiActivity(log) {
+  const action = String(log.acao || '')
+  const title = AI_ACTIVITY_LABELS[action] || (action.startsWith('agent:') || action === 'agent' ? 'Assistente IA' : 'Atividade de IA')
+  const details = String(log.detalhes || '')
+    .split(' · ')
+    .filter(part => !/^(fallback|tentados|chave do servidor|chave do usuário)\b/i.test(part.trim()))
+    .join(' · ')
+    .replace(/\bopenrouter(?:[-_][\w-]+)?\b/gi, 'IA')
+    .trim()
+
+  return { title, details: details || 'Processamento concluído' }
+}
 
 export function AiPage() {
   const [instruction, setInstruction] = useState('')
@@ -455,7 +476,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   </section>
   <section className="panel ai-logs-panel">
     <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente IA.</p></div><div className="ai-logs-actions"><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button><button type="button" className="ai-clear-button link-button" onClick={clearActivityLogs} disabled={!activityLogs.length}>Limpar</button></div></div>
-    {activityLogs.length ? <div className="ai-log-list">{activityLogs.map(log => <div className="ai-log-row" key={log.id}><span className={`ai-log-status ai-log-status-${log.status === 'success' || log.status === 'ok' ? 'ok' : 'info'}`} aria-hidden="true">{log.status === 'success' || log.status === 'ok' ? '✓' : '·'}</span><div><strong>{log.acao}{log.modelo ? ` · ${log.modelo}` : ''}</strong><small>{log.detalhes || 'Sem detalhes'} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></div><span className="ai-log-status-label">{log.status}</span></div>)}</div> : <p className="empty-state">Nenhum registro do agente ainda.</p>}
+    {activityLogs.length ? <div className="ai-log-list">{activityLogs.map(log => { const activity = formatAiActivity(log); return <div className="ai-log-row" key={log.id}><span className={`ai-log-status ai-log-status-${log.status === 'success' || log.status === 'ok' ? 'ok' : 'info'}`} aria-hidden="true">{log.status === 'success' || log.status === 'ok' ? '✓' : '·'}</span><div><strong>{activity.title}</strong><small>{activity.details} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></div><span className="ai-log-status-label">{log.status}</span></div> })}</div> : <p className="empty-state">Nenhum registro do agente ainda.</p>}
   </section>
   </section>
 }

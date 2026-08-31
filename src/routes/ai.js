@@ -1198,7 +1198,7 @@ router.get('/activity-log', async (req, res) => {
     params.push(offset); const offsetIdx = params.length
 
     const { rows } = await pool.query(`
-      SELECT l.id, l.user_id AS "userId", u.email AS "userEmail", l.acao, l.status, l.modelo, l.detalhes, l.criado_em AS "criadoEm"
+      SELECT l.id, l.user_id AS "userId", u.email AS "userEmail", l.acao, l.status, l.detalhes, l.criado_em AS "criadoEm"
       FROM ai_activity_log l
       LEFT JOIN users u ON u.id = l.user_id
       ${where}
@@ -1208,7 +1208,17 @@ router.get('/activity-log', async (req, res) => {
 
     const { rows: [{ total }] } = await pool.query(`SELECT COUNT(*)::int AS total FROM ai_activity_log l ${where}`, params.slice(0, params.length - 2))
 
-    res.json({ logs: rows, total })
+    const logs = rows.map(log => ({
+      ...log,
+      detalhes: String(log.detalhes || '')
+        .split(' · ')
+        .filter(part => !/^(fallback|tentados|chave do servidor|chave do usuário)\b/i.test(part.trim()))
+        .join(' · ')
+        .replace(/\bopenrouter(?:[-_][\w-]+)?\b/gi, 'IA')
+        .trim() || null,
+    }))
+
+    res.json({ logs, total })
   } catch (err) { serverError(res, err) }
 })
 
