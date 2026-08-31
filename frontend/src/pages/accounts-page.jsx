@@ -47,8 +47,6 @@ export function AccountsPage({ onNavigate, user }) {
   const [accountName, setAccountName] = useState('')
   const [accountSearch, setAccountSearch] = useState('')
   const [accountStatusFilter, setAccountStatusFilter] = useState('all')
-  const [accountAction, setAccountAction] = useState('add')
-  const [accountToRemove, setAccountToRemove] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [disconnectingId, setDisconnectingId] = useState(null)
   const [connectionNotice, setConnectionNotice] = useState('')
@@ -146,7 +144,6 @@ export function AccountsPage({ onNavigate, user }) {
 
   function openAddAccount(provider, connected, tokenStatus) {
     setPlatform(provider.platform)
-    setAccountAction('add')
     setAccountName(connected.length && tokenStatus !== 'valid'
       ? connected[0].handle || connected[0].name || ''
       : '')
@@ -159,7 +156,7 @@ export function AccountsPage({ onNavigate, user }) {
   async function remove(id) {
     if (!window.confirm('Deseja realmente desconectar esta conta?')) return
     setDisconnectingId(id)
-    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); setAccountToRemove(''); await reload(); await loadHealth(); notify('Conta desconectada.') }
+    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); await loadHealth(); notify('Conta desconectada.') }
     catch (e) { setError(e.message); notify(e.message, 'error') }
     finally { setDisconnectingId(null) }
   }
@@ -200,29 +197,15 @@ export function AccountsPage({ onNavigate, user }) {
       })}
     </div>
     <div id="account-action-panel" className="mb-6 rounded-lg border border-subtle bg-surface-soft p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-zinc-100">{accountAction === 'add' ? 'Adicionar uma conta' : 'Remover uma conta'}</p>
-        <div className="flex gap-2" role="tablist" aria-label="Ação de conta">
-          <button type="button" role="tab" aria-selected={accountAction === 'add'} className={`link-button${accountAction === 'add' ? ' is-active' : ''}`} onClick={() => setAccountAction('add')}>Adicionar uma conta</button>
-          <button type="button" role="tab" aria-selected={accountAction === 'remove'} className={`link-button${accountAction === 'remove' ? ' is-active' : ''}`} onClick={() => setAccountAction('remove')}>Remover uma conta</button>
-        </div>
-      </div>
-      {accountAction === 'add' ? <>
-        <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto]">
-          <select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Plataforma" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100">
-            {providers.filter(item => allowedPlatforms.has(item.platform)).map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
-          </select>
-          <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Cole o link da Página (opcional)" aria-label="Link da Página (opcional)" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
-          <button type="button" onClick={connect} disabled={connecting} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{connecting ? 'Abrindo…' : 'Conectar'}</button>
-        </div>
-        <p className="mt-2 text-xs text-zinc-500">No Facebook, conecte somente uma Página que você administra. Depois da autorização, escolha a Página correspondente.</p>
-      </> : <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <select value={accountToRemove} onChange={event => setAccountToRemove(event.target.value)} aria-label="Conta para remover" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" disabled={!accounts.length || disconnectingId !== null}>
-          <option value="">{accounts.length ? 'Selecione a conta que deseja remover' : 'Nenhuma conta conectada'}</option>
-          {accounts.map(account => <option key={account.id} value={account.id}>{account.name || account.handle || `${account.platform} · conta ${account.id}`}</option>)}
+      <p className="mb-3 text-sm font-semibold text-zinc-100">Adicionar ou remover conta</p>
+      <div className="grid gap-3 sm:grid-cols-[160px_1fr_auto]">
+        <select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Plataforma" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100">
+          {providers.filter(item => allowedPlatforms.has(item.platform)).map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
         </select>
-        <button type="button" onClick={() => accountToRemove && remove(Number(accountToRemove))} disabled={!accountToRemove || disconnectingId !== null} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{disconnectingId !== null ? 'Removendo…' : 'Remover conta'}</button>
-      </div>}
+        <input ref={accountInputRef} value={accountName} onChange={event => setAccountName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') connect() }} placeholder="Cole o link da Página (opcional)" aria-label="Link da Página (opcional)" className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
+        <button type="button" onClick={connect} disabled={connecting} className="action-button disabled:cursor-not-allowed disabled:opacity-50">{connecting ? 'Abrindo…' : 'Conectar'}</button>
+      </div>
+      <p className="mt-2 text-xs text-zinc-500">No Facebook, conecte somente uma Página que você administra. Depois da autorização, escolha a Página correspondente. Para remover, use a ação “Desconectar” na conta conectada.</p>
     </div>
     <div className="accounts-list-heading"><div><p className="eyebrow">CONTAS AUTORIZADAS · {providers.find(item => item.platform === platform)?.label}</p><h3>{selectedAccounts.length} {selectedAccounts.length === 1 ? 'conta conectada' : 'contas conectadas'}</h3></div><span>{visibleAccounts.length} exibida{visibleAccounts.length === 1 ? '' : 's'}</span></div>
     <div className="accounts-filter-toolbar"><input value={accountSearch} onChange={event => setAccountSearch(event.target.value)} placeholder="Buscar por nome ou rede..." aria-label="Buscar conta"/><select value={accountStatusFilter} onChange={event => setAccountStatusFilter(event.target.value)} aria-label="Filtrar status das contas"><option value="all">Todos os status</option><option value="healthy">Saudáveis</option><option value="attention">Precisam de atenção</option></select></div>

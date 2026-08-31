@@ -47,28 +47,6 @@ describe('AccountsPage', () => {
     await waitFor(() => expect(screen.queryByText('@breno_dev_')).not.toBeInTheDocument())
   })
 
-  it('removes the selected account from the account action panel', async () => {
-    let connected = [{ id: 113, platform: 'instagram', handle: '@breno_dev_', tokens: [{ status: 'valid' }] }]
-    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
-      if (path === '/api/accounts') return Promise.resolve({ data: connected })
-      if (path === '/api/platform-health') return Promise.resolve({ platforms: {} })
-      if (path === '/api/accounts/113' && options.method === 'DELETE') {
-        connected = []
-        return Promise.resolve({ deleted: true })
-      }
-      return Promise.resolve({})
-    })
-    vi.stubGlobal('confirm', vi.fn(() => true))
-
-    render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
-    fireEvent.click(await screen.findByRole('tab', { name: 'Remover uma conta' }))
-    fireEvent.change(screen.getByLabelText('Conta para remover'), { target: { value: '113' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Remover conta' }))
-
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/accounts/113', { method: 'DELETE' }))
-    await waitFor(() => expect(screen.queryByText('@breno_dev_')).not.toBeInTheDocument())
-  })
-
   it('opens the add account flow and starts the OAuth connection', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
       if (path === '/api/accounts') return Promise.resolve({ data: [] })
@@ -80,7 +58,8 @@ describe('AccountsPage', () => {
 
     render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
 
-    expect(screen.getByRole('tab', { name: 'Adicionar uma conta' })).toBeInTheDocument()
+    expect(screen.getByText('Adicionar ou remover conta')).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Plataforma'), { target: { value: 'instagram' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Conectar' }).at(-1))
 
