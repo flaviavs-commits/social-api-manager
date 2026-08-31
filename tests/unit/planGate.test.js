@@ -32,15 +32,15 @@ describe('requirePlanModule', () => {
     expect(res.statusCode).toBeNull()
   })
 
-  test('mantém no Pro os módulos anunciados de equipe e relatórios', () => {
+  test('mantém no Pro os módulos de equipe e relatórios sem anunciar equipe', () => {
     expect(PLANS.pro).toMatchObject({
       id: 'pro',
       name: 'EcooMidia Pro',
       priceCents: 10050,
       checkoutUrl: 'https://buy.stripe.com/eVq6oHbRJ8Rcej1e7V2VG02',
     })
+    expect(PLANS.pro.features).not.toContain('Espaços de trabalho e aprovações')
     expect(PLANS.pro.features).toEqual(expect.arrayContaining([
-      'Espaços de trabalho e aprovações',
       'Relatórios e automações',
       'Analise de métricas',
     ]))

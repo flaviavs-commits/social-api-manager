@@ -20,7 +20,6 @@
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
         "Até 10 imagens geradas pela assistente de IA por mês",
-        "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"
       ],
@@ -62,7 +61,6 @@
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
         "Até 15 imagens geradas pela assistente de IA por mês",
-        "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"
       ],
@@ -88,7 +86,7 @@
     "premium": {
       "id": "premium",
       "name": "EcooMidia Premium",
-      "description": "Tenha colaboração e controle para gerenciar várias marcas.",
+      "description": "Tenha mais controle para gerenciar várias marcas.",
       "price": "R$ 124,50",
       "checkoutPrice": "R$ 124,50",
       "priceCents": 12450,
@@ -104,7 +102,6 @@
         "Acompanhamento de métricas",
         "IA para ideias e conteúdo",
         "Até 20 imagens geradas pela assistente de IA por mês",
-        "Espaços de trabalho e aprovações",
         "Relatórios e automações",
         "Analise de métricas"
       ],
