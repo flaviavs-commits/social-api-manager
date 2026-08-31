@@ -427,7 +427,7 @@ function interpretWithRules(message, currentPage, history = []) {
     const content = extractContent(text)
     return { ...basePlan('save_memory', { content, type: 'nota', model: 'gemini' }), missingFields: content ? [] : ['content'], answer: content ? 'Posso guardar essa informação na memória. Confirme para continuar.' : 'Diga qual informação devo guardar.' }
   }
-  if (/agendar|publicar agora|criar publicacao|criar publicação/.test(normalized)) return { ...basePlan('open_scheduler', {}), navigation: 'agendador', answer: 'Abrindo o Criador de Posts. Para publicar, ainda preciso da mídia, das redes e do horário quando forem exigidos.' }
+  if (/agendar|publicar agora|criar publicacao|criar publicação/.test(normalized)) return { ...basePlan('open_scheduler', {}), navigation: 'agendador', answer: 'Abrindo o Meu Post. Para publicar, ainda preciso da mídia, das redes e do horário quando forem exigidos.' }
   if (contentIntent) {
     const platforms = extractPlatforms(text)
     const tone = /profissional|formal/.test(normalized) ? 'profissional' : /motiv/.test(normalized) ? 'motivacional' : /inform/.test(normalized) ? 'informativo' : /humor|engrac|engraç/.test(normalized) ? 'humoristico' : 'casual'

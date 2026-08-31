@@ -59,7 +59,7 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
       const imageResult = await generateImage({ description: instruction.slice(0, 4000), model: String(args.model || 'auto') })
       if (!imageResult?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
       return {
-        message: 'Preparei uma ideia de post com imagem. Revise o texto e use o botão para continuar no Criador de Posts.',
+        message: 'Preparei uma ideia de post com imagem. Revise o texto e use o botão para continuar no Meu Post.',
         data: { ...result, ...imageResult, postDraft: { image: imageResult.image, text: firstPost.texto || firstPost.text || instruction } },
         navigation: 'ai',
       }
@@ -74,7 +74,7 @@ async function executeAgentAction({ actionId, arguments: args = {}, user, genera
       })
       if (!result?.image) throw Object.assign(new Error('O provedor não retornou uma imagem válida.'), { status: 502 })
       return {
-        message: 'Imagem criada. Se quiser publicar, use "Usar no Criador de Posts" para continuar com esta imagem, revisar o texto e escolher as redes.',
+        message: 'Imagem criada. Se quiser publicar, use "Usar no Meu Post" para continuar com esta imagem, revisar o texto e escolher as redes.',
         data: { ...result, postDraft: { image: result.image, text: description } },
         navigation: 'ai',
       }

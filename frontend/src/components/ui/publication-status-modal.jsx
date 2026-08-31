@@ -41,7 +41,7 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
         {isProcessing
           ? progress || status.message
           : isSuccess
-            ? 'A publicação foi confirmada pelo criador de posts e já foi enviada para as redes selecionadas.'
+      ? 'A publicação foi confirmada pelo Meu Post e já foi enviada para as redes selecionadas.'
             : status.message}
       </p>
 
@@ -57,7 +57,7 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
           </div>}
 
       {!isProcessing && <div className="scheduler-publication-actions">
-        {(isWarning || status.type === 'error') && <button type="button" className="scheduler-feedback-primary" onClick={onReview}>Revisar no criador de posts</button>}
+      {(isWarning || status.type === 'error') && <button type="button" className="scheduler-feedback-primary" onClick={onReview}>Revisar no Meu Post</button>}
         <button type="button" className="scheduler-feedback-secondary" onClick={onClose}>{isSuccess ? 'Fechar confirmação' : 'Fechar aviso'}</button>
       </div>}
     </section>

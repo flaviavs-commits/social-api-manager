@@ -1,6 +1,6 @@
 const APP_PAGES = {
   dashboard: 'Dashboard',
-  agendador: 'Criador de Posts',
+  agendador: 'Meu Post',
   calendario: 'Calendário',
   rascunhos: 'Rascunhos',
   analytics: 'Relatórios',
@@ -183,7 +183,7 @@ const CAPABILITIES = [
     description: 'Marca uma memória como resolvida.', parameters: ['id'], examples: ['marque a memória 4 como resolvida'],
   },
   {
-    id: 'open_scheduler', label: 'Abrir criador de posts', category: 'publicações', mode: 'read',
+    id: 'open_scheduler', label: 'Abrir Meu Post', category: 'publicações', mode: 'read',
     description: 'Abre o criador para preencher mídia, opções da rede e horário de publicação.', examples: ['quero agendar uma publicação'],
   },
 ]

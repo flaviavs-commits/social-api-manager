@@ -29,7 +29,7 @@ const icons = {
 
 const navigation = [
   ['dashboard', 'Dashboard'],
-  ['agendador', 'Criador de Posts'],
+  ['agendador', 'Meu Post'],
   ['calendario', 'Calendário'],
   ['rascunhos', 'Baú de Ideias'],
   ['analytics', 'Relatórios'],

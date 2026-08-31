@@ -58,7 +58,7 @@ describe('AiAssistantWidget', () => {
     await waitFor(() => expect(screen.getByAltText('Imagem criada pela IA')).toHaveAttribute('src', 'data:image/png;base64,abc'))
   })
 
-  it('encaminha a imagem gerada para o Criador de Posts', async () => {
+  it('encaminha a imagem gerada para o Meu Post', async () => {
     const onNavigate = vi.fn()
     const postDraft = { image: 'data:image/png;base64,abc', text: 'Legenda sugerida' }
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
@@ -71,7 +71,7 @@ describe('AiAssistantWidget', () => {
     fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem para meu post' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-    const continueButton = await screen.findByRole('button', { name: 'Usar no Criador de Posts' })
+    const continueButton = await screen.findByRole('button', { name: 'Usar no Meu Post' })
     fireEvent.click(continueButton)
     expect(onNavigate).toHaveBeenCalledWith('agendador')
     expect(JSON.parse(sessionStorage.getItem('meu-ecoo:ai-post-draft'))).toMatchObject(postDraft)

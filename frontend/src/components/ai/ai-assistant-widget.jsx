@@ -70,7 +70,7 @@ function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChang
         ? <textarea value={message.text} onChange={event => onChangeMessage(index, event.target.value)} aria-label="Editar resposta da IA" className="w-full rounded border border-subtle bg-app p-2 text-sm text-zinc-100" />
         : <span className="whitespace-pre-line">{message.text}</span>}
       {image && <img src={image} alt="Imagem criada pela IA" className="mt-2 max-h-72 w-full rounded-lg object-contain" />}
-      {message.data?.postDraft?.image && <button type="button" onClick={() => onContinueToPost(message.data.postDraft)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Usar no Criador de Posts</button>}
+      {message.data?.postDraft?.image && <button type="button" onClick={() => onContinueToPost(message.data.postDraft)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Usar no Meu Post</button>}
       {summary && <pre className="mt-2 whitespace-pre-wrap border-t border-subtle pt-2 text-xs text-zinc-400">{summary}</pre>}
       {message.role === 'agent' && <button type="button" onClick={() => onEdit(editingIndex === index ? null : index)} className="mt-1 block text-[11px] text-gold hover:underline">{editingIndex === index ? 'Concluir edição' : 'Editar resposta'}</button>}
       {message.confirmationToken && <button type="button" onClick={() => onConfirm(message.confirmationToken, index)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Confirmar ação</button>}
@@ -86,7 +86,7 @@ function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sendin
         <button aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
       </header>
       <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {messages.length === 0 && <p className="text-sm text-zinc-500">Peça para consultar seus posts, gerar ideias ou criar uma imagem. Se quiser publicar a imagem, use o botão para continuar no Criador de Posts.</p>}
+        {messages.length === 0 && <p className="text-sm text-zinc-500">Peça para consultar seus posts, gerar ideias ou criar uma imagem. Se quiser publicar a imagem, use o botão para continuar no Meu Post.</p>}
         {messages.map((message, index) => <AgentMessage key={index} message={message} index={index} editingIndex={editingIndex} onEdit={onEdit} onChangeMessage={onChangeMessage} onConfirm={onConfirm} onContinueToPost={onContinueToPost} />)}
         {sending && <div className="max-w-[85%] rounded-lg bg-surface-soft px-3 py-2 text-sm text-zinc-400" aria-live="polite">{processingMessage}</div>}
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}

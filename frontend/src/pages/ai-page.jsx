@@ -423,7 +423,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
             : accountsLoaded && !accountsLoadError ? 'Nenhuma conta conectada' : 'Verificando contas conectadas...'
           return <label key={option.id} className={`platform-option platform-option-${option.id}${unavailable ? ' is-disabled' : ''}`}>
             <input type="radio" name="ai-publish-platform" value={option.id} checked={publishPlatform === option.id} onChange={() => setPublishPlatform(option.id)} disabled={unavailable} />
-            <span className="platform-option-icon" aria-hidden="true">{option.symbol}</span><span className="platform-option-name">{option.label}</span><span className="platform-option-hint">{option.videoOnly ? 'Disponível no Criador de Posts com vídeo' : option.hint}</span><span className="platform-option-account">{accountText}{accounts.length > 2 ? ` +${accounts.length - 2}` : ''}</span><span className="platform-option-check" aria-hidden="true">✓</span>
+            <span className="platform-option-icon" aria-hidden="true">{option.symbol}</span><span className="platform-option-name">{option.label}</span><span className="platform-option-hint">{option.videoOnly ? 'Disponível no Meu Post com vídeo' : option.hint}</span><span className="platform-option-account">{accountText}{accounts.length > 2 ? ` +${accounts.length - 2}` : ''}</span><span className="platform-option-check" aria-hidden="true">✓</span>
           </label>
         })}
       </div>

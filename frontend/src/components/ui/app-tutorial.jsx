@@ -48,7 +48,7 @@ const STEPS = [
   {
     target: 'criar-post',
     title: 'Crie um post de qualquer tela',
-    body: 'O botão + Criar Novo Post permanece no topo do app. Use-o para abrir o Criador de Posts sem voltar ao menu.',
+    body: 'O botão + Criar Novo Post permanece no topo do app. Use-o para abrir o Meu Post sem voltar ao menu.',
     tips: [
       'Você também pode pressionar C quando não estiver digitando em um campo.',
       'No celular, a ação Criar fica disponível na barra inferior.'
@@ -56,7 +56,7 @@ const STEPS = [
   },
   {
     page: 'agendador',
-    title: 'Criador de Posts: produza e publique',
+    title: 'Meu Post: produza e publique',
     body: 'Este é o centro da operação. Monte uma publicação, adapte-a para cada rede, revise a prévia e escolha entre publicar agora ou agendar.',
     tips: [
       'Escolha Instagram, Facebook, YouTube e/ou TikTok e selecione as contas específicas que receberão o post.',
@@ -85,7 +85,7 @@ const STEPS = [
   {
     page: 'rascunhos',
     title: 'Baú de Ideias: não perca trabalhos em andamento',
-    body: 'Guarde conteúdos incompletos, ideias rápidas e publicações que precisam de revisão antes de voltar ao Criador de Posts.',
+    body: 'Guarde conteúdos incompletos, ideias rápidas e publicações que precisam de revisão antes de voltar ao Meu Post.',
     tips: [
       'Crie um rascunho rápido apenas com texto para registrar uma ideia.',
       'Busque por texto ou título e filtre por plataforma e tipo.',
@@ -192,7 +192,7 @@ const STEPS = [
     tips: [
       'Crie pastas, escolha o destino do upload e envie arquivos para o seu acervo.',
       'Busque por nome e filtre por pasta; veja prévias, tamanho e tags.',
-      'Use uma mídia diretamente no Criador de Posts ou remova arquivos que não precisa mais.',
+      'Use uma mídia diretamente no Meu Post ou remova arquivos que não precisa mais.',
       'Peça à IA sugestões de conteúdo com base em nicho, período, redes escolhidas e seus Analytics.',
       'Salve uma sugestão no Baú de Ideias para desenvolver depois.'
     ]
@@ -249,7 +249,7 @@ const STEPS = [
     body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use a IA para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
     tips: [
       'Comece conectando as redes que deseja administrar.',
-      'Use o Criador de Posts para publicar agora, agendar, salvar um rascunho ou criar um modelo.',
+      'Use o Meu Post para publicar agora, agendar, salvar um rascunho ou criar um modelo.',
       'Volte ao Calendário, Inbox e Relatórios para acompanhar a operação.',
       'Se precisar de ajuda, consulte o tutorial novamente ou abra o Suporte no rodapé do Perfil.'
     ],
