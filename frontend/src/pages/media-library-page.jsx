@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 
 const platforms = [
-  ['instagram', 'Instagram', '◎'],
-  ['facebook', 'Facebook', 'f'],
-  ['youtube', 'YouTube', '▶'],
-  ['tiktok', 'TikTok', '♪'],
+  ['instagram', 'Instagram'],
+  ['facebook', 'Facebook'],
+  ['youtube', 'YouTube'],
+  ['tiktok', 'TikTok'],
 ]
 
 const suggestionExamples = ['Educação financeira', 'Bastidores do negócio', 'Dicas para iniciantes']
@@ -217,7 +218,7 @@ export function MediaLibraryPage({ onNavigate }) {
         <div className="media-ai-platform-picker">
           <span>Redes para adaptar <small>{suggestionPlatforms.length} selecionada{suggestionPlatforms.length === 1 ? '' : 's'}</small></span>
           <div>
-            {platforms.map(([id, label, icon]) => <button type="button" className={suggestionPlatforms.includes(id) ? 'is-selected' : ''} onClick={() => toggleSuggestionPlatform(id)} key={id} aria-pressed={suggestionPlatforms.includes(id)}><b aria-hidden="true">{icon}</b>{label}</button>)}
+            {platforms.map(([id, label]) => <button type="button" className={suggestionPlatforms.includes(id) ? 'is-selected' : ''} onClick={() => toggleSuggestionPlatform(id)} key={id} aria-pressed={suggestionPlatforms.includes(id)}><PlatformIcon platform={id} className="media-ai-platform-picker-icon" />{label}</button>)}
           </div>
         </div>
         <button type="button" className="action-button media-ai-generate-button" onClick={generateContentSuggestions} disabled={suggestionLoading}>
