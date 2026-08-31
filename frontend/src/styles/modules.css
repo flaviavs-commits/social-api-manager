@@ -300,3 +300,16 @@
     width: 100%;
   }
 }
+
+/* Dashboard activity entries are independent posts, not one continuous row. */
+.dashboard-page .data-list {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-page .dashboard-post-row {
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
