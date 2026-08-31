@@ -339,6 +339,27 @@ html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card
   gap: 16px !important;
 }
 
+/* O Analytics também é formado por seções independentes. A regra geral de
+ * composição zera esses vãos, então eles precisam ser restaurados aqui. */
+.app-shell-modern .page-view.analytics-page {
+  gap: clamp(16px, 1.8vw, 24px) !important;
+}
+
+.app-shell-modern .page-view.analytics-page :is(
+  .analytics-layout,
+  .analytics-all-network-panels,
+  .analytics-profiles-grid,
+  .analytics-executive-grid,
+  .analytics-summary-explanation-grid,
+  .analytics-demographic-detail-grid
+) {
+  gap: 12px !important;
+}
+
+.app-shell-modern .page-view.analytics-page .analytics-layout {
+  gap: 18px !important;
+}
+
 @media (max-width: 600px) {
   .app-shell-modern .analytics-network-selector-top .analytics-sidebar {
     grid-template-columns: 1fr;
