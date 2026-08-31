@@ -8,6 +8,11 @@ import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_MIN_LENGTH = 8
 const VALID_PLANS = new Set(Object.keys(PLANS))
+
+function formatPlanPrice(priceCents) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
+}
+
 const AUTH_ERROR_MESSAGES = new Set([
   'Login com Google cancelado.',
   'Sessão de login inválida ou expirada. Tente novamente.',
@@ -20,6 +25,9 @@ const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
   name: plan.name,
   price: plan.checkoutPrice,
   priceCents: plan.priceCents,
+  meuEcooAccess: plan.meuEcooAccess || 'none',
+  meuEcooDiscountPercent: plan.meuEcooDiscountPercent || 0,
+  meuEcooOffer: plan.meuEcooOffer || 'Sem acesso ao MeuEcoo',
   cadence: plan.cadence,
   maxConnections: plan.maxConnections,
   availablePlatforms: plan.availablePlatforms,
@@ -246,6 +254,7 @@ export function CreateAccountPage() {
     return ACCOUNT_PLANS.some(item => item.id === plan) ? plan : DEFAULT_PLAN
   }, [])
   const [selectedPlan, setSelectedPlan] = useState(initialPlan)
+  const [proDiscount, setProDiscount] = useState(false)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -259,6 +268,8 @@ export function CreateAccountPage() {
   const paidPlan = Number(plan?.priceCents) > 0
   const connectionLimit = plan.maxConnections || PLATFORM_OPTIONS.length
   const availablePlatforms = plan.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id)
+  const proDiscountPercent = Number(plan.meuEcooDiscountPercent) || 0
+  const selectedPriceCents = Number(plan.priceCents || 0)
   const rules = passwordRules(password)
 
   useEffect(() => {
@@ -273,6 +284,7 @@ export function CreateAccountPage() {
 
   function choosePlan(id) {
     setSelectedPlan(id)
+    if (id !== 'pro') setProDiscount(false)
     setMessage(null)
   }
 
@@ -325,6 +337,8 @@ export function CreateAccountPage() {
             <div className="checkout-password-rules">{Object.entries({ length: '8+ caracteres', uppercase: 'Uma maiúscula', number: 'Um número', special: 'Um caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div>
             <div className="checkout-section-heading"><span>02</span><div><h2>Escolha seu plano</h2><p>Você pode trocar de plano quando quiser.</p></div></div>
             <div className="checkout-plan-grid">{ACCOUNT_PLANS.map(item => <button type="button" key={item.id} className={`checkout-plan-option${selectedPlan === item.id ? ' is-selected' : ''}${item.featured ? ' is-featured' : ''}`} onClick={() => choosePlan(item.id)}><span className="checkout-plan-check">{selectedPlan === item.id ? '✓' : ''}</span><strong>{item.name}</strong><em>{item.price}<small>/{item.cadence}</small></em><p>{item.description}</p></button>)}</div>
+            <p className="checkout-plan-meuecoo">MeuEcoo: {plan.meuEcooOffer}</p>
+            {selectedPlan === 'pro' && <fieldset className="checkout-discount-choice"><legend>Benefício do MeuEcoo no Tier 02</legend><label><input type="radio" name="pro-checkout-discount" checked={!proDiscount} onChange={() => setProDiscount(false)} /><span>Pagar o MeuEcoo sem desconto<strong>Assinatura do Tier 02: {formatPlanPrice(plan.priceCents)}/{plan.cadence}</strong></span></label><label><input type="radio" name="pro-checkout-discount" checked={proDiscount} onChange={() => setProDiscount(true)} /><span><b>Pagar o MeuEcoo com {proDiscountPercent}% de desconto</b><strong>Assinatura do Tier 02: {formatPlanPrice(plan.priceCents)}/{plan.cadence}</strong></span></label></fieldset>}
             <div className="checkout-section-heading"><span>03</span><div><h2>Escolha suas redes</h2><p>{selectedPlan === 'premium' ? 'No Premium, as quatro redes sociais já estão liberadas.' : `Selecione exatamente ${connectionLimit} redes. Você poderá conectar até ${connectionLimit} contas no plano.`}</p></div></div>
             <div className="checkout-platform-grid" role="group" aria-label="Redes sociais disponíveis">{PLATFORM_OPTIONS.map(item => { const isSelected = selectedPlatforms.includes(item.id); const isAvailable = availablePlatforms.includes(item.id); const isDisabled = !isAvailable || (selectedPlan !== 'premium' && !isSelected && selectedPlatforms.length >= connectionLimit); return <button type="button" key={item.id} className={`checkout-platform-option${isSelected ? ' is-selected' : ''}${isDisabled ? ' is-disabled' : ''}`} onClick={() => togglePlatform(item.id)} disabled={isDisabled} aria-pressed={isSelected}><span className={`checkout-platform-symbol checkout-platform-symbol--${item.id}`}><PlatformIcon platform={item.id} className="checkout-platform-svg" /></span><span><strong>{item.label}</strong><small>{isSelected ? 'Liberada no seu plano' : selectedPlan === 'premium' ? 'Incluída no Premium' : 'Selecionar'}</small></span><b>{isSelected ? '✓' : ''}</b></button> })}</div>
             <p className="checkout-platform-count">{selectedPlatforms.length} de {connectionLimit} redes selecionadas</p>
@@ -335,7 +349,7 @@ export function CreateAccountPage() {
             <p className="checkout-security">⌁ Cadastro protegido · Não armazenamos dados sensíveis do cartão</p>
           </form>
         </section>
-        <aside className="checkout-summary"><div className="checkout-summary-top"><p className="checkout-eyebrow">SEU PLANO</p><span className="checkout-summary-badge">{plan.featured ? 'Mais escolhido' : 'Escolha flexível'}</span></div><h2>{plan.name}</h2><p>{plan.description}</p><div className="checkout-summary-price"><strong>{plan.price}</strong><span>/{plan.cadence}</span></div><ul>{plan.features.map(feature => <li key={feature}>✓ <span>{feature}</span></li>)}</ul><div className="checkout-summary-note"><span>✦</span><p><strong>Feito para você publicar melhor</strong><br />Comece simples e evolua no seu ritmo.</p></div><a href="#planos" onClick={event => { event.preventDefault(); document.querySelector('.checkout-plan-grid')?.scrollIntoView({ behavior: 'smooth' }) }}>Comparar outros planos</a></aside>
+        <aside className="checkout-summary"><div className="checkout-summary-top"><p className="checkout-eyebrow">SEU PLANO</p><span className="checkout-summary-badge">{plan.featured ? 'Mais escolhido' : 'Escolha flexível'}</span></div><h2>{plan.name}</h2><p>{plan.description}</p><p className="checkout-plan-meuecoo">{plan.meuEcooOffer}</p><div className="checkout-summary-price"><strong>{formatPlanPrice(selectedPriceCents)}</strong><span>/{plan.cadence}</span></div>{selectedPlan === 'pro' && <p className="checkout-summary-discount">MeuEcoo: {proDiscount ? `${proDiscountPercent}% de desconto` : 'sem oferta'}</p>}<ul>{plan.features.map(feature => <li key={feature}>✓ <span>{feature}</span></li>)}</ul><div className="checkout-summary-note"><span>✦</span><p><strong>Feito para você publicar melhor</strong><br />Comece simples e evolua no seu ritmo.</p></div><a href="#planos" onClick={event => { event.preventDefault(); document.querySelector('.checkout-plan-grid')?.scrollIntoView({ behavior: 'smooth' }) }}>Comparar outros planos</a></aside>
       </div>
       <footer className="checkout-footer"><CopyrightNotice /></footer>
     </div>

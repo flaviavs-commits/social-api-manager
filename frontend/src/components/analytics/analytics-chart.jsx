@@ -57,9 +57,9 @@ function PostsBarChart({ net, metrics }) {
   const hasComments = postsSorted.some(m => m.metrics.comments != null)
 
   const datasets = []
-  if (hasViews) datasets.push({ label: 'Visualizações', data: postsSorted.map(m => m.metrics.views || 0), backgroundColor: 'rgba(209,153,62,0.8)', borderRadius: 4 })
-  if (hasLikes) datasets.push({ label: 'Curtidas', data: postsSorted.map(m => m.metrics.likes || 0), backgroundColor: PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 })
-  if (hasComments) datasets.push({ label: 'Comentários', data: postsSorted.map(m => m.metrics.comments || 0), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 })
+  if (hasViews) datasets.push({ label: 'Visualizações', data: postsSorted.map(m => m.metrics.views ?? null), backgroundColor: 'rgba(209,153,62,0.8)', borderRadius: 4 })
+  if (hasLikes) datasets.push({ label: 'Curtidas', data: postsSorted.map(m => m.metrics.likes ?? null), backgroundColor: PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 })
+  if (hasComments) datasets.push({ label: 'Comentários', data: postsSorted.map(m => m.metrics.comments ?? null), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 })
   if (!datasets.length) datasets.push({ label: 'Posts', data: postsSorted.map(() => 1), backgroundColor: PLAT_COLORS[net] || '#d1993e', borderRadius: 4 })
 
   const options = {

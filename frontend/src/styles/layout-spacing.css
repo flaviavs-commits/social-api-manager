@@ -1,0 +1,365 @@
+/*
+ * Shared page rhythm
+ *
+ * App pages are composed from independent modules, many of which still have
+ * their own margin-bottom rules. The page shell owns the rhythm between those
+ * top-level blocks so every module gets the same breathing room in both
+ * themes and at every breakpoint.
+ */
+.app-shell-modern .app-main-content {
+  min-width: 0;
+  background: var(--app-bg);
+}
+
+.app-shell-modern .page-view {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 1.8vw, 24px);
+}
+
+.app-shell-modern .analytics-network-selector-top .analytics-sidebar {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.app-shell-modern .analytics-all-network-panels {
+  display: grid;
+  width: 100%;
+  gap: clamp(16px, 1.8vw, 24px);
+}
+
+.app-shell-modern .analytics-summary-explanation {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, rgba(148, 163, 184, .24));
+  border-left: 3px solid var(--accent, #d1993e);
+  border-radius: 10px;
+  background: var(--surface-2, rgba(148, 163, 184, .06));
+}
+
+.app-shell-modern .analytics-summary-explanation-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-shell-modern .analytics-summary-explanation-heading strong,
+.app-shell-modern .analytics-summary-explanation-grid strong {
+  color: var(--text, inherit);
+  font-size: .78rem;
+}
+
+.app-shell-modern .analytics-summary-explanation-heading span,
+.app-shell-modern .analytics-summary-explanation-grid p {
+  color: var(--muted, #8b8fa3);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+.app-shell-modern .analytics-summary-explanation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlights {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--border, rgba(148, 163, 184, .24));
+  border-radius: 10px;
+  background: var(--surface-2, rgba(148, 163, 184, .06));
+}
+
+.app-shell-modern .analytics-performance-report-network-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  min-height: 132px;
+  padding: 11px;
+  border: 1px solid var(--border, rgba(148, 163, 184, .24));
+  border-radius: 9px;
+  background: var(--surface, rgba(255, 255, 255, .04));
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-heading strong {
+  color: var(--text, inherit);
+  font-size: .78rem;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-heading span {
+  color: var(--muted, #8b8fa3);
+  font-size: .62rem;
+  text-align: right;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-heading span.has-data {
+  color: var(--accent, #d1993e);
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text, inherit);
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight small,
+.app-shell-modern .analytics-performance-report-network-highlight-empty {
+  color: var(--muted, #8b8fa3);
+  font-size: .68rem;
+  line-height: 1.4;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-empty {
+  margin: auto 0 0;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  color: var(--muted, #8b8fa3);
+  font-size: .68rem;
+}
+
+.app-shell-modern .analytics-performance-report-network-highlight-metrics b {
+  color: var(--accent, #d1993e);
+  font-family: var(--mono, monospace);
+}
+
+.app-shell-modern .analytics-summary-explanation-grid p {
+  margin: 4px 0 0;
+}
+
+.app-shell-modern .page-view > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Integrações: os cards precisam respirar sobre o fundo da página, sem um
+ * painel branco contínuo aparecendo nos intervalos entre eles. */
+.app-shell-modern .accounts-page > .accounts-panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell-modern .accounts-page .accounts-overview-strip {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell-modern .accounts-page .account-platform-grid {
+  gap: 18px;
+}
+
+/* O Baú de Ideias usa cards independentes. O painel da lista não deve criar
+ * uma faixa de fundo contínua entre eles. */
+.app-shell-modern .drafts-page-v2 .drafts-v2-list-panel {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell-modern .drafts-page-v2 .drafts-v2-card-list {
+  gap: 16px;
+}
+
+.app-shell-modern .drafts-page-v2 .drafts-v2-summary {
+  margin-bottom: 24px !important;
+}
+
+/* Keep the established internal two-column rhythm when a page owns a grid. */
+.app-shell-modern .page-view > .ai-page,
+.app-shell-modern .page-view > .drafts-page,
+.app-shell-modern .page-view > .analytics-layout,
+.app-shell-modern .page-view > .scheduler-workspace,
+.app-shell-modern .page-view > .inbox-workspace,
+.app-shell-modern .page-view > .an-summary-row {
+  gap: clamp(12px, 1.5vw, 24px);
+}
+
+/* No desktop, os dois gráficos do resumo formam um painel contínuo; o vão
+ * branco entre eles não acrescenta informação visual. */
+@media (min-width: 761px) {
+  .app-shell-modern .page-view > .an-summary-row {
+    column-gap: 0;
+  }
+}
+
+/* Regra global dos módulos: os blocos visuais devem encostar uns nos outros;
+ * o fundo da aplicação não deve aparecer como uma faixa branca entre cards.
+ * Os gaps internos de textos, botões e campos continuam definidos pelos
+ * próprios componentes, fora destes contêineres de composição. */
+.app-shell-modern .page-view {
+  gap: 0 !important;
+}
+
+.app-shell-modern .page-view > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.app-shell-modern .page-view .panel + .panel {
+  margin-top: 0 !important;
+}
+
+.app-shell-modern .page-view :is(
+  [class*="-grid"],
+  [class*="-layout"],
+  [class*="-list"],
+  .an-summary-row,
+  .analytics-layout,
+  .analytics-all-network-panels,
+  .dashboard-platform-list,
+  .drafts-v2-workspace,
+  .inbox-workspace,
+  .queues-layout,
+  .workspace-layout
+) {
+  gap: 0 !important;
+}
+
+/* A media thumbnail should not introduce a second, bright frame inside its
+ * already bordered card. Platform previews below are intentionally excluded. */
+html[data-theme='light'] .app-shell-modern .media-preview-card > img,
+html[data-theme='light'] .app-shell-modern .media-preview-card > video,
+html[data-theme='light'] .app-shell-modern .media-video-thumb {
+  border: 0;
+}
+
+/* The preferences form stays white in the light theme; controls retain their
+ * own subtle contrast and borders. */
+html[data-theme='light'] .app-shell-modern .profile-fields {
+  background-color: var(--surface);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-toggle {
+  background-color: var(--surface);
+}
+
+/* Legacy module selectors may still win over the generic theme bridge. Keep
+ * app cards on the same quiet border used by the report snapshot. */
+html[data-theme='light'] .app-shell-modern .page-view > .panel,
+html[data-theme='light'] .app-shell-modern .page-view > .analytics-layout > .analytics-sidebar,
+html[data-theme='light'] .app-shell-modern .page-view > .analytics-layout > .analytics-panel,
+html[data-theme='light'] .app-shell-modern .page-view > .analytics-layout > .analytics-no-network-panel {
+  border-color: var(--border);
+}
+
+@media (max-width: 767px) {
+  .app-shell-modern .page-view {
+    gap: 16px;
+  }
+
+  .app-shell-modern .accounts-page .account-platform-grid {
+    gap: 10px;
+  }
+
+  .app-shell-modern .drafts-page-v2 .drafts-v2-card-list {
+    gap: 12px;
+  }
+
+  .app-shell-modern .drafts-page-v2 .drafts-v2-summary {
+    margin-bottom: 16px !important;
+  }
+
+  .app-shell-modern .analytics-network-selector-top .analytics-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .app-shell-modern .accounts-page .accounts-overview-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+  }
+}
+
+html[data-theme='light'] .app-shell-modern .accounts-page > .accounts-panel,
+html[data-theme='light'] .app-shell-modern .accounts-page .accounts-overview-strip {
+  background-color: var(--app-bg) !important;
+}
+
+html[data-theme='light'] .app-shell-modern .accounts-page .accounts-overview-strip > div {
+  background: var(--surface) !important;
+}
+
+/* No tema claro, a plataforma conectada mantém o mesmo fundo ao passar o
+ * mouse; o destaque fica no contorno, sem criar uma faixa branca. */
+html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card:hover {
+  background-color: var(--surface-2) !important;
+}
+
+@media (min-width: 768px) {
+  .app-shell-modern .page-view {
+    gap: 22px;
+  }
+}
+
+/* A dashboard é composta por blocos independentes; mantenha um respiro
+ * consistente entre cada seção e entre os cards internos. */
+.app-shell-modern .dashboard-page {
+  gap: clamp(16px, 1.8vw, 24px) !important;
+}
+
+.app-shell-modern .dashboard-page :is(
+  .dashboard-metrics,
+  .dashboard-platform-list,
+  .dashboard-insights-grid,
+  .dashboard-failures-list,
+  .dashboard-top-posts-list
+) {
+  gap: 12px !important;
+}
+
+.app-shell-modern .dashboard-page .dashboard-grid {
+  gap: 16px !important;
+}
+
+@media (max-width: 600px) {
+  .app-shell-modern .analytics-network-selector-top .analytics-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-modern .analytics-summary-explanation-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-shell-modern .analytics-summary-explanation-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell-modern .analytics-performance-report-network-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 1000px) {
+  .app-shell-modern .analytics-performance-report-network-highlights-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

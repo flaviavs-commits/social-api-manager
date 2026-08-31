@@ -9,7 +9,6 @@ const DraftsPage = lazy(() => import('./drafts-page.jsx').then(module => ({ defa
 const AccountsPage = lazy(() => import('./accounts-page.jsx').then(module => ({ default: module.AccountsPage })))
 const AnalyticsPage = lazy(() => import('./analytics-page.jsx').then(module => ({ default: module.AnalyticsPage })))
 const InboxPage = lazy(() => import('./inbox-page.jsx').then(module => ({ default: module.InboxPage })))
-const TokensPage = lazy(() => import('./tokens-page.jsx').then(module => ({ default: module.TokensPage })))
 const SecurityPage = lazy(() => import('./security-page.jsx').then(module => ({ default: module.SecurityPage })))
 const ActivityPage = lazy(() => import('./activity-page.jsx').then(module => ({ default: module.ActivityPage })))
 const AiPage = lazy(() => import('./ai-page.jsx').then(module => ({ default: module.AiPage })))
@@ -26,7 +25,6 @@ const PAGES_BY_TYPE = {
   integracoes: AccountsPage,
   analytics: AnalyticsPage,
   inbox: InboxPage,
-  tokens: TokensPage,
   seguranca: SecurityPage,
   atividade: ActivityPage,
   ai: AiPage,
@@ -44,7 +42,6 @@ const descriptions = {
   analytics: ['Analytics', 'Acompanhe o desempenho das suas publicações.'],
   inbox: ['Inbox', 'Gerencie comentários e interações em um só lugar.'],
   integracoes: ['Contas conectadas', 'Conecte e gerencie suas redes sociais.'],
-  tokens: ['Tokens', 'Gerencie tokens de acesso e integrações.'],
   seguranca: ['Segurança', 'Proteja sua conta e gerencie a autenticação em 2 fatores.'],
   atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
   ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],

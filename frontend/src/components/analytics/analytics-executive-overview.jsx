@@ -55,8 +55,8 @@ function networkRows(data, tiktokVideos, periodDays, platform) {
   return rows
 }
 
-function buildNetworkStats(data, tiktokVideos, periodDays) {
-  return NETWORK_ORDER.map(platform => {
+function buildNetworkStats(data, tiktokVideos, periodDays, activeNet = null) {
+  return NETWORK_ORDER.filter(platform => !activeNet || platform === activeNet).map(platform => {
     const rows = networkRows(data, tiktokVideos, periodDays, platform)
     const profiles = data.accountAnalytics?.platforms?.[platform] || []
     const reachFromContent = sumNullable(rows, 'reach') ?? sumNullable(rows, 'views')
@@ -97,8 +97,15 @@ function formatRate(value) {
   return value == null ? '—' : `${value.toFixed(1)}%`
 }
 
-export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays }) {
-  const stats = buildNetworkStats(data, tiktokVideos, periodDays)
+function interactionBreakdown(item) {
+  return ['likes', 'comments', 'shares', 'saves'].reduce((total, name) => {
+    const value = metricNumber(item.metrics, name)
+    return { ...total, [name]: value == null ? 0 : value }
+  }, {})
+}
+
+export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, activeNet = null, recommendedActions = [] }) {
+  const stats = buildNetworkStats(data, tiktokVideos, periodDays, activeNet)
   if (!stats.length) return null
 
   const totalReach = stats.some(item => item.reach != null) ? stats.reduce((total, item) => total + (item.reach || 0), 0) : null
@@ -121,10 +128,10 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays }) {
     <div className="analytics-executive-heading">
       <div>
         <p className="analytics-kicker">PAINEL EXECUTIVO</p>
-        <h3 id="analytics-executive-title">Performance consolidada</h3>
-        <p>Uma leitura profissional dos resultados reais de todas as contas no período selecionado.</p>
+        <h3 id="analytics-executive-title">{activeNet ? `Performance do ${PLAT_LABELS[activeNet]}` : 'Performance consolidada'}</h3>
+        <p>{activeNet ? `Uma leitura dos resultados reais somente do ${PLAT_LABELS[activeNet]} no período selecionado.` : 'Uma leitura profissional dos resultados reais de todas as contas no período selecionado.'}</p>
       </div>
-      <span className="analytics-executive-source"><i aria-hidden="true"/>Dados das APIs oficiais</span>
+      <span className="analytics-executive-source"><i aria-hidden="true"/>Dados das integrações conectadas</span>
     </div>
 
     <div className="analytics-executive-kpis">
@@ -138,7 +145,7 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays }) {
 
     <div className="analytics-executive-grid">
       <div className="analytics-executive-table-wrap">
-        <div className="analytics-executive-section-heading"><div><strong>Comparativo por rede</strong><span>Alcance, audiência e eficiência do conteúdo.</span></div><b>{totalContent} conteúdos</b></div>
+          <div className="analytics-executive-section-heading"><div><strong>{activeNet ? `Resultado do ${PLAT_LABELS[activeNet]}` : 'Comparativo por rede'}</strong><span>{activeNet ? 'Alcance, audiência e eficiência desta rede.' : 'Alcance, audiência e eficiência do conteúdo.'}</span></div><b>{totalContent} conteúdos</b></div>
         <div className="analytics-executive-table-scroll"><table>
           <thead><tr><th>Rede</th><th>Conteúdos</th><th>Alcance</th><th>Audiência</th><th>Interações</th><th>Taxa</th></tr></thead>
           <tbody>{stats.map(item => <tr key={item.platform}>
@@ -158,8 +165,23 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays }) {
               <div className="analytics-executive-highlight-metrics"><span>♥ {fmtNum(metricNumber(bestContent.metrics, 'likes'))}</span><span>💬 {fmtNum(metricNumber(bestContent.metrics, 'comments'))}</span><span>↗ {fmtNum(metricNumber(bestContent.metrics, 'shares'))}</span><span>🔖 {fmtNum(metricNumber(bestContent.metrics, 'saves'))}</span></div>
             </>
           : <p className="empty-state">Ainda não há dados de conteúdo suficientes para destacar uma publicação.</p>}
-        {bestNetwork && <p className="analytics-executive-highlight-note"><b>Melhor rede:</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions || 0)} interações no recorte.</p>}
+        {bestNetwork && (() => {
+          const breakdown = bestContent && bestContent.platform === bestNetwork.platform
+            ? contentRows
+              .filter(row => row.platform === bestNetwork.platform && row.metrics)
+              .reduce((total, row) => {
+                const rowBreakdown = interactionBreakdown(row)
+                return Object.fromEntries(Object.keys(rowBreakdown).map(name => [name, total[name] + rowBreakdown[name]]))
+              }, { likes: 0, comments: 0, shares: 0, saves: 0 })
+            : null
+          const detail = breakdown
+            ? ` (${fmtNum(breakdown.likes)} curtidas + ${fmtNum(breakdown.comments)} comentários + ${fmtNum(breakdown.shares)} compartilhamentos + ${fmtNum(breakdown.saves)} salvamentos)`
+            : ''
+          return <p className="analytics-executive-highlight-note"><b>{activeNet ? 'Rede analisada:' : 'Melhor rede:'}</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions || 0)} interações no recorte{detail}.</p>
+        })()}
       </div>
     </div>
+
+    {recommendedActions.length > 0 && <div className="analytics-performance-report-actions"><strong>Próximos passos recomendados</strong>{recommendedActions.map((action, index) => <p key={action}><b>{index + 1}</b>{action}</p>)}</div>}
   </section>
 }

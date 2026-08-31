@@ -7,6 +7,7 @@ import { LoadingState } from '../components/ui/loading-state.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
+const INBOX_REFRESH_INTERVAL_MS = 15_000
 const inboxPlatforms = [
   { id: 'all', label: 'Todas as redes' },
   { id: 'instagram', label: 'Instagram' },
@@ -38,11 +39,39 @@ export function InboxPage() {
   const [selectedPostId, setSelectedPostId] = useState(null)
   const notify = useToast()
   const load = useCallback(() => apiFetch(`/api/posts/inbox${platform === 'all' ? '' : `?platform=${platform}`}`).then(data => data.posts || []), [platform])
-  const { value: posts, loading, error } = useApiResource(load, [])
+  const { value: posts, loading, error, setValue: setPosts, setError } = useApiResource(load, [])
   const loadUnread = useCallback(() => apiFetch('/api/posts/inbox/unread').then(data => setUnread(data.unread || {})).catch(() => {}), [])
   const handleConversationClose = useCallback(() => { loadUnread() }, [loadUnread])
 
-  useEffect(() => { loadUnread() }, [loadUnread])
+  useEffect(() => {
+    let active = true
+    let refreshing = false
+
+    const refresh = async () => {
+      if (!active || refreshing || document.visibilityState === 'hidden') return
+      refreshing = true
+      try {
+        const [nextPosts] = await Promise.all([load(), loadUnread()])
+        if (active) {
+          setPosts(nextPosts)
+          setError('')
+        }
+      } catch (caught) {
+        if (active) setError(caught.message)
+      } finally {
+        refreshing = false
+      }
+    }
+
+    loadUnread()
+    const timer = window.setInterval(refresh, INBOX_REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [load, loadUnread, setError, setPosts])
   useEffect(() => { localStorage.setItem(INBOX_FILTERS_KEY, JSON.stringify({ platform, status: statusFilter })) }, [platform, statusFilter])
 
   const visiblePosts = useMemo(() => {

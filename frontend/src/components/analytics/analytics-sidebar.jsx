@@ -7,6 +7,19 @@ export function AnalyticsSidebar({ networks, activeNet, onSelect }) {
     <nav className="analytics-sidebar" aria-label="Redes sociais">
       <div className="analytics-sidebar-label">Escolha uma rede</div>
       <p className="analytics-sidebar-help">Comece pela rede que deseja entender.</p>
+      <button
+        type="button"
+        className={`analytics-net-item${activeNet === 'all' ? ' active' : ''}`}
+        aria-pressed={activeNet === 'all'}
+        aria-label="Todas as redes"
+        onClick={() => onSelect('all')}
+      >
+        <span className="analytics-net-item-content">
+          <span className="analytics-net-item-icon analytics-net-item-icon-all" aria-hidden="true">◎</span>
+          <span>Todas as redes</span>
+        </span>
+        {activeNet === 'all' && <span className="analytics-net-item-check" aria-hidden="true">✓</span>}
+      </button>
       {NETWORK_ORDER.map(net => {
           const available = availableNetworks.has(net)
           return (

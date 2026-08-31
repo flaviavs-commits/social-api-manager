@@ -35,7 +35,6 @@ const navigation = [
   ['analytics', 'Relatórios'],
   ['inbox', 'Inbox'],
   ['integracoes', 'Contas'],
-  ['tokens', 'Tokens'],
   ['seguranca', 'Segurança'],
   ['atividade', 'Atividades'],
   ['ai', 'Assistente IA'],
@@ -313,7 +312,6 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
           {profileOpen && <div className="profile-menu" role="menu">
             <div className="profile-menu-heading"><strong>{user?.fullName || user?.name || 'Minha conta'}</strong><small>{user?.email || ''}</small><span className="mt-1 inline-flex w-fit rounded-full bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-gold">Plano {getPlan(user?.plan).name}</span></div>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Meu perfil</button>
-            <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('perfil') }}>Preferências</button>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('seguranca') }}>Segurança</button>
             <button type="button" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('atividade') }}>Atividades</button>
             <button type="button" role="menuitem" className="profile-menu-danger" onClick={logout}>Sair</button>

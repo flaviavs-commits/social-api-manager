@@ -15,10 +15,10 @@ describe('AppShell', () => {
     expect(onPageChange).toHaveBeenCalledWith('rascunhos')
   })
 
-  it('shows only the current page name in the header', () => {
+  it('falls back to Dashboard when a hidden page is requested', () => {
     render(<AppShell page="tokens" onPageChange={() => {}}>conteúdo</AppShell>)
     const currentPage = screen.getByRole('navigation', { name: 'Página atual' })
-    expect(currentPage).toHaveTextContent('Tokens')
+    expect(currentPage).toHaveTextContent('Dashboard')
     expect(currentPage).not.toHaveTextContent('Meu Ecoo Mídia')
   })
 
@@ -39,7 +39,8 @@ describe('AppShell', () => {
   it('locks all product navigation before payment confirmation', () => {
     render(<AppShell page="dashboard" onPageChange={() => {}} user={{ plan: 'basico', planActive: false }}>x</AppShell>)
 
-    expect(screen.getAllByText('Plano')).toHaveLength(14)
+    expect(screen.getAllByText('Plano')).toHaveLength(13)
+    expect(screen.queryByRole('button', { name: 'Tokens' })).not.toBeInTheDocument()
     expect(screen.queryByText('Ativo')).not.toBeInTheDocument()
   })
 

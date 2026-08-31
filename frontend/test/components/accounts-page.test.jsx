@@ -61,9 +61,28 @@ describe('AccountsPage', () => {
     expect(screen.getByText('Adicionar ou remover conta')).toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Plataforma'), { target: { value: 'instagram' } })
+    fireEvent.change(screen.getByLabelText('Link da Página'), { target: { value: 'https://instagram.com/breno' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Conectar' }).at(-1))
 
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/auth/instagram?accountName=&platform=instagram&returnTo=%2F'))
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/auth/instagram?accountName=https%3A%2F%2Finstagram.com%2Fbreno&platform=instagram&returnTo=%2F'))
+  })
+
+  it('requires the page link before starting the OAuth connection', async () => {
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/accounts') return Promise.resolve({ data: [] })
+      if (path === '/api/platform-health') return Promise.resolve({ platforms: {} })
+      return Promise.resolve({})
+    })
+
+    render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
+
+    const pageLink = await screen.findByLabelText('Link da Página')
+    expect(pageLink).toBeRequired()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Conectar' }).at(-1))
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.some(alert => alert.textContent.includes('Informe o link da Página para continuar.'))).toBe(true)
+    expect(apiFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/auth/'))
   })
 
   it('does not offer another account when the plan connection limit is reached', async () => {

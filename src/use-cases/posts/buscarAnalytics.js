@@ -2,6 +2,7 @@ const postsRepo = require('../../infra/db/postsRepository')
 const metricsService = require('../../services/metricsService')
 const accountAnalyticsService = require('../../services/accountAnalyticsService')
 const instagramReconcileService = require('../../services/instagramReconcileService')
+const { buildAnalyticsVerification } = require('../../domain/analytics/verifyAnalytics')
 
 // Métricas reais só existem para publicações com external_post_id, ou seja,
 // feitas a partir desta funcionalidade. Um post pode ter sido publicado em
@@ -156,7 +157,16 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 7 }) {
     ? accountAnalyticsResult.value
     : { dateRange: null, capabilities: {}, platforms: {}, dailyMetrics: [], contentDecay: [], bestTimeToPost: [], followerStats: null, errors: [{ scope: 'account_analytics', message: 'Não foi possível carregar os relatórios completos.' }] }
 
-  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics, accountAnalytics }
+  const verification = buildAnalyticsVerification({
+    days,
+    metrics,
+    accountAnalytics,
+    instagramFollowers,
+    tiktokStats,
+    youtubeSubscribers,
+  })
+
+  return { series: porDia, metrics, instagramFollowers, tiktokStats, youtubeSubscribers, instagramDemographics, youtubeDemographics, accountAnalytics, verification }
 }
 
 async function buscarMetricsHistory({ id, userId, isAdmin }) {

@@ -17,6 +17,16 @@ const data = {
   youtubeSubscribers: {},
 }
 
+const dataWithoutViewMetrics = {
+  metrics: [
+    { platform: 'instagram', publishedAt: new Date().toISOString(), metrics: { likes: 12 } },
+    { platform: 'facebook', publishedAt: new Date().toISOString(), metrics: { comments: 3 } },
+  ],
+  instagramFollowers: {},
+  tiktokStats: {},
+  youtubeSubscribers: {},
+}
+
 describe('AnalyticsSummary', () => {
   it('explica os números principais e permite trocar o período', () => {
     const onSelectPeriod = vi.fn()
@@ -24,11 +34,18 @@ describe('AnalyticsSummary', () => {
     render(<AnalyticsSummary data={data} tiktokVideos={[]} periodDays={7} onSelectPeriod={onSelectPeriod}/>)
 
     expect(screen.getByRole('heading', { name: 'Visão geral' })).toBeInTheDocument()
-    expect(screen.getByText('Visualizações')).toBeInTheDocument()
-    expect(screen.getByText('Taxa de interação')).toBeInTheDocument()
+    expect(screen.getAllByText('Visualizações')).toHaveLength(2)
+    expect(screen.getAllByText('Taxa de interação')).toHaveLength(2)
     expect(screen.getByText(/uma taxa maior indica/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '30 dias' }))
     expect(onSelectPeriod).toHaveBeenCalledWith(30)
+  })
+
+  it('não quebra quando todas as redes não têm visualizações confirmadas', () => {
+    render(<AnalyticsSummary data={dataWithoutViewMetrics} tiktokVideos={[]} periodDays={7}/>)
+
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Visão geral' })).toBeInTheDocument()
   })
 })

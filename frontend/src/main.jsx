@@ -39,10 +39,12 @@ import './styles/smartlinks.css'
 import './styles/tutorial.css'
 import './styles/responsive.css'
 import './styles/mobile-first.css'
+import './styles/analytics-verification.css'
+import './styles/layout-spacing.css'
 
 applyTheme(getStoredTheme())
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'tokens', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe'])
+const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe'])
 
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''

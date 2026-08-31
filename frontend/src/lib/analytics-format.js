@@ -34,6 +34,15 @@ const METRIC_LABELS = {
   averageViewPercentage: 'Percentual médio assistido',
   estimatedMinutesWatched: 'Minutos assistidos',
   engagedViews: 'Visualizações engajadas',
+  total_interactions: 'Interações totais',
+  accounts_engaged: 'Contas engajadas',
+  profile_links_taps: 'Cliques em links do perfil',
+  profile_views: 'Visualizações do perfil',
+  website_clicks: 'Cliques no site',
+  email_contacts: 'Contatos por e-mail',
+  phone_call_clicks: 'Cliques para ligar',
+  text_message_clicks: 'Cliques para enviar mensagem',
+  get_directions_clicks: 'Cliques em como chegar',
 }
 
 export function labelForMetric(name) {
@@ -65,10 +74,12 @@ export const NET_TABS = {
 }
 
 export function fmtNum(n) {
-  if (n == null) return '—'
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k'
-  return String(n)
+  const value = Number(n)
+  if (n == null || n === '' || !Number.isFinite(value)) return '—'
+  const oneDecimal = amount => (Math.trunc(amount * 10) / 10).toFixed(1).replace(/\.0$/, '')
+  if (value >= 1_000_000) return oneDecimal(value / 1_000_000) + 'M'
+  if (value >= 1_000) return oneDecimal(value / 1_000) + 'k'
+  return oneDecimal(value)
 }
 
 export function fmtWatchTime(seconds) {
@@ -81,6 +92,24 @@ export function fmtWatchTime(seconds) {
 export function formatDiaBR(iso) {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
+}
+
+export function formatDataBR(value) {
+  if (!value) return '—'
+  const text = String(value)
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? text : date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+}
+
+export function formatDataDelay(value) {
+  if (!value) return '—'
+  const text = String(value)
+  const match = text.match(/data may be delayed up to (\d+) hours?/i)
+  if (match) return `Os dados podem atrasar até ${match[1]} ${Number(match[1]) === 1 ? 'hora' : 'horas'}`
+  if (/data may be delayed/i.test(text)) return 'Os dados podem sofrer atraso'
+  return text
 }
 
 export function filterByPeriod(data, periodDays) {

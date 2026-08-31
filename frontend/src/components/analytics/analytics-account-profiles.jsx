@@ -62,16 +62,17 @@ function profileName(account) {
   return tokenName || account.handle || `Conta ${PLAT_LABELS[account.platform] || account.platform}`
 }
 
-export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodDays, onSelectNetwork }) {
-  const orderedAccounts = [...accounts].sort((a, b) => NETWORK_ORDER.indexOf(a.platform) - NETWORK_ORDER.indexOf(b.platform))
+export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodDays, onSelectNetwork, activeNet = null }) {
+  const scopedAccounts = activeNet ? accounts.filter(account => account.platform === activeNet) : accounts
+  const orderedAccounts = [...scopedAccounts].sort((a, b) => NETWORK_ORDER.indexOf(a.platform) - NETWORK_ORDER.indexOf(b.platform))
   if (!orderedAccounts.length) return null
 
   return <section className="analytics-profiles-section" aria-labelledby="analytics-profiles-title">
     <div className="analytics-profiles-heading">
       <div>
         <p className="analytics-kicker">PERFIS CONECTADOS</p>
-        <h3 id="analytics-profiles-title">Sua operação em cada rede</h3>
-        <p>Identidade, saúde da conexão e os principais resultados por conta.</p>
+        <h3 id="analytics-profiles-title">{activeNet ? `Perfil conectado do ${PLAT_LABELS[activeNet]}` : 'Sua operação em cada rede'}</h3>
+        <p>{activeNet ? 'Identidade, saúde da conexão e resultados somente desta rede.' : 'Identidade, saúde da conexão e os principais resultados por conta.'}</p>
       </div>
       <span className="analytics-profiles-period">Últimos {periodDays} dias</span>
     </div>

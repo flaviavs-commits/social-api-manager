@@ -11,6 +11,7 @@ function readAnalyticsFilters() {
 const EMPTY_DATA = {
   series: {}, metrics: [], instagramFollowers: {}, tiktokStats: {},
   youtubeSubscribers: {}, instagramDemographics: null, youtubeDemographics: null,
+  verification: null,
   accountAnalytics: { platforms: {}, capabilities: {}, dailyMetrics: [], contentDecay: [], bestTimeToPost: [], errors: [] },
 }
 
@@ -24,12 +25,14 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const [data, setData] = useState(EMPTY_DATA)
   const [accounts, setAccounts] = useState([])
   const [tiktokVideos, setTiktokVideos] = useState([])
-  const [activeNet, setActiveNet] = useState(savedFilters.activeNet || 'instagram')
+  const initialNetwork = savedFilters.activeNet === 'all' || savedFilters.activeNet ? savedFilters.activeNet : 'all'
+  const [activeNet, setActiveNet] = useState(initialNetwork)
   const [activeTab, setActiveTab] = useState(savedFilters.activeTab || 'community')
   const savedPeriod = Number(savedFilters.periodDays)
   const [periodDays, setPeriodDays] = useState(ANALYTICS_PERIODS.includes(savedPeriod) ? savedPeriod : DEFAULT_ANALYTICS_PERIOD)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [sourceErrors, setSourceErrors] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const activeNetRef = useRef(activeNet)
   const tiktokVideosRef = useRef(tiktokVideos)
@@ -44,8 +47,12 @@ export function useAnalytics({ comparePeriod = false } = {}) {
     try {
       const { videos } = await apiFetch('/api/posts/tiktok-videos')
       setTiktokVideos(videos || [])
-    } catch {
+      setSourceErrors(current => current.filter(issue => issue.source !== 'TikTok'))
+    } catch (caught) {
       setTiktokVideos([])
+      setSourceErrors(current => current.some(issue => issue.source === 'TikTok')
+        ? current
+        : [...current, { source: 'TikTok', message: caught.message || 'Não foi possível consultar os vídeos.' }])
     }
   }, [])
 
@@ -53,8 +60,12 @@ export function useAnalytics({ comparePeriod = false } = {}) {
     try {
       const result = await apiFetch('/api/accounts')
       setAccounts(result.data || [])
-    } catch {
+      setSourceErrors(current => current.filter(issue => issue.source !== 'Contas conectadas'))
+    } catch (caught) {
       setAccounts([])
+      setSourceErrors(current => current.some(issue => issue.source === 'Contas conectadas')
+        ? current
+        : [...current, { source: 'Contas conectadas', message: caught.message || 'Não foi possível verificar as contas.' }])
     }
   }, [])
 
@@ -72,13 +83,14 @@ export function useAnalytics({ comparePeriod = false } = {}) {
         youtubeSubscribers: result.youtubeSubscribers || {},
         instagramDemographics: result.instagramDemographics || null,
         youtubeDemographics: result.youtubeDemographics || null,
+        verification: result.verification || null,
         accountAnalytics: result.accountAnalytics || EMPTY_DATA.accountAnalytics,
       }
       setData(next)
       setError('')
 
       const nets = detectNetworks({ ...next, tiktokVideos: tiktokVideosRef.current })
-      if (nets.length && !nets.includes(activeNetRef.current)) setActiveNet(nets[0])
+      if (nets.length && activeNetRef.current !== 'all' && !nets.includes(activeNetRef.current)) setActiveNet(nets[0])
 
       setLastUpdated(new Date())
     } catch (caught) {
@@ -108,7 +120,7 @@ export function useAnalytics({ comparePeriod = false } = {}) {
 
   return {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
-    loading, error, lastUpdated,
+    loading, error, sourceErrors, lastUpdated,
     setActiveTab, setPeriodDays, selectNetwork, reload: loadAnalytics,
   }
 }

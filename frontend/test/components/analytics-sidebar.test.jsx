@@ -11,5 +11,8 @@ describe('AnalyticsSidebar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /YouTube/ }))
     expect(onSelect).toHaveBeenCalledWith('youtube')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Todas as redes' }))
+    expect(onSelect).toHaveBeenCalledWith('all')
   })
 })

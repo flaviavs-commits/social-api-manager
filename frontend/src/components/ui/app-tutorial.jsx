@@ -136,18 +136,7 @@ const STEPS = [
       'Adicione mais de uma conta da mesma rede e pesquise a conta que precisa encontrar.',
       'Filtre por situação do token, reconecte contas expiradas e consulte a saúde operacional das APIs.',
       'Abra o perfil público quando houver endereço disponível ou desconecte uma conta que não usa mais.',
-      'Quando o problema for credencial, vá direto para Tokens.'
-    ]
-  },
-  {
-    page: 'tokens',
-    title: 'Tokens: mantenha as autorizações saudáveis',
-    body: 'Tenha visibilidade sobre as credenciais das contas conectadas sem expor o segredo completo.',
-    tips: [
-      'Busque por conta ou rede e filtre por plataforma.',
-      'Filtre tokens válidos, expirando, expirados ou com erro.',
-      'Renove uma credencial individual ou use Renovar todos para corrigir várias de uma vez.',
-      'Confira última utilização e vencimento e revogue tokens que não devem mais ser usados.'
+      'Quando o problema for credencial, reconecte a conta por esta tela.'
     ]
   },
   {
@@ -228,7 +217,7 @@ const STEPS = [
       'Escolha quais notificações receber por e-mail: publicações, falhas e comentários.',
       'Troque sua senha, encerre a sessão atual ou saia de todos os dispositivos.',
       'Consulte o uso de IA, compare os planos e escolha um plano pelo checkout seguro.',
-      'Acesse rapidamente Contas, Tokens e Atividades.',
+    'Acesse rapidamente Contas e Atividades.',
       'Aqui você pode iniciar ou rever este tutorial guiado.'
     ]
   },

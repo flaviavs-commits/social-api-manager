@@ -1,7 +1,7 @@
 import { fmtNum } from '../../lib/analytics-format.js'
 
 export function EngagementTypeBar({ icon, label, value, max }) {
-  const percent = (value / max) * 100
+  const percent = value == null || !max ? 0 : (value / max) * 100
   return (
     <div className="an-eng-type-row">
       <div className="an-eng-type-head">

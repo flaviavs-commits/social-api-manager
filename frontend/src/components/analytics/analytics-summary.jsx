@@ -10,11 +10,13 @@ import { useTheme } from '../ui/theme-selector.jsx'
 function buildTrend(metrics) {
   const porDia = {}
   for (const m of metrics) {
-    if (!m.publishedAt) continue
+    if (!m.publishedAt || !m.metrics) continue
     const dia = new Date(m.publishedAt).toISOString().slice(0, 10)
-    porDia[dia] = porDia[dia] || { engagement: 0, reach: 0 }
-    porDia[dia].engagement += (m.metrics?.likes || 0) + (m.metrics?.comments || 0) + (m.metrics?.shares || 0)
-    porDia[dia].reach += (m.metrics?.views || 0)
+    porDia[dia] = porDia[dia] || { engagement: null, reach: null }
+    const engagement = ['likes', 'comments', 'shares'].map(key => Number(m.metrics?.[key])).filter(Number.isFinite)
+    if (engagement.length) porDia[dia].engagement = (porDia[dia].engagement || 0) + engagement.reduce((total, value) => total + value, 0)
+    const views = Number(m.metrics?.views)
+    if (Number.isFinite(views)) porDia[dia].reach = (porDia[dia].reach || 0) + views
   }
   return Object.keys(porDia).sort().slice(-7).map(dia => ({ dia, ...porDia[dia] }))
 }
@@ -27,25 +29,32 @@ function buildPlatformCounts(metrics, tiktokVideos = []) {
 }
 
 function sumMetric(metrics, key) {
-  return metrics.reduce((total, item) => total + (Number(item.metrics?.[key]) || 0), 0)
+  const values = metrics.map(item => Number(item.metrics?.[key])).filter(Number.isFinite)
+  return values.length ? values.reduce((total, value) => total + value, 0) : null
+}
+
+function sumKnown(values) {
+  const known = values.filter(value => value != null && Number.isFinite(Number(value)))
+  return known.length ? known.reduce((total, value) => total + Number(value), 0) : null
 }
 
 function comparisonLabel(current, previous, enabled) {
   if (!enabled) return null
-  if (!previous) return 'Sem base anterior'
+  if (current == null || previous == null || previous === 0) return 'Sem base anterior'
   const change = ((current - previous) / previous) * 100
   return `${change >= 0 ? '+' : ''}${change.toFixed(1)}% vs. período anterior`
 }
 
-export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPeriod = () => {}, comparePeriod = false, onToggleCompare = () => {} }) {
+export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = null, onSelectPeriod = () => {}, comparePeriod = false, onToggleCompare = () => {} }) {
   useTheme()
-  const metrics = filterByPeriod(data.metrics, periodDays)
-  const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
+  const scopeNetworks = activeNet ? [activeNet] : NETWORK_ORDER
+  const metrics = filterByPeriod(data.metrics, periodDays).filter(item => scopeNetworks.includes(item.platform))
+  const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays).filter(video => !activeNet || activeNet === 'tiktok')
   const tiktokMetrics = metrics.filter(item => item.platform === 'tiktok' && item.metrics)
   const tiktokRows = tiktokMetrics.length ? tiktokMetrics : videos.map(tiktokVideoToMetric)
   const summaryMetrics = [...metrics.filter(item => item.platform !== 'tiktok'), ...tiktokRows]
-  const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1)
-  const previousVideos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, 1)
+  const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1).filter(item => scopeNetworks.includes(item.platform))
+  const previousVideos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, 1).filter(() => !activeNet || activeNet === 'tiktok')
   const accountTotals = accountAnalyticsPlatformTotals(data.accountAnalytics)
 
   function platformRows(platform) {
@@ -58,36 +67,49 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
     return sumMetric(platformRows(platform), key)
   }
 
-  const totalViews = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'views'), 0)
-  const totalLikes = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'likes'), 0)
-  const totalComments = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'comments'), 0)
-  const totalShares = NETWORK_ORDER.reduce((total, platform) => total + mergedPlatformTotal(platform, 'shares'), 0)
-  const totalEngagement = NETWORK_ORDER.reduce((total, platform) => {
+  const totalViews = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'views')))
+  const totalLikes = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'likes')))
+  const totalComments = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'comments')))
+  const totalShares = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'shares')))
+  const totalEngagement = sumKnown(scopeNetworks.map(platform => {
     const accountValue = accountTotals[platform]?.engagement
-    return total + (accountValue?.hasData ? accountValue.value : mergedPlatformTotal(platform, 'likes') + mergedPlatformTotal(platform, 'comments') + mergedPlatformTotal(platform, 'shares'))
-  }, 0)
-  const engagementRate = totalViews > 0 ? (totalEngagement / totalViews * 100) : 0
-  const recommendation = totalViews === 0
+    if (accountValue?.hasData) return accountValue.value
+    return sumKnown([mergedPlatformTotal(platform, 'likes'), mergedPlatformTotal(platform, 'comments'), mergedPlatformTotal(platform, 'shares')])
+  }))
+  const engagementRate = totalViews > 0 && totalEngagement != null ? (totalEngagement / totalViews * 100) : null
+  const recommendation = totalViews == null
     ? 'Publique um novo conteúdo para começar a construir uma base de comparação.'
-    : engagementRate < 2
+    : engagementRate != null && engagementRate < 2
       ? 'Teste uma chamada mais direta e formatos diferentes para estimular comentários e compartilhamentos.'
       : 'Mantenha o formato que está funcionando e replique os temas com maior interação.'
   const previousViews = sumMetric(previousMetrics, 'views')
-  const previousEngagement = sumMetric(previousMetrics, 'likes') + sumMetric(previousMetrics, 'comments') + previousMetrics.filter(m => m.platform !== 'tiktok').reduce((total, item) => total + (Number(item.metrics?.shares) || 0), 0) + previousVideos.reduce((total, video) => total + (Number(video.shareCount) || 0), 0)
-  const previousEngagementRate = previousViews > 0 ? (previousEngagement / previousViews * 100) : 0
+  const previousEngagement = sumKnown([
+    sumMetric(previousMetrics, 'likes'),
+    sumMetric(previousMetrics, 'comments'),
+    sumMetric(previousMetrics.filter(m => m.platform !== 'tiktok'), 'shares'),
+    sumKnown(previousVideos.map(video => Number(video.shareCount)).filter(Number.isFinite)),
+  ])
+  const previousEngagementRate = previousViews > 0 && previousEngagement != null ? (previousEngagement / previousViews * 100) : null
 
-  const igFollowers = latestOf(data.instagramFollowers)?.followerCount || 0
-  const ttFollowers = latestOf(data.tiktokStats)?.followerCount || 0
-  const ytSubscribers = latestOf(data.youtubeSubscribers)?.subscriberCount || 0
-  const totalFollowers = igFollowers + ttFollowers + ytSubscribers
-  const previousFollowers = (latestOf(filterByPeriodOffset(data.instagramFollowers, periodDays, 1))?.followerCount || 0)
-    + (latestOf(filterByPeriodOffset(data.tiktokStats, periodDays, 1))?.followerCount || 0)
-    + (latestOf(filterByPeriodOffset(data.youtubeSubscribers, periodDays, 1))?.subscriberCount || 0)
+  const igFollowers = latestOf(data.instagramFollowers)?.followerCount
+  const ttFollowers = latestOf(data.tiktokStats)?.followerCount
+  const ytSubscribers = latestOf(data.youtubeSubscribers)?.subscriberCount
+  const totalFollowers = sumKnown([igFollowers, ttFollowers, ytSubscribers])
+  const previousFollowers = sumKnown([
+    latestOf(filterByPeriodOffset(data.instagramFollowers, periodDays, 1))?.followerCount,
+    latestOf(filterByPeriodOffset(data.tiktokStats, periodDays, 1))?.followerCount,
+    latestOf(filterByPeriodOffset(data.youtubeSubscribers, periodDays, 1))?.subscriberCount,
+  ])
+  const scopeLabel = activeNet ? PLAT_LABELS[activeNet] : 'todas as redes'
+  const audienceLabel = activeNet === 'youtube' ? 'Inscritos' : activeNet ? 'Seguidores' : 'Seguidores e inscritos'
+  const audienceHelp = activeNet
+    ? `Total atual registrado pelo ${scopeLabel}.`
+    : 'Soma dos totais atuais registrados nas redes com histórico; não representa pessoas únicas.'
 
   const trend = buildTrend(summaryMetrics)
   const platformCounts = buildPlatformCounts(metrics, videos)
   const topPlatform = [...platformCounts].sort(([, a], [, b]) => b - a)[0]
-  const platformEngagement = NETWORK_ORDER.map(platform => {
+  const platformEngagement = scopeNetworks.map(platform => {
     return {
       platform,
       likes: mergedPlatformTotal(platform, 'likes'),
@@ -126,32 +148,40 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, onSelectPerio
           <div className="an-summary-icon" style={{ background: '#3b8ff0' }} aria-hidden="true">👁</div>
           <div className="an-summary-val">{fmtNum(totalViews)}</div>
           <div className="an-summary-label">Visualizações</div>
-          <p>Quantas vezes suas publicações foram vistas.</p>
+          <p>Quantidade de vezes que o conteúdo foi visto. A mesma pessoa pode gerar mais de uma visualização.</p>
           {comparisonLabel(totalViews, previousViews, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalViews, previousViews, comparePeriod)}</span>}
         </div>
         <div className="an-summary-card">
           <div className="an-summary-icon" style={{ background: '#e94f8a' }} aria-hidden="true">♥</div>
           <div className="an-summary-val">{fmtNum(totalEngagement)}</div>
           <div className="an-summary-label">Interações</div>
-          <p>Curtidas, comentários e compartilhamentos.</p>
+          <p>Soma das reações confirmadas: curtidas, comentários e compartilhamentos.</p>
           {comparisonLabel(totalEngagement, previousEngagement, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalEngagement, previousEngagement, comparePeriod)}</span>}
         </div>
         <div className="an-summary-card">
           <div className="an-summary-icon" style={{ background: 'var(--accent)' }} aria-hidden="true">👥</div>
           <div className="an-summary-val">{fmtNum(totalFollowers)}</div>
-          <div className="an-summary-label">Seguidores e inscritos</div>
-          <p>Total atual somado entre as redes com histórico.</p>
+          <div className="an-summary-label">{audienceLabel}</div>
+          <p>{audienceHelp}</p>
           {comparisonLabel(totalFollowers, previousFollowers, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalFollowers, previousFollowers, comparePeriod)}</span>}
         </div>
         <div className="an-summary-card">
           <div className="an-summary-icon" style={{ background: '#4ade80' }} aria-hidden="true">📈</div>
-          <div className="an-summary-val">{engagementRate.toFixed(1)}%</div>
+          <div className="an-summary-val">{engagementRate == null ? '—' : `${engagementRate.toFixed(1)}%`}</div>
           <div className="an-summary-label">Taxa de interação</div>
-          <p>Interações em relação às visualizações.</p>
+          <p>Interações divididas pelas visualizações confirmadas no período.</p>
           {comparisonLabel(engagementRate, previousEngagementRate, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(engagementRate, previousEngagementRate, comparePeriod)}</span>}
         </div>
       </div>
-      <p className="analytics-summary-note"><strong>Como ler:</strong> uma taxa maior indica que, além de assistir, a audiência está reagindo ao conteúdo. Seguidores e inscritos são somados por rede e não representam pessoas únicas.</p>
+      <section className="analytics-summary-explanation" aria-label="Explicação dos indicadores">
+        <div className="analytics-summary-explanation-heading"><strong>Como interpretar este resumo</strong><span>Período: últimos {periodDays} dias · Escopo: {scopeLabel}</span></div>
+        <div className="analytics-summary-explanation-grid">
+          <div><strong>Visualizações</strong><p>Reproduções do conteúdo. Não são necessariamente pessoas diferentes.</p></div>
+          <div><strong>Interações</strong><p>Reações que mostram participação: curtidas, comentários e compartilhamentos.</p></div>
+          <div><strong>Taxa de interação</strong><p>Mostra a proporção de interações em relação às visualizações. Uma taxa maior indica maior reação proporcional ao conteúdo visto.</p></div>
+          <div><strong>{audienceLabel}</strong><p>{audienceHelp}</p></div>
+        </div>
+      </section>
       {topPlatform && <div className="analytics-report-insight">
         <span className="analytics-report-insight-mark" aria-hidden="true">✦</span>
         <p><strong>Leitura rápida:</strong> {PLAT_LABELS[topPlatform[0]] || topPlatform[0]} concentrou mais publicações no período, com {topPlatform[1]} {topPlatform[1] === 1 ? 'conteúdo publicado' : 'conteúdos publicados'}.</p>

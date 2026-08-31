@@ -400,7 +400,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         <legend>Formato visual opcional</legend>
         <div className="ai-visual-format-options">
           <label className={visualFormat === 'single' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} /><span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span></label>
-          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel de fotos</strong><small>Uma sequência visual coerente para Instagram ou TikTok.</small></span></label>
+          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel de fotos</strong><small>Gera uma sequência de 3 a 8 fotos para Instagram ou TikTok.</small></span></label>
         </div>
         {visualFormat === 'carousel' && <label className="ai-carousel-count">Quantidade de slides<select value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>{[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}</select></label>}
         <p>O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>

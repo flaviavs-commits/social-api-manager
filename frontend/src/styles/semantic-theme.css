@@ -1914,3 +1914,155 @@ html[data-theme='light'] .profile-billing-note {
   background: rgb(var(--accent-rgb) / .08);
   border-color: rgb(var(--accent-rgb) / .3);
 }
+
+/* Keep both visual-format cards readable in the light theme. */
+html[data-theme='light'] .app-shell-modern .ai-visual-format-options label {
+  color: var(--text-secondary);
+  background: var(--surface) !important;
+  border-color: var(--border-hover);
+}
+
+html[data-theme='light'] .app-shell-modern .ai-visual-format-options label:hover,
+html[data-theme='light'] .app-shell-modern .ai-visual-format-options label.is-selected {
+  color: var(--text);
+  background: rgb(var(--accent-rgb) / .1) !important;
+  border-color: rgb(var(--accent-rgb) / .62);
+}
+
+html[data-theme='light'] .app-shell-modern .ai-visual-format-options label strong {
+  color: inherit;
+}
+
+html[data-theme='light'] .app-shell-modern .ai-visual-format-options label small {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern .ai-visual-format-picker > p {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice {
+  border-color: rgb(var(--accent-rgb) / .28);
+  background: rgb(var(--accent-rgb) / .06);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice legend {
+  color: var(--text-secondary);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice label {
+  color: var(--text-secondary);
+  background: var(--surface);
+  border-color: var(--border-hover);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice label:has(input:checked) {
+  color: var(--text);
+  background: rgb(var(--accent-rgb) / .1);
+  border-color: rgb(var(--accent-rgb) / .62);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice label small {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-discount-choice label strong {
+  color: var(--accent-strong);
+}
+
+html[data-theme='light'] .app-shell-modern .profile-plan-meuecoo {
+  color: var(--accent-strong) !important;
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report {
+  border-color: rgb(var(--info-rgb) / .28);
+  background: linear-gradient(145deg, rgb(var(--info-rgb) / .08), var(--surface) 52%, var(--surface-2));
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-heading h3,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-facts article > span,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-section-heading strong,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-actions > strong {
+  color: var(--text);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-heading p:last-child,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-facts article > p,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-section-heading span,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-note {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-scope {
+  border-color: rgb(var(--info-rgb) / .3);
+  color: var(--info);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-summary p,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-reading p,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-actions p {
+  color: var(--text-secondary);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-facts article,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-table-wrap,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-reading {
+  border-color: var(--border);
+  background: rgb(var(--surface-2-rgb) / .72);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-table-scroll th,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-note b {
+  color: var(--text-subtle);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-table-scroll td {
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-table-scroll td:first-child,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-reading b {
+  color: var(--text);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-best-content {
+  border-color: var(--border);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-best-content > strong {
+  color: var(--text);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-best-content > small,
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-best-content > em {
+  color: var(--text-muted);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-best-content > div {
+  color: var(--text-secondary);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-performance-report-actions {
+  border-color: rgb(var(--accent-rgb) / .22);
+  background: rgb(var(--accent-rgb) / .055);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-network-selector-top .analytics-sidebar {
+  border-color: rgb(var(--info-rgb) / .22);
+  background: linear-gradient(145deg, rgb(var(--info-rgb) / .06), var(--surface) 52%, var(--surface-2));
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-network-selector-top .analytics-net-item {
+  border-color: var(--border);
+  background: rgb(var(--surface-2-rgb) / .52);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-network-selector-top .analytics-net-item:hover {
+  background: var(--surface-2);
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-network-selector-top .analytics-net-item.active {
+  border-color: rgb(var(--accent-rgb) / .48);
+  background: rgb(var(--accent-rgb) / .12);
+}

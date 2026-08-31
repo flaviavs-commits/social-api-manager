@@ -1,5 +1,5 @@
 import { Bar, Line } from 'react-chartjs-2'
-import { baseChartOptions, fmtNum, formatDiaBR, labelForMetric } from '../../lib/analytics-format.js'
+import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, labelForMetric } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function numberValue(value) {
@@ -300,10 +300,10 @@ function ReportCoverage({ accounts }) {
   const delays = accounts.flatMap(account => [account.totals?.dataDelay, account.timeSeries?.dataDelay, account.dataDelay]).filter(Boolean)
   const names = accounts.map(account => account.accountName).filter(Boolean)
   return <div className="analytics-report-coverage">
-    <span><b>Fonte</b> API oficial</span>
+    <span><b>Fonte</b> Integração conectada</span>
     {names.length > 0 && <span><b>Perfil</b> {names.join(' · ')}</span>}
-    {ranges[0] && <span><b>Janela</b> {ranges[0].since || '—'} até {ranges[0].until || '—'}</span>}
-    {delays.length > 0 && <span><b>Atualização</b> {[...new Set(delays)].join(' · ')}</span>}
+    {ranges[0] && <span><b>Janela</b> {formatDataBR(ranges[0].since)} até {formatDataBR(ranges[0].until)}</span>}
+    {delays.length > 0 && <span><b>Atualização</b> {[...new Set(delays)].map(formatDataDelay).join(' · ')}</span>}
   </div>
 }
 
@@ -346,12 +346,14 @@ export function AnalyticsAccountInsights({ net, data, accountId = null }) {
         <div className="analytics-insights-heading">
       <div>
         <div className="analytics-section-title">Relatório completo do perfil</div>
-        <div className="analytics-insights-subtitle">{reportName || `${accounts.length} conta(s)`} · métricas específicas fornecidas pela API oficial.</div>
+        <div className="analytics-insights-subtitle">{reportName || `${accounts.length} conta(s)`} · métricas específicas retornadas pela integração conectada.</div>
       </div>
       <span className="analytics-insights-badge">{accountId ? 'Perfil selecionado' : 'Todas as contas'}</span>
     </div>
 
     <ReportCoverage accounts={accounts}/>
+
+    {net === 'tiktok' && <p className="analytics-tiktok-limitations-note">O TikTok disponibiliza apenas contadores acumulados desde o início da conta; os valores em série temporal vêm dos registros diários do Zernio. Tempo de exibição, fontes de impressões, visualizações do perfil, alcance e impressões no nível da conta não estão disponíveis em nenhuma API pública do TikTok.</p>}
 
     {metrics.length
       ? <div className="analytics-insight-metrics">

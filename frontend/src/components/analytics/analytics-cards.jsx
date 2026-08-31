@@ -1,6 +1,9 @@
 import { filterByPeriod, filterTikTokVideosByPeriod, latestOf, fmtNum, fmtWatchTime } from '../../lib/analytics-format.js'
 
-function sum(arr, fn) { return arr.reduce((acc, item) => acc + (fn(item) || 0), 0) }
+function sum(arr, fn) {
+  const values = arr.map(fn).filter(value => value != null && Number.isFinite(Number(value)))
+  return values.length ? values.reduce((acc, value) => acc + Number(value), 0) : null
+}
 
 function buildCards(net, tab, { metrics, instagramFollowers, tiktokStats, youtubeSubscribers, tiktokVideos }) {
   if (net === 'instagram' && tab === 'posts') {
