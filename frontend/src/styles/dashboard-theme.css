@@ -25,3 +25,23 @@
 @media(max-width:980px){.dashboard-insights-grid{grid-template-columns:1fr}.dashboard-ai-insights-panel{order:2}}
 @media(max-width:640px){.dashboard-hero-tools{justify-items:stretch}.dashboard-live-status{min-width:0}.dashboard-actions{display:grid;grid-template-columns:1fr 1fr}.dashboard-actions .action-button{grid-column:1 / -1;grid-row:1}.dashboard-actions .secondary-button{grid-row:2}.dashboard-performance-panel,.dashboard-ai-insights-panel,.dashboard-top-posts-panel{padding:15px!important}.dashboard-performance-panel .panel-heading,.dashboard-ai-insights-panel .panel-heading,.dashboard-top-posts-panel .panel-heading{display:flex;flex-direction:column;gap:9px}.dashboard-performance-panel .panel-heading .link-button,.dashboard-top-posts-panel .panel-heading .link-button{align-self:flex-start}.dashboard-performance-actions{width:100%;justify-items:stretch}.dashboard-platform-switch{justify-content:flex-start;overflow-x:auto}.dashboard-period-switch{justify-content:flex-start;overflow-x:auto}.dashboard-kpi-row{gap:6px}.dashboard-kpi-row>div{padding:9px}.dashboard-kpi-row span{font-size:9px}.dashboard-kpi-row strong{font-size:17px}.dashboard-trend-chart{min-height:132px;padding:10px 7px 3px}.dashboard-chart-bars{min-height:103px}.dashboard-chart-bar{width:7px}.dashboard-top-post{grid-template-columns:22px 30px minmax(0,1fr);gap:8px;padding:9px}.dashboard-top-post-metric{grid-column:3;justify-items:start;margin-top:-2px}.dashboard-top-post-metric strong{font-size:12px}.dashboard-failure-title-row{align-items:flex-start;flex-direction:column;gap:5px}.dashboard-accounts-panel .panel-heading{align-items:flex-start;flex-direction:column;gap:10px}.dashboard-connect-button{width:100%}}
 @media(min-width:1024px){.dashboard-page .dashboard-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* A dashboard é composta por blocos independentes; mantenha um respiro
+ * consistente entre cada seção e entre os cards internos. */
+.app-shell-modern .page-view.dashboard-page {
+  gap: clamp(16px, 1.8vw, 24px) !important;
+}
+
+.app-shell-modern .page-view.dashboard-page :is(
+  .dashboard-metrics,
+  .dashboard-platform-list,
+  .dashboard-insights-grid,
+  .dashboard-failures-list,
+  .dashboard-top-posts-list
+) {
+  gap: 12px !important;
+}
+
+.app-shell-modern .page-view.dashboard-page .dashboard-grid {
+  gap: 16px !important;
+}
