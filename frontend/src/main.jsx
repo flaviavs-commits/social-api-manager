@@ -38,6 +38,7 @@ import './styles/semantic-theme.css'
 import './styles/smartlinks.css'
 import './styles/tutorial.css'
 import './styles/responsive.css'
+import './styles/mobile-first.css'
 
 applyTheme(getStoredTheme())
 
