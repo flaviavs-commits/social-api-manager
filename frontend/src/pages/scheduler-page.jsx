@@ -264,7 +264,7 @@ function composeAiCaption(suggestion) {
   return caption
 }
 
-function MediaAiSuggestions({ files, selected, contexto, previews, videoDescription, onVideoDescriptionChange, onApply }) {
+function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   const [busy, setBusy] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -274,17 +274,12 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
     : selected.includes('tiktok')
       ? TIKTOK_PHOTO_MAX_ITEMS
       : 1
-  const hasVideo = files.some(file => file.type.startsWith('video/'))
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
     const requestedPlatforms = [...new Set(selected.filter(platform => platforms.includes(platform)))]
     if (!requestedPlatforms.length || requestedPlatforms.length > 4) {
       setAnalysisError('Selecione entre 1 e 4 redes sociais antes de gerar a descrição.')
-      return
-    }
-    if (hasVideo && !videoDescription.trim()) {
-      setAnalysisError('Descreva em uma frase do que se trata o vídeo antes de gerar a descrição.')
       return
     }
     setBusy(true)
@@ -298,12 +293,8 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
       const targets = files.slice(0, analysisLimit)
       const payloads = await Promise.all(targets.map(buildMediaAnalysisPayload))
       const mediaItems = payloads.flat().slice(0, 35)
-      const targetHasVideo = targets.some(file => file.type.startsWith('video/'))
+      const hasVideo = targets.some(file => file.type.startsWith('video/'))
       const isCarousel = !hasVideo && targets.length > 1
-      const analysisContext = [
-        contexto,
-        targetHasVideo && videoDescription.trim() ? `Contexto informado pelo usuário sobre o vídeo: ${videoDescription.trim()}` : '',
-      ].filter(Boolean).join('\n\n')
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
         // A análise de vídeo extrai até cinco frames e passa por um modelo de
@@ -312,13 +303,13 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
         timeoutMs: 60_000,
         body: JSON.stringify({
           mediaItems,
-          mediaKind: targetHasVideo ? 'video' : 'image',
+          mediaKind: hasVideo ? 'video' : 'image',
           mediaCount: targets.length,
-          videoFrameCount: targetHasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
+          videoFrameCount: hasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
           carousel: isCarousel,
           plataformas: requestedPlatforms,
-          contexto: analysisContext,
-          melhorar: Boolean(analysisContext.trim()),
+          contexto,
+          melhorar: Boolean(contexto.trim()),
           modelo: MEDIA_AI_MODEL,
         }),
       })
@@ -334,7 +325,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
           response.descricao_midia,
           ...(response.analise_carrossel?.recomendacoes || []),
         ].filter(Boolean))
-        const mediaLabel = targetHasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
+        const mediaLabel = hasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
         setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaLabel} para ${suggestions.length} rede(s).`)
       }
     } catch (caught) {
@@ -352,7 +343,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
     setBusy(false)
   }
 
-  const ready = files.length > 0 && selected.length > 0 && (!hasVideo || videoDescription.trim())
+  const ready = files.length > 0 && selected.length > 0
 
   return <section className="media-ai-generator" aria-label="Gerar descrição do post com inteligência artificial" aria-busy={busy}>
     <div className="media-ai-generator-icon" aria-hidden="true">✦</div>
@@ -366,13 +357,11 @@ function MediaAiSuggestions({ files, selected, contexto, previews, videoDescript
           <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'IA visual'}
         </span>
       </div>
-      <p className="media-ai-generator-copy">A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.</p>
-      {hasVideo && <label className="media-ai-video-context"><span>Descreva o vídeo em uma frase <small>Obrigatório para uma descrição mais precisa</small></span><textarea value={videoDescription} onChange={event => onVideoDescriptionChange(event.target.value)} maxLength={300} placeholder="Ex.: Um tutorial mostrando como preparar café coado em casa." aria-label="Descrição do conteúdo do vídeo" /></label>}
+      <p className="media-ai-generator-copy">{contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
       <div className="media-ai-generator-footer">
         <div className="media-ai-generator-hints" aria-live="polite">
           {!files.length && <span><b>1</b> Selecione uma imagem ou vídeo</span>}
           {!selected.length && <span><b>2</b> Selecione ao menos uma rede social</span>}
-          {hasVideo && !videoDescription.trim() && <span><b>2</b> Descreva em uma frase do que trata o vídeo</span>}
           {files.length > analysisLimit && <span>As primeiras {analysisLimit} mídias serão analisadas.</span>}
           {ready && !analysisError && !successMessage && <span className="media-ai-generator-ready">Pronto para analisar sua mídia.</span>}
           {analysisError && <span className="media-ai-generator-error" role="alert">{analysisError}</span>}
@@ -753,7 +742,6 @@ export function SchedulerPage() {
   const [selectedAccountIds, setSelectedAccountIds] = useState([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
   const [files, setFiles] = useState([])
-  const [videoDescription, setVideoDescription] = useState('')
   const [filesByPlatform, setFilesByPlatform] = useState({})
   const [mediaPreviews, setMediaPreviews] = useState([])
   const [mediaMetaByKey, setMediaMetaByKey] = useState({})
@@ -796,7 +784,7 @@ export function SchedulerPage() {
   }), [])
 
   function clearComposer() {
-    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setVideoDescription(''); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
   }
 
   function reviewError() {
@@ -879,7 +867,6 @@ export function SchedulerPage() {
         setPublishNow(Boolean(savedDraft.publishNow))
         setApprovalWorkspaceId(TEAM_APPROVAL_UI_ENABLED && savedDraft.approvalWorkspaceId ? String(savedDraft.approvalWorkspaceId) : '')
         setSelected(savedSelected)
-        setVideoDescription(savedDraft.videoDescription || '')
         setYoutubeTitle(savedDraft.youtubeTitle || '')
         setYoutubeVisibility(savedDraft.youtubeVisibility || 'public')
         setYoutubeMadeForKids(savedDraft.youtubeMadeForKids || '')
@@ -907,11 +894,11 @@ export function SchedulerPage() {
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, videoDescription, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)
-  }, [draftReady, textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, videoDescription, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, files.length])
+  }, [draftReady, textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, tiktokAspect, tiktokPrivacyLevel, files.length])
 
   useEffect(() => {
     if (!draftReady) return undefined
@@ -1352,7 +1339,7 @@ export function SchedulerPage() {
           </section>
         </article>
       })}</div></div>}
-      <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} videoDescription={videoDescription} onVideoDescriptionChange={setVideoDescription} onApply={applyMediaSuggestion}/>
+      <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
     </SchedSection>
 
     <SchedSection number={3} title="Agendamento">
