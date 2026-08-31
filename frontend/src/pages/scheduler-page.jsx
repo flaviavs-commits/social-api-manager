@@ -274,12 +274,18 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     : selected.includes('tiktok')
       ? TIKTOK_PHOTO_MAX_ITEMS
       : 1
+  const hasVideo = files.some(file => file.type.startsWith('video/'))
+  const hasVideoContext = Boolean(contexto.trim())
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
     const requestedPlatforms = [...new Set(selected.filter(platform => platforms.includes(platform)))]
     if (!requestedPlatforms.length || requestedPlatforms.length > 4) {
       setAnalysisError('Selecione entre 1 e 4 redes sociais antes de gerar a descrição.')
+      return
+    }
+    if (hasVideo && !hasVideoContext) {
+      setAnalysisError('Descreva no conteúdo da publicação o que acontece no vídeo antes de gerar a descrição.')
       return
     }
     setBusy(true)
@@ -293,8 +299,8 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       const targets = files.slice(0, analysisLimit)
       const payloads = await Promise.all(targets.map(buildMediaAnalysisPayload))
       const mediaItems = payloads.flat().slice(0, 35)
-      const hasVideo = targets.some(file => file.type.startsWith('video/'))
-      const isCarousel = !hasVideo && targets.length > 1
+      const targetHasVideo = targets.some(file => file.type.startsWith('video/'))
+      const isCarousel = !targetHasVideo && targets.length > 1
       const response = await apiFetch('/api/ai/analyze-media', {
         method: 'POST',
         // A análise de vídeo extrai até cinco frames e passa por um modelo de
@@ -303,9 +309,9 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
         timeoutMs: 60_000,
         body: JSON.stringify({
           mediaItems,
-          mediaKind: hasVideo ? 'video' : 'image',
+          mediaKind: targetHasVideo ? 'video' : 'image',
           mediaCount: targets.length,
-          videoFrameCount: hasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
+          videoFrameCount: targetHasVideo ? mediaItems.filter(item => item.mediaKind === 'video').length : 0,
           carousel: isCarousel,
           plataformas: requestedPlatforms,
           contexto,
@@ -325,7 +331,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           response.descricao_midia,
           ...(response.analise_carrossel?.recomendacoes || []),
         ].filter(Boolean))
-        const mediaLabel = hasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
+        const mediaLabel = targetHasVideo ? (mediaItems.length > 1 ? `${mediaItems.length} cenas do vídeo` : 'o vídeo') : `${targets.length} ${targets.length === 1 ? 'mídia' : 'fotos'}`
         setSuccessMessage(`${contexto.trim() ? 'Descrição melhorada' : 'Descrição gerada'} considerando ${mediaLabel} para ${suggestions.length} rede(s).`)
       }
     } catch (caught) {
@@ -343,25 +349,26 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     setBusy(false)
   }
 
-  const ready = files.length > 0 && selected.length > 0
+  const ready = files.length > 0 && selected.length > 0 && (!hasVideo || hasVideoContext)
 
   return <section className="media-ai-generator" aria-label="Gerar descrição do post com inteligência artificial" aria-busy={busy}>
     <div className="media-ai-generator-icon" aria-hidden="true">✦</div>
     <div className="media-ai-generator-content">
       <div className="media-ai-generator-heading">
         <div>
-          <p className="eyebrow">ASSISTENTE DE CONTEÚDO</p>
+          <p className="eyebrow">MEUS POSTS</p>
           <strong>Gere uma descrição para sua mídia</strong>
         </div>
         <span className={`media-ai-generator-state${busy ? ' is-loading' : ''}${successMessage ? ' is-success' : ''}`}>
           <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'IA visual'}
         </span>
       </div>
-      <p className="media-ai-generator-copy">{contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
+      <p className="media-ai-generator-copy">{hasVideo ? (hasVideoContext ? 'A IA analisa o que você descreveu na publicação e o vídeo para melhorar a descrição.' : 'Para vídeos, descreva no conteúdo da publicação o que acontece. A IA usará esse texto e o vídeo para melhorar a descrição.') : contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
       <div className="media-ai-generator-footer">
         <div className="media-ai-generator-hints" aria-live="polite">
           {!files.length && <span><b>1</b> Selecione uma imagem ou vídeo</span>}
           {!selected.length && <span><b>2</b> Selecione ao menos uma rede social</span>}
+          {hasVideo && !hasVideoContext && <span><b>2</b> Descreva no conteúdo da publicação o que acontece no vídeo</span>}
           {files.length > analysisLimit && <span>As primeiras {analysisLimit} mídias serão analisadas.</span>}
           {ready && !analysisError && !successMessage && <span className="media-ai-generator-ready">Pronto para analisar sua mídia.</span>}
           {analysisError && <span className="media-ai-generator-error" role="alert">{analysisError}</span>}
