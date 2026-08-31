@@ -3,7 +3,9 @@ import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, l
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function numberValue(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  const normalized = value && typeof value === 'object' ? value.total ?? value.value : value
+  const number = Number(normalized)
+  return Number.isFinite(number) ? number : null
 }
 
 function collectMetrics(accounts) {
@@ -30,9 +32,10 @@ function collectSeries(accounts) {
     for (const map of maps) {
       for (const [name, metric] of Object.entries(map || {})) {
         for (const item of metric?.values || []) {
-          if (!item.date || numberValue(item.value) === null) continue
+          const value = numberValue(item.value)
+          if (!item.date || value === null) continue
           const day = byDate.get(item.date) || {}
-          day[name] = (day[name] || 0) + item.value
+          day[name] = (day[name] || 0) + value
           byDate.set(item.date, day)
         }
       }
