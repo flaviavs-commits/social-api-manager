@@ -263,3 +263,40 @@
 .analytics-performance-report{display:grid;gap:14px;margin:0 0 20px;padding:20px;border:1px solid rgba(91,141,239,.28);border-radius:14px;background:linear-gradient(145deg,rgba(91,141,239,.09),rgba(24,26,32,.96) 46%,rgba(28,30,37,.9));box-shadow:0 12px 28px rgba(0,0,0,.1)}.analytics-performance-report-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.analytics-performance-report-heading h3{margin:0;color:#f4f1e9;font-size:19px;letter-spacing:-.02em}.analytics-performance-report-heading p:last-child{margin:5px 0 0;color:#9096a8;font-size:12px;line-height:1.45}.analytics-performance-report-scope{padding:7px 9px;border:1px solid rgba(91,141,239,.28);border-radius:999px;color:#9fc2ff;font-size:10px;white-space:nowrap}.analytics-performance-report-summary{display:flex;align-items:flex-start;gap:10px;padding:13px 14px;border:1px solid rgba(74,222,128,.2);border-radius:10px;background:rgba(74,222,128,.06)}.analytics-performance-report-mark{display:flex;width:22px;height:22px;align-items:center;justify-content:center;flex:0 0 auto;border-radius:50%;background:rgba(74,222,128,.14);color:#4ade80;font-size:12px;font-weight:700}.analytics-performance-report-summary p{margin:2px 0 0;color:#c9d2ce;font-size:12px;line-height:1.5}.analytics-performance-report-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.analytics-performance-report-facts article{display:grid;gap:5px;min-width:0;padding:12px;border:1px solid #30343e;border-radius:10px;background:rgba(22,24,30,.72)}.analytics-performance-report-facts article>strong{color:#f0c877;font-family:var(--mono,monospace);font-size:20px;line-height:1.1}.analytics-performance-report-facts article>span{color:#eef0f6;font-size:10px;font-weight:600}.analytics-performance-report-facts article>p{margin:0;color:#707687;font-size:9px;line-height:1.4}.analytics-performance-report-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(250px,.75fr);gap:12px}.analytics-performance-report-table-wrap,.analytics-performance-report-reading{min-width:0;padding:13px;border:1px solid #30343e;border-radius:10px;background:rgba(22,24,30,.58)}.analytics-performance-report-section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}.analytics-performance-report-section-heading>div{display:grid;gap:3px}.analytics-performance-report-section-heading strong{color:#eef0f6;font-size:12px}.analytics-performance-report-section-heading span{color:#707687;font-size:10px}.analytics-performance-report-section-heading>b{color:#f0c877;font-family:var(--mono,monospace);font-size:11px;white-space:nowrap}.analytics-performance-report-table-scroll{overflow-x:auto}.analytics-performance-report-table-scroll table{width:100%;border-collapse:collapse;min-width:480px;font-size:11px}.analytics-performance-report-table-scroll th{padding:7px 8px;border-bottom:1px solid #353943;color:#707687;font-size:9px;font-weight:700;letter-spacing:.06em;text-align:right;text-transform:uppercase;white-space:nowrap}.analytics-performance-report-table-scroll th:first-child,.analytics-performance-report-table-scroll td:first-child{text-align:left}.analytics-performance-report-table-scroll td{padding:9px 8px;border-bottom:1px solid rgba(53,57,67,.65);color:#b4bacc;text-align:right;white-space:nowrap}.analytics-performance-report-table-scroll td:first-child{color:#eef0f6;font-weight:600}.analytics-performance-report-table-scroll tbody tr:last-child td{border-bottom:0}.analytics-performance-report-reading{display:grid;align-content:start;gap:8px}.analytics-performance-report-reading>strong,.analytics-performance-report-actions>strong{color:#eef0f6;font-size:12px}.analytics-performance-report-reading p{margin:0;color:#b4bacc;font-size:11px;line-height:1.5}.analytics-performance-report-reading p+p{padding-top:8px;border-top:1px solid #30343e}.analytics-performance-report-reading b{color:#f0c877}.analytics-performance-report-actions{display:grid;gap:7px;padding:14px;border:1px solid rgba(209,153,62,.22);border-radius:10px;background:rgba(209,153,62,.055)}.analytics-performance-report-actions p{display:flex;align-items:flex-start;gap:8px;margin:0;color:#b4bacc;font-size:11px;line-height:1.45}.analytics-performance-report-actions p b{display:flex;width:18px;height:18px;align-items:center;justify-content:center;flex:0 0 auto;border-radius:50%;background:rgba(209,153,62,.16);color:#f0c877;font-size:9px}.analytics-performance-report-note{margin:0;color:#707687;font-size:10px;line-height:1.45}.analytics-performance-report-note b{color:#9096a8}
 @media(max-width:1000px){.analytics-performance-report-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-performance-report-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.analytics-performance-report{padding:14px;margin-bottom:14px}.analytics-performance-report-heading{align-items:flex-start;flex-direction:column;gap:10px}.analytics-performance-report-heading h3{font-size:16px}.analytics-performance-report-heading p:last-child{font-size:11px}.analytics-performance-report-scope{align-self:flex-start}.analytics-performance-report-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.analytics-performance-report-facts article{padding:10px}.analytics-performance-report-facts article>strong{font-size:17px}.analytics-performance-report-grid{gap:9px}.analytics-performance-report-table-wrap,.analytics-performance-report-reading{padding:11px}.analytics-performance-report-section-heading{align-items:flex-start;flex-direction:column;gap:5px}.analytics-performance-report-table-scroll{margin:0 -4px}.analytics-performance-report-table-scroll table{font-size:10px}}
+
+/* Keep the password field and the 2FA action in independent grid rows. */
+.security-intro > div:last-child {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.security-intro > div:last-child h3,
+.security-intro > div:last-child p {
+  margin-bottom: 0;
+}
+
+.security-intro > div:last-child label {
+  display: grid;
+  gap: 6px;
+  width: min(100%, 380px);
+}
+
+.security-intro > div:last-child input {
+  width: 100%;
+  min-width: 0;
+}
+
+.security-intro > div:last-child .action-button {
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  .security-intro > div:last-child label {
+    width: 100%;
+  }
+
+  .security-intro > div:last-child .action-button {
+    width: 100%;
+  }
+}
