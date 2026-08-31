@@ -209,12 +209,11 @@
   }
 }
 
-/* Regra global dos módulos: os blocos visuais devem encostar uns nos outros;
- * o fundo da aplicação não deve aparecer como uma faixa branca entre cards.
- * Os gaps internos de textos, botões e campos continuam definidos pelos
- * próprios componentes, fora destes contêineres de composição. */
+/* Regra global dos módulos: containers de composição mantêm um espaçamento
+ * mínimo explícito. Os gaps internos de textos, botões e campos continuam
+ * definidos pelos próprios componentes. */
 .app-shell-modern .page-view {
-  gap: 0 !important;
+  gap: clamp(16px, 1.8vw, 24px) !important;
 }
 
 .app-shell-modern .page-view > * {
@@ -229,17 +228,15 @@
 .app-shell-modern .page-view :is(
   [class*="-grid"],
   [class*="-layout"],
-  [class*="-list"],
   .an-summary-row,
   .analytics-layout,
   .analytics-all-network-panels,
-  .dashboard-platform-list,
   .drafts-v2-workspace,
   .inbox-workspace,
   .queues-layout,
   .workspace-layout
 ) {
-  gap: 0 !important;
+  gap: clamp(12px, 1.5vw, 20px) !important;
 }
 
 /* A media thumbnail should not introduce a second, bright frame inside its
@@ -394,4 +391,14 @@ html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card
   .app-shell-modern .page-view.analytics-page .analytics-insight-chart {
     height: 190px;
   }
+}
+
+/*
+ * Workspace exception: these are the two layout boundaries that must never
+ * collapse. Keep this rule after the legacy zero-gap compatibility block so
+ * its !important declaration remains authoritative at every breakpoint.
+ */
+.app-shell-modern .workspace-page .workspace-layout,
+.app-shell-modern .workspace-page .workspace-content-grid {
+  gap: clamp(16px, 1.8vw, 24px) !important;
 }
