@@ -742,6 +742,38 @@ html[data-theme='light'] .app-shell-modern .platform-composer-card .platform-tex
   background: var(--surface) !important;
 }
 
+/* A borda do campo inicial da segurança precisa continuar legível mesmo sem
+ * foco; o estado focado permanece controlado pelas regras globais do tema. */
+html[data-theme='light'] .app-shell-modern .security-intro > div:last-child input {
+  border: 1px solid var(--border-hover) !important;
+}
+
+/* O resumo do plano é uma linha compacta, não um card de grid. Sem esta
+ * exceção, a regra compartilhada de cards usa height: 100% e cria um vazio
+ * enorme na coluna de consumo do perfil. */
+html[data-theme] .app-shell-modern .profile-usage-card {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 12px !important;
+}
+
+/* As colunas do perfil não precisam compartilhar a altura da seção mais longa;
+ * cada uma deve revelar todo o seu conteúdo, inclusive os planos disponíveis. */
+html[data-theme] .app-shell-modern .profile-columns > .profile-section {
+  align-self: start;
+}
+
+/* O espaçamento entre os painéis permanece; o canvas do grid recebe a cor da
+ * página para que a área do gap não seja branca. */
+html[data-theme] .app-shell-modern .page-view.analytics-page .analytics-layout,
+html[data-theme] .app-shell-modern .page-view.analytics-page .analytics-all-network-panels {
+  background: var(--app-bg) !important;
+}
+
+html[data-theme] .app-shell-modern .page-view.analytics-page .analytics-all-network-panels {
+  gap: 12px !important;
+}
+
 /* Outer report/list shells are layout boundaries, not cards. */
 html[data-theme] .app-shell-modern :is(
   .analytics-account-insights,
@@ -760,4 +792,18 @@ html[data-theme] .app-shell-modern button {
   min-height: var(--button-height);
   border-radius: 8px;
   padding-inline: var(--space-md);
+}
+
+/* O nome da conta conectada fica no cabeçalho claro da prévia de feed. A
+ * regra geral da simulação aplica texto claro aos <strong> da prévia inteira;
+ * este identificador precisa manter contraste próprio no tema claro. */
+html[data-theme='light'] .app-shell-modern .scheduler-page .social-preview-card .pv-header-text strong {
+  color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+/* Mantém o espaçamento entre os rascunhos, mas evita que ele revele uma
+ * superfície branca contínua atrás dos cards. */
+html[data-theme] .app-shell-modern .drafts-page-v2 .drafts-v2-card-list {
+  background: var(--app-bg) !important;
 }
