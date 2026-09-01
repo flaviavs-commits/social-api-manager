@@ -673,6 +673,17 @@ html[data-theme] .app-shell-modern :is(
   box-shadow: none;
 }
 
+/* Mantém o respiro interno do painel executivo uniforme: os dois cards
+ * superiores e as recomendações são blocos distintos, mas pertencem à mesma
+ * leitura visual. */
+html[data-theme] .app-shell-modern .analytics-executive-overview > .analytics-executive-grid {
+  gap: var(--space-md) !important;
+}
+
+html[data-theme] .app-shell-modern .analytics-executive-overview > .analytics-performance-report-actions {
+  margin-top: var(--space-md) !important;
+}
+
 /* O Chart.js precisa de uma área própria para título, eixos e legenda. Sem
  * isso, a altura herdada de módulos antigos faz a legenda invadir o próximo
  * bloco quando há poucos pontos na série. */
@@ -701,13 +712,13 @@ html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insigh
   }
 }
 
-/* Os dois resumos pertencem ao mesmo bloco visual. No desktop, não deve
- * aparecer uma faixa do fundo da página entre eles; no mobile, os cards
- * continuam separados verticalmente para manter a leitura confortável. */
+/* Os dois resumos pertencem ao mesmo bloco visual, mas precisam de respiro
+ * próprio para não parecerem um único card; a mesma distância é preservada
+ * quando eles passam a ocupar linhas separadas. */
 @media (min-width: 1025px) {
   html[data-theme] .app-shell-modern .an-summary-row {
-    column-gap: 0 !important;
-    row-gap: 0 !important;
+    column-gap: var(--space-md) !important;
+    row-gap: var(--space-md) !important;
   }
 }
 
@@ -717,12 +728,27 @@ html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insigh
   }
 }
 
+/* A primeira etapa do agendador é apenas o agrupador dos cards de rede. O
+ * fundo pertence aos cards, não ao fieldset inteiro, evitando a faixa branca
+ * contínua atrás deles no tema claro. */
+html[data-theme] .app-shell-modern .scheduler-page .sched-form > .sched-section:first-of-type {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Os editores de texto das demais redes devem acompanhar os campos do TikTok
+ * no tema claro, sem alterar os controles ou a aparência do tema escuro. */
+html[data-theme='light'] .app-shell-modern .platform-composer-card .platform-text-editor textarea {
+  background: var(--surface) !important;
+}
+
 /* Outer report/list shells are layout boundaries, not cards. */
 html[data-theme] .app-shell-modern :is(
   .analytics-account-insights,
   .analytics-profiles-section,
   .accounts-page > .accounts-panel,
   .accounts-page .accounts-overview-strip,
+  .drafts-page-v2 .drafts-v2-summary,
   .drafts-page-v2 .drafts-v2-list-panel
 ) {
   background: transparent !important;
