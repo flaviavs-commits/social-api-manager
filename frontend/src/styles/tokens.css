@@ -56,8 +56,22 @@
   --info-soft: rgb(var(--info-rgb) / 0.12);
   --overlay: rgb(0 0 0 / 0.64);
   --shadow-rgb: 0 0 0;
-  --shadow-sm: 0 8px 24px rgb(var(--shadow-rgb) / 0.12);
+  --sombra-suave: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-sm: var(--sombra-suave);
   --shadow-md: 0 18px 44px rgb(var(--shadow-rgb) / 0.18);
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --card-radius: 12px;
+  --card-padding: 24px;
+  --card-border: rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 4px 8px rgba(0, 0, 0, 0.06), 0 12px 24px rgba(0, 0, 0, 0.12);
+  --button-height: 40px;
 
   /* Compatibility aliases used by Tailwind and older modules. */
   --bg: var(--app-bg);

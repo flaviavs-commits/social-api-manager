@@ -175,6 +175,20 @@
   gap: 18px;
 }
 
+/* No Analytics, o container externo não deve formar uma faixa branca entre
+ * os cards individuais de cada perfil. */
+.app-shell-modern .analytics-profiles-section {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
 /* O Baú de Ideias usa cards independentes. O painel da lista não deve criar
  * uma faixa de fundo contínua entre eles. */
 .app-shell-modern .drafts-page-v2 .drafts-v2-list-panel {

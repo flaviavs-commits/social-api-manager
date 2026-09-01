@@ -41,6 +41,8 @@ import './styles/responsive.css'
 import './styles/mobile-first.css'
 import './styles/analytics-verification.css'
 import './styles/layout-spacing.css'
+import './styles/soft-shadow.css'
+import './styles/ui-system.css'
 
 applyTheme(getStoredTheme())
 

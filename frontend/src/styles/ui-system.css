@@ -1,0 +1,721 @@
+/*
+ * Shared visual system for the React UI.
+ * Layout and content remain owned by each component; this layer only
+ * normalizes surfaces, spacing, depth, typography and overflow.
+ */
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.app-shell-modern .app-main-content,
+.app-shell-modern .page-view {
+  min-width: 0;
+  background: var(--app-bg);
+}
+
+.app-shell-modern .page-view {
+  gap: var(--space-2xl) !important;
+}
+
+.app-shell-modern .page-view > * {
+  min-width: 0;
+  margin-block: 0 !important;
+}
+
+/* Containers stay transparent so the parent owns the page background. */
+.app-shell-modern .page-view > :is(
+  .analytics-account-insights,
+  .analytics-profiles-section,
+  .accounts-panel,
+  .accounts-overview-strip,
+  .drafts-v2-list-panel
+) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* One surface recipe for cards and bounded content blocks. */
+.app-shell-modern :is(
+  .panel,
+  .card,
+  .metric-grid > article,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-insight-chart,
+  .analytics-insight-metric,
+  .analytics-card,
+  .analytics-executive-kpi,
+  .analytics-executive-table-wrap,
+  .analytics-executive-highlight,
+  .analytics-demographic-detail,
+  .analytics-post-item,
+  .analytics-report-snapshot > div,
+  .accounts-overview-strip > div,
+  .account-platform-card,
+  .dashboard-metric-card,
+  .dashboard-kpi-row > div,
+  .dashboard-upcoming-item,
+  .dashboard-account-chip,
+  .token-summary-grid > div,
+  .token-row,
+  .activity-item,
+  .calendar-list-item,
+  .draft-card,
+  .drafts-v2-card,
+  .ai-analytics-highlight-card,
+  .ai-analytics-block,
+  .ai-niche-comparison-card,
+  .media-upload-card,
+  .platform-option,
+  .post-preview,
+  .social-preview-card,
+  .settings-card,
+  .security-intro,
+  .security-enabled,
+  .security-setup,
+  .benchmark-profile-card,
+  .benchmark-metric,
+  .benchmark-history,
+  .checkout-summary,
+  .checkout-pix-box,
+  .checkout-free-box,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-']),
+  [class*='-box']:not([class*='-box-']),
+  [class*='-tile']:not([class*='-tile-']),
+  [class*='-table-wrap']
+) {
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--card-padding);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.app-shell-modern :is(
+  .panel,
+  .card,
+  .metric-grid > article,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-insight-chart,
+  .analytics-insight-metric,
+  .analytics-card,
+  .analytics-executive-kpi,
+  .analytics-executive-table-wrap,
+  .analytics-executive-highlight,
+  .analytics-demographic-detail,
+  .analytics-post-item,
+  .analytics-report-snapshot > div,
+  .accounts-overview-strip > div,
+  .account-platform-card,
+  .dashboard-metric-card,
+  .dashboard-kpi-row > div,
+  .dashboard-upcoming-item,
+  .dashboard-account-chip,
+  .token-summary-grid > div,
+  .token-row,
+  .activity-item,
+  .calendar-list-item,
+  .draft-card,
+  .drafts-v2-card,
+  .ai-analytics-highlight-card,
+  .ai-analytics-block,
+  .ai-niche-comparison-card,
+  .media-upload-card,
+  .platform-option,
+  .post-preview,
+  .social-preview-card,
+  .settings-card,
+  .security-intro,
+  .security-enabled,
+  .security-setup,
+  .benchmark-profile-card,
+  .benchmark-metric,
+  .benchmark-history,
+  .checkout-summary,
+  .checkout-pix-box,
+  .checkout-free-box,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-']),
+  [class*='-box']:not([class*='-box-']),
+  [class*='-tile']:not([class*='-tile-']),
+  [class*='-table-wrap']
+):not(.is-active):not(.active):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* Card grids use one spacing system and stretch every item equally. */
+.app-shell-modern :is(
+  .analytics-profiles-grid,
+  .analytics-report-snapshot,
+  .analytics-insight-metrics,
+  .analytics-post-metric-grid,
+  .analytics-demographic-category-grid,
+  .analytics-demographic-detail-grid,
+  .analytics-data-verification-platforms,
+  .account-platform-grid,
+  .accounts-overview-strip,
+  .token-summary-grid,
+  .dashboard-metrics,
+  .dashboard-kpi-row,
+  .ai-analytics-highlight-grid,
+  .ai-analytics-columns,
+  .analytics-executive-grid
+) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  align-items: stretch;
+  gap: var(--space-lg);
+}
+
+.app-shell-modern :is(
+  .analytics-profiles-grid,
+  .analytics-report-snapshot,
+  .analytics-insight-metrics,
+  .analytics-post-metric-grid,
+  .analytics-demographic-category-grid,
+  .analytics-demographic-detail-grid,
+  .analytics-data-verification-platforms,
+  .account-platform-grid,
+  .accounts-overview-strip,
+  .token-summary-grid,
+  .dashboard-metrics,
+  .dashboard-kpi-row,
+  .ai-analytics-highlight-grid,
+  .ai-analytics-columns,
+  .analytics-executive-grid
+) > * {
+  height: 100%;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+/* Section rhythm and card typography. */
+.app-shell-modern :is(
+  .panel-heading,
+  .analytics-insights-heading,
+  .analytics-insight-chart-heading,
+  .analytics-section-heading,
+  .section-heading,
+  [class*='-card-heading']
+) {
+  margin-bottom: var(--space-md);
+}
+
+.app-shell-modern :is(
+  .panel,
+  .card,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-account-insights,
+  .analytics-executive-overview,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-'])
+) :is(h1, h2, h3, h4) {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.app-shell-modern :is(
+  .panel,
+  .card,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-account-insights,
+  .analytics-executive-overview,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-'])
+) p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app-shell-modern :is(
+  .panel,
+  .card,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-account-insights,
+  .analytics-executive-overview,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-'])
+) :is(small, .muted, .text-muted, [class*='subtitle']) {
+  font-size: 13px;
+}
+
+.app-shell-modern button {
+  min-height: var(--button-height);
+  border-radius: 8px;
+  padding-inline: var(--space-md);
+}
+
+@media (min-width: 1100px) {
+  .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --card-padding: 16px;
+  }
+
+  .app-shell-modern .page-view {
+    gap: var(--space-2xl) !important;
+  }
+
+  .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .app-shell-modern :is(
+    .panel,
+    .card,
+    .metric-grid > article,
+    .analytics-panel,
+    .analytics-profile-card,
+    .analytics-insight-chart,
+    .analytics-insight-metric,
+    .analytics-card,
+    .analytics-executive-kpi,
+    .analytics-executive-table-wrap,
+    .analytics-executive-highlight,
+    .analytics-demographic-detail,
+    .analytics-post-item,
+    .analytics-report-snapshot > div,
+    .accounts-overview-strip > div,
+    .account-platform-card,
+    .dashboard-metric-card,
+    .dashboard-kpi-row > div,
+    .dashboard-upcoming-item,
+    .dashboard-account-chip,
+    .token-summary-grid > div,
+    .token-row,
+    .activity-item,
+    .calendar-list-item,
+    .draft-card,
+    .drafts-v2-card,
+    .ai-analytics-highlight-card,
+    .ai-analytics-block,
+    .ai-niche-comparison-card,
+    .media-upload-card,
+    .platform-option,
+    .post-preview,
+    .social-preview-card,
+    .settings-card,
+    .security-intro,
+    .security-enabled,
+    .security-setup,
+    .benchmark-profile-card,
+    .benchmark-metric,
+    .benchmark-history,
+    .checkout-summary,
+    .checkout-pix-box,
+    .checkout-free-box,
+    [class*='-card']:not([class*='-card-']),
+    [class*='-panel']:not([class*='-panel-']),
+    [class*='-box']:not([class*='-box-']),
+    [class*='-tile']:not([class*='-tile-']),
+    [class*='-table-wrap']
+  ) {
+    padding: var(--space-md);
+  }
+}
+
+/* Final cascade authority: theme bridges must not reintroduce a second
+ * surface or a different card recipe after these rules are loaded. */
+html[data-theme] .app-shell-modern :is(
+  .panel,
+  .card,
+  .metric-grid > article,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-insight-chart,
+  .analytics-insight-metric,
+  .analytics-card,
+  .analytics-executive-kpi,
+  .analytics-executive-table-wrap,
+  .analytics-executive-highlight,
+  .analytics-demographic-detail,
+  .analytics-post-item,
+  .analytics-report-snapshot > div,
+  .accounts-overview-strip > div,
+  .account-platform-card,
+  .dashboard-metric-card,
+  .dashboard-kpi-row > div,
+  .dashboard-upcoming-item,
+  .dashboard-account-chip,
+  .token-summary-grid > div,
+  .token-row,
+  .activity-item,
+  .calendar-list-item,
+  .draft-card,
+  .drafts-v2-card,
+  .ai-analytics-highlight-card,
+  .ai-analytics-block,
+  .ai-niche-comparison-card,
+  .media-upload-card,
+  .platform-option,
+  .post-preview,
+  .social-preview-card,
+  .settings-card,
+  .security-intro,
+  .security-enabled,
+  .security-setup,
+  .benchmark-profile-card,
+  .benchmark-metric,
+  .benchmark-history,
+  .checkout-summary,
+  .checkout-pix-box,
+  .checkout-free-box,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-']),
+  [class*='-box']:not([class*='-box-']),
+  [class*='-tile']:not([class*='-tile-']),
+  [class*='-table-wrap']
+) {
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--card-padding) !important;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+html[data-theme] .app-shell-modern :is(
+  .panel,
+  .card,
+  .metric-grid > article,
+  .analytics-panel,
+  .analytics-profile-card,
+  .analytics-insight-chart,
+  .analytics-insight-metric,
+  .analytics-card,
+  .analytics-executive-kpi,
+  .analytics-executive-table-wrap,
+  .analytics-executive-highlight,
+  .analytics-demographic-detail,
+  .analytics-post-item,
+  .analytics-report-snapshot > div,
+  .accounts-overview-strip > div,
+  .account-platform-card,
+  .dashboard-metric-card,
+  .dashboard-kpi-row > div,
+  .dashboard-upcoming-item,
+  .dashboard-account-chip,
+  .token-summary-grid > div,
+  .token-row,
+  .activity-item,
+  .calendar-list-item,
+  .draft-card,
+  .drafts-v2-card,
+  .ai-analytics-highlight-card,
+  .ai-analytics-block,
+  .ai-niche-comparison-card,
+  .media-upload-card,
+  .platform-option,
+  .post-preview,
+  .social-preview-card,
+  .settings-card,
+  .security-intro,
+  .security-enabled,
+  .security-setup,
+  .benchmark-profile-card,
+  .benchmark-metric,
+  .benchmark-history,
+  .checkout-summary,
+  .checkout-pix-box,
+  .checkout-free-box,
+  [class*='-card']:not([class*='-card-']),
+  [class*='-panel']:not([class*='-panel-']),
+  [class*='-box']:not([class*='-box-']),
+  [class*='-tile']:not([class*='-tile-']),
+  [class*='-table-wrap']
+):not(.is-active):not(.active):hover {
+  transform: translateY(-2px);
+  background: var(--surface);
+  box-shadow: var(--card-shadow-hover);
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-profiles-grid,
+  .analytics-report-snapshot,
+  .analytics-insight-metrics,
+  .analytics-post-metric-grid,
+  .analytics-demographic-category-grid,
+  .analytics-demographic-detail-grid,
+  .analytics-data-verification-platforms,
+  .account-platform-grid,
+  .accounts-overview-strip,
+  .token-summary-grid,
+  .dashboard-metrics,
+  .dashboard-kpi-row,
+  .ai-analytics-highlight-grid,
+  .ai-analytics-columns,
+  .analytics-executive-grid
+) {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: var(--space-lg) !important;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-profiles-grid,
+  .analytics-report-snapshot,
+  .analytics-insight-metrics,
+  .analytics-post-metric-grid,
+  .analytics-demographic-category-grid,
+  .analytics-demographic-detail-grid,
+  .analytics-data-verification-platforms,
+  .account-platform-grid,
+  .accounts-overview-strip,
+  .token-summary-grid,
+  .dashboard-metrics,
+  .dashboard-kpi-row,
+  .ai-analytics-highlight-grid,
+  .ai-analytics-columns,
+  .analytics-executive-grid
+) > * {
+  height: 100%;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+/* Cards que não usam os nomes genéricos acima mantêm a mesma superfície,
+ * sem alterar a estrutura ou o conteúdo dos componentes. */
+html[data-theme] .app-shell-modern :is(
+  .analytics-executive-overview,
+  .analytics-data-verification,
+  .analytics-data-verification-platform,
+  .analytics-report-detail,
+  .analytics-provider-table
+) {
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-executive-overview,
+  .analytics-data-verification,
+  .analytics-data-verification-platform,
+  .analytics-report-detail,
+  .analytics-provider-table
+):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* A cascata final preserva os breakpoints: desktop 3, tablet 2, mobile 1.
+ * O container é o único responsável pelo espaçamento entre cards. */
+@media (min-width: 768px) and (max-width: 1099px) {
+  html[data-theme] .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  html[data-theme] .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  html[data-theme] .app-shell-modern :is(
+    .analytics-profiles-grid,
+    .analytics-report-snapshot,
+    .analytics-insight-metrics,
+    .analytics-post-metric-grid,
+    .analytics-demographic-category-grid,
+    .analytics-demographic-detail-grid,
+    .analytics-data-verification-platforms,
+    .account-platform-grid,
+    .accounts-overview-strip,
+    .token-summary-grid,
+    .dashboard-metrics,
+    .dashboard-kpi-row,
+    .ai-analytics-highlight-grid,
+    .ai-analytics-columns,
+    .analytics-executive-grid
+  ) {
+    grid-template-columns: 1fr;
+    gap: var(--space-md) !important;
+  }
+}
+
+/* Esses blocos internos tinham gradientes, cores de preenchimento e raios
+ * divergentes. A superfície do card pai agora é a única camada visual. */
+html[data-theme] .app-shell-modern :is(
+  .analytics-demographic-category,
+  .analytics-data-verification-platform
+) {
+  background: var(--surface) !important;
+  border-color: var(--card-border) !important;
+  border-radius: var(--card-radius) !important;
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-summary-explanation,
+  .analytics-performance-report-network-highlights
+) {
+  box-shadow: none;
+}
+
+/* O Chart.js precisa de uma área própria para título, eixos e legenda. Sem
+ * isso, a altura herdada de módulos antigos faz a legenda invadir o próximo
+ * bloco quando há poucos pontos na série. */
+html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insight-chart {
+  display: flex;
+  height: 300px !important;
+  min-height: 0 !important;
+  flex-direction: column;
+}
+
+html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insight-chart > canvas {
+  display: block;
+  width: 100% !important;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: auto !important;
+}
+
+html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insight-chart + .analytics-report-detail {
+  margin-top: var(--space-md) !important;
+}
+
+@media (max-width: 767px) {
+  html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insight-chart {
+    height: 240px !important;
+  }
+}
+
+/* Outer report/list shells are layout boundaries, not cards. */
+html[data-theme] .app-shell-modern :is(
+  .analytics-account-insights,
+  .analytics-profiles-section,
+  .accounts-page > .accounts-panel,
+  .accounts-page .accounts-overview-strip,
+  .drafts-page-v2 .drafts-v2-list-panel
+) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] .app-shell-modern button {
+  min-height: var(--button-height);
+  border-radius: 8px;
+  padding-inline: var(--space-md);
+}

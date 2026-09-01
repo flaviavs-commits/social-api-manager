@@ -50,6 +50,10 @@ function sampleSeries(entries, maxPoints = 30) {
   return [...indexes].sort((a, b) => a - b).map(index => entries[index])
 }
 
+function pointCountLabel(count) {
+  return `${count} ponto${count === 1 ? '' : 's'}`
+}
+
 function collectBreakdowns(accounts) {
   const result = new Map()
   for (const account of accounts) {
@@ -152,7 +156,7 @@ function InsightSeries({ accounts }) {
   const chartEntries = sampleSeries(entries)
   const names = [...new Set(chartEntries.flatMap(([, values]) => Object.keys(values)))].slice(0, 4)
   return <div className="analytics-insight-chart">
-    <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Evolução das principais métricas</div><span>{entries.length > chartEntries.length ? `Visão compacta · ${chartEntries.length} pontos` : `${entries.length} pontos`}</span></div>
+    <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Evolução das principais métricas</div><span>{entries.length > chartEntries.length ? `Visão compacta · ${pointCountLabel(chartEntries.length)}` : pointCountLabel(entries.length)}</span></div>
     <Line
       data={{
         labels: chartEntries.map(([date]) => formatDiaBR(date)),
@@ -175,7 +179,7 @@ function MetricSeriesTable({ accounts }) {
   if (!entries.length) return null
   const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))]
   return <details className="analytics-report-detail">
-    <summary>Ver série diária completa <span>{entries.length} pontos</span></summary>
+    <summary>Ver série diária completa <span>{pointCountLabel(entries.length)}</span></summary>
     <div className="analytics-provider-table analytics-full-series">
       <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
       <div className="analytics-table-scroll"><table>
