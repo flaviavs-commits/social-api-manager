@@ -202,6 +202,12 @@ html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
 }
 
 .app-shell-modern .drafts-page-v2 .drafts-v2-summary {
+  /* O espaço entre os cards deve mostrar o canvas da página, não uma
+   * superfície clara contínua do tema. */
+  gap: clamp(12px, 1.2vw, 16px) !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
   margin-bottom: 24px !important;
 }
 
@@ -294,6 +300,7 @@ html[data-theme='light'] .app-shell-modern .page-view > .analytics-layout > .ana
   }
 
   .app-shell-modern .drafts-page-v2 .drafts-v2-summary {
+    gap: 12px !important;
     margin-bottom: 16px !important;
   }
 
