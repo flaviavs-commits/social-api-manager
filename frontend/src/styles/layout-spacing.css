@@ -158,6 +158,17 @@
   flex: 0 0 auto;
 }
 
+.app-shell-modern .app-topbar-modern .topbar-text-action > span:last-child {
+  display: inline !important;
+  visibility: visible !important;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+  color: inherit;
+  font-size: inherit !important;
+  white-space: nowrap;
+}
+
 @media (max-width: 767px) {
   .app-shell-modern .app-topbar-modern > div:last-child {
     max-width: 100%;
