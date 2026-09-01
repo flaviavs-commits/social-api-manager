@@ -701,6 +701,22 @@ html[data-theme] .app-shell-modern .analytics-account-insights .analytics-insigh
   }
 }
 
+/* Os dois resumos pertencem ao mesmo bloco visual. No desktop, não deve
+ * aparecer uma faixa do fundo da página entre eles; no mobile, os cards
+ * continuam separados verticalmente para manter a leitura confortável. */
+@media (min-width: 1025px) {
+  html[data-theme] .app-shell-modern .an-summary-row {
+    column-gap: 0 !important;
+    row-gap: 0 !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  html[data-theme] .app-shell-modern .an-summary-row {
+    gap: var(--space-md) !important;
+  }
+}
+
 /* Outer report/list shells are layout boundaries, not cards. */
 html[data-theme] .app-shell-modern :is(
   .analytics-account-insights,
