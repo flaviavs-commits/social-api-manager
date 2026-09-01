@@ -1,21 +1,33 @@
 // Regras puras sobre vídeo (dado width/height/duration já lidos por ffprobe).
 // Não faz I/O — a leitura do arquivo fica em infra/storage/videoProbe.
 
-// Um vídeo é elegível como Short se for vertical (9:16) ou quadrado (1:1)
-// e tiver no máximo 3 minutos (180s). Vídeos horizontais (16:9) nunca são Shorts.
-function isShortEligible({ width, height, duration }) {
-  if (!width || !height) return false
-  if (duration > 180) return false
-  return height >= width // vertical (9:16) ou quadrado (1:1)
+const NINE_BY_SIXTEEN_RATIO = 9 / 16
+const VERTICAL_RATIO_TOLERANCE = 0.02
+const YOUTUBE_SHORT_MAX_DURATION_SECONDS = 60
+
+// TikTok, Reels e Stories usam o enquadramento vertical 9:16. A pequena
+// tolerância absorve diferenças de alguns pixels causadas por exportadores de
+// celular sem transformar vídeos 1:1 ou horizontais em conteúdo vertical.
+function isVerticalNineBySixteen({ width, height }) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false
+  const ratio = width / height
+  const min = NINE_BY_SIXTEEN_RATIO * (1 - VERTICAL_RATIO_TOLERANCE)
+  const max = NINE_BY_SIXTEEN_RATIO * (1 + VERTICAL_RATIO_TOLERANCE)
+  return ratio >= min && ratio <= max
 }
 
-// O TikTok rejeita o vídeo após o upload (fail_reason: picture_size_check_failed)
-// quando a proporção está fora da faixa aceita para gerar a capa automática —
-// entre 9:16 (vertical) e 16:9 (horizontal), aproximadamente.
+// Um Short do YouTube, conforme a regra do produto, é um vídeo vertical 9:16
+// com duração inferior a 60 segundos.
+function isShortEligible({ width, height, duration }) {
+  if (!isVerticalNineBySixteen({ width, height })) return false
+  if (!Number.isFinite(duration) || duration <= 0 || duration >= YOUTUBE_SHORT_MAX_DURATION_SECONDS) return false
+  return true
+}
+
+// O TikTok publica vídeo em 9:16. A cópia enviada pelo caso de uso é
+// normalizada para 1080x1920 somente depois que esta regra aprova o original.
 function isAspectRatioValidForTiktok({ width, height }) {
-  if (!width || !height) return false
-  const ratio = width / height
-  return ratio >= 9 / 16 && ratio <= 16 / 9
+  return isVerticalNineBySixteen({ width, height })
 }
 
 // Faixas de proporção aceitas pela Graph API do Instagram — rejeitam fora
@@ -34,10 +46,18 @@ const IG_ASPECT_RATIO_RANGES = {
 // resolver sozinho (vídeo sem format vira reel, mas nesse caso a checagem
 // roda de novo já com o format resolvido — ver criarPost.js).
 function isAspectRatioValidForInstagram({ width, height }, format) {
-  if (!width || !height) return false
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false
   const ratio = width / height
   const [min, max] = IG_ASPECT_RATIO_RANGES[format] || IG_ASPECT_RATIO_RANGES.post
   return ratio >= min && ratio <= max
 }
 
-module.exports = { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram }
+module.exports = {
+  NINE_BY_SIXTEEN_RATIO,
+  YOUTUBE_SHORT_MAX_DURATION_SECONDS,
+  isVerticalNineBySixteen,
+  isShortEligible,
+  isAspectRatioValidForTiktok,
+  isAspectRatioValidForInstagram,
+  ...require('./mediaLimits')
+}

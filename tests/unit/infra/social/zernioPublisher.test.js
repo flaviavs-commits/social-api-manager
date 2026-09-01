@@ -7,7 +7,7 @@ jest.mock('../../../../src/infra/social/mediaFetch', () => ({
 }))
 
 const zernioClient = require('../../../../src/infra/social/zernioClient')
-const { publicarZernioInstagram, publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
+const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
 
 function zernioResponse() {
   return {
@@ -146,4 +146,20 @@ test('usa contentType story somente para story do Instagram', async () => {
   )
 
   expect(zernioClient.createPost.mock.calls[0][0].platforms[0].platformSpecificData).toEqual({ contentType: 'story' })
+})
+
+test('envia Facebook Reel como contentType reel', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'fb-reel-1',
+      platforms: [{ platform: 'facebook', platformPostId: 'fb-reel-1' }]
+    }
+  })
+
+  await publicarZernioFacebook(
+    { accessToken: 'facebook-account-1' },
+    { mediaItems: [{ path: 'reel.mp4', type: 'video' }], text: 'Reel', facebookFormat: 'reel' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].platforms[0].platformSpecificData).toEqual({ contentType: 'reel' })
 })

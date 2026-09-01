@@ -277,13 +277,13 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
 
       <div className="flex items-center gap-3">
         <ThemeSelector />
-        <button type="button" aria-label="Rever o tutorial guiado" title="Rever o tutorial guiado" onClick={onOpenTutorial} className="tutorial-trigger hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">🎓</button>
-        <button type="button" aria-label="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button hidden h-9 w-9 items-center justify-center rounded-lg border border-subtle text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex">?</button>
-        <button aria-label="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+        <button type="button" aria-label="Rever o tutorial guiado" title="Rever o tutorial guiado" onClick={onOpenTutorial} className="tutorial-trigger topbar-text-action hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-subtle px-2.5 text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span aria-hidden="true">🎓</span><span>Tutorial</span></button>
+        <button type="button" aria-label="Ver atalhos de teclado" title="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button topbar-text-action hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-subtle px-2.5 text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span aria-hidden="true">?</span><span>Atalhos</span></button>
+        <button aria-label="Abrir mensagens" title="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
         </button>
         <div className="notification-control">
-          <button aria-label="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+          <button aria-label="Abrir notificações" title="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
             {unreadNotifications > 0 && <span className="notification-dot" aria-label={`${unreadNotifications} notificações novas`} />}
           </button>
@@ -300,9 +300,11 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         <button
           onClick={onCreatePost}
           data-tutorial-target="criar-post"
+          aria-label="+ Criar Novo Post"
+          title="+ Criar Novo Post"
           className="create-post-button inline-flex items-center gap-2 rounded-lg border border-gold bg-transparent px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10"
         >
-          + Criar Novo Post
+          <span aria-hidden="true">+</span><span>Criar Novo Post</span>
         </button>
         <div className="profile-menu-control">
           <button type="button" data-tutorial-target="perfil" className="user-profile-pill flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1.5 pr-3 text-sm text-zinc-300" aria-haspopup="menu" aria-expanded={profileOpen} onClick={() => setProfileOpen(current => !current)}>

@@ -136,7 +136,9 @@ export function DraftsPage({ onNavigate }) {
       youtubeTitle: draft.youtube_title || draft.youtubeTitle || '',
       youtubeVisibility: draft.youtube_visibility || draft.youtubeVisibility || 'public',
       youtubeMadeForKids: draft.youtube_made_for_kids == null ? '' : String(draft.youtube_made_for_kids),
+      youtubeFormat: draft.youtube_format || draft.youtubeFormat || '',
       igFormat: draft.ig_format || draft.igFormat || 'post',
+      facebookFormat: draft.facebook_format || draft.facebookFormat || 'post',
       tiktokPrivacyLevel: draft.tiktok_privacy_level || draft.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
       savedAt: new Date().toISOString()
     }))

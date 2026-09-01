@@ -96,6 +96,7 @@ async function repetirPost({ id, scheduledAt, userId, userRole, isAdmin }) {
     youtubeFormat: source.youtubeFormat || undefined,
     youtubeMadeForKids: source.youtubeMadeForKids == null ? undefined : String(source.youtubeMadeForKids),
     igFormat: source.igFormat || undefined,
+    facebookFormat: source.facebookFormat || undefined,
     tiktokPrivacyLevel: source.tiktokPrivacyLevel || undefined,
     tiktokDisableComment: Boolean(source.tiktokDisableComment),
     tiktokDisableDuet: Boolean(source.tiktokDisableDuet),

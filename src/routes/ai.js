@@ -1933,8 +1933,8 @@ router.post('/schedule', async (req, res) => {
       const horario = publishNow ? null : new Date(p.horario)
       if (!publishNow && (!p.horario || Number.isNaN(horario.getTime()))) return res.status(400).json({ erro: 'Horário de publicação inválido.' })
       const itemsParaValidacao = mediaItems.length
-        ? mediaItems.map(item => ({ path: item.path, type: item.type === 'video' || String(item.mimetype || '').startsWith('video/') ? 'video' : 'image' }))
-        : (mediaPath ? [{ path: mediaPath, type: String(p.mediaType || '').startsWith('video/') || p.mediaType === 'video' ? 'video' : 'image' }] : [])
+        ? mediaItems.map(item => ({ path: item.path, type: item.type === 'video' || String(item.mimetype || '').startsWith('video/') ? 'video' : 'image', size: item.size, width: item.width, height: item.height, duration: item.duration }))
+        : (mediaPath ? [{ path: mediaPath, type: String(p.mediaType || '').startsWith('video/') || p.mediaType === 'video' ? 'video' : 'image', size: p.mediaSize, width: p.mediaWidth, height: p.mediaHeight, duration: p.mediaDuration }] : [])
       const validationError = validarCriacaoPost({
         text: typeof p.texto === 'string' ? p.texto : '',
         textByPlatform: p.textByPlatform || {},
@@ -1945,10 +1945,12 @@ router.post('/schedule', async (req, res) => {
         youtubeFormat: p.youtubeFormat || null,
         youtubeMadeForKids: p.youtubeMadeForKids,
         igFormat: p.igFormat || null,
+        facebookFormat: p.facebookFormat || null,
         tiktokPrivacyLevel: p.tiktokPrivacyLevel,
         platforms: plataformas,
         repeat: 'none',
         items: itemsParaValidacao,
+        mediaMetadata: itemsParaValidacao,
         mediaType: itemsParaValidacao[0]?.type || null,
         aspectRatioValidoTiktok: null,
         aspectRatioValidoInstagram: null,
@@ -1984,7 +1986,9 @@ router.post('/schedule', async (req, res) => {
         mediaItems:        mediaItems.length > 1 ? mediaItems : null,
         youtubeTitle:      p.titulo || null,
         youtubeVisibility: 'public',
+        youtubeFormat: p.youtubeFormat || null,
         youtubeIsShort:    null,
+        facebookFormat:    p.facebookFormat || null,
         tiktokPrivacyLevel: p.tiktokPrivacyLevel || null,
         tiktokDisableComment: p.tiktokDisableComment || false,
         tiktokDisableDuet:    p.tiktokDisableDuet || false,

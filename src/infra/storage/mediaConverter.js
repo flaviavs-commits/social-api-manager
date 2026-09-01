@@ -36,6 +36,23 @@ async function lerDimensoesImagem(buffer) {
   return { width: width || null, height: height || null }
 }
 
+// Prepara a cópia exclusiva de uma foto para o TikTok. Fotos aceitam qualquer
+// proporção, mas o canvas final é sempre 1080x1920. `contain` cria margens
+// quando necessário e preserva todo o enquadramento original — a foto nunca é
+// cortada para preencher o canvas vertical.
+async function converterImagemParaTiktok(inputBuffer) {
+  return sharp(inputBuffer)
+    .flatten({ background: '#ffffff' })
+    .resize({
+      width: 1080,
+      height: 1920,
+      fit: 'contain',
+      background: '#ffffff'
+    })
+    .jpeg({ quality: 100, chromaSubsampling: '4:4:4' })
+    .toBuffer()
+}
+
 // Prepara uma cópia exclusiva para o TikTok. O arquivo final tem exatamente
 // 1080x1920, H.264/AAC e pixels yuv420p, que evita que o Zernio/TikTok tenha
 // que decidir como enquadrar vídeos de celular com dimensões diferentes.
@@ -112,4 +129,4 @@ async function converterVideoParaInstagram(inputBuffer) {
   }
 }
 
-module.exports = { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok, converterVideoParaInstagram }
+module.exports = { converterParaJpeg, lerDimensoesImagem, converterImagemParaTiktok, converterVideoParaTiktok, converterVideoParaInstagram }

@@ -198,7 +198,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   async function uploadGeneratedMedia(post) {
     const sourceImages = post.carouselImages?.length ? post.carouselImages : (post.imageUrl ? [post.imageUrl] : [])
     if (!sourceImages.length) throw new Error('Gere uma imagem antes de publicar.')
-    if (post.mediaItems?.length) return { mediaPath: post.mediaPath || post.mediaItems[0].path, mediaItems: post.mediaItems }
+    if (post.mediaItems?.length) return { mediaPath: post.mediaPath || post.mediaItems[0].path, mediaItems: post.mediaItems, mediaSize: post.mediaItems[0].size }
     const uploadedItems = await Promise.all(sourceImages.map(async (source, index) => {
       const imageBlob = await fetch(source).then(response => {
         if (!response.ok) throw new Error('Não foi possível preparar uma imagem gerada.')
@@ -214,9 +214,9 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       const uploaded = await uploadResponse.json().catch(() => null)
       const mediaUrl = signed.mediaUrl || uploaded?.url
       if (!mediaUrl) throw new Error('O upload de uma imagem não retornou uma URL válida.')
-      return { path: mediaUrl, type: 'image' }
+      return { path: mediaUrl, type: 'image', mimetype: mimeType, size: imageBlob.size }
     }))
-    return { mediaPath: uploadedItems[0].path, mediaItems: uploadedItems.length > 1 ? uploadedItems : null }
+    return { mediaPath: uploadedItems[0].path, mediaItems: uploadedItems.length > 1 ? uploadedItems : null, mediaSize: uploadedItems[0].size }
   }
 
   function accountsForPlatform(platform) {
@@ -335,7 +335,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         timeoutMs: 60_000,
         body: JSON.stringify({
           publishNow: true,
-          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaType: 'image', ...(platform === 'tiktok' ? { tiktokPrivacyLevel } : {}) }],
+          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaSize: uploadedMedia.mediaSize, mediaType: 'image', ...(platform === 'tiktok' ? { tiktokPrivacyLevel } : {}) }],
         }),
       })
       const createdPost = data.posts?.[0]

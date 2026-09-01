@@ -22,6 +22,11 @@ describe('media format preview', () => {
     expect(resolvePreviewAspect({ platform: 'instagram', mediaKind: 'video', sourceRatio: 1, instagramFormat: 'story' }).key).toBe('vertical')
   })
 
+  it('mantém o Reel do Facebook em 9:16', () => {
+    expect(resolvePreviewAspect({ platform: 'facebook', mediaKind: 'video', sourceRatio: 1.78, facebookFormat: 'reel' }).key).toBe('vertical')
+    expect(socialMediaResolutionHint('facebook', { facebookFormat: 'reel' })).toBe('1080 × 1920 px')
+  })
+
   it('encontra a proporção suportada mais próxima', () => {
     expect(nearestPreviewAspect(0.72).key).toBe('portrait')
     expect(resolvePreviewAspect({ platform: 'instagram', mediaKind: 'image', sourceRatio: 1.91 }).key).toBe('instagramWide')
@@ -31,6 +36,7 @@ describe('media format preview', () => {
   it('mantém os presets de resolução das quatro redes', () => {
     expect(SOCIAL_MEDIA_RESOLUTIONS.instagram.reel.dimensions).toBe('1080 × 1920 px')
     expect(SOCIAL_MEDIA_RESOLUTIONS.facebook.feed[0].dimensions).toBe('1200 × 630 px')
+    expect(SOCIAL_MEDIA_RESOLUTIONS.facebook.reel.dimensions).toBe('1080 × 1920 px')
     expect(SOCIAL_MEDIA_RESOLUTIONS.youtube.thumbnail.dimensions).toBe('1280 × 720 px')
     expect(socialMediaResolutionHint('tiktok', { mediaKind: 'video' })).toBe('1080 × 1920 px')
   })

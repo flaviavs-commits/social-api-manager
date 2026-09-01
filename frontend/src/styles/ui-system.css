@@ -807,3 +807,11 @@ html[data-theme='light'] .app-shell-modern .scheduler-page .social-preview-card 
 html[data-theme] .app-shell-modern .drafts-page-v2 .drafts-v2-card-list {
   background: var(--app-bg) !important;
 }
+
+/* Os cartões de seleção de rede têm conteúdo próprio em várias linhas. A
+ * receita genérica de cards não deve cortar esse conteúdo nem forçar a altura
+ * da célula do grid. */
+html[data-theme] .app-shell-modern .scheduler-page .platform-options .platform-option {
+  height: auto !important;
+  overflow: visible !important;
+}

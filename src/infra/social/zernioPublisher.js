@@ -92,6 +92,7 @@ async function publicarZernioInstagram(token, post, { requestId, metadata } = {}
 
 async function publicarZernioFacebook(token, post, { requestId, metadata } = {}) {
   const platformSpecificData = {}
+  if (post.facebookFormat === 'reel') platformSpecificData.contentType = 'reel'
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
 
   const response = await zernioClient.createPost({

@@ -56,7 +56,7 @@ export function ContentQueuesPage() {
     const uploaded = await response.json().catch(() => null)
     const mediaUrl = signed.mediaUrl || uploaded?.url
     if (!mediaUrl) throw new Error('O upload não retornou uma URL válida.')
-    return mediaUrl
+    return { url: mediaUrl, size: file.size }
   }
   async function save(event) {
     event.preventDefault()
@@ -65,8 +65,8 @@ export function ContentQueuesPage() {
     if (form.platforms.includes('youtube') && media && !media.file.type.startsWith('video/')) return notify('O YouTube precisa de um vídeo anexado.', 'error')
     setSaving(true)
     try {
-      const mediaPath = media ? await uploadMedia(media.file) : null
-      await apiFetch('/api/content-queues', { method: 'POST', body: JSON.stringify({ name: form.name, platforms: form.platforms, content: { text: form.text, ...(mediaPath ? { mediaPath, mediaType: media.file.type, mediaName: media.file.name } : {}), ...(form.platforms.includes('tiktok') ? { tiktokPrivacyLevel } : {}) }, recurrence: { days: form.days.map(Number), time: form.time } }) })
+      const uploadedMedia = media ? await uploadMedia(media.file) : null
+      await apiFetch('/api/content-queues', { method: 'POST', body: JSON.stringify({ name: form.name, platforms: form.platforms, content: { text: form.text, ...(uploadedMedia ? { mediaPath: uploadedMedia.url, mediaType: media.file.type, mediaName: media.file.name, mediaSize: uploadedMedia.size } : {}), ...(form.platforms.includes('tiktok') ? { tiktokPrivacyLevel } : {}) }, recurrence: { days: form.days.map(Number), time: form.time } }) })
       setForm(current => ({ ...current, name: '', text: '' }))
       removeMedia()
       await load()
@@ -134,7 +134,7 @@ export function ContentQueuesPage() {
         <div className="queues-form-fields">
           <label className="queues-field"><span>Nome da rotina</span><small>Um nome fácil de reconhecer depois.</small><input value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Ex.: Dicas da semana" required /></label>
           <label className="queues-field"><span>Texto da publicação</span><small>O conteúdo será reutilizado em cada execução da rotina.</small><textarea value={form.text} onChange={event => setForm(current => ({ ...current, text: event.target.value }))} placeholder="Uma ideia que será publicada nos dias selecionados…" required /></label>
-<div className="queues-field queues-media-field"><span>Mídia da publicação {mediaRequired ? <em>obrigatória</em> : <em>opcional</em>}</span><small>A mesma mídia será reutilizada em cada execução da rotina.</small><label className={`queues-media-picker${media ? ' has-media' : ''}`}><input type="file" accept={videoOnly ? 'video/*' : 'image/*,video/*'} onChange={selectMedia} /><span className="queues-media-picker-icon" aria-hidden="true">{media?.file.type.startsWith('video/') ? '▶' : '＋'}</span><span><strong>{media ? media.file.name : videoOnly ? 'Escolher vídeo' : 'Escolher imagem ou vídeo'}</strong><small>{media ? `${(media.file.size / 1024 / 1024).toFixed(1)} MB · pronto para enviar` : videoOnly ? 'MP4, MOV ou WebM · até 200 MB' : 'JPG, PNG, WebP, MP4, MOV ou WebM · até 200 MB'}</small></span><span className="queues-media-picker-action">{media ? 'Trocar' : 'Selecionar'}</span></label>{media ? <div className="queues-media-preview">{media.file.type.startsWith('video/') ? <video src={media.previewUrl} muted controls preload="metadata" /> : <img src={media.previewUrl} alt="Prévia da mídia selecionada" />}<button type="button" className="queues-media-remove" onClick={removeMedia}>Remover mídia</button></div> : null}</div>
+<div className="queues-field queues-media-field"><span>Mídia da publicação {mediaRequired ? <em>obrigatória</em> : <em>opcional</em>}</span><small>A mesma mídia será reutilizada em cada execução da rotina.</small><label className={`queues-media-picker${media ? ' has-media' : ''}`}><input type="file" accept={videoOnly ? 'video/*' : 'image/*,video/*'} onChange={selectMedia} /><span className="queues-media-picker-icon" aria-hidden="true">{media?.file.type.startsWith('video/') ? '▶' : '＋'}</span><span><strong>{media ? media.file.name : videoOnly ? 'Escolher vídeo' : 'Escolher imagem ou vídeo'}</strong><small>{media ? `${(media.file.size / 1024 / 1024).toFixed(1)} MB · pronto para enviar` : 'Os limites de tamanho e duração variam conforme as redes selecionadas e serão validados antes da publicação.'}</small></span><span className="queues-media-picker-action">{media ? 'Trocar' : 'Selecionar'}</span></label>{media ? <div className="queues-media-preview">{media.file.type.startsWith('video/') ? <video src={media.previewUrl} muted controls preload="metadata" /> : <img src={media.previewUrl} alt="Prévia da mídia selecionada" />}<button type="button" className="queues-media-remove" onClick={removeMedia}>Remover mídia</button></div> : null}</div>
         </div>
 
         <fieldset className="queues-fieldset queues-platform-fieldset">

@@ -2,7 +2,7 @@ const pool = require('../db/pool')
 const postsRepo = require('../infra/db/postsRepository')
 const contasRepo = require('../repositories/contasRepository')
 const { registrarLog } = require('../repositories/logsRepository')
-const { nextOccurrence } = require('../routes/contentQueues')
+const { nextOccurrence, validateQueueMediaLimits } = require('../routes/contentQueues')
 const { nextRun } = require('../routes/reportSchedules')
 const { enviarRelatorioAgendado } = require('./reportService')
 
@@ -19,6 +19,8 @@ async function processarFilasRecorrentes() {
       if (platforms.includes('tiktok') && !['image/', 'video/'].some(prefix => String(content.mediaType || '').toLowerCase().startsWith(prefix))) {
         throw new Error('O TikTok precisa de uma imagem ou vídeo anexado.')
       }
+      const mediaLimitError = validateQueueMediaLimits(content, platforms)
+      if (mediaLimitError) throw new Error(mediaLimitError)
       const accounts = await contasRepo.listarContasAtivasPorPlataformas(platforms, queue.user_id, false)
       const post = await postsRepo.criarPost({
         text: content.text || null,
@@ -35,6 +37,8 @@ async function processarFilasRecorrentes() {
           : null,
         youtubeTitle: content.youtubeTitle || null,
         youtubeVisibility: content.youtubeVisibility || 'public',
+        youtubeFormat: content.youtubeFormat || null,
+        facebookFormat: content.facebookFormat || null,
         igFormat: content.igFormat || null,
         tiktokPrivacyLevel: content.tiktokPrivacyLevel || null,
         userId: queue.user_id,

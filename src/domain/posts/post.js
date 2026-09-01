@@ -3,6 +3,7 @@
 
 const { PLATFORMS, REPEATS } = require('../../utils/http')
 const { TEXT_LIMITS } = require('./platformLimits')
+const { mediaKindFromMime, validateMediaMetadata, formatMediaLimitViolation } = require('./mediaLimits')
 
 const MAX_TEXT_LENGTH = 5000
 const MAX_YOUTUBE_TITLE_LENGTH = 100
@@ -39,6 +40,7 @@ const YOUTUBE_CATEGORY_IDS = YOUTUBE_CATEGORIES.map(c => c.id)
 // por padrão; YouTube decide Short via proporção/duração do vídeo).
 const INSTAGRAM_FORMATS = ['post', 'reel', 'story']
 const YOUTUBE_FORMATS = ['video', 'short']
+const FACEBOOK_FORMATS = ['post', 'reel']
 const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
 
 // Resolve os dados de mídia relevantes para validar UMA rede: usa os itens
@@ -46,15 +48,36 @@ const INSTAGRAM_CAROUSEL_MAX_ITEMS = 10
 // independente naquele card) ou cai nos itens compartilhados do post — mesmo
 // fallback usado em publisher.js/publicarNaConta e nas demais camadas. Ver
 // migrations/035 (mídia independente por rede).
-function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram }) {
+function resolverMidiaDaRede(platform, { itemsByPlatform, items, mediaType, mediaMetadataByPlatform, mediaMetadata, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram, aspectRatioValidoFacebookByPlatform, aspectRatioValidoFacebook }) {
   const proprios = itemsByPlatform?.[platform]
-  if (!proprios) return { itemsResolvidos: items, mediaTypeResolvido: mediaType, aspectRatioResolvido: aspectRatioValidoTiktok, aspectRatioInstagramResolvido: aspectRatioValidoInstagram }
+  if (!proprios) return { itemsResolvidos: items, mediaTypeResolvido: mediaType, mediaMetadataResolvida: mediaMetadata, aspectRatioResolvido: aspectRatioValidoTiktok, aspectRatioInstagramResolvido: aspectRatioValidoInstagram, aspectRatioFacebookResolvido: aspectRatioValidoFacebook }
   return {
     itemsResolvidos: proprios,
     mediaTypeResolvido: proprios.length === 1 ? proprios[0].type : (proprios.some(i => i.type === 'video') ? 'video' : 'image'),
+    mediaMetadataResolvida: mediaMetadataByPlatform?.[platform] ?? null,
     aspectRatioResolvido: aspectRatioValidoTiktokByPlatform?.[platform] ?? null,
-    aspectRatioInstagramResolvido: aspectRatioValidoInstagramByPlatform?.[platform] ?? null
+    aspectRatioInstagramResolvido: aspectRatioValidoInstagramByPlatform?.[platform] ?? null,
+    aspectRatioFacebookResolvido: aspectRatioValidoFacebookByPlatform?.[platform] ?? null
   }
+}
+
+function validarLimitesDeMidiaDaRede(platform, items, mediaMetadata, { format, youtubeFormat } = {}) {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {}
+    const metadata = { ...item, ...(mediaMetadata?.[index] || {}) }
+    const mediaKind = mediaKindFromMime(item.type)
+    const violations = validateMediaMetadata({
+      platform,
+      mediaKind,
+      format,
+      youtubeFormat,
+      ...metadata,
+    })
+    if (violations.length) {
+      return formatMediaLimitViolation(platform, { mediaKind, format, youtubeFormat }, violations[0])
+    }
+  }
+  return null
 }
 
 function validarLimiteDeTexto(value, maxLength, message) {
@@ -123,7 +146,7 @@ function validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPla
 // de cada rede quando o usuário anexou algo diferente naquele card — nesse
 // caso as regras de "cada rede exige tal mídia" validam contra os itens
 // daquela rede específica, não mais contra a lista global.
-function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, scheduledAtUTC, publishNow }) {
+function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, facebookFormat = 'post', tiktokPrivacyLevel, platforms, repeat, items, temVideo, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel, shortElegivelByPlatform, itemsByPlatform, mediaMetadataByPlatform, mediaMetadata, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, aspectRatioValidoFacebookByPlatform, scheduledAtUTC, publishNow }) {
   const erroDeTexto = validarLimitesDeTextos({ text, textByPlatform, youtubeTitle, titleByPlatform, platforms })
   if (erroDeTexto) return erroDeTexto
 
@@ -138,6 +161,9 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
 
   if (igFormat !== undefined && igFormat !== null && igFormat !== '' && !INSTAGRAM_FORMATS.includes(igFormat))
     return 'igFormat inválido. Use post, reel ou story.'
+
+  if (facebookFormat !== undefined && facebookFormat !== null && facebookFormat !== '' && !FACEBOOK_FORMATS.includes(facebookFormat))
+    return 'facebookFormat inválido. Use post ou reel.'
 
   if (!Array.isArray(platforms) || !platforms.length || !platforms.every(p => PLATFORMS.includes(p)))
     return `platforms deve ser uma lista com valores de: ${PLATFORMS.join(', ')}`
@@ -158,12 +184,16 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
   if (!temTexto && !temAlgumaMidia)
     return 'Informe o texto do post ou anexe uma imagem/vídeo'
 
-  const midiaContext = { itemsByPlatform, items, mediaType, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram }
+  const midiaContext = { itemsByPlatform, items, mediaType, mediaMetadataByPlatform, mediaMetadata, aspectRatioValidoTiktokByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagramByPlatform, aspectRatioValidoInstagram, aspectRatioValidoFacebookByPlatform, aspectRatioValidoFacebook }
 
   if (platforms.includes('youtube')) {
-    const { itemsResolvidos } = resolverMidiaDaRede('youtube', midiaContext)
-    if (!itemsResolvidos.some(i => i.type === 'video'))
+    const { itemsResolvidos, mediaMetadataResolvida } = resolverMidiaDaRede('youtube', midiaContext)
+    if (itemsResolvidos.length !== 1 || itemsResolvidos[0]?.type !== 'video')
       return 'Falta vídeo para publicar no YouTube. Anexe um vídeo ou desmarque o YouTube.'
+    if (youtubeFormat === 'short' && (shortElegivelByPlatform?.youtube ?? shortElegivel) === false)
+      return 'Um Short do YouTube precisa ter vídeo vertical 9:16 e duração menor que 60 segundos.'
+    const erroDeLimite = validarLimitesDeMidiaDaRede('youtube', itemsResolvidos, mediaMetadataResolvida, { youtubeFormat })
+    if (erroDeLimite) return erroDeLimite
   }
 
   if (platforms.includes('youtube') && !youtubeTitle?.trim() && !titleByPlatform?.youtube?.trim())
@@ -176,7 +206,7 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
     return 'Informe se o vídeo é feito para crianças (obrigatório pelo YouTube).'
 
   if (platforms.includes('tiktok')) {
-    const { itemsResolvidos, mediaTypeResolvido, aspectRatioResolvido } = resolverMidiaDaRede('tiktok', midiaContext)
+    const { itemsResolvidos, mediaTypeResolvido, mediaMetadataResolvida, aspectRatioResolvido } = resolverMidiaDaRede('tiktok', midiaContext)
     if (!itemsResolvidos.length)
       return 'Falta imagem ou vídeo para publicar no TikTok. Anexe uma mídia ou desmarque o TikTok.'
 
@@ -185,13 +215,29 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
       if (itemsResolvidos.length !== 1 || itemsResolvidos[0].type !== 'video')
         return 'O TikTok aceita um vídeo sozinho ou um carrossel somente de fotos. Remova a mistura de mídias e os arquivos extras.'
       if (mediaTypeResolvido === 'video' && aspectRatioResolvido === false)
-        return 'O vídeo precisa ter proporção entre 9:16 (vertical) e 16:9 (horizontal) para publicar no TikTok.'
+        return 'O vídeo precisa ter proporção 9:16 (vertical) para publicar no TikTok.'
     } else {
       if (!itemsResolvidos.every(item => item.type === 'image'))
         return 'O TikTok aceita vídeos ou um carrossel somente de fotos.'
       if (itemsResolvidos.length > TIKTOK_PHOTO_MAX_ITEMS)
         return `O carrossel de fotos do TikTok aceita no máximo ${TIKTOK_PHOTO_MAX_ITEMS} imagens.`
     }
+    const erroDeLimite = validarLimitesDeMidiaDaRede('tiktok', itemsResolvidos, mediaMetadataResolvida)
+    if (erroDeLimite) return erroDeLimite
+  }
+
+  if (platforms.includes('facebook') && facebookFormat === 'reel') {
+    const { itemsResolvidos, mediaTypeResolvido, mediaMetadataResolvida, aspectRatioFacebookResolvido } = resolverMidiaDaRede('facebook', midiaContext)
+    if (itemsResolvidos.length !== 1 || mediaTypeResolvido !== 'video')
+      return 'O Reel do Facebook aceita exatamente um vídeo vertical.'
+    if (aspectRatioFacebookResolvido === false)
+      return 'O Reel do Facebook precisa ter proporção 9:16 (vertical).'
+    const erroDeLimite = validarLimitesDeMidiaDaRede('facebook', itemsResolvidos, mediaMetadataResolvida, { format: 'reel' })
+    if (erroDeLimite) return erroDeLimite
+  } else if (platforms.includes('facebook')) {
+    const { itemsResolvidos, mediaMetadataResolvida } = resolverMidiaDaRede('facebook', midiaContext)
+    const erroDeLimite = validarLimitesDeMidiaDaRede('facebook', itemsResolvidos, mediaMetadataResolvida, { format: 'post' })
+    if (erroDeLimite) return erroDeLimite
   }
 
   // Exigência das Content Sharing Guidelines do TikTok: a privacidade não
@@ -201,7 +247,7 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
     return 'Escolha quem pode ver a publicação no TikTok antes de publicar.'
 
   if (platforms.includes('instagram')) {
-    const { itemsResolvidos, aspectRatioInstagramResolvido } = resolverMidiaDaRede('instagram', midiaContext)
+    const { itemsResolvidos, mediaMetadataResolvida, aspectRatioInstagramResolvido } = resolverMidiaDaRede('instagram', midiaContext)
     if (!itemsResolvidos.length)
       return 'Falta imagem ou vídeo para publicar no Instagram. Anexe uma mídia ou desmarque o Instagram.'
     // Stories não suporta carrossel na Graph API do Instagram — só 1 item por vez.
@@ -224,6 +270,8 @@ function validarCriacaoPost({ text, textByPlatform, youtubeTitle, titleByPlatfor
       const faixaLabel = igFormat === 'reel' || igFormat === 'story' ? '9:16 (vertical)' : 'entre 4:5 (vertical) e 1.91:1 (horizontal)'
       return `A imagem/vídeo precisa ter proporção ${faixaLabel} para publicar no Instagram${igFormat ? ` como ${igFormat}` : ''}.`
     }
+    const erroDeLimite = validarLimitesDeMidiaDaRede('instagram', itemsResolvidos, mediaMetadataResolvida, { format: igFormat || 'post' })
+    if (erroDeLimite) return erroDeLimite
   }
 
   // O Instagram processa a mídia de forma assíncrona antes de publicar
@@ -282,7 +330,7 @@ function decidirStatusPublicacao(results) {
 
 module.exports = {
   MAX_TEXT_LENGTH, MAX_YOUTUBE_TITLE_LENGTH, MAX_CAPTION_LENGTH, YOUTUBE_VISIBILITIES,
-  YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS,
+  YOUTUBE_CATEGORIES, YOUTUBE_CATEGORY_IDS, INSTAGRAM_FORMATS, YOUTUBE_FORMATS, FACEBOOK_FORMATS,
   INSTAGRAM_MIN_ANTECEDENCIA_MIN, TIKTOK_PRIVACY_LEVELS, TIKTOK_PHOTO_MAX_ITEMS,
   INSTAGRAM_CAROUSEL_MAX_ITEMS,
   validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC,

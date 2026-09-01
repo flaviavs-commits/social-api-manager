@@ -148,6 +148,47 @@
   font-family: var(--mono, monospace);
 }
 
+/* Ações do topo: os rótulos não devem desaparecer junto com os ícones em
+ * telas compactas. Em celulares, o grupo pode ser rolado horizontalmente
+ * para manter todas as ações habilitadas sem apertar o título da página. */
+.app-shell-modern .app-topbar-modern .topbar-text-action {
+  display: inline-flex !important;
+  width: auto;
+  min-width: max-content;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 767px) {
+  .app-shell-modern .app-topbar-modern > div:last-child {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .app-shell-modern .app-topbar-modern .topbar-text-action,
+  .app-shell-modern .app-topbar-modern .topbar-icon-button {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+  }
+
+  .app-shell-modern .app-topbar-modern .topbar-text-action {
+    min-height: 38px;
+    padding-inline: 9px;
+    font-size: 11px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .create-post-button {
+    width: auto !important;
+    min-width: max-content !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .create-post-button::before {
+    content: none !important;
+  }
+}
+
 .app-shell-modern .analytics-summary-explanation-grid p {
   margin: 4px 0 0;
 }

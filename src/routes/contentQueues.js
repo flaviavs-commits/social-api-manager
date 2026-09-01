@@ -3,10 +3,28 @@ const pool = require('../db/pool')
 const { parseId, PLATFORMS, serverError } = require('../utils/http')
 const { ALLOWED_MEDIA_TYPES, isBlobUrl } = require('../infra/storage/blobStorage')
 const { TIKTOK_PRIVACY_LEVELS } = require('../domain/posts/post')
+const { mediaKindFromMime, validateMediaMetadata, formatMediaLimitViolation } = require('../domain/posts/mediaLimits')
 
 const router = Router()
 const validTime = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(value || ''))
 const validDays = value => Array.isArray(value) && value.length > 0 && value.every(day => Number.isInteger(Number(day)) && Number(day) >= 0 && Number(day) <= 6)
+
+function validateQueueMediaLimits(content, platforms) {
+  if (!content?.mediaPath) return null
+  const mediaKind = mediaKindFromMime(content.mediaType)
+  const metadata = {
+    size: Number.isFinite(content.mediaSize) ? content.mediaSize : null,
+    width: Number.isFinite(content.mediaWidth) ? content.mediaWidth : null,
+    height: Number.isFinite(content.mediaHeight) ? content.mediaHeight : null,
+    duration: Number.isFinite(content.mediaDuration) ? content.mediaDuration : null,
+  }
+  for (const platform of platforms) {
+    const format = platform === 'instagram' ? content.igFormat || 'post' : platform === 'facebook' ? content.facebookFormat || 'post' : undefined
+    const violations = validateMediaMetadata({ platform, mediaKind, format, youtubeFormat: content.youtubeFormat, ...metadata })
+    if (violations.length) return formatMediaLimitViolation(platform, { mediaKind, format, youtubeFormat: content.youtubeFormat }, violations[0])
+  }
+  return null
+}
 
 function timezoneParts(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -75,6 +93,8 @@ router.post('/', async (req, res) => {
     if (platforms.includes('youtube') && !String(content.mediaType || '').toLowerCase().startsWith('video/')) return res.status(400).json({ erro: 'O YouTube precisa de um vídeo anexado.' })
     if (platforms.includes('tiktok') && !['image/', 'video/'].some(prefix => String(content.mediaType || '').toLowerCase().startsWith(prefix))) return res.status(400).json({ erro: 'O TikTok precisa de uma imagem ou vídeo anexado.' })
     if (platforms.includes('tiktok') && !TIKTOK_PRIVACY_LEVELS.includes(content.tiktokPrivacyLevel)) return res.status(400).json({ erro: 'Escolha a privacidade da publicação do TikTok.' })
+    const mediaLimitError = validateQueueMediaLimits(content, platforms)
+    if (mediaLimitError) return res.status(400).json({ erro: mediaLimitError })
     const normalized = { days: [...new Set(recurrence.days.map(Number))].sort((a, b) => a - b), time: recurrence.time }
     const next = active ? nextOccurrence(normalized, new Date(), await userTimezone(req.user.id)) : null
     const { rows } = await pool.query('INSERT INTO content_queues (user_id,name,platforms,content,recurrence,next_run_at,active) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id', [req.user.id, name.trim(), platforms, JSON.stringify(content), JSON.stringify(normalized), next, Boolean(active)])
@@ -103,4 +123,4 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { serverError(res, err) }
 })
 
-module.exports = { router, nextOccurrence }
+module.exports = { router, nextOccurrence, validateQueueMediaLimits }

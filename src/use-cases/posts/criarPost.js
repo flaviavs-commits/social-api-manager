@@ -5,9 +5,9 @@ const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const { processarPost } = require('../../services/scheduler')
 const { probeVideo } = require('../../infra/storage/videoProbe')
-const { converterParaJpeg, lerDimensoesImagem, converterVideoParaTiktok, converterVideoParaInstagram } = require('../../infra/storage/mediaConverter')
+const { converterParaJpeg, lerDimensoesImagem, converterImagemParaTiktok, converterVideoParaTiktok, converterVideoParaInstagram } = require('../../infra/storage/mediaConverter')
 const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
-const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram } = require('../../domain/posts/videoRules')
+const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram, isVerticalNineBySixteen } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
 const { parseSelectedAccountIds, validateSelectedAccounts } = require('../../domain/posts/accountSelection')
 const { ValidationError } = require('../../domain/posts/errors')
@@ -25,7 +25,7 @@ const { pipeline } = require('stream/promises')
 // dimensoesPorPath acumula width/height de cada imagem tocada aqui (a
 // resolução real que efetivamente será publicada), lido depois em
 // processarMidia — evita rebaixar (fetch) a URL final de novo só para medir.
-async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
+async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, tamanhosPorPath) {
   if (!platforms.includes('instagram') && !platforms.includes('tiktok')) return files
 
   return Promise.all(files.map(async f => {
@@ -33,6 +33,7 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
     if (f.mimetype === 'image/jpeg') return f
 
     const fetchRes = await fetch(f.url)
+    if (!fetchRes.ok) throw new Error('Não foi possível baixar a imagem para preparar a publicação.')
     // fetch nativo devolve um Web ReadableStream em .body, que o sharp NÃO
     // aceita como input (só Buffer, path ou Node Readable clássico) — sem
     // converter para Buffer aqui, toda conversão pra JPEG falha com
@@ -41,6 +42,7 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
     const jpegBuffer = await converterParaJpeg(inputBuffer, { mimetype: f.mimetype })
     const url = await salvarBuffer(`${crypto.randomUUID()}.jpg`, jpegBuffer, 'image/jpeg')
     if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(jpegBuffer).catch(() => null)
+    if (tamanhosPorPath) tamanhosPorPath[url] = inputBuffer.length
     return { ...f, url, mimetype: 'image/jpeg' }
   }))
 }
@@ -48,22 +50,23 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath) {
 // Lê width/height de uma imagem que NÃO passou por converterMidiasSeNecessario
 // (já era JPEG e nenhuma rede pediu conversão) — precisa rebaixar a URL, já
 // que não houve buffer intermediário disponível para medir de graça.
-async function lerDimensoesImagemPorUrl(url) {
+async function lerDimensoesImagemPorUrl(url, tamanhosPorPath) {
   try {
     const res = await fetch(url)
     if (!res.ok) return null
     const buffer = Buffer.from(await res.arrayBuffer())
+    if (tamanhosPorPath) tamanhosPorPath[url] = buffer.length
     return await lerDimensoesImagem(buffer)
   } catch {
     return null
   }
 }
 
-// Detecta se algum vídeo é elegível como Shorts do YouTube (vertical/quadrado,
-// até 3min) — ffprobe só funciona com um arquivo local, então o vídeo é
+// Detecta se algum vídeo é elegível como Short do YouTube (vertical 9:16,
+// menos de 60s) — ffprobe só funciona com um arquivo local, então o vídeo é
 // baixado da URL do Blob para um arquivo temporário só para essa leitura de
 // metadados, e descartado logo depois.
-async function probarVideos(files) {
+async function probarVideos(files, tamanhosPorPath) {
   return Promise.all(files.map(async f => {
     if (!f.mimetype.startsWith('video/')) return null
     const ext = f.mimetype === 'video/quicktime' ? 'mov' : 'mp4'
@@ -72,6 +75,7 @@ async function probarVideos(files) {
       const fetchRes = await fetch(f.url)
       if (!fetchRes.ok) return null
       await pipeline(fetchRes.body, fs.createWriteStream(tmpPath))
+      if (tamanhosPorPath) tamanhosPorPath[f.url] = (await fs.promises.stat(tmpPath)).size
       return await probeVideo(tmpPath)
     } catch {
       return null
@@ -89,7 +93,7 @@ async function probarVideos(files) {
 // relevante quando 'instagram' está em platforms; decide a faixa de
 // proporção aceita (ver domain/posts/videoRules.js). A mídia permanece na
 // resolução original em todas as redes.
-async function normalizarVideosTiktok(files, probes) {
+async function normalizarVideosTiktok(files, probes, tamanhosPorPath) {
   return Promise.all(files.map(async (file, index) => {
     if (!file.mimetype.startsWith('video/')) return file
     const probe = probes[index]
@@ -100,11 +104,27 @@ async function normalizarVideosTiktok(files, probes) {
     const inputBuffer = Buffer.from(await response.arrayBuffer())
     const outputBuffer = await converterVideoParaTiktok(inputBuffer)
     const url = await salvarBuffer(`${crypto.randomUUID()}-tiktok.mp4`, outputBuffer, 'video/mp4')
+    if (tamanhosPorPath) tamanhosPorPath[url] = tamanhosPorPath[file.url] ?? inputBuffer.length
     return { ...file, url, mimetype: 'video/mp4' }
   }))
 }
 
-async function normalizarVideosInstagram(files) {
+async function normalizarImagensTiktok(files, dimensoesPorPath, tamanhosPorPath) {
+  return Promise.all(files.map(async file => {
+    if (!file.mimetype.startsWith('image/')) return file
+
+    const response = await fetch(file.url)
+    if (!response.ok) throw new Error('Não foi possível baixar a foto para preparar a versão do TikTok.')
+    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const outputBuffer = await converterImagemParaTiktok(inputBuffer)
+    const url = await salvarBuffer(`${crypto.randomUUID()}-tiktok.jpg`, outputBuffer, 'image/jpeg')
+    if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(outputBuffer).catch(() => null)
+    if (tamanhosPorPath) tamanhosPorPath[url] = tamanhosPorPath[file.url] ?? inputBuffer.length
+    return { ...file, url, mimetype: 'image/jpeg' }
+  }))
+}
+
+async function normalizarVideosInstagram(files, tamanhosPorPath) {
   return Promise.all(files.map(async file => {
     if (!file.mimetype.startsWith('video/')) return file
 
@@ -113,46 +133,91 @@ async function normalizarVideosInstagram(files) {
     const inputBuffer = Buffer.from(await response.arrayBuffer())
     const outputBuffer = await converterVideoParaInstagram(inputBuffer)
     const url = await salvarBuffer(`${crypto.randomUUID()}-instagram.mp4`, outputBuffer, 'video/mp4')
+    if (tamanhosPorPath) tamanhosPorPath[url] = tamanhosPorPath[file.url] ?? inputBuffer.length
     return { ...file, url, mimetype: 'video/mp4' }
   }))
 }
 
-async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false, normalizarInstagram = false } = {}) {
+async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false, normalizarInstagram = false, facebookFormat = 'post', youtubeFormat } = {}) {
   const dimensoesPorPath = {}
-  let files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath)
-  let probes = await probarVideos(files)
+  const tamanhosPorPath = {}
+  let files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath, tamanhosPorPath)
+  let probes = await probarVideos(files, tamanhosPorPath)
+  // Guarda os metadados do arquivo enviado antes de qualquer cópia para uma
+  // rede. A normalização do TikTok pode transformar, por exemplo, 720x1280 em
+  // 1080x1920; os limites devem avaliar a mídia original, não mascarar uma
+  // resolução abaixo do mínimo com a cópia gerada pelo app.
+  const probesOriginais = probes.slice()
   if (normalizarTiktok && platforms.includes('tiktok')) {
-    files = await normalizarVideosTiktok(files, probes)
-    probes = await probarVideos(files)
+    const videoIndex = files.findIndex(file => file.mimetype.startsWith('video/'))
+    const videoValido = videoIndex >= 0 && probes[videoIndex]
+      ? isAspectRatioValidForTiktok(probes[videoIndex])
+      : null
+    if (videoIndex < 0 && files.length > 0 && files.every(file => file.mimetype.startsWith('image/'))) {
+      files = await normalizarImagensTiktok(files, dimensoesPorPath, tamanhosPorPath)
+    } else if (files.length === 1 && videoValido === true) {
+      files = await normalizarVideosTiktok(files, probes, tamanhosPorPath)
+    }
+    probes = await probarVideos(files, tamanhosPorPath)
   }
   if (normalizarInstagram && platforms.includes('instagram')) {
-    files = await normalizarVideosInstagram(files)
-    probes = await probarVideos(files)
+    files = await normalizarVideosInstagram(files, tamanhosPorPath)
+    probes = await probarVideos(files, tamanhosPorPath)
   }
+
+  // JPEGs e vídeos que não precisaram de conversão ainda precisam ter o
+  // tamanho real conhecido para as regras de cada rede. O navegador envia
+  // `file.size` como fallback, mas o valor medido aqui é a fonte confiável.
+  await Promise.all(files.map(async file => {
+    if (!file.mimetype.startsWith('image/')) return
+    const precisaDeTamanho = !Number.isFinite(tamanhosPorPath[file.url])
+    const precisaDeDimensoes = platforms.includes('instagram') && !dimensoesPorPath[file.url]
+    if (!precisaDeTamanho && !precisaDeDimensoes) return
+    const dimensoes = await lerDimensoesImagemPorUrl(file.url, tamanhosPorPath)
+    if (dimensoes) dimensoesPorPath[file.url] = dimensoes
+  }))
+
   const items = montarItensMedia(files, captions)
   const mediaType = items[0]?.type || null
   const aspectRatioValidoTiktok = mediaType === 'video' && probes[0] ? isAspectRatioValidForTiktok(probes[0]) : null
-  const shortElegivel = mediaType === 'video' && probes[0] ? isShortEligible(probes[0]) : null
+  const shortElegivel = mediaType === 'video' ? Boolean(probes[0] && isShortEligible(probes[0])) : null
 
   let aspectRatioValidoInstagram = null
   if (platforms.includes('instagram') && mediaType) {
     if (mediaType === 'video' && probes[0]) {
-      aspectRatioValidoInstagram = isAspectRatioValidForInstagram(probes[0], igFormat)
+      aspectRatioValidoInstagram = isAspectRatioValidForInstagram(probes[0], igFormat || 'post')
     } else if (mediaType === 'image') {
       const primeiraImagem = files.find(f => f.mimetype.startsWith('image/'))
       const dimensoes = primeiraImagem
-        ? (dimensoesPorPath[primeiraImagem.url] || await lerDimensoesImagemPorUrl(primeiraImagem.url))
+        ? (dimensoesPorPath[primeiraImagem.url] || await lerDimensoesImagemPorUrl(primeiraImagem.url, tamanhosPorPath))
         : null
-      if (dimensoes?.width && dimensoes?.height) aspectRatioValidoInstagram = isAspectRatioValidForInstagram(dimensoes, igFormat)
+      if (dimensoes?.width && dimensoes?.height) aspectRatioValidoInstagram = isAspectRatioValidForInstagram(dimensoes, igFormat || 'post')
     }
   }
 
-  return { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel }
+  let aspectRatioValidoFacebook = null
+  if (platforms.includes('facebook') && facebookFormat === 'reel' && mediaType === 'video') {
+    aspectRatioValidoFacebook = probes[0] ? isVerticalNineBySixteen(probes[0]) : null
+  }
+
+  const mediaMetadata = files.map((file, index) => {
+    const probe = probesOriginais[index] || probes[index]
+    const dimensoes = dimensoesPorPath[file.url]
+    return {
+      type: items[index]?.type || null,
+      size: Number.isFinite(tamanhosPorPath[file.url]) ? tamanhosPorPath[file.url] : (Number.isFinite(file.size) ? file.size : null),
+      width: probe?.width ?? dimensoes?.width ?? null,
+      height: probe?.height ?? dimensoes?.height ?? null,
+      duration: probe?.duration ?? null,
+    }
+  })
+
+  return { items, mediaType, mediaMetadata, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel }
 }
 
 async function criarPost({ body, userId, userRole, isAdmin }) {
   const startedAt = Date.now()
-  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, tiktokPrivacyLevel, locationId, locationName, firstComment } = body
+  const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, facebookFormat = 'post', tiktokPrivacyLevel, locationId, locationName, firstComment } = body
 
   // "true"/"false" (form-data) ou boolean já parseado (JSON) — undefined
   // quando o campo não veio, para a validação distinguir "não escolheu" de
@@ -264,7 +329,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   // A mídia compartilhada mantém resolução e enquadramento originais em
   // todas as redes; cada API faz o enquadramento final.
-  const { items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat)
+  const { items, mediaType, mediaMetadata: mediaMetadataCompartilhada, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat, { facebookFormat, youtubeFormat })
   const mediaPath = items[0]?.path || null
   const mediaItems = items.length > 1 ? items : null
 
@@ -294,18 +359,24 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
       const origemCaptions = usaMidiaCompartilhada ? captions : (captionsByPlatform[p] || [])
       return processarMidia(origemMedia, origemCaptions, [p], igFormat, {
         normalizarTiktok: p === 'tiktok',
-        normalizarInstagram: p === 'instagram'
+        normalizarInstagram: p === 'instagram',
+        facebookFormat,
+        youtubeFormat
       })
     })
   )
   const itemsByPlatform = {}
   const aspectRatioValidoTiktokByPlatform = {}
   const aspectRatioValidoInstagramByPlatform = {}
+  const aspectRatioValidoFacebookByPlatform = {}
   const shortElegivelByPlatform = {}
+  const mediaMetadataByPlatform = {}
   todasComMidiaPropria.forEach((p, i) => {
     itemsByPlatform[p] = resultadosPorPlataforma[i].items
+    mediaMetadataByPlatform[p] = resultadosPorPlataforma[i].mediaMetadata
     aspectRatioValidoTiktokByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoTiktok
     aspectRatioValidoInstagramByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoInstagram
+    aspectRatioValidoFacebookByPlatform[p] = resultadosPorPlataforma[i].aspectRatioValidoFacebook
     shortElegivelByPlatform[p] = resultadosPorPlataforma[i].shortElegivel
   })
 
@@ -321,8 +392,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   if (requiresApproval && publishNow) throw new ValidationError('Desative "Publicar agora" para enviar o conteúdo para aprovação.')
 
   const erro = validarCriacaoPost({
-    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, tiktokPrivacyLevel,
-    platforms, repeat, items, mediaType, aspectRatioValidoTiktok, aspectRatioValidoInstagram, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform,
+    text, textByPlatform, youtubeTitle, titleByPlatform, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeMadeForKids, igFormat, facebookFormat, tiktokPrivacyLevel,
+    platforms, repeat, items, mediaType, mediaMetadata: mediaMetadataCompartilhada, mediaMetadataByPlatform, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel: shortElegivelCompartilhado, shortElegivelByPlatform, itemsByPlatform, aspectRatioValidoTiktokByPlatform, aspectRatioValidoInstagramByPlatform, aspectRatioValidoFacebookByPlatform,
     scheduledAtUTC, publishNow
   })
   if (erro) throw new ValidationError(erro)
@@ -355,13 +426,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // escolha, comportamento de sempre (decidido pela proporção/duração).
   const youtubeIsShort = youtubeFormat ? youtubeFormat === 'short' : shortElegivel
 
-  // Aviso não-bloqueante: usuário forçou "Short" num vídeo que não tem
-  // proporção/duração típica — o YouTube pode não exibi-lo como tal, mas o
-  // post ainda é criado normalmente (decisão de produto: avisar, não bloquear).
   const warnings = []
-  if (youtubeFormat === 'short' && shortElegivel === false) {
-    warnings.push('O vídeo não tem proporção/duração típica de Short — o YouTube pode não exibi-lo como tal.')
-  }
 
   // Localização (Facebook/Instagram, only) e primeiro comentário automático
   // (Facebook/Instagram/YouTube — não TikTok, sem endpoint de comentário na
@@ -372,7 +437,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     text: text?.trim() || null, textByPlatform, titleByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
     mediaPath, mediaType, mediaItems,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
-    youtubeFormat: youtubeFormat || null, youtubeIsShort, youtubeMadeForKids: youtubeMadeForKids ?? null, igFormat: igFormat || null,
+    youtubeFormat: youtubeFormat || null, youtubeIsShort, youtubeMadeForKids: youtubeMadeForKids ?? null, igFormat: igFormat || null, facebookFormat: facebookFormat || null,
     tiktokPrivacyLevel: platforms.includes('tiktok') ? tiktokPrivacyLevel : null,
     tiktokDisableComment: platforms.includes('tiktok') ? tiktokDisableComment : null,
     tiktokDisableDuet: platforms.includes('tiktok') ? tiktokDisableDuet : null,

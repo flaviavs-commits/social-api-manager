@@ -28,6 +28,7 @@ export const SOCIAL_MEDIA_RESOLUTIONS = {
       { key: 'square', label: 'Quadrado', dimensions: '1080 × 1080 px', ratio: 1 },
       { key: 'portrait', label: 'Retrato', dimensions: '1080 × 1350 px', ratio: 4 / 5 },
     ],
+    reel: { key: 'vertical', label: 'Reel', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
   },
   youtube: {
     video: { key: 'landscape', label: 'Vídeo', dimensions: '1920 × 1080 px', ratio: 16 / 9 },
@@ -41,18 +42,36 @@ export const SOCIAL_MEDIA_RESOLUTIONS = {
 
 export const TIKTOK_VIDEO_DIMENSIONS = { width: 1080, height: 1920, label: '1080 × 1920 px' }
 
-export function socialMediaResolutionHint(platform, { instagramFormat = 'post', youtubeFormat = '', mediaKind = 'image' } = {}) {
+export function socialMediaResolutionHint(platform, { instagramFormat = 'post', facebookFormat = 'post', youtubeFormat = '', mediaKind = 'image' } = {}) {
   if (platform === 'instagram') {
     if (instagramFormat === 'reel' || instagramFormat === 'story') return SOCIAL_MEDIA_RESOLUTIONS.instagram[instagramFormat].dimensions
     return SOCIAL_MEDIA_RESOLUTIONS.instagram.feed.map(item => item.dimensions).join(' · ')
   }
-  if (platform === 'facebook') return SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')
+  if (platform === 'facebook') {
+    if (facebookFormat === 'reel') return SOCIAL_MEDIA_RESOLUTIONS.facebook.reel.dimensions
+    return SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')
+  }
   if (platform === 'youtube') {
     const format = youtubeFormat === 'short' ? SOCIAL_MEDIA_RESOLUTIONS.youtube.short : SOCIAL_MEDIA_RESOLUTIONS.youtube.video
     return `${format.dimensions} · miniatura ${SOCIAL_MEDIA_RESOLUTIONS.youtube.thumbnail.dimensions}`
   }
   if (platform === 'tiktok') {
     return SOCIAL_MEDIA_RESOLUTIONS.tiktok.video.dimensions
+  }
+  return ''
+}
+
+export function socialMediaLimitHint(platform, { instagramFormat = 'post', facebookFormat = 'post' } = {}) {
+  if (platform === 'instagram') {
+    if (instagramFormat === 'reel') return 'Imagem até 8 MB · vídeo até 300 MB · até 15 min.'
+    if (instagramFormat === 'story') return 'Imagem até 8 MB · vídeo até 100 MB · até 60 s.'
+    return 'Imagem até 8 MB · vídeo até 60 min. (tamanho não informado para o Feed).'
+  }
+  if (platform === 'tiktok') return 'Foto até 20 MB · vídeo até 4 GB · mínimo 720p · 3 s a 10 min.'
+  if (platform === 'youtube') return 'Vídeo até 256 GB e 12 h · Short com menos de 60 s · thumbnail até 2 MB.'
+  if (platform === 'facebook') {
+    if (facebookFormat === 'reel') return 'Imagem até 10 MB · vídeo até 4 GB · Reel até 90 s.'
+    return 'Imagem até 10 MB · vídeo até 4 GB · Feed até 240 min.'
   }
   return ''
 }
@@ -76,8 +95,9 @@ export function ratioLabel(width, height) {
   return known?.label || `${ratio.toFixed(2)}:1`
 }
 
-export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, requested = 'auto', instagramFormat = 'post' }) {
+export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, requested = 'auto', instagramFormat = 'post', facebookFormat = 'post' }) {
   if (platform === 'instagram' && ['reel', 'story'].includes(instagramFormat)) return PREVIEW_ASPECTS.vertical
+  if (platform === 'facebook' && facebookFormat === 'reel') return PREVIEW_ASPECTS.vertical
   if (platform === 'tiktok') return PREVIEW_ASPECTS.vertical
   if (requested !== 'auto' && PREVIEW_ASPECTS[requested]) return PREVIEW_ASPECTS[requested]
 

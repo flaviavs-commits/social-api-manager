@@ -387,6 +387,7 @@ export function CalendarPage({ onNavigate }) {
       youtubeCategoryId: post.youtubeCategoryId || '',
       youtubeFormat: post.youtubeFormat || '',
       igFormat: post.igFormat || 'post',
+      facebookFormat: post.facebookFormat || 'post',
       tiktokPrivacyLevel: post.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
       tiktokDisableComment: Boolean(post.tiktokDisableComment),
       tiktokDisableDuet: Boolean(post.tiktokDisableDuet),

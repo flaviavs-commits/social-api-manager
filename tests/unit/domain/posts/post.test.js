@@ -185,6 +185,32 @@ describe('validarCriacaoPost — youtubeFormat', () => {
     const erro = validarCriacaoPost(baseArgs({ youtubeFormat: 'longform' }))
     expect(erro).toMatch(/youtubeFormat inválido/)
   })
+
+  test('rejeita Short sem vídeo vertical 9:16 e com 60 segundos ou mais', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['youtube'],
+      youtubeFormat: 'short',
+      youtubeTitle: 'Meu Short',
+      youtubeMadeForKids: false,
+      items: [{ path: 'video.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      shortElegivel: false,
+    }))
+    expect(erro).toMatch(/Short.*9:16.*menor que 60 segundos/)
+  })
+
+  test('aceita Short elegível', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['youtube'],
+      youtubeFormat: 'short',
+      youtubeTitle: 'Meu Short',
+      youtubeMadeForKids: false,
+      items: [{ path: 'video.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      shortElegivel: true,
+    }))
+    expect(erro).toBeNull()
+  })
 })
 
 describe('validarCriacaoPost — igFormat', () => {
@@ -279,5 +305,101 @@ describe('validarCriacaoPost — igFormat', () => {
       tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
       items,
     }))).toMatch(/no máximo 35 imagens/)
+  })
+
+  test('rejeita vídeo do TikTok que não é 9:16', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      textByPlatform: { tiktokDescription: 'descrição' },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      items: [{ path: 'video.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      aspectRatioValidoTiktok: false,
+    }))
+    expect(erro).toMatch(/proporção 9:16/)
+  })
+})
+
+describe('validarCriacaoPost — facebookFormat', () => {
+  test('aceita Feed e Reel do Facebook quando a mídia corresponde ao formato', () => {
+    expect(validarCriacaoPost(baseArgs({ platforms: ['facebook'], facebookFormat: 'post' }))).toBeNull()
+    expect(validarCriacaoPost(baseArgs({
+      platforms: ['facebook'],
+      facebookFormat: 'reel',
+      items: [{ path: 'reel.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      aspectRatioValidoFacebook: true,
+    }))).toBeNull()
+  })
+
+  test('rejeita Reel do Facebook sem um vídeo vertical 9:16', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['facebook'],
+      facebookFormat: 'reel',
+      items: [{ path: 'foto.jpg', type: 'image', caption: '' }],
+      mediaType: 'image',
+    }))
+    expect(erro).toMatch(/Reel do Facebook.*vídeo/)
+  })
+
+  test('rejeita proporção inválida no Reel do Facebook', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['facebook'],
+      facebookFormat: 'reel',
+      items: [{ path: 'reel.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      aspectRatioValidoFacebook: false,
+    }))
+    expect(erro).toMatch(/Facebook.*9:16/)
+  })
+
+  test('rejeita facebookFormat desconhecido', () => {
+    const erro = validarCriacaoPost(baseArgs({ facebookFormat: 'story' }))
+    expect(erro).toMatch(/facebookFormat inválido/)
+  })
+})
+
+describe('validarCriacaoPost — limites de mídia', () => {
+  test('rejeita imagem do Instagram acima de 8 MB', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      mediaMetadata: [{ type: 'image', size: 8 * 1024 * 1024 + 1 }],
+    }))
+    expect(erro).toMatch(/Instagram.*8 MB/)
+  })
+
+  test('usa a mídia e o limite da plataforma própria', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['instagram', 'tiktok'],
+      items: [{ path: 'ig.jpg', type: 'image', caption: '' }],
+      mediaMetadata: [{ type: 'image', size: 8 * 1024 * 1024 }],
+      itemsByPlatform: { tiktok: [{ path: 'tt.jpg', type: 'image', caption: '' }] },
+      mediaMetadataByPlatform: { tiktok: [{ type: 'image', size: 20 * 1024 * 1024 + 1 }] },
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+    }))
+    expect(erro).toMatch(/TikTok.*20 MB/)
+  })
+
+  test('rejeita vídeo do TikTok abaixo de 720p ou fora de 3s–10min', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['tiktok'],
+      items: [{ path: 'tt.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      aspectRatioValidoTiktok: true,
+      mediaMetadata: [{ type: 'video', size: 1, width: 719, height: 1279, duration: 2 }],
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+    }))
+    expect(erro).toMatch(/720p/)
+  })
+
+  test('rejeita vídeo do Facebook Reel acima de 90 segundos', () => {
+    const erro = validarCriacaoPost(baseArgs({
+      platforms: ['facebook'],
+      facebookFormat: 'reel',
+      items: [{ path: 'fb.mp4', type: 'video', caption: '' }],
+      mediaType: 'video',
+      aspectRatioValidoFacebook: true,
+      mediaMetadata: [{ type: 'video', size: 1, width: 1080, height: 1920, duration: 91 }],
+    }))
+    expect(erro).toMatch(/90 segundos/)
   })
 })
