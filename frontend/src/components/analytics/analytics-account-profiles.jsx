@@ -13,14 +13,22 @@ function sumMetrics(profile, names) {
   return values.length ? values.reduce((total, value) => total + value, 0) : null
 }
 
-function profileFor(data, account) {
-  const profiles = data.accountAnalytics?.platforms?.[account.platform] || []
-  return profiles.find(profile => String(profile.localAccountId) === String(account.id)) || profiles[0] || null
+function tiktokMetricTotal(tiktokVideos, accountId, names) {
+  const values = tiktokVideos
+    .filter(video => String(video.accountId) === String(accountId))
+    .flatMap(video => names.map(name => Number(video[name])).filter(Number.isFinite))
+  return values.length ? values.reduce((total, value) => total + value, 0) : null
 }
 
-function audienceFor(data, account, profile) {
+function profileFor(data, account) {
+  const profiles = data.accountAnalytics?.platforms?.[account.platform] || []
+  const matchingProfile = profiles.find(profile => String(profile.localAccountId) === String(account.id))
+  return matchingProfile || (profiles.length === 1 ? profiles[0] : null)
+}
+
+function audienceFor(data, account, profile, accountCount) {
   const follower = (data.accountAnalytics?.followerStats?.accounts || []).find(item => String(item.localAccountId || item.accountId) === String(account.id))
-  if (follower?.currentFollowers != null) return Number(follower.currentFollowers)
+  if (follower?.currentFollowers != null && Number.isFinite(Number(follower.currentFollowers))) return Number(follower.currentFollowers)
 
   const legacy = account.platform === 'instagram'
     ? latestOf(data.instagramFollowers)
@@ -29,7 +37,10 @@ function audienceFor(data, account, profile) {
       : account.platform === 'youtube'
         ? latestOf(data.youtubeSubscribers)
         : null
-  if (legacy) return Number(legacy.followerCount ?? legacy.subscriberCount ?? 0)
+  if (legacy && accountCount === 1) {
+    const value = Number(legacy.followerCount ?? legacy.subscriberCount)
+    return Number.isFinite(value) ? value : null
+  }
   return metricValue(profile, account.platform === 'tiktok' ? 'follower_count' : account.platform === 'facebook' ? 'page_follows' : 'subscriberCount')
 }
 
@@ -37,16 +48,14 @@ function reachFor(account, profile, tiktokVideos) {
   if (account.platform === 'facebook') return sumMetrics(profile, ['page_media_view', 'page_video_views'])
   if (account.platform === 'instagram') return sumMetrics(profile, ['reach', 'views'])
   if (account.platform === 'youtube') return metricValue(profile, 'views')
-  const videoTotal = tiktokVideos.filter(video => String(video.accountId) === String(account.id)).reduce((total, video) => total + Number(video.viewCount || 0), 0)
-  return videoTotal || metricValue(profile, 'views')
+  return tiktokMetricTotal(tiktokVideos, account.id, ['viewCount']) ?? metricValue(profile, 'views')
 }
 
 function interactionsFor(account, profile, tiktokVideos) {
   if (account.platform === 'facebook') return metricValue(profile, 'page_post_engagements')
   if (account.platform === 'instagram') return sumMetrics(profile, ['total_interactions', 'likes', 'comments', 'shares', 'saves'])
   if (account.platform === 'youtube') return sumMetrics(profile, ['likes', 'comments', 'shares'])
-  const videoTotal = tiktokVideos.filter(video => String(video.accountId) === String(account.id)).reduce((total, video) => total + Number(video.likeCount || 0) + Number(video.commentCount || 0) + Number(video.shareCount || 0), 0)
-  return videoTotal || metricValue(profile, 'likes_count')
+  return tiktokMetricTotal(tiktokVideos, account.id, ['likeCount', 'commentCount', 'shareCount']) ?? metricValue(profile, 'likes_count')
 }
 
 function accountStatus(account, profile) {
@@ -81,6 +90,7 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
         const profile = profileFor(data, account)
         const status = accountStatus(account, profile)
         const audienceLabel = account.platform === 'youtube' ? 'Inscritos' : 'Seguidores'
+        const accountCount = orderedAccounts.filter(item => item.platform === account.platform).length
         return <article className={`analytics-profile-card analytics-profile-card-${account.platform}`} key={account.id}>
           <div className="analytics-profile-card-header">
             <div className="analytics-profile-identity">
@@ -91,7 +101,7 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
           </div>
           <div className="analytics-profile-network"><span className={`analytics-profile-network-icon analytics-profile-network-icon-${account.platform}`}><PlatformIcon platform={account.platform} className="h-4 w-4"/></span><span>{PLAT_LABELS[account.platform]}</span><button type="button" onClick={() => onSelectNetwork(account.platform, account.id)}>Ver relatório <span aria-hidden="true">→</span></button></div>
           <div className="analytics-profile-metrics">
-            <div><span>{audienceLabel}</span><strong>{fmtNum(audienceFor(data, account, profile))}</strong></div>
+            <div><span>{audienceLabel}</span><strong>{fmtNum(audienceFor(data, account, profile, accountCount))}</strong></div>
             <div><span>Alcance / views</span><strong>{fmtNum(reachFor(account, profile, tiktokVideos))}</strong></div>
             <div><span>Interações</span><strong>{fmtNum(interactionsFor(account, profile, tiktokVideos))}</strong></div>
           </div>

@@ -8,6 +8,21 @@ const transporter = nodemailer.createTransport({
   }
 })
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function ensureEmailConfigured() {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    throw new Error('E-mail não configurado para liberação do MeuEcoo')
+  }
+}
+
 async function enviarEmailRedefinicaoSenha(email, resetLink) {
   await transporter.sendMail({
     from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
@@ -28,6 +43,35 @@ async function enviarEmailRedefinicaoSenha(email, resetLink) {
   })
 }
 
+async function enviarEmailAcessoMeuEcoo(email, { fullName, planName, offer, accessUrl }) {
+  ensureEmailConfigured()
+  const safeName = escapeHtml(fullName || 'Olá')
+  const safePlanName = escapeHtml(planName || 'seu plano')
+  const safeOffer = escapeHtml(offer || 'Seu plano inclui acesso ao MeuEcoo.')
+  const safeAccessUrl = escapeHtml(accessUrl)
+
+  await transporter.sendMail({
+    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: 'Seu acesso ao MeuEcoo está liberado',
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #222;">
+        <h2 style="color: #333;">${safeName}, seu acesso está liberado</h2>
+        <p>O pagamento do plano <strong>${safePlanName}</strong> foi confirmado.</p>
+        <p>${safeOffer}</p>
+        <p style="margin: 28px 0;">
+          <a href="${safeAccessUrl}" style="display: inline-block; background: #6c8cff; color: #fff; padding: 13px 22px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Acessar o MeuEcoo
+          </a>
+        </p>
+        <p style="color: #777; font-size: 13px;">Use o mesmo e-mail e senha da sua conta Meu Ecoo Mídia para entrar.</p>
+        <p style="color: #999; font-size: 12px;">Se o botão não abrir, copie este endereço: <a href="${safeAccessUrl}">${safeAccessUrl}</a></p>
+      </div>
+    `,
+    text: `${fullName || 'Olá'}, seu acesso ao MeuEcoo está liberado. O pagamento do plano ${planName || 'seu plano'} foi confirmado. Acesse: ${accessUrl}`
+  })
+}
+
 async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { pdf, filename } = {}) {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para relatórios agendados')
   await transporter.sendMail({
@@ -39,4 +83,4 @@ async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { 
   })
 }
 
-module.exports = { enviarEmailRedefinicaoSenha, enviarRelatorioAgendado }
+module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado }

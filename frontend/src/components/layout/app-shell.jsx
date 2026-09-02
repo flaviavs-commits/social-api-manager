@@ -153,6 +153,7 @@ function notificationKind(item) {
 }
 
 const NOTIFICATION_KIND_LABELS = { success: 'Sucesso', error: 'Erro', pending: 'Em processamento', warning: 'Atenção', info: 'Atualização' }
+const NOTIFICATION_POLL_INTERVAL_MS = 60 * 1000
 
 function isPublicationNotification(item) {
   return /^post #\d+\s+(?:publicado com sucesso|publicado parcialmente|falhou ao publicar)/.test(String(item?.message || '').toLowerCase())
@@ -235,9 +236,10 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
 
     primeNotifications()
     const interval = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       if (notificationsInitialized.current) pollNotifications()
       else primeNotifications()
-    }, 15_000)
+    }, NOTIFICATION_POLL_INTERVAL_MS)
     return () => {
       active = false
       window.clearInterval(interval)

@@ -20,13 +20,46 @@ function reportRows(data, periodDays, activeNet) {
   return filterByPeriod(data.metrics, periodDays).filter(item => !activeNet || item.platform === activeNet)
 }
 
+function hasMetricData(item) {
+  return Object.values(item?.metrics || {}).some(value => value != null && Number.isFinite(Number(value)))
+}
+
+function interactionTotal(item) {
+  const values = ['likes', 'comments', 'shares', 'saves']
+    .map(name => item?.metrics?.[name])
+    .filter(value => value != null && Number.isFinite(Number(value)))
+    .map(Number)
+  return values.length ? values.reduce((total, value) => total + value, 0) : null
+}
+
+function catalogReportRows(tiktokVideos, periodDays) {
+  return filterTikTokVideosByPeriod(tiktokVideos, periodDays).map(video => ({
+    platform: 'tiktok',
+    publishedAt: video.publishedAt || (video.createTime ? new Date(Number(video.createTime) * 1000).toISOString() : null),
+    text: video.title || '',
+    mediaType: 'video',
+    metrics: {
+      views: video.viewCount,
+      likes: video.likeCount,
+      comments: video.commentCount,
+      shares: video.shareCount,
+      saves: video.saveCount,
+    },
+  }))
+}
+
+function outputRows(data, tiktokVideos, periodDays, activeNet) {
+  const rows = reportRows(data, periodDays, activeNet)
+  if (activeNet && activeNet !== 'tiktok') return rows
+
+  const catalogRows = catalogReportRows(tiktokVideos, periodDays)
+  if (!catalogRows.some(hasMetricData)) return rows
+  return [...rows.filter(item => item.platform !== 'tiktok'), ...catalogRows]
+}
+
 function sumKnown(values) {
   const known = values.filter(value => value != null && Number.isFinite(Number(value)))
   return known.length ? known.reduce((total, value) => total + Number(value), 0) : null
-}
-
-function hasMetricData(item) {
-  return Object.values(item?.metrics || {}).some(value => value != null && Number.isFinite(Number(value)))
 }
 
 function htmlValue(value) {
@@ -72,7 +105,7 @@ export function AnalyticsPage() {
   }
 
   function exportReport() {
-    const rows = reportRows(data, periodDays, selectedPlatform)
+    const rows = outputRows(data, tiktokVideos, periodDays, selectedPlatform)
     const header = ['Data', 'Rede', 'Publicação', 'Visualizações', 'Curtidas', 'Comentários', 'Compartilhamentos', 'Salvamentos']
     const lines = rows.map(item => [
       item.publishedAt ? new Date(item.publishedAt).toLocaleDateString('pt-BR') : '',
@@ -94,14 +127,8 @@ export function AnalyticsPage() {
   }
 
   function printReport() {
-    const rows = reportRows(data, periodDays, selectedPlatform)
+    const rows = outputRows(data, tiktokVideos, periodDays, selectedPlatform)
     const performanceReport = buildPerformanceReport(data, tiktokVideos, periodDays, selectedPlatform)
-    const totals = rows.reduce((total, item) => ({
-      views: total.views + Number(item.metrics?.views || 0),
-      likes: total.likes + Number(item.metrics?.likes || 0),
-      comments: total.comments + Number(item.metrics?.comments || 0),
-      shares: total.shares + Number(item.metrics?.shares || 0),
-    }), { views: 0, likes: 0, comments: 0, shares: 0 })
     const target = window.open('', '_blank', 'width=1000,height=800')
     if (!target) { notify('Permita pop-ups para gerar o relatório imprimível.', 'error'); return }
     const title = `Relatório ${selectedPlatform ? PLAT_LABELS[selectedPlatform] || selectedPlatform : 'todas as redes'}`
@@ -114,7 +141,7 @@ export function AnalyticsPage() {
         const number = Number(normalized)
         return Number.isFinite(number) ? number : null
       }
-      const interactions = best ? ['likes', 'comments', 'shares', 'saves'].reduce((sum, name) => sum + (metricNumber(best.metrics?.[name]) || 0), 0) : null
+      const interactions = best ? interactionTotal(best) : null
       const views = best ? metricNumber(best.metrics?.views) : null
       const title = best?.text || best?.title || best?.youtubeTitle || best?.caption || 'Nenhum post com métricas confirmadas no período.'
       return `<tr><td>${htmlValue(PLAT_LABELS[item.platform] || item.platform)}</td><td>${htmlValue(title)}</td><td>${views == null ? '—' : fmtNum(Math.round(views))}</td><td>${interactions == null ? '—' : fmtNum(Math.round(interactions))}</td></tr>`

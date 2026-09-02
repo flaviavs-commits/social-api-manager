@@ -183,6 +183,11 @@ router.post('/register', loginLimiter, async (req, res) => {
     const user = await usersRepo.criar({ email, fullName, plan, allowedPlatforms: selectedPlatforms })
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
+    // O cliente Pro/Premium já pode acessar o MeuEcoo assim que o pagamento
+    // for confirmado. A sincronização é best-effort e não bloqueia o cadastro.
+    if (PLANS[selectedPlan].meuEcooAccess !== 'none') {
+      void sincronizarCredencial(email, password, fullName)
+    }
     // O cadastro não deve ficar indisponível se o provedor externo estiver
     // temporariamente fora do ar; a conexão social tenta provisionar de novo.
     void bestEffortEnsureZernioProfile(user.id)

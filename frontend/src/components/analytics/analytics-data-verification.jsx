@@ -2,6 +2,12 @@ import { filterTikTokVideosByPeriod, NETWORK_ORDER, PLAT_LABELS } from '../../li
 
 const STATUS_ICONS = { verified: '✓', partial: '!', no_data: '○' }
 
+function numericOrNull(value) {
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
 function periodLabel(period) {
   if (!period?.since || !period?.until) return `${period?.days || 'período selecionado'} dias`
   const format = value => new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR')
@@ -59,6 +65,9 @@ export function AnalyticsDataVerification({ verification, activeNet = null, sour
   const label = selected?.label || scopedVerification.overall?.label || 'Status dos dados'
   const description = selected?.description || verification.overall?.description
   const coveragePercent = content.percent ?? content.coveragePercent
+  const contentWithData = numericOrNull(content.withData)
+  const contentTotal = numericOrNull(content.total)
+  const contentWithoutData = numericOrNull(content.withoutData)
   const visibleSourceErrors = sourceErrors.filter(issue => !activeNet || String(issue.source || '').toLowerCase().includes(String(PLAT_LABELS[activeNet] || activeNet).toLowerCase()))
 
   return <section className={`analytics-data-verification is-${status}`} aria-labelledby="analytics-data-verification-title">
@@ -76,8 +85,8 @@ export function AnalyticsDataVerification({ verification, activeNet = null, sour
     {visibleSourceErrors.length > 0 && <div className="analytics-data-verification-source-error" role="status"><strong>Também não foi possível conferir:</strong> {visibleSourceErrors.map(issue => `${issue.source}: ${issue.message}`).join(' · ')}</div>}
 
     <div className="analytics-data-verification-facts">
-      <div><strong>{coveragePercent == null ? '—' : `${coveragePercent}%`}</strong><span>cobertura de publicações</span><small>{content.withData || 0} de {content.total || 0} com métrica confirmada</small></div>
-      <div><strong>{content.withoutData || 0}</strong><span>sem métrica confirmada</span><small>Não entram como zero no cálculo.</small></div>
+      <div><strong>{coveragePercent == null ? '—' : `${coveragePercent}%`}</strong><span>cobertura de publicações</span><small>{contentWithData == null ? '—' : contentWithData} de {contentTotal == null ? '—' : contentTotal} com métrica confirmada</small></div>
+      <div><strong>{contentWithoutData == null ? '—' : contentWithoutData}</strong><span>sem métrica confirmada</span><small>Não entram como zero no cálculo.</small></div>
       <div><strong>{entries.length}</strong><span>redes com fonte</span><small>API conectada ou histórico local.</small></div>
     </div>
 
@@ -85,7 +94,7 @@ export function AnalyticsDataVerification({ verification, activeNet = null, sour
       {entries.map(([platform, item]) => <article key={platform} className={`analytics-data-verification-platform is-${item.status}`}>
         <div className="analytics-data-verification-platform-title"><strong>{PLAT_LABELS[platform] || platform}</strong><span><i aria-hidden="true">{STATUS_ICONS[item.status] || '○'}</i>{item.label}</span></div>
         <p>{item.description}</p>
-        <small>{item.content?.total ? `${item.content.withData}/${item.content.total} publicações com dado` : `${item.accounts?.withAnalytics || 0} conta(s) com analytics`}</small>
+        <small>{item.content?.total != null ? `${item.content.withData == null ? '—' : item.content.withData}/${item.content.total} publicações com dado` : `${item.accounts?.withAnalytics == null ? '—' : item.accounts.withAnalytics} conta(s) com analytics`}</small>
       </article>)}
     </div>}
 

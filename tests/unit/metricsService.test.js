@@ -41,6 +41,34 @@ describe('metricsService TikTok catalog', () => {
     expect(zernioClient.getAnalytics).toHaveBeenNthCalledWith(2, expect.objectContaining({ accountId: 'tt-account', platform: 'tiktok', limit: 100, page: 2 }))
   })
 
+  it('reads the current platformAnalytics envelope without losing video metrics', async () => {
+    listarContasToken.mockResolvedValue([{ contaId: 10, zernioAccountId: 'tt-account' }])
+    zernioClient.getAnalytics.mockResolvedValue({
+      posts: [{
+        publishedAt: '2026-09-01T12:00:00Z',
+        content: 'Vídeo real',
+        platformAnalytics: [{
+          platform: 'tiktok',
+          accountId: 'tt-account',
+          platformPostId: 'video-current',
+          platformPostUrl: 'https://tiktok.com/@creator/video/video-current',
+          analytics: { view_count: 120, like_count: 8, comment_count: 3, share_count: 2 }
+        }]
+      }],
+      pagination: { pages: 1 }
+    })
+
+    const result = await buscarVideosTiktok(5, false)
+
+    expect(result.videos).toEqual([expect.objectContaining({
+      id: 'video-current',
+      viewCount: 120,
+      likeCount: 8,
+      commentCount: 3,
+      shareCount: 2
+    })])
+  })
+
   it('reports a failed account without fabricating video values', async () => {
     listarContasToken.mockResolvedValue([{ contaId: 10, zernioAccountId: 'tt-account' }])
     zernioClient.getAnalytics.mockRejectedValue(new Error('Tempo esgotado ao acessar https://zernio.com'))

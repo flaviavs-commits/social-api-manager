@@ -6,7 +6,7 @@ function asNumber(value) {
 
 function normalizeMetricEntry(entry) {
   if (entry === null || entry === undefined) return { total: null, values: [], breakdowns: [] }
-  if (typeof entry === 'number') return { total: entry, values: [], breakdowns: [] }
+  if (typeof entry !== 'object') return { total: asNumber(entry), values: [], breakdowns: [] }
 
   return {
     total: asNumber(entry.total),
@@ -103,15 +103,22 @@ function normalizePostAnalytics(response, platformPostId = null) {
 }
 
 function mergeMetricEntries(entries) {
-  const totals = entries.reduce((total, entry) => total + (entry.total ?? 0), 0)
+  const entriesWithTotals = entries.filter(entry => entry.total != null)
+  const totals = entriesWithTotals.reduce((total, entry) => total + entry.total, 0)
   const byDate = new Map()
   const breakdowns = new Map()
   for (const entry of entries) {
-    for (const item of entry.values || []) byDate.set(item.date, (byDate.get(item.date) || 0) + (item.value || 0))
-    for (const item of entry.breakdowns || []) breakdowns.set(item.dimension, (breakdowns.get(item.dimension) || 0) + (item.value || 0))
+    for (const item of entry.values || []) {
+      if (item.value == null) continue
+      byDate.set(item.date, (byDate.get(item.date) || 0) + item.value)
+    }
+    for (const item of entry.breakdowns || []) {
+      if (item.value == null) continue
+      breakdowns.set(item.dimension, (breakdowns.get(item.dimension) || 0) + item.value)
+    }
   }
   return {
-    total: entries.some(entry => entry.total !== null) ? totals : null,
+    total: entriesWithTotals.length ? totals : null,
     values: [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, value })),
     breakdowns: [...breakdowns.entries()].map(([dimension, value]) => ({ dimension, value }))
   }

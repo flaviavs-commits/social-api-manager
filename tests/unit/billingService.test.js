@@ -7,6 +7,9 @@ jest.mock('../../src/repositories/billingRepository', () => ({
   manterProcessando: jest.fn(),
   confirmarPagamento: jest.fn(),
   marcarFalhaPorSession: jest.fn(),
+  reservarEnvioMeuEcoo: jest.fn(),
+  marcarEnvioMeuEcooConcluido: jest.fn(),
+  marcarFalhaEnvioMeuEcoo: jest.fn(),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -16,8 +19,13 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
   isConfigured: jest.fn(() => true),
 }))
 
+jest.mock('../../src/services/mailer', () => ({
+  enviarEmailAcessoMeuEcoo: jest.fn(),
+}))
+
 const billingRepo = require('../../src/repositories/billingRepository')
 const paymentGateway = require('../../src/services/billing/paymentGateway')
+const mailer = require('../../src/services/mailer')
 const billingService = require('../../src/services/billing/billingService')
 
 const user = { id: 7, email: 'cliente@allowed.test', plan: 'basico' }
@@ -119,10 +127,12 @@ describe('billingService.requestPlanChange', () => {
 describe('billingService.handleWebhook', () => {
   test('confirma uma sessão paga por meio do repositório transacional', async () => {
       billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro' })
+    billingRepo.reservarEnvioMeuEcoo.mockResolvedValue({ id: 12, status: 'paid' })
+    mailer.enviarEmailAcessoMeuEcoo.mockResolvedValue(undefined)
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-        data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_123', metadata: { to_plan: 'pro' } } },
+        data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_123', customer_email: 'cliente@allowed.test', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'paid' })
@@ -131,8 +141,13 @@ describe('billingService.handleWebhook', () => {
       gatewayPaymentId: 'pi_123',
       amountCents: 10050,
       currency: 'brl',
-        toPlan: 'pro',
+      toPlan: 'pro',
     })
+    expect(mailer.enviarEmailAcessoMeuEcoo).toHaveBeenCalledWith('cliente@allowed.test', expect.objectContaining({
+      planName: 'EcooMidia Pro',
+      accessUrl: 'https://www.meuecoo.com/',
+    }))
+    expect(billingRepo.marcarEnvioMeuEcooConcluido).toHaveBeenCalledWith(12)
   })
 
   test('não reativa um checkout cancelado depois do downgrade', async () => {

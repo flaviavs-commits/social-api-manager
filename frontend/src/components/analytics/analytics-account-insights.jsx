@@ -59,15 +59,17 @@ function collectBreakdowns(accounts) {
   for (const account of accounts) {
     for (const [metricName, metric] of Object.entries(account.totals?.metrics || {})) {
       for (const item of metric.breakdowns || []) {
-        if (!item.dimension) continue
+        const value = numberValue(item.value)
+        if (!item.dimension || value == null) continue
         const label = `${labelForMetric(metricName)} · ${item.dimension}`
-        result.set(label, (result.get(label) || 0) + (item.value || 0))
+        result.set(label, (result.get(label) || 0) + value)
       }
     }
     for (const report of Object.values(account.reports || {})) {
       for (const row of report.rows || []) {
         const dimension = Object.entries(row).find(([key]) => key !== 'views' && key !== 'estimatedMinutesWatched')
-        if (dimension) result.set(`${dimension[0]}: ${dimension[1]}`, (result.get(`${dimension[0]}: ${dimension[1]}`) || 0) + (Number(row.views) || 0))
+        const views = numberValue(row.views)
+        if (dimension && views != null) result.set(`${dimension[0]}: ${dimension[1]}`, (result.get(`${dimension[0]}: ${dimension[1]}`) || 0) + views)
       }
     }
   }
@@ -112,8 +114,15 @@ function ProviderGrowth({ net, data, accountId }) {
     <div className="analytics-section-title">Crescimento de seguidores</div>
     {accounts.map(account => <div className="analytics-provider-growth-row" key={account._id || account.accountId}>
       <span>{account.username || account.accountName || 'Conta'}</span>
-      <strong>{fmtNum(account.currentFollowers)}</strong>
-      <span className={account.growth >= 0 ? 'growth-positive' : 'growth-negative'}>{account.growth >= 0 ? '+' : ''}{fmtNum(account.growth)} ({Number(account.growthPercentage || 0).toFixed(1)}%)</span>
+      <strong>{fmtNum(numberValue(account.currentFollowers))}</strong>
+      {(() => {
+        const growth = numberValue(account.growth)
+        const percentage = numberValue(account.growthPercentage)
+        return <span className={growth == null ? '' : growth >= 0 ? 'growth-positive' : 'growth-negative'}>
+          {growth == null ? '—' : `${growth >= 0 ? '+' : ''}${fmtNum(growth)}`}
+          {percentage == null ? '' : ` (${percentage.toFixed(1)}%)`}
+        </span>
+      })()}
     </div>)}
   </div>
 }
@@ -158,7 +167,8 @@ function ProviderBestTime({ net, data, accountId }) {
   const slots = (data.accountAnalytics?.bestTimeToPost || [])
     .filter(item => item.platform === net && belongsToAccount(item, accountId))
     .flatMap(item => item.data?.slots || [])
-    .sort((a, b) => Number(b.avg_engagement || 0) - Number(a.avg_engagement || 0))
+    .filter(slot => numberValue(slot.avg_engagement) != null)
+    .sort((a, b) => (numberValue(b.avg_engagement) ?? -Infinity) - (numberValue(a.avg_engagement) ?? -Infinity))
     .slice(0, 5)
   if (!slots.length) return null
   const days = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
@@ -166,7 +176,8 @@ function ProviderBestTime({ net, data, accountId }) {
     <div className="analytics-section-title">Melhores horários para publicar (UTC)</div>
     <div className="analytics-decay-list">{slots.map((slot, index) => <span key={`${slot.day_of_week}-${slot.hour}-${index}`}>
       <strong>{days[Number(slot.day_of_week)] || `Dia ${slot.day_of_week}`}, {String(slot.hour).padStart(2, '0')}h</strong>{' '}
-      {fmtNum(Number(slot.avg_engagement || 0))} interações médias · {slot.post_count || 0} posts
+      {numberValue(slot.avg_engagement) == null ? '—' : `${fmtNum(numberValue(slot.avg_engagement))} interações médias`}
+      {numberValue(slot.post_count) == null ? '' : ` · ${fmtNum(numberValue(slot.post_count))} posts`}
     </span>)}</div>
   </div>
 }
@@ -183,7 +194,7 @@ function InsightSeries({ accounts }) {
         labels: chartEntries.map(([date]) => formatDiaBR(date)),
         datasets: names.map((name, index) => ({
           label: labelForMetric(name),
-          data: chartEntries.map(([, values]) => values[name] || 0),
+          data: chartEntries.map(([, values]) => values[name] ?? null),
           borderColor: ['#d1993e', '#e94f8a', '#4ade80', '#5b8def', '#a78bfa'][index],
           backgroundColor: 'transparent',
           tension: 0.3,

@@ -109,7 +109,7 @@ function summarize(rows, key, label) {
   for (const row of rows) {
     const value = row[key]
     if (value == null) continue
-    totals.set(value, (totals.get(value) || 0) + Number(row.value || 0))
+    totals.set(value, (totals.get(value) || 0) + Number(row.value))
   }
   return [...totals.entries()].map(([value, total]) => ({ label: label(value), value: total }))
 }
@@ -156,7 +156,7 @@ export function AnalyticsDemographics({ net, tab, data }) {
         <p className="analytics-section-description">A rede agrupa a audiência em faixas; não mostra nomes ou perfis individuais.</p>
         <div style={{ position: 'relative', minHeight: 220 }}>
           {ageRows.length
-            ? <Bar data={{ labels: faixas.map(ageLabel), datasets: ageGenderRows.length ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value || 0), 0)), backgroundColor: GENDER_COLORS[gender] || '#d1993e', borderRadius: 4 })) : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value || 0), 0)), backgroundColor: '#d1993e', borderRadius: 4 }] }} options={baseChartOptions()}/>
+            ? <Bar data={{ labels: faixas.map(ageLabel), datasets: ageGenderRows.length ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: GENDER_COLORS[gender] || '#d1993e', borderRadius: 4 })) : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: '#d1993e', borderRadius: 4 }] }} options={baseChartOptions()}/>
             : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Sem dados disponíveis.</p>}
         </div>
       </div>

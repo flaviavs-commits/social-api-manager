@@ -7,13 +7,15 @@ function TiktokPostsList({ tiktokVideos }) {
   if (!tiktokVideos.length) return <p className="empty-state">Nenhum vídeo publicado.</p>
   return (
     <div className="analytics-posts-list">
-      {tiktokVideos.map(v => (
-        <a key={v.shareUrl} href={v.shareUrl} target="_blank" rel="noopener noreferrer" className="analytics-post-item">
+      {tiktokVideos.map((v, index) => {
+        const timestamp = Number(v.createTime)
+        const publishedAt = v.publishedAt || (Number.isFinite(timestamp) ? new Date(timestamp * 1000).toISOString() : null)
+        const content = <>
           {v.coverImageUrl
             ? <img className="analytics-post-thumb" src={v.coverImageUrl} alt=""/>
             : <div className="analytics-post-thumb analytics-post-thumb-fallback"><PlatformIcon platform="tiktok" className="h-5 w-5" /></div>}
           <div className="analytics-post-body">
-            <div className="analytics-post-date">{new Date(v.createTime * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</div>
+            <div className="analytics-post-date">{publishedAt ? new Date(publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Data não informada'}</div>
             <div className="analytics-post-text">{v.title ? (v.title.length > 70 ? v.title.slice(0, 70) + '…' : v.title) : <span className="empty-state">Sem título</span>}</div>
           </div>
           <div className="analytics-post-metrics">
@@ -22,8 +24,11 @@ function TiktokPostsList({ tiktokVideos }) {
             <span title="Comentários">💬 {fmtNum(v.commentCount)}</span>
             <span title="Compartilhamentos">🔁 {fmtNum(v.shareCount)}</span>
           </div>
-        </a>
-      ))}
+        </>
+        return v.shareUrl
+          ? <a key={v.id || v.shareUrl || index} href={v.shareUrl} target="_blank" rel="noopener noreferrer" className="analytics-post-item">{content}</a>
+          : <div key={v.id || index} className="analytics-post-item">{content}</div>
+      })}
     </div>
   )
 }

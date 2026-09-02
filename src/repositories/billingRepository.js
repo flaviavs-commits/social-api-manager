@@ -18,7 +18,12 @@ const BILLING_COLUMNS = `
   failure_message AS "failureMessage",
   created_at AS "createdAt",
   updated_at AS "updatedAt",
-  paid_at AS "paidAt"
+  paid_at AS "paidAt",
+  meu_ecoo_email_status AS "meuEcooEmailStatus",
+  meu_ecoo_email_attempts AS "meuEcooEmailAttempts",
+  meu_ecoo_email_sent_at AS "meuEcooEmailSentAt",
+  meu_ecoo_email_updated_at AS "meuEcooEmailUpdatedAt",
+  meu_ecoo_email_last_error AS "meuEcooEmailLastError"
 `
 
 async function buscarPorMes(userId, billingMonth) {
@@ -139,7 +144,12 @@ async function confirmarPagamento({ gatewaySessionId, gatewayPaymentId, amountCe
     const { rows: [paidChange] } = await client.query(
       `UPDATE billing_plan_changes
           SET status = 'paid', gateway_payment_id = COALESCE($2, gateway_payment_id),
-              failure_code = NULL, failure_message = NULL, paid_at = COALESCE(paid_at, NOW()), updated_at = NOW()
+              failure_code = NULL, failure_message = NULL, paid_at = COALESCE(paid_at, NOW()),
+              meu_ecoo_email_status = CASE
+                WHEN to_plan IN ('pro', 'premium') AND meu_ecoo_email_status IS NULL THEN 'pending'
+                ELSE meu_ecoo_email_status
+              END,
+              updated_at = NOW()
         WHERE id = $1
        RETURNING ${BILLING_COLUMNS}`,
       [change.id, gatewayPaymentId || null]
@@ -169,6 +179,64 @@ async function marcarFalhaPorSession(gatewaySessionId, { code = 'payment_failed'
   return change || null
 }
 
+// A confirmação do pagamento pode chegar mais de uma vez. A reserva atômica
+// abaixo faz com que somente uma tentativa de envio do benefício seja feita
+// por vez, permitindo retomar uma tentativa que caiu antes de ser concluída.
+async function reservarEnvioMeuEcoo(id) {
+  const { rows: [change] } = await pool.query(
+    `UPDATE billing_plan_changes
+        SET meu_ecoo_email_status = 'sending',
+            meu_ecoo_email_attempts = COALESCE(meu_ecoo_email_attempts, 0) + 1,
+            meu_ecoo_email_updated_at = NOW(),
+            meu_ecoo_email_last_error = NULL,
+            updated_at = NOW()
+      WHERE id = $1
+        AND status = 'paid'
+        AND to_plan IN ('pro', 'premium')
+        AND (
+          meu_ecoo_email_status IS NULL
+          OR meu_ecoo_email_status = 'pending'
+          OR meu_ecoo_email_status = 'failed'
+          OR (
+            meu_ecoo_email_status = 'sending'
+            AND (meu_ecoo_email_updated_at IS NULL OR meu_ecoo_email_updated_at < NOW() - INTERVAL '10 minutes')
+          )
+        )
+     RETURNING ${BILLING_COLUMNS}`,
+    [id]
+  )
+  return change || null
+}
+
+async function marcarEnvioMeuEcooConcluido(id) {
+  const { rows: [change] } = await pool.query(
+    `UPDATE billing_plan_changes
+        SET meu_ecoo_email_status = 'sent',
+            meu_ecoo_email_sent_at = COALESCE(meu_ecoo_email_sent_at, NOW()),
+            meu_ecoo_email_updated_at = NOW(),
+            meu_ecoo_email_last_error = NULL,
+            updated_at = NOW()
+      WHERE id = $1
+     RETURNING ${BILLING_COLUMNS}`,
+    [id]
+  )
+  return change || null
+}
+
+async function marcarFalhaEnvioMeuEcoo(id, message) {
+  const { rows: [change] } = await pool.query(
+    `UPDATE billing_plan_changes
+        SET meu_ecoo_email_status = 'failed',
+            meu_ecoo_email_updated_at = NOW(),
+            meu_ecoo_email_last_error = $2,
+            updated_at = NOW()
+      WHERE id = $1
+     RETURNING ${BILLING_COLUMNS}`,
+    [id, String(message || 'Falha ao enviar o acesso ao MeuEcoo.').slice(0, 500)]
+  )
+  return change || null
+}
+
 module.exports = {
   buscarPorMes,
   buscarPorGatewaySession,
@@ -179,4 +247,7 @@ module.exports = {
   manterProcessando,
   confirmarPagamento,
   marcarFalhaPorSession,
+  reservarEnvioMeuEcoo,
+  marcarEnvioMeuEcooConcluido,
+  marcarFalhaEnvioMeuEcoo,
 }

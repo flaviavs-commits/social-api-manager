@@ -1,5 +1,7 @@
 const billingRepo = require('../../repositories/billingRepository')
+const usersRepo = require('../../repositories/usersRepository')
 const paymentGateway = require('./paymentGateway')
+const mailer = require('../mailer')
 const { DEFAULT_PLAN, PLANS, canonicalPlanId, normalizePlan, publicPlanCatalog } = require('../../config/plans')
 
 class BillingError extends Error {
@@ -165,6 +167,56 @@ function readPaymentIntentId(value) {
   return typeof value === 'string' ? value : value?.id || null
 }
 
+function getMeuEcooAccessUrl() {
+  const configured = process.env.MEU_ECOO_ACCESS_URL || process.env.MEU_ECOO_URL || 'https://www.meuecoo.com/'
+  try {
+    const url = new URL(configured)
+    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocolo inválido')
+    return url.toString()
+  } catch {
+    throw new BillingError('O link de acesso ao MeuEcoo não está configurado corretamente.', 503, 'meu_ecoo_access_url_invalid')
+  }
+}
+
+function readCustomerEmail(object) {
+  const email = object?.customer_email || object?.customer_details?.email
+  return typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null
+}
+
+async function sendMeuEcooAccessEmail(change, object, metadata) {
+  const plan = PLANS[canonicalPlanId(change?.toPlan)]
+  if (!change?.id || !plan || plan.meuEcooAccess === 'none') return { status: 'not_required' }
+
+  let email = readCustomerEmail(object)
+  let fullName = object?.customer_details?.name || null
+  if (!email) {
+    const userId = Number(change.userId || metadata?.user_id)
+    if (Number.isInteger(userId) && userId > 0) {
+      const user = await usersRepo.buscarPorId(userId)
+      email = user?.email || null
+      fullName = fullName || user?.fullName || user?.full_name || null
+    }
+  }
+  if (!email) throw new BillingError('Não foi possível identificar o e-mail para liberar o MeuEcoo.', 503, 'meu_ecoo_recipient_missing')
+
+  const reserved = await billingRepo.reservarEnvioMeuEcoo(change.id)
+  if (!reserved) return { status: 'already_sent_or_processing' }
+
+  try {
+    await mailer.enviarEmailAcessoMeuEcoo(email, {
+      fullName,
+      planName: plan.name,
+      offer: plan.meuEcooOffer,
+      accessUrl: getMeuEcooAccessUrl(),
+    })
+    await billingRepo.marcarEnvioMeuEcooConcluido(change.id)
+    return { status: 'sent' }
+  } catch (error) {
+    await billingRepo.marcarFalhaEnvioMeuEcoo(change.id, error.message).catch(() => {})
+    throw new BillingError('O pagamento foi confirmado, mas não foi possível enviar o acesso ao MeuEcoo. O gateway tentará novamente.', 503, 'meu_ecoo_email_failed')
+  }
+}
+
 async function handleWebhook(event) {
   const object = event?.data?.object
   if (!object?.id) return { status: 'ignored' }
@@ -181,7 +233,11 @@ async function handleWebhook(event) {
       currency: String(object.currency || '').toLowerCase(),
       toPlan,
     })
-    return { status: confirmed?.status === 'paid' ? 'paid' : 'ignored' }
+    if (confirmed?.status === 'paid') {
+      await sendMeuEcooAccessEmail(confirmed, object, metadata)
+      return { status: 'paid' }
+    }
+    return { status: 'ignored' }
   }
 
   if (event.type === 'checkout.session.async_payment_failed') {

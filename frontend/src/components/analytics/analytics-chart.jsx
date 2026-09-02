@@ -6,6 +6,10 @@ function EmptyChart({ message }) {
   return <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>{message}</p>
 }
 
+function hasMetricValue(metrics) {
+  return Object.values(metrics || {}).some(value => value != null && value !== '' && Number.isFinite(Number(value)))
+}
+
 function GrowthChart({ net, instagramFollowers, tiktokStats, youtubeSubscribers }) {
   if (net === 'instagram') {
     const dias = Object.keys(instagramFollowers).sort()
@@ -41,7 +45,7 @@ function GrowthChart({ net, instagramFollowers, tiktokStats, youtubeSubscribers 
 }
 
 function PostsBarChart({ net, metrics }) {
-  const postsSorted = metrics.filter(m => m.publishedAt && m.metrics).sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))
+  const postsSorted = metrics.filter(m => m.publishedAt && hasMetricValue(m.metrics)).sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))
   if (!postsSorted.length) return <EmptyChart message="Nenhum dado no período."/>
 
   const labels = postsSorted.map(m => {
@@ -60,7 +64,7 @@ function PostsBarChart({ net, metrics }) {
   if (hasViews) datasets.push({ label: 'Visualizações', data: postsSorted.map(m => m.metrics.views ?? null), backgroundColor: 'rgba(209,153,62,0.8)', borderRadius: 4 })
   if (hasLikes) datasets.push({ label: 'Curtidas', data: postsSorted.map(m => m.metrics.likes ?? null), backgroundColor: PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 })
   if (hasComments) datasets.push({ label: 'Comentários', data: postsSorted.map(m => m.metrics.comments ?? null), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 })
-  if (!datasets.length) datasets.push({ label: 'Posts', data: postsSorted.map(() => 1), backgroundColor: PLAT_COLORS[net] || '#d1993e', borderRadius: 4 })
+  if (!datasets.length) return <EmptyChart message="A rede não confirmou métricas para os posts deste período."/>
 
   const options = {
     ...baseChartOptions(),
@@ -81,7 +85,7 @@ export function AnalyticsChart({ net, tab, data, tiktokVideos = [], periodDays }
   useTheme()
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
   const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
-  const chartMetrics = net === 'tiktok' && !metrics.some(item => item.metrics)
+  const chartMetrics = net === 'tiktok' && !metrics.some(item => hasMetricValue(item.metrics))
     ? videos.map(tiktokVideoToMetric)
     : metrics
   const instagramFollowers = filterByPeriod(data.instagramFollowers, periodDays)

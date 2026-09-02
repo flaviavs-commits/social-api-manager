@@ -105,7 +105,7 @@ function formatRate(value) {
 function interactionBreakdown(item) {
   return ['likes', 'comments', 'shares', 'saves'].reduce((total, name) => {
     const value = metricNumber(item.metrics, name)
-    return { ...total, [name]: value == null ? 0 : value }
+    return { ...total, [name]: value }
   }, {})
 }
 
@@ -120,10 +120,12 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, act
   const totalContent = stats.reduce((total, item) => total + item.content, 0)
   const totalGrowth = stats.some(item => item.growth != null) ? stats.reduce((total, item) => total + (item.growth || 0), 0) : null
   const avgInteractions = totalInteractions != null && totalContent ? totalInteractions / totalContent : null
-  const bestNetwork = [...stats].sort((a, b) => (b.interactions || 0) - (a.interactions || 0))[0]
+  const bestNetwork = [...stats]
+    .filter(item => item.interactions != null)
+    .sort((a, b) => b.interactions - a.interactions)[0] || null
   const contentRows = stats.flatMap(item => item.rows.map(row => ({ ...row, platform: item.platform })))
   const bestContent = contentRows
-    .filter(row => row.metrics)
+    .filter(hasMetricData)
     .sort((a, b) => {
       const score = row => ['likes', 'comments', 'shares', 'saves'].reduce((total, name) => total + (metricNumber(row.metrics, name) || 0), 0)
       return score(b) - score(a)
@@ -173,16 +175,19 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, act
         {bestNetwork && (() => {
           const breakdown = bestContent && bestContent.platform === bestNetwork.platform
             ? contentRows
-              .filter(row => row.platform === bestNetwork.platform && row.metrics)
+              .filter(row => row.platform === bestNetwork.platform && hasMetricData(row))
               .reduce((total, row) => {
                 const rowBreakdown = interactionBreakdown(row)
-                return Object.fromEntries(Object.keys(rowBreakdown).map(name => [name, total[name] + rowBreakdown[name]]))
-              }, { likes: 0, comments: 0, shares: 0, saves: 0 })
+                return Object.fromEntries(Object.keys(rowBreakdown).map(name => [
+                  name,
+                  rowBreakdown[name] == null ? total[name] : (total[name] == null ? rowBreakdown[name] : total[name] + rowBreakdown[name])
+                ]))
+              }, { likes: null, comments: null, shares: null, saves: null })
             : null
           const detail = breakdown
             ? ` (${fmtNum(breakdown.likes)} curtidas + ${fmtNum(breakdown.comments)} comentários + ${fmtNum(breakdown.shares)} compartilhamentos + ${fmtNum(breakdown.saves)} salvamentos)`
             : ''
-          return <p className="analytics-executive-highlight-note"><b>{activeNet ? 'Rede analisada:' : 'Melhor rede:'}</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions || 0)} interações no recorte{detail}.</p>
+          return <p className="analytics-executive-highlight-note"><b>{activeNet ? 'Rede analisada:' : 'Melhor rede:'}</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions)} interações no recorte{detail}.</p>
         })()}
       </div>
     </div>

@@ -142,6 +142,27 @@ describe('GET /api/posts/analytics', () => {
       metricsStatus: 'available'
     }))
   })
+
+  test('não considera um retorno sem valores como métrica confirmada', async () => {
+    postsRepo.listarPosts.mockResolvedValue([POST])
+    postsRepo.listarPublicacoesDosPosts.mockResolvedValueOnce([{
+      postId: POST.id,
+      platform: 'instagram',
+      accountId: null,
+      externalPostId: POST.externalPostId,
+      publishedAt: POST.publishedAt
+    }])
+    metricsService.buscarMetricasPost.mockResolvedValueOnce({ views: null, likes: null })
+
+    const res = await request(app).get('/api/posts/analytics?days=30').set('Authorization', `Bearer ${token}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.metrics[0]).toEqual(expect.objectContaining({
+      metrics: null,
+      metricsStatus: 'unavailable'
+    }))
+    expect(postsRepo.registrarSnapshotMetricas).not.toHaveBeenCalled()
+  })
 })
 
 // ── GET /api/posts/calendar ───────────────────────────────────────────────────

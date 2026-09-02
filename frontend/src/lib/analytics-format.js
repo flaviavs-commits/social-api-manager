@@ -127,7 +127,9 @@ export function filterByPeriodOffset(data, periodDays, offsetDays = 0) {
   if (Array.isArray(data)) {
     return data.filter(item => {
       if (!item.publishedAt) return false
-      const dia = new Date(item.publishedAt).toISOString().slice(0, 10)
+      const date = new Date(item.publishedAt)
+      if (Number.isNaN(date.getTime())) return false
+      const dia = date.toISOString().slice(0, 10)
       return dia >= deStr && dia <= ateStr
     })
   }
@@ -144,7 +146,8 @@ export function filterTikTokVideosByPeriodOffset(videos, periodDays, offsetDays 
   const de = new Date(ate.getTime() - (periodDays * 86400000 + offset))
   const ateOffset = new Date(ate.getTime() - offset)
   return videos.filter(video => {
-    const timestamp = video.createTime ? Number(video.createTime) * 1000 : Date.parse(video.publishedAt || '')
+    const createTime = video.createTime == null ? null : Number(video.createTime) * 1000
+    const timestamp = Number.isFinite(createTime) ? createTime : Date.parse(video.publishedAt || '')
     if (!Number.isFinite(timestamp)) return false
     const date = new Date(timestamp)
     return date >= de && date <= ateOffset

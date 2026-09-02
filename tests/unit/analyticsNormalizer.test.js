@@ -27,6 +27,10 @@ describe('analytics normalizer', () => {
     })
   })
 
+  test('aceita métrica simples numérica também quando o provedor envia texto', () => {
+    expect(normalizeInsight({ metrics: { views: '0' } }).metrics.views).toMatchObject({ total: 0 })
+  })
+
   test('aceita resposta de post única e mantém todas as métricas disponíveis', () => {
     const result = normalizePostAnalytics({
       post: {
@@ -100,5 +104,11 @@ describe('analytics normalizer', () => {
       values: [{ date: '2026-08-01', value: 10 }, { date: '2026-08-02', value: 1 }],
       breakdowns: [{ dimension: 'A', value: 5 }]
     })
+  })
+
+  test('não transforma valores ausentes em zero ao mesclar relatórios', () => {
+    expect(mergeMetricEntries([
+      { total: null, values: [{ date: '2026-08-01', value: null }], breakdowns: [{ dimension: 'A', value: null }] }
+    ])).toEqual({ total: null, values: [], breakdowns: [] })
   })
 })

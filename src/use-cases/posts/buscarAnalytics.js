@@ -15,6 +15,10 @@ const { buildAnalyticsVerification } = require('../../domain/analytics/verifyAna
 const METRICAS_AO_VIVO_LIMITE = 24
 const METRICAS_CONCORRENCIA = 2
 
+function hasMetricData(metrics) {
+  return Object.values(metrics || {}).some(value => value != null && value !== '' && Number.isFinite(Number(value)))
+}
+
 async function mapWithConcurrency(items, concurrency, mapper) {
   const results = Array(items.length)
   let nextIndex = 0
@@ -116,8 +120,9 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 7 }) {
     const liveResult = liveByPublication.get(key)
     const liveMetrics = liveResult?.status === 'fulfilled' ? liveResult.value : null
     const cachedMetrics = snapshotByPublication.get(key) || null
-    const metricValue = liveMetrics || cachedMetrics
-    const hasMetrics = metricValue != null
+    const hasLiveMetrics = hasMetricData(liveMetrics)
+    const hasCachedMetrics = hasMetricData(cachedMetrics)
+    const metricValue = hasLiveMetrics ? liveMetrics : hasCachedMetrics ? cachedMetrics : null
     return {
       postId: p.id,
       platform: pub.platform,
@@ -128,14 +133,14 @@ async function buscarAnalytics({ userId, userRole, isAdmin, days = 7 }) {
       mediaType: p.mediaType,
       mediaItems: p.mediaItems,
       metrics: metricValue,
-      metricsStatus: liveMetrics ? 'available' : cachedMetrics ? 'cached' : liveResult ? 'unavailable' : pub.externalPostId ? 'deferred' : 'missing_external_id'
+      metricsStatus: hasLiveMetrics ? 'available' : hasCachedMetrics ? 'cached' : liveResult ? 'unavailable' : pub.externalPostId ? 'deferred' : 'missing_external_id'
     }
   })
 
   // Grava um ponto por dia no histórico de cada (post, rede) (best-effort —
   // não bloqueia a resposta do Analytics se a escrita falhar).
   await Promise.allSettled(
-    metrics.filter(m => m.metrics).map(m => postsRepo.registrarSnapshotMetricas(m.postId, m.platform, m.metrics))
+    metrics.filter(m => hasMetricData(m.metrics)).map(m => postsRepo.registrarSnapshotMetricas(m.postId, m.platform, m.metrics))
   )
 
   // Saldo de seguidores e alcance do Instagram + TikTok + YouTube em paralelo

@@ -25,6 +25,12 @@ const PLATAFORMAS_COM_METRICAS = ['facebook', 'instagram', 'tiktok', 'youtube']
 // (chamadas saudáveis respondem em <300ms).
 const METRICS_FETCH_TIMEOUT_MS = 4000
 
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
 async function fetchComTimeout(url, opts = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), METRICS_FETCH_TIMEOUT_MS)
@@ -105,17 +111,17 @@ async function metricsYoutubeVideoAnalytics(token, videoId) {
     const headers = data.columnHeaders || []
     const values = Object.fromEntries(headers.map((header, index) => [header.name, data.rows[0][index]]))
     return {
-      views: Number(values.views) || null,
-      engagedViews: Number(values.engagedViews) || null,
-      likes: Number(values.likes) || null,
-      comments: Number(values.comments) || null,
-      shares: Number(values.shares) || null,
-      dislikes: Number(values.dislikes) || null,
-      estimatedMinutesWatched: Number(values.estimatedMinutesWatched) || null,
-      watchTimeSeconds: values.averageViewDuration == null ? null : Number(values.averageViewDuration),
-      averageViewPercentage: values.averageViewPercentage == null ? null : Number(values.averageViewPercentage),
-      subscribersGained: Number(values.subscribersGained) || null,
-      subscribersLost: Number(values.subscribersLost) || null
+      views: numberOrNull(values.views),
+      engagedViews: numberOrNull(values.engagedViews),
+      likes: numberOrNull(values.likes),
+      comments: numberOrNull(values.comments),
+      shares: numberOrNull(values.shares),
+      dislikes: numberOrNull(values.dislikes),
+      estimatedMinutesWatched: numberOrNull(values.estimatedMinutesWatched),
+      watchTimeSeconds: numberOrNull(values.averageViewDuration),
+      averageViewPercentage: numberOrNull(values.averageViewPercentage),
+      subscribersGained: numberOrNull(values.subscribersGained),
+      subscribersLost: numberOrNull(values.subscribersLost)
     }
   } catch {
     return { watchTimeSeconds: await metricsYoutubeWatchTime(token, videoId) }
@@ -144,11 +150,11 @@ async function metricsYoutube(token, externalPostId) {
     }
   }
   return {
-    likes: Number(stats.likeCount) || 0,
-    comments: Number(stats.commentCount) || 0,
-    views: Number(stats.viewCount) || 0,
+    ...advancedMetrics,
+    likes: numberOrNull(stats.likeCount),
+    comments: numberOrNull(stats.commentCount),
+    views: numberOrNull(stats.viewCount),
     averageViewDuration: advancedMetrics.averageViewDuration ?? advancedMetrics.watchTimeSeconds ?? null,
-    ...advancedMetrics
   }
 }
 
@@ -394,9 +400,10 @@ function reportMetricMap(data, dateDimension = null) {
   const rows = reportRows(data)
   return Object.fromEntries(metricNames.map(name => {
     const values = dateDimension
-      ? rows.map(row => ({ date: row[dateDimension], value: Number(row[name]) || 0 })).filter(item => item.date)
+      ? rows.map(row => ({ date: row[dateDimension], value: numberOrNull(row[name]) })).filter(item => item.date && item.value != null)
       : []
-    const total = rows.reduce((sum, row) => sum + (Number(row[name]) || 0), 0)
+    const known = rows.map(row => numberOrNull(row[name])).filter(value => value != null)
+    const total = known.length ? known.reduce((sum, value) => sum + value, 0) : null
     return [name, { total, values }]
   }))
 }
@@ -574,19 +581,22 @@ async function metricsVideosTiktokZernio(token) {
       page,
     })
     for (const post of result.posts || []) {
-      const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && String(p.accountId) === String(token.zernioAccountId))
+      const plataformas = Array.isArray(post.platformAnalytics) && post.platformAnalytics.length
+        ? post.platformAnalytics
+        : post.platforms || []
+      const plataforma = plataformas.find(p => p.platform === 'tiktok' && String(p.accountId) === String(token.zernioAccountId))
       if (!plataforma) continue
-      const a = plataforma.analytics || {}
+      const normalized = normalizePostAnalytics({ ...post, platformAnalytics: [plataforma] }, plataforma.platformPostId)
       videos.push({
         id: plataforma.platformPostId,
         title: post.content || '',
         coverImageUrl: post.thumbnailUrl || null,
         shareUrl: plataforma.platformPostUrl || null,
         createTime: post.publishedAt ? Math.floor(new Date(post.publishedAt).getTime() / 1000) : null,
-        viewCount: a.views ?? null,
-        likeCount: a.likes ?? null,
-        commentCount: a.comments ?? null,
-        shareCount: a.shares ?? null
+        viewCount: normalized.views,
+        likeCount: normalized.likes,
+        commentCount: normalized.comments,
+        shareCount: normalized.shares
       })
     }
     pages = Math.max(1, Number(result.pagination?.pages) || 1)

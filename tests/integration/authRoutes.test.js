@@ -156,6 +156,23 @@ describe('POST /auth/login/register', () => {
     expect(res.status).toBe(200)
     expect(res.body.token).toBeTruthy()
   })
+
+  test('sincroniza a credencial de clientes Pro/Premium antes da liberação', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue(null)
+    usersRepo.criar.mockResolvedValue({ id: 6, email: 'pro@allowed.test' })
+    credRepo.criar.mockResolvedValue(undefined)
+
+    const res = await request(app).post(`${BASE}/register`).send({
+      email: 'pro@allowed.test',
+      password: 'AbcSegura@1234',
+      fullName: 'Cliente Pro',
+      plan: 'pro',
+      selectedPlatforms: ['instagram', 'youtube', 'tiktok'],
+    })
+
+    expect(res.status).toBe(200)
+    expect(meuEcoo.sincronizarCredencial).toHaveBeenCalledWith('pro@allowed.test', 'AbcSegura@1234', 'Cliente Pro')
+  })
 })
 
 // ── /logout ───────────────────────────────────────────────────────────────────

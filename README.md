@@ -164,6 +164,15 @@ assinatura. A API autenticada expõe `GET /api/billing/status` e
 `POST /api/billing/plan-change` com `{ "plan": "basico" }`. Se as chaves não
 estiverem configuradas, nenhuma troca paga é ativada nem simulada.
 
+Por enquanto, o acesso ao MeuEcoo nasce exclusivamente da contratação dos
+planos `pro` e `premium` dentro do MeuEcoo Mídia. Depois que o pagamento é
+confirmado, o cliente recebe automaticamente no e-mail cadastrado um botão de
+acesso. A possibilidade de contratação ou entrada externa fica reservada para
+uma futura integração. O README não registra credenciais, tokens, valores reais
+ou dados pessoais; essas configurações permanecem somente no ambiente de
+execução. O envio tem controle de tentativas no banco para que webhooks
+repetidos não dupliquem a mensagem.
+
 ### Esqueci minha senha
 
 Fluxo completo em `/login.html` → `/reset-password.html`: gera um token de

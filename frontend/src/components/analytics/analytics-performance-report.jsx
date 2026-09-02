@@ -72,6 +72,13 @@ function interactionScore(row) {
     .reduce((sum, name) => sum + (numberValue(row.metrics?.[name]) || 0), 0)
 }
 
+function interactionTotal(row) {
+  const values = ['likes', 'comments', 'shares', 'saves']
+    .map(name => numberValue(row?.metrics?.[name]))
+    .filter(value => value != null)
+  return values.length ? values.reduce((sum, current) => sum + current, 0) : null
+}
+
 function contentTitle(row) {
   return row?.text || row?.title || row?.youtubeTitle || row?.caption || 'Conteúdo sem descrição'
 }
@@ -91,10 +98,10 @@ function shortContentTitle(row, maxLength = 84) {
 
 function interactionBreakdown(row) {
   return {
-    likes: numberValue(row?.metrics?.likes) || 0,
-    comments: numberValue(row?.metrics?.comments) || 0,
-    shares: numberValue(row?.metrics?.shares) || 0,
-    saves: numberValue(row?.metrics?.saves) || 0,
+    likes: numberValue(row?.metrics?.likes),
+    comments: numberValue(row?.metrics?.comments),
+    shares: numberValue(row?.metrics?.shares),
+    saves: numberValue(row?.metrics?.saves),
   }
 }
 
@@ -120,7 +127,7 @@ export function buildPerformanceReport(data, tiktokVideos, periodDays, activeNet
         ? [sumRows(previousRows, 'likes'), sumRows(previousRows, 'comments'), sumRows(previousRows, 'shares'), sumRows(previousRows, 'saves')].reduce((total, value) => total + (value || 0), 0)
         : null
       const audience = audienceFor(data, platform)
-      const contentRows = rows.filter(row => row.metrics)
+      const contentRows = rows.filter(hasMetricData)
       const bestContent = [...contentRows]
         .sort((a, b) => interactionScore(b) - interactionScore(a) || (numberValue(b.metrics?.views) || 0) - (numberValue(a.metrics?.views) || 0))[0] || null
       return {
@@ -158,11 +165,13 @@ export function buildPerformanceReport(data, tiktokVideos, periodDays, activeNet
   }
   totals.rate = totals.views > 0 && totals.interactions != null ? totals.interactions / totals.views * 100 : null
 
-  const contentRows = platforms.flatMap(item => item.rows.map(row => ({ ...row, platform: item.platform }))).filter(row => row.metrics)
+  const contentRows = platforms.flatMap(item => item.rows.map(row => ({ ...row, platform: item.platform }))).filter(hasMetricData)
   const bestContent = [...contentRows].sort((a, b) => interactionScore(b) - interactionScore(a) || (numberValue(b.metrics?.views) || 0) - (numberValue(a.metrics?.views) || 0))[0] || null
-  const previousViews = platforms.map(item => item.previousViews).filter(value => value != null).reduce((sum, value) => sum + value, 0)
-  const previousInteractions = platforms.map(item => item.previousInteractions).filter(value => value != null).reduce((sum, value) => sum + value, 0)
-  return { platforms, totals, previousViews: previousViews || null, previousInteractions: previousInteractions || null, bestContent }
+  const previousViewValues = platforms.map(item => item.previousViews).filter(value => value != null)
+  const previousInteractionValues = platforms.map(item => item.previousInteractions).filter(value => value != null)
+  const previousViews = previousViewValues.length ? previousViewValues.reduce((sum, value) => sum + value, 0) : null
+  const previousInteractions = previousInteractionValues.length ? previousInteractionValues.reduce((sum, value) => sum + value, 0) : null
+  return { platforms, totals, previousViews, previousInteractions, bestContent }
 }
 
 function changeText(current, previous, label) {
@@ -187,12 +196,21 @@ export function performanceReportActions(report) {
   if (totals.rate != null && totals.rate < 2) actions.push('Use uma chamada objetiva no texto ou no vídeo para estimular comentários, salvamentos e compartilhamentos.')
   if (bestContent) {
     const interactions = interactionBreakdown(bestContent)
-    const totalInteractions = Object.values(interactions).reduce((total, value) => total + value, 0)
+    const totalInteractions = interactionTotal(bestContent)
+    const interactionDetails = [
+      ['likes', 'curtidas'],
+      ['comments', 'comentários'],
+      ['shares', 'compartilhamentos'],
+      ['saves', 'salvamentos'],
+    ]
+      .filter(([name]) => interactions[name] != null)
+      .map(([name, label]) => `${fmtNum(interactions[name])} ${label}`)
+      .join(' + ')
     const date = bestContent.publishedAt
       ? new Date(bestContent.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
       : 'data não informada'
     const views = numberValue(bestContent.metrics?.views)
-    actions.push(`Analise e replique este ${contentFormat(bestContent)} de ${PLAT_LABELS[bestContent.platform] || bestContent.platform}, publicado em ${date}: “${shortContentTitle(bestContent)}”. Ele gerou ${fmtNum(totalInteractions)} ${totalInteractions === 1 ? 'interação' : 'interações'} (${fmtNum(interactions.likes)} curtidas + ${fmtNum(interactions.comments)} comentários + ${fmtNum(interactions.shares)} compartilhamentos + ${fmtNum(interactions.saves)} salvamentos)${views == null ? '.' : ` em ${fmtNum(views)} visualizações.`}`)
+    actions.push(`Analise e replique este ${contentFormat(bestContent)} de ${PLAT_LABELS[bestContent.platform] || bestContent.platform}, publicado em ${date}: “${shortContentTitle(bestContent)}”. ${totalInteractions == null ? 'A rede confirmou o conteúdo, mas não informou interações.' : `Ele gerou ${fmtNum(totalInteractions)} ${totalInteractions === 1 ? 'interação' : 'interações'}${interactionDetails ? ` (${interactionDetails})` : ''}`}${views == null ? '.' : ` em ${fmtNum(views)} visualizações.`}`)
   }
   if (totals.growth != null && totals.growth < 0) actions.push('Revise os conteúdos que coincidiram com a queda de audiência e teste temas ou horários diferentes.')
   if (!actions.length) actions.push('Repita os temas e formatos que trouxeram mais interações, acompanhando a taxa para validar a evolução.')
@@ -255,7 +273,7 @@ export function AnalyticsPerformanceReport({ data, tiktokVideos, periodDays, act
       <div className="analytics-performance-report-network-highlights-grid">
         {report.platforms.map(item => {
           const bestContent = item.bestContent
-          const interactions = bestContent ? interactionScore(bestContent) : null
+          const interactions = bestContent ? interactionTotal(bestContent) : null
           return <article key={item.platform} className="analytics-performance-report-network-highlight">
             <div className="analytics-performance-report-network-highlight-heading">
               <strong>{PLAT_LABELS[item.platform] || item.platform}</strong>
