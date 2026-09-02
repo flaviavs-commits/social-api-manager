@@ -29,6 +29,15 @@ describe('AppShell', () => {
     expect(onPageChange).toHaveBeenCalledWith('agendador')
   })
 
+  it('keeps messages and notifications visible in the topbar', () => {
+    render(<AppShell page="dashboard" onPageChange={() => {}}>conteúdo</AppShell>)
+
+    expect(screen.getByRole('button', { name: 'Abrir mensagens' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Abrir notificações' })).toBeInTheDocument()
+    expect(screen.getByText('Mensagens')).toBeInTheDocument()
+    expect(screen.getByText('Notificações')).toBeInTheDocument()
+  })
+
   it('renders the user name when provided, falling back to a default label', () => {
     const { rerender } = render(<AppShell page="dashboard" onPageChange={() => {}} user={{ name: 'Tiago' }}>x</AppShell>)
     expect(screen.getByText('Tiago')).toBeInTheDocument()

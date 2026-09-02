@@ -159,14 +159,47 @@
 }
 
 .app-shell-modern .app-topbar-modern .topbar-text-action > span:last-child {
+  display: none !important;
+}
+
+/* Mensagens e notificações também precisam permanecer acessíveis no topo.
+ * Em telas estreitas a folha responsiva escondia os botões de ícone, deixando
+ * um espaço vazio e removendo ações importantes da interface. */
+.app-shell-modern .app-topbar-modern .topbar-labeled-action {
+  display: inline-flex !important;
+  width: auto !important;
+  min-width: max-content !important;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px !important;
+  padding-inline: 9px !important;
+}
+
+.app-shell-modern .app-topbar-modern .topbar-labeled-action .topbar-action-label {
   display: inline !important;
   visibility: visible !important;
-  width: auto !important;
-  max-width: none !important;
-  overflow: visible !important;
   color: inherit;
   font-size: inherit !important;
   white-space: nowrap;
+}
+
+.app-shell-modern .app-topbar-modern .tutorial-trigger::after,
+.app-shell-modern .app-topbar-modern .topbar-shortcuts-button::after {
+  display: inline;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.app-shell-modern .app-topbar-modern .tutorial-trigger::after {
+  content: 'Tutorial';
+}
+
+.app-shell-modern .app-topbar-modern .topbar-shortcuts-button::after {
+  content: 'Atalhos';
 }
 
 @media (max-width: 767px) {
@@ -182,11 +215,16 @@
     flex: 0 0 auto;
   }
 
-  .app-shell-modern .app-topbar-modern .topbar-text-action {
-    min-height: 38px;
-    padding-inline: 9px;
-    font-size: 11px !important;
-  }
+    .app-shell-modern .app-topbar-modern .topbar-text-action {
+      min-height: 38px;
+      padding-inline: 9px;
+      font-size: 11px !important;
+    }
+
+    .app-shell-modern .app-topbar-modern .topbar-labeled-action {
+      min-height: 38px;
+      font-size: 11px !important;
+    }
 
   .app-shell-modern .app-topbar-modern .create-post-button {
     width: auto !important;
@@ -263,6 +301,32 @@ html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
   margin-bottom: 24px !important;
 }
 
+/* O redesign do Baú herda .drafts-page, que força display:block e impede o
+ * ritmo vertical do shell. Reative a coluna para separar resumo e criação
+ * usando o próprio fundo da página no espaço, sem uma faixa branca. */
+.app-shell-modern .drafts-page-v2 {
+  display: flex !important;
+  flex-direction: column;
+  gap: clamp(16px, 1.8vw, 24px) !important;
+  width: 100% !important;
+  align-self: stretch;
+  box-sizing: border-box;
+  background: var(--app-bg) !important;
+}
+
+.app-shell-modern .drafts-page-v2 > .drafts-v2-summary,
+.app-shell-modern .drafts-page-v2 > .drafts-v2-workspace {
+  width: 100% !important;
+  max-width: none !important;
+  align-self: stretch;
+}
+
+.app-shell-modern .drafts-page-v2 > .drafts-v2-heading,
+.app-shell-modern .drafts-page-v2 > .drafts-v2-howto,
+.app-shell-modern .drafts-page-v2 > .drafts-v2-summary {
+  margin-bottom: 0 !important;
+}
+
 /* Keep the established internal two-column rhythm when a page owns a grid. */
 .app-shell-modern .page-view > .ai-page,
 .app-shell-modern .page-view > .drafts-page,
@@ -295,6 +359,35 @@ html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
 
 .app-shell-modern .page-view .panel + .panel {
   margin-top: 0 !important;
+}
+
+/* A série diária é uma seção própria do relatório. Mantenha uma distância
+ * constante antes e depois dela e um respiro interno quando estiver aberta,
+ * sem fixá-la sobre o restante da tela. */
+.app-shell-modern .analytics-account-insights .analytics-series-detail {
+  display: block;
+  margin-block: var(--space-lg, 20px) !important;
+}
+
+.app-shell-modern .analytics-account-insights .analytics-series-detail > summary {
+  padding: 12px 16px;
+}
+
+.app-shell-modern .analytics-account-insights .analytics-series-detail[open] > .analytics-full-series {
+  margin-top: var(--space-sm, 12px) !important;
+  padding-bottom: 14px;
+}
+
+.app-shell-modern .analytics-account-insights .analytics-decay-explanation {
+  margin: 5px 0 0;
+  line-height: 1.45;
+}
+
+.app-shell-modern .analytics-account-insights .analytics-decay-data-note {
+  margin: 9px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .app-shell-modern .page-view :is(

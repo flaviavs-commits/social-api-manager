@@ -56,6 +56,13 @@
       "meuEcooAccess": "discount",
       "meuEcooDiscountPercent": 40,
       "meuEcooOffer": "MeuEcoo com 40% de desconto ou sem oferta",
+      "meuEcooFeatures": [
+        "Crescimento pessoal e aprendizagem aplicada",
+        "Foco, disciplina, hábitos, comunicação e inteligência emocional",
+        "Saúde, bem-estar, organização financeira e planejamento de carreira",
+        "Mini-apps que transformam conceito em ação, com progresso mensurável",
+        "Um conselheiro inteligente que acompanha sua jornada"
+      ],
       "aiImageLimit": 15,
       "maxConnections": 3,
       "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],
@@ -99,6 +106,13 @@
       "cadence": "por mês",
       "meuEcooAccess": "free",
       "meuEcooOffer": "MeuEcoo gratuito",
+      "meuEcooFeatures": [
+        "Crescimento pessoal e aprendizagem aplicada",
+        "Foco, disciplina, hábitos, comunicação e inteligência emocional",
+        "Saúde, bem-estar, organização financeira e planejamento de carreira",
+        "Mini-apps que transformam conceito em ação, com progresso mensurável",
+        "Um conselheiro inteligente que acompanha sua jornada"
+      ],
       "aiImageLimit": 20,
       "maxConnections": 4,
       "availablePlatforms": ["instagram", "youtube", "tiktok", "facebook"],

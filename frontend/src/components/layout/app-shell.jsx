@@ -279,12 +279,14 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
         <ThemeSelector />
         <button type="button" aria-label="Rever o tutorial guiado" title="Rever o tutorial guiado" onClick={onOpenTutorial} className="tutorial-trigger topbar-text-action hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-subtle px-2.5 text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span aria-hidden="true">🎓</span><span>Tutorial</span></button>
         <button type="button" aria-label="Ver atalhos de teclado" title="Ver atalhos de teclado" onClick={onOpenShortcutHelp} className="topbar-shortcuts-button topbar-text-action hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-subtle px-2.5 text-sm font-semibold text-zinc-500 transition-colors hover:border-gold/40 hover:text-gold sm:flex"><span aria-hidden="true">?</span><span>Atalhos</span></button>
-        <button aria-label="Abrir mensagens" title="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+        <button aria-label="Abrir mensagens" title="Abrir mensagens" onClick={() => onNavigate('inbox')} className="topbar-icon-button topbar-labeled-action rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9Z"/></svg>
+          <span className="topbar-action-label">Mensagens</span>
         </button>
         <div className="notification-control">
-          <button aria-label="Abrir notificações" title="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
+          <button aria-label="Abrir notificações" title="Abrir notificações" data-tutorial-target="notificacoes" aria-expanded={notificationsOpen} onClick={toggleNotifications} className="topbar-icon-button topbar-labeled-action rounded-full p-2 text-zinc-400 transition-colors hover:bg-surface-soft hover:text-gold">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+            <span className="topbar-action-label">Notificações</span>
             {unreadNotifications > 0 && <span className="notification-dot" aria-label={`${unreadNotifications} notificações novas`} />}
           </button>
           {notificationsOpen && <div className="notification-popover" role="dialog" aria-label="Notificações recentes">

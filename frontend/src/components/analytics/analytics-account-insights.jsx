@@ -121,15 +121,36 @@ function ProviderGrowth({ net, data, accountId }) {
 function ProviderDecay({ net, data, accountId }) {
   const buckets = (data.accountAnalytics?.contentDecay || [])
     .filter(item => item.platform === net && belongsToAccount(item, accountId))
-    .flatMap(item => item.data?.buckets || item.data?.decay || [])
+    .flatMap(item => item.data?.buckets || item.data?.decay || item.buckets || item.decay || [])
   if (!buckets.length) return null
+  const normalizedBuckets = buckets.map((bucket, index) => {
+    const source = bucket && typeof bucket === 'object' ? bucket : {}
+    const rawValue = source.avg_pct_of_final
+      ?? source.avgPctOfFinal
+      ?? source.percentage
+      ?? source.percent
+      ?? source.engagementPercentage
+      ?? source.value
+    const numericValue = rawValue == null || rawValue === '' ? null : Number(rawValue)
+    const postCount = source.post_count ?? source.postCount
+    return {
+      label: source.bucket_label || source.bucketLabel || source.label || source.bucket || source.window || `Faixa ${index + 1}`,
+      value: Number.isFinite(numericValue) ? numericValue : null,
+      postCount: postCount == null || postCount === '' ? null : Number(postCount)
+    }
+  })
+  const hasPercentages = normalizedBuckets.some(bucket => bucket.value != null)
+  const formatPercentage = value => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
   return <div className="analytics-provider-growth">
     <div className="analytics-section-title">Vida útil do conteúdo</div>
-    <div className="analytics-decay-list">{buckets.map((bucket, index) => {
-      const label = bucket.label || bucket.bucket || bucket.window || `${index + 1}`
-      const value = bucket.percentage ?? bucket.percent ?? bucket.engagementPercentage ?? bucket.value
-      return <span key={`${label}-${index}`}><strong>{label}</strong> {value == null ? '' : `${Number(value).toFixed(1)}%`}</span>
-    })}</div>
+    <p className="analytics-insights-subtitle analytics-decay-explanation">
+      Percentual médio do engajamento final acumulado em cada faixa após a publicação. Não é percentual de alcance.
+    </p>
+    <div className="analytics-decay-list">{normalizedBuckets.map((bucket, index) => <span key={`${bucket.label}-${index}`}>
+      <strong>{bucket.label}</strong>{bucket.value == null ? ' — percentual não informado pela rede' : ` ${formatPercentage(bucket.value)}`}
+      {Number.isFinite(bucket.postCount) && ` · ${fmtNum(bucket.postCount)} ${bucket.postCount === 1 ? 'post' : 'posts'}`}
+    </span>)}</div>
+    {!hasPercentages && <p className="analytics-decay-data-note">A rede retornou as faixas, mas não enviou os percentuais. Eles não podem ser calculados com segurança sem os dados de engajamento correspondentes.</p>}
   </div>
 }
 
@@ -178,7 +199,7 @@ function MetricSeriesTable({ accounts }) {
   const entries = collectSeries(accounts)
   if (!entries.length) return null
   const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))]
-  return <details className="analytics-report-detail">
+  return <details className="analytics-report-detail analytics-series-detail">
     <summary>Ver série diária completa <span>{pointCountLabel(entries.length)}</span></summary>
     <div className="analytics-provider-table analytics-full-series">
       <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
