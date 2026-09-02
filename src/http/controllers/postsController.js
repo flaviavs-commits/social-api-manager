@@ -116,8 +116,12 @@ async function getAnalytics(req, res) {
 
 async function getTiktokVideos(req, res) {
   try {
-    const videos = await listarTiktokVideos(ctx(req))
-    res.json({ videos })
+    const result = await listarTiktokVideos(ctx(req))
+    // Compatibilidade com adaptadores/test doubles antigos que ainda
+    // retornam somente o array de vídeos.
+    res.json(Array.isArray(result)
+      ? { videos: result, errors: [] }
+      : { videos: result.videos || [], errors: result.errors || [] })
   } catch (e) {
     serverError(res, e)
   }

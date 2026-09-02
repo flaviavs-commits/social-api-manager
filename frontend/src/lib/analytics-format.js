@@ -70,7 +70,7 @@ export const NET_TABS = {
   instagram: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts Publicados' }, { key: 'growth', label: 'Crescimento' }],
   facebook: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts Publicados' }],
   youtube: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos Publicados' }, { key: 'growth', label: 'Crescimento' }],
-  tiktok: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos Publicados' }],
+  tiktok: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos Publicados' }, { key: 'growth', label: 'Crescimento' }],
 }
 
 export function fmtNum(n) {

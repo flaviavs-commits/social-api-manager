@@ -38,6 +38,29 @@ function sumKnown(values) {
   return known.length ? known.reduce((total, value) => total + Number(value), 0) : null
 }
 
+function hasMetricData(item) {
+  return Object.values(item?.metrics || {}).some(value => value != null && Number.isFinite(Number(value)))
+}
+
+function audienceValue(data, platform) {
+  const accountValues = (data.accountAnalytics?.followerStats?.accounts || [])
+    .filter(account => account.platform === platform)
+    .map(account => Number(account.currentFollowers))
+    .filter(Number.isFinite)
+  if (accountValues.length) return sumKnown(accountValues)
+
+  const history = platform === 'instagram'
+    ? data.instagramFollowers
+    : platform === 'tiktok'
+      ? data.tiktokStats
+      : platform === 'youtube'
+        ? data.youtubeSubscribers
+        : {}
+  const latest = latestOf(history)
+  const value = Number(latest?.followerCount ?? latest?.subscriberCount)
+  return Number.isFinite(value) ? value : null
+}
+
 function comparisonLabel(current, previous, enabled) {
   if (!enabled) return null
   if (current == null || previous == null || previous === 0) return 'Sem base anterior'
@@ -50,8 +73,12 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
   const scopeNetworks = activeNet ? [activeNet] : NETWORK_ORDER
   const metrics = filterByPeriod(data.metrics, periodDays).filter(item => scopeNetworks.includes(item.platform))
   const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays).filter(video => !activeNet || activeNet === 'tiktok')
-  const tiktokMetrics = metrics.filter(item => item.platform === 'tiktok' && item.metrics)
-  const tiktokRows = tiktokMetrics.length ? tiktokMetrics : videos.map(tiktokVideoToMetric)
+  const tiktokMetrics = metrics.filter(item => item.platform === 'tiktok' && hasMetricData(item))
+  const tiktokVideoRows = videos.map(tiktokVideoToMetric)
+  // O catálogo real de vídeos do TikTok inclui publicações que não foram
+  // criadas pelo app. Ele é a fonte principal quando tem métricas; o relatório
+  // local só entra como fallback se o catálogo não respondeu com valores.
+  const tiktokRows = tiktokVideoRows.some(hasMetricData) ? tiktokVideoRows : tiktokMetrics
   const summaryMetrics = [...metrics.filter(item => item.platform !== 'tiktok'), ...tiktokRows]
   const previousMetrics = filterByPeriodOffset(data.metrics, periodDays, 1).filter(item => scopeNetworks.includes(item.platform))
   const previousVideos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, 1).filter(() => !activeNet || activeNet === 'tiktok')
@@ -91,15 +118,23 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
   ])
   const previousEngagementRate = previousViews > 0 && previousEngagement != null ? (previousEngagement / previousViews * 100) : null
 
-  const igFollowers = latestOf(data.instagramFollowers)?.followerCount
-  const ttFollowers = latestOf(data.tiktokStats)?.followerCount
-  const ytSubscribers = latestOf(data.youtubeSubscribers)?.subscriberCount
-  const totalFollowers = sumKnown([igFollowers, ttFollowers, ytSubscribers])
-  const previousFollowers = sumKnown([
-    latestOf(filterByPeriodOffset(data.instagramFollowers, periodDays, 1))?.followerCount,
-    latestOf(filterByPeriodOffset(data.tiktokStats, periodDays, 1))?.followerCount,
-    latestOf(filterByPeriodOffset(data.youtubeSubscribers, periodDays, 1))?.subscriberCount,
-  ])
+  const audienceByNetwork = {
+    instagram: audienceValue(data, 'instagram'),
+    facebook: audienceValue(data, 'facebook'),
+    tiktok: audienceValue(data, 'tiktok'),
+    youtube: audienceValue(data, 'youtube'),
+  }
+  const totalFollowers = activeNet
+    ? audienceByNetwork[activeNet] ?? null
+    : sumKnown(Object.values(audienceByNetwork))
+  const previousAudienceByNetwork = {
+    instagram: latestOf(filterByPeriodOffset(data.instagramFollowers, periodDays, 1))?.followerCount,
+    tiktok: latestOf(filterByPeriodOffset(data.tiktokStats, periodDays, 1))?.followerCount,
+    youtube: latestOf(filterByPeriodOffset(data.youtubeSubscribers, periodDays, 1))?.subscriberCount,
+  }
+  const previousFollowers = activeNet
+    ? previousAudienceByNetwork[activeNet] ?? null
+    : sumKnown(Object.values(previousAudienceByNetwork))
   const scopeLabel = activeNet ? PLAT_LABELS[activeNet] : 'todas as redes'
   const audienceLabel = activeNet === 'youtube' ? 'Inscritos' : activeNet ? 'Seguidores' : 'Seguidores e inscritos'
   const audienceHelp = activeNet

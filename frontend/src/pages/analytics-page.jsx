@@ -4,12 +4,13 @@ import { useAnalytics } from '../hooks/use-analytics.js'
 import { AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
 import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
 import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
-import { filterByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
+import { filterByPeriod, filterTikTokVideosByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { AnalyticsAccountProfiles } from '../components/analytics/analytics-account-profiles.jsx'
 import { AnalyticsExecutiveOverview } from '../components/analytics/analytics-executive-overview.jsx'
 import { buildPerformanceReport, performanceReportActions, performanceReportConclusion } from '../components/analytics/analytics-performance-report.jsx'
 import { ReportSchedulePanel } from '../components/analytics/report-schedule-panel.jsx'
+import { AnalyticsDataVerification } from '../components/analytics/analytics-data-verification.jsx'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -24,6 +25,10 @@ function sumKnown(values) {
   return known.length ? known.reduce((total, value) => total + Number(value), 0) : null
 }
 
+function hasMetricData(item) {
+  return Object.values(item?.metrics || {}).some(value => value != null && Number.isFinite(Number(value)))
+}
+
 function htmlValue(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 }
@@ -33,13 +38,27 @@ export function AnalyticsPage() {
   const [reportAccountId, setReportAccountId] = useState(null)
   const {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
-    loading, error, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
+    loading, error, sourceErrors, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
   } = useAnalytics({ comparePeriod })
   const notify = useToast()
   const selectedPlatform = activeNet === 'all' ? null : activeNet
   const selectedRows = reportRows(data, periodDays, selectedPlatform)
-  const selectedViews = sumKnown(selectedRows.map(item => item.metrics?.views))
-  const selectedEngagement = sumKnown(selectedRows.map(item => sumKnown([
+  const selectedTikTokVideos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
+  const selectedTikTokRows = selectedTikTokVideos.map(video => ({ metrics: {
+    views: video.viewCount,
+    likes: video.likeCount,
+    comments: video.commentCount,
+    shares: video.shareCount,
+  } }))
+  const useTikTokCatalog = selectedTikTokRows.some(hasMetricData)
+  const selectedContentRows = useTikTokCatalog && (!selectedPlatform || selectedPlatform === 'tiktok')
+    ? [
+        ...selectedRows.filter(item => item.platform !== 'tiktok'),
+        ...selectedTikTokRows,
+      ]
+    : selectedRows
+  const selectedViews = sumKnown(selectedContentRows.map(item => item.metrics?.views))
+  const selectedEngagement = sumKnown(selectedContentRows.map(item => sumKnown([
     item.metrics?.likes,
     item.metrics?.comments,
     item.metrics?.shares,
@@ -121,7 +140,7 @@ export function AnalyticsPage() {
     </div>
 
     <section className="analytics-report-snapshot" aria-label="Resumo do relatório filtrado">
-      <div><span>Conteúdos no recorte</span><strong>{loading ? '—' : selectedRows.length}</strong></div>
+      <div><span>Conteúdos no recorte</span><strong>{loading ? '—' : selectedContentRows.length}</strong></div>
       <div><span>Visualizações</span><strong>{loading ? '—' : fmtNum(selectedViews)}</strong></div>
       <div><span>Interações</span><strong>{loading ? '—' : fmtNum(selectedEngagement)}</strong></div>
       <div><span>Rede analisada</span><strong>{loading ? '—' : selectedPlatform ? PLAT_LABELS[selectedPlatform] || selectedPlatform : 'Todas'}</strong></div>
@@ -141,6 +160,7 @@ export function AnalyticsPage() {
       comparePeriod={comparePeriod}
       onToggleCompare={setComparePeriod}
     />}
+    {!loading && <AnalyticsDataVerification verification={data.verification} activeNet={selectedPlatform} sourceErrors={sourceErrors} tiktokVideos={tiktokVideos} periodDays={periodDays}/>}
     {!loading && !networks.length && <section className="analytics-empty-state" aria-labelledby="analytics-empty-title">
       <span className="analytics-empty-icon" aria-hidden="true">📊</span>
       <h3 id="analytics-empty-title">Ainda não há métricas para mostrar</h3>
@@ -153,17 +173,11 @@ export function AnalyticsPage() {
         ? <section className="analytics-no-network-panel"><span className="analytics-empty-icon" aria-hidden="true">…</span><h3>Carregando redes</h3><p>Verificando conexões e métricas disponíveis.</p></section>
         : activeNet === 'all'
           ? networks.length
-            ? <div className="analytics-all-network-panels">{networks.map(net => <AnalyticsPanel
-                key={net}
-                net={net}
-                tab="community"
-                onSelectTab={setActiveTab}
-                data={data}
-                tiktokVideos={tiktokVideos}
-                periodDays={periodDays}
-                lastUpdated={lastUpdated}
-                reportAccountId={null}
-              />)}</div>
+            ? <section className="analytics-no-network-panel analytics-all-network-prompt" aria-labelledby="analytics-all-network-title">
+                <span className="analytics-empty-icon" aria-hidden="true">◎</span>
+                <h3 id="analytics-all-network-title">Escolha uma rede para ver o relatório detalhado</h3>
+                <p>O resumo consolidado acima reúne todas as redes. Use os botões de seleção para abrir gráficos, publicações e crescimento de uma plataforma por vez.</p>
+              </section>
             : <section className="analytics-no-network-panel" aria-labelledby="analytics-no-network-title">
                 <span className="analytics-empty-icon" aria-hidden="true">◎</span>
                 <h3 id="analytics-no-network-title">Nenhuma rede conectada</h3>

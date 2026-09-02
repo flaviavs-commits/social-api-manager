@@ -16,10 +16,11 @@ const EMPTY_DATA = {
 }
 
 // Mantém o carregamento de analytics em duas fontes independentes
-// independentes (analytics + tiktok-videos, o 2º sempre roda mesmo se o 1º
-// falhar), auto-refresh a cada 30s enquanto a aba está visível, e troca
-// automática para a primeira rede com dados se a rede ativa ficar sem dados
-// depois de um refresh.
+// (analytics + tiktok-videos), mas aguarda as duas antes de liberar a tela.
+// Assim o resumo do TikTok não aparece temporariamente com "—" enquanto a
+// fonte real de vídeos ainda está sendo consultada. Também faz auto-refresh a
+// cada 30s enquanto a aba está visível e troca automaticamente para a primeira
+// rede com dados se a rede ativa ficar sem dados depois de um refresh.
 export function useAnalytics({ comparePeriod = false } = {}) {
   const savedFilters = readAnalyticsFilters()
   const [data, setData] = useState(EMPTY_DATA)
@@ -35,26 +36,11 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const [sourceErrors, setSourceErrors] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const activeNetRef = useRef(activeNet)
-  const tiktokVideosRef = useRef(tiktokVideos)
   activeNetRef.current = activeNet
-  tiktokVideosRef.current = tiktokVideos
 
   useEffect(() => {
     localStorage.setItem(ANALYTICS_FILTERS_KEY, JSON.stringify({ activeNet, activeTab, periodDays }))
   }, [activeNet, activeTab, periodDays])
-
-  const loadTiktokVideos = useCallback(async () => {
-    try {
-      const { videos } = await apiFetch('/api/posts/tiktok-videos')
-      setTiktokVideos(videos || [])
-      setSourceErrors(current => current.filter(issue => issue.source !== 'TikTok'))
-    } catch (caught) {
-      setTiktokVideos([])
-      setSourceErrors(current => current.some(issue => issue.source === 'TikTok')
-        ? current
-        : [...current, { source: 'TikTok', message: caught.message || 'Não foi possível consultar os vídeos.' }])
-    }
-  }, [])
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -70,11 +56,21 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   }, [])
 
   const loadAnalytics = useCallback(async () => {
-    try {
-      const queryDays = Math.min(90, periodDays * (comparePeriod ? 2 : 1))
+    setLoading(true)
+    const queryDays = Math.min(90, periodDays * (comparePeriod ? 2 : 1))
+    // As duas fontes são consultadas em paralelo. O endpoint de vídeos do
+    // TikTok é a fonte dos valores por vídeo; iniciar essa chamada somente
+    // depois do relatório principal fazia a tela exibir placeholders por
+    // vários segundos, mesmo quando a API tinha os números reais.
+    const [analyticsResult, tiktokResult] = await Promise.allSettled([
       // Agrega métricas ao vivo de várias contas/plataformas — pode passar
       // do timeout padrão de 15s da apiFetch em contas com muitas publicações.
-      const result = await apiFetch(`/api/posts/analytics?days=${queryDays}`, { timeoutMs: 45_000 })
+      apiFetch(`/api/posts/analytics?days=${queryDays}`, { timeoutMs: 45_000 }),
+      apiFetch('/api/posts/tiktok-videos', { timeoutMs: 45_000 }),
+    ])
+
+    if (analyticsResult.status === 'fulfilled') {
+      const result = analyticsResult.value
       const next = {
         series: result.series || {},
         metrics: result.metrics || [],
@@ -89,17 +85,37 @@ export function useAnalytics({ comparePeriod = false } = {}) {
       setData(next)
       setError('')
 
-      const nets = detectNetworks({ ...next, tiktokVideos: tiktokVideosRef.current })
+      const nextTiktokVideos = tiktokResult.status === 'fulfilled'
+        ? (tiktokResult.value.videos || [])
+        : []
+      const nets = detectNetworks({ ...next, tiktokVideos: nextTiktokVideos })
       if (nets.length && activeNetRef.current !== 'all' && !nets.includes(activeNetRef.current)) setActiveNet(nets[0])
 
       setLastUpdated(new Date())
-    } catch (caught) {
-      setError(caught.message)
-    } finally {
-      setLoading(false)
+    } else {
+      setError(analyticsResult.reason?.message || 'Não foi possível consultar as métricas.')
     }
-    loadTiktokVideos()
-  }, [loadTiktokVideos, periodDays, comparePeriod])
+
+    if (tiktokResult.status === 'fulfilled') {
+      const result = tiktokResult.value
+      setTiktokVideos(result.videos || [])
+      setSourceErrors(current => current.filter(issue => issue.source !== 'TikTok'))
+      if (Array.isArray(result.errors) && result.errors.length > 0) {
+        const message = result.errors.map(issue => issue.message).filter(Boolean).join(' · ')
+        if (message) setSourceErrors(current => [
+          ...current.filter(issue => issue.source !== 'TikTok'),
+          { source: 'TikTok', message },
+        ])
+      }
+    } else {
+      setTiktokVideos([])
+      setSourceErrors(current => current.some(issue => issue.source === 'TikTok')
+        ? current
+        : [...current, { source: 'TikTok', message: tiktokResult.reason?.message || 'Não foi possível consultar os vídeos.' }])
+    }
+
+    setLoading(false)
+  }, [periodDays, comparePeriod])
 
   useEffect(() => {
     loadAnalytics()

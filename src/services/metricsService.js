@@ -563,24 +563,36 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
 // a conta. O filtro local continua necessário porque a tela exibe várias
 // contas e a API pode retornar posts de mais de uma publicação.
 async function metricsVideosTiktokZernio(token) {
-  const { posts } = await zernioClient.getAnalytics({ accountId: token.zernioAccountId })
   const videos = []
-  for (const post of posts) {
-    const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && String(p.accountId) === String(token.zernioAccountId))
-    if (!plataforma) continue
-    const a = plataforma.analytics || {}
-    videos.push({
-      id: plataforma.platformPostId,
-      title: post.content || '',
-      coverImageUrl: post.thumbnailUrl || null,
-      shareUrl: plataforma.platformPostUrl || null,
-      createTime: post.publishedAt ? Math.floor(new Date(post.publishedAt).getTime() / 1000) : null,
-      viewCount: a.views ?? null,
-      likeCount: a.likes ?? null,
-      commentCount: a.comments ?? null,
-      shareCount: a.shares ?? null
+  let page = 1
+  let pages = 1
+  do {
+    const result = await zernioClient.getAnalytics({
+      accountId: token.zernioAccountId,
+      platform: 'tiktok',
+      limit: 100,
+      page,
     })
-  }
+    for (const post of result.posts || []) {
+      const plataforma = post.platforms?.find(p => p.platform === 'tiktok' && String(p.accountId) === String(token.zernioAccountId))
+      if (!plataforma) continue
+      const a = plataforma.analytics || {}
+      videos.push({
+        id: plataforma.platformPostId,
+        title: post.content || '',
+        coverImageUrl: post.thumbnailUrl || null,
+        shareUrl: plataforma.platformPostUrl || null,
+        createTime: post.publishedAt ? Math.floor(new Date(post.publishedAt).getTime() / 1000) : null,
+        viewCount: a.views ?? null,
+        likeCount: a.likes ?? null,
+        commentCount: a.comments ?? null,
+        shareCount: a.shares ?? null
+      })
+    }
+    pages = Math.max(1, Number(result.pagination?.pages) || 1)
+    page += 1
+  } while (page <= pages)
+
   return { videos, cursor: null, hasMore: false }
 }
 
@@ -627,10 +639,22 @@ async function buscarVideosTiktok(userId, isAdmin) {
     })
   )
 
-  return resultados
-    .filter(r => r.status === 'fulfilled')
-    .flatMap(r => r.value)
-    .sort((a, b) => b.createTime - a.createTime)
+  const errors = resultados
+    .filter(result => result.status === 'rejected')
+    .map(result => {
+      const message = result.reason?.message || 'Não foi possível consultar os vídeos do TikTok.'
+      return { message: /api.?key|access.?token|refresh.?token|secret|authorization/i.test(message)
+        ? 'Não foi possível consultar os vídeos da conta conectada.'
+        : message }
+    })
+
+  return {
+    videos: resultados
+      .filter(result => result.status === 'fulfilled')
+      .flatMap(result => result.value)
+      .sort((a, b) => Number(b.createTime || 0) - Number(a.createTime || 0)),
+    errors,
+  }
 }
 
 // Histórico fornecido pelo provedor para a tela de detalhe do post. O

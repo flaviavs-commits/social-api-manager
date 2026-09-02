@@ -13,6 +13,10 @@ function sumNullable(rows, name) {
   return values.length ? values.reduce((total, value) => total + value, 0) : null
 }
 
+function hasMetricData(row) {
+  return ['views', 'likes', 'comments', 'shares', 'saves'].some(name => metricNumber(row.metrics, name) != null)
+}
+
 function profileMetricSum(profiles, names) {
   const values = profiles.flatMap(profile => names.map(name => metricNumber(profile.totals?.metrics, name)).filter(value => value != null))
   return values.length ? values.reduce((total, value) => total + value, 0) : null
@@ -44,13 +48,14 @@ function audienceStats(data, platform) {
 }
 
 function networkRows(data, tiktokVideos, periodDays, platform) {
-  const rows = filterByPeriod(data.metrics, periodDays).filter(item => item.platform === platform && item.metrics)
-  if (platform === 'tiktok' && !rows.length) {
-    return filterTikTokVideosByPeriod(tiktokVideos, periodDays).map(video => ({
+  const rows = filterByPeriod(data.metrics, periodDays).filter(item => item.platform === platform && hasMetricData(item))
+  if (platform === 'tiktok') {
+    const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays).map(video => ({
       publishedAt: video.publishedAt || (video.createTime ? new Date(Number(video.createTime) * 1000).toISOString() : null),
       text: video.title || '',
       metrics: { views: video.viewCount, likes: video.likeCount, comments: video.commentCount, shares: video.shareCount }
     }))
+    if (videos.some(hasMetricData) || !rows.length) return videos
   }
   return rows
 }

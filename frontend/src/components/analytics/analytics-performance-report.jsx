@@ -25,14 +25,19 @@ function sumVideos(videos, name) {
   return values.length ? values.reduce((total, value) => total + value, 0) : null
 }
 
+function hasMetricData(row) {
+  return ['views', 'likes', 'comments', 'shares', 'saves'].some(name => numberValue(row.metrics?.[name]) != null)
+}
+
 function rowsFor(data, tiktokVideos, periodDays, platform, offset = 0) {
-  const rows = filterByPeriodOffset(data.metrics, periodDays, offset).filter(item => item.platform === platform && item.metrics)
-  if (platform === 'tiktok' && !rows.length) {
-    return filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, offset).map(video => ({
+  const rows = filterByPeriodOffset(data.metrics, periodDays, offset).filter(item => item.platform === platform && hasMetricData(item))
+  if (platform === 'tiktok') {
+    const videos = filterTikTokVideosByPeriodOffset(tiktokVideos, periodDays, offset).map(video => ({
       publishedAt: video.publishedAt || (video.createTime ? new Date(Number(video.createTime) * 1000).toISOString() : null),
       text: video.title || '',
       metrics: { views: video.viewCount, likes: video.likeCount, comments: video.commentCount, shares: video.shareCount, saves: video.saveCount },
     }))
+    if (videos.some(hasMetricData) || !rows.length) return videos
   }
   return rows
 }

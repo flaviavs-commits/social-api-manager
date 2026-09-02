@@ -306,8 +306,6 @@
 .landing-plan-top { display: flex; align-items: start; justify-content: space-between; gap: 13px; }
 .landing-plan-top > div:first-child > span { color: var(--landing-gold); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; }
 .landing-plan-offer { display: block; max-width: 150px; margin-top: 8px; color: var(--landing-gold); font-size: 10.5px; font-weight: 700; line-height: 1.35; }
-.landing-plan-meuecoo-link { display: inline-flex; margin-top: 6px; color: var(--landing-soft); font-size: 10.5px; text-decoration: underline; text-underline-offset: 2px; }
-.landing-plan-meuecoo-link:hover { color: var(--landing-gold-soft); }
 .landing-plan h3 { margin: 11px 0 0; color: #f1ece3; font-family: Georgia, 'Times New Roman', serif; font-size: 23px; font-weight: 400; line-height: 1.05; letter-spacing: -.04em; white-space: pre-line; }
 .landing-plan-price { text-align: right; }
 .landing-plan-price strong, .landing-plan-price small { display: block; white-space: nowrap; }

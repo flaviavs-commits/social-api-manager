@@ -5,6 +5,10 @@ function sum(arr, fn) {
   return values.length ? values.reduce((acc, value) => acc + Number(value), 0) : null
 }
 
+function hasMetricData(item) {
+  return Object.values(item?.metrics || {}).some(value => value != null && Number.isFinite(Number(value)))
+}
+
 function buildCards(net, tab, { metrics, instagramFollowers, tiktokStats, youtubeSubscribers, tiktokVideos }) {
   if (net === 'instagram' && tab === 'posts') {
     return [
@@ -43,12 +47,23 @@ function buildCards(net, tab, { metrics, instagramFollowers, tiktokStats, youtub
   }
   if (net === 'tiktok') {
     const latest = latestOf(tiktokStats)
+    const tiktokMetrics = metrics.filter(hasMetricData)
+    const videoRows = tiktokVideos.map(video => ({
+      metrics: {
+        views: video.viewCount,
+        likes: video.likeCount,
+        comments: video.commentCount,
+        shares: video.shareCount,
+      },
+    }))
+    const contentRows = videoRows.some(hasMetricData) ? videoRows : tiktokMetrics
+    const contentCount = tiktokVideos.length || metrics.length || null
     return [
       { label: 'Seguidores', val: fmtNum(latest?.followerCount), help: 'Total atual de seguidores registrado pelo TikTok.', accent: 'accent-purple' },
       { label: 'Curtidas acumuladas', val: fmtNum(latest?.likesCount), help: 'Total de curtidas acumuladas no perfil.', accent: 'accent-pink' },
-      { label: 'Visualizações', val: fmtNum(sum(tiktokVideos, v => v.viewCount)), help: 'Visualizações dos vídeos no período.', accent: 'accent-green' },
-      { label: 'Compartilhamentos', val: fmtNum(sum(tiktokVideos, v => v.shareCount)), help: 'Vezes em que os vídeos foram compartilhados.', accent: 'accent-purple' },
-      { label: 'Vídeos publicados', val: tiktokVideos.length, help: 'Quantidade de vídeos publicados no período.', accent: 'accent-yellow' },
+      { label: 'Visualizações', val: fmtNum(sum(contentRows, row => row.metrics?.views)), help: 'Visualizações dos vídeos no período, confirmadas pelo TikTok/Zernio.', accent: 'accent-green' },
+      { label: 'Compartilhamentos', val: fmtNum(sum(contentRows, row => row.metrics?.shares)), help: 'Vezes em que os vídeos foram compartilhados, confirmadas pelo TikTok/Zernio.', accent: 'accent-purple' },
+      { label: 'Vídeos publicados', val: contentCount, help: 'Quantidade de vídeos publicados no período com fonte identificada.', accent: 'accent-yellow' },
     ]
   }
   return []

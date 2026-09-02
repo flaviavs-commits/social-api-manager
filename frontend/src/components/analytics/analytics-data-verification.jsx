@@ -1,4 +1,4 @@
-import { NETWORK_ORDER, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { filterTikTokVideosByPeriod, NETWORK_ORDER, PLAT_LABELS } from '../../lib/analytics-format.js'
 
 const STATUS_ICONS = { verified: '✓', partial: '!', no_data: '○' }
 
@@ -15,15 +15,50 @@ function platformEntries(verification, activeNet = null) {
     .filter(([, item]) => item && (item.content?.total || item.accounts?.connected || item.status === 'verified'))
 }
 
-export function AnalyticsDataVerification({ verification, activeNet = null, sourceErrors = [] }) {
+function hasVideoMetric(video) {
+  return ['viewCount', 'likeCount', 'commentCount', 'shareCount'].some(key => video?.[key] != null && Number.isFinite(Number(video[key])))
+}
+
+function withTikTokVideoCoverage(verification, tiktokVideos, periodDays, activeNet) {
+  if (activeNet !== 'tiktok' || !Array.isArray(tiktokVideos) || !tiktokVideos.length) return verification
+  const videos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
+  if (!videos.length) return verification
+  const withData = videos.filter(hasVideoMetric).length
+  const status = withData === videos.length ? 'verified' : withData ? 'partial' : 'no_data'
+  const platform = verification.platforms?.tiktok || {}
+  return {
+    ...verification,
+    platforms: {
+      ...verification.platforms,
+      tiktok: {
+        ...platform,
+        status,
+        label: status === 'verified' ? 'Dados verificados' : status === 'partial' ? 'Dados parciais' : 'Sem dados no período',
+        description: withData
+          ? 'Os números dos vídeos vieram do catálogo real sincronizado pelo TikTok/Zernio.'
+          : 'Os vídeos foram encontrados, mas a rede não confirmou métricas para este período.',
+        content: {
+          total: videos.length,
+          withData,
+          withoutData: videos.length - withData,
+          coveragePercent: Math.round(withData / videos.length * 100),
+        },
+      },
+    },
+  }
+}
+
+export function AnalyticsDataVerification({ verification, activeNet = null, sourceErrors = [], tiktokVideos = [], periodDays = 7 }) {
   if (!verification) return null
 
-  const selected = activeNet ? verification.platforms?.[activeNet] : null
+  const scopedVerification = withTikTokVideoCoverage(verification, tiktokVideos, periodDays, activeNet)
+  const selected = activeNet ? scopedVerification.platforms?.[activeNet] : null
   const content = selected?.content || verification.coverage?.content || {}
-  const entries = platformEntries(verification, activeNet)
-  const status = selected?.status || verification.overall?.status || 'no_data'
-  const label = selected?.label || verification.overall?.label || 'Status dos dados'
+  const entries = platformEntries(scopedVerification, activeNet)
+  const status = selected?.status || scopedVerification.overall?.status || 'no_data'
+  const label = selected?.label || scopedVerification.overall?.label || 'Status dos dados'
   const description = selected?.description || verification.overall?.description
+  const coveragePercent = content.percent ?? content.coveragePercent
   const visibleSourceErrors = sourceErrors.filter(issue => !activeNet || String(issue.source || '').toLowerCase().includes(String(PLAT_LABELS[activeNet] || activeNet).toLowerCase()))
 
   return <section className={`analytics-data-verification is-${status}`} aria-labelledby="analytics-data-verification-title">
@@ -41,7 +76,7 @@ export function AnalyticsDataVerification({ verification, activeNet = null, sour
     {visibleSourceErrors.length > 0 && <div className="analytics-data-verification-source-error" role="status"><strong>Também não foi possível conferir:</strong> {visibleSourceErrors.map(issue => `${issue.source}: ${issue.message}`).join(' · ')}</div>}
 
     <div className="analytics-data-verification-facts">
-      <div><strong>{content.percent == null ? '—' : `${content.percent}%`}</strong><span>cobertura de publicações</span><small>{content.withData || 0} de {content.total || 0} com métrica confirmada</small></div>
+      <div><strong>{coveragePercent == null ? '—' : `${coveragePercent}%`}</strong><span>cobertura de publicações</span><small>{content.withData || 0} de {content.total || 0} com métrica confirmada</small></div>
       <div><strong>{content.withoutData || 0}</strong><span>sem métrica confirmada</span><small>Não entram como zero no cálculo.</small></div>
       <div><strong>{entries.length}</strong><span>redes com fonte</span><small>API conectada ou histórico local.</small></div>
     </div>

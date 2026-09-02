@@ -8,12 +8,13 @@ import { AnalyticsAccountInsights } from './analytics-account-insights.jsx'
 
 export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, periodDays, lastUpdated, reportAccountId = null }) {
   const tabs = NET_TABS[net] || []
-  const tabDescription = TAB_HELP[tab] || ''
-  const listTab = tab === 'posts' || tab === 'videos'
-  const chartTitle = tab === 'growth' ? 'Evolução da audiência' : tab === 'community' ? 'Interações no período' : 'Desempenho por publicação'
-  const chartDescription = tab === 'growth'
+  const selectedTab = tabs.some(item => item.key === tab) ? tab : tabs[0]?.key || 'community'
+  const tabDescription = TAB_HELP[selectedTab] || ''
+  const listTab = selectedTab === 'posts' || selectedTab === 'videos'
+  const chartTitle = selectedTab === 'growth' ? 'Evolução da audiência' : selectedTab === 'community' ? 'Interações no período' : 'Desempenho por publicação'
+  const chartDescription = selectedTab === 'growth'
     ? 'Observe se sua base de seguidores ou inscritos está crescendo.'
-    : tab === 'community'
+      : selectedTab === 'community'
       ? 'Veja como a audiência reagiu ao conteúdo publicado.'
       : 'Compare os resultados de cada conteúdo para encontrar os melhores formatos.'
 
@@ -38,14 +39,14 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
             key={t.key}
             type="button"
             role="tab"
-            aria-selected={t.key === tab}
-            className={`analytics-tab${t.key === tab ? ' active' : ''}`}
+            aria-selected={t.key === selectedTab}
+            className={`analytics-tab${t.key === selectedTab ? ' active' : ''}`}
             onClick={() => onSelectTab(t.key)}
           >{t.label}</button>
         ))}
       </div>
 
-      <AnalyticsCards net={net} tab={tab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
+      <AnalyticsCards net={net} tab={selectedTab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
 
       <section className="analytics-chart-section analytics-content-section" aria-labelledby="analytics-network-chart-title">
         <div className="analytics-section-heading">
@@ -55,12 +56,12 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
           </div>
           <span className="analytics-period-context">Últimos {periodDays} dias</span>
         </div>
-        <AnalyticsChart net={net} tab={tab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
+        <AnalyticsChart net={net} tab={selectedTab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
       </section>
 
-      <AnalyticsDemographics net={net} tab={tab} data={data}/>
+      <AnalyticsDemographics net={net} tab={selectedTab} data={data}/>
 
-      <AnalyticsAccountInsights net={net} data={data} accountId={reportAccountId}/>
+      {reportAccountId != null && <AnalyticsAccountInsights net={net} data={data} accountId={reportAccountId}/>}
 
       {listTab && <section className="analytics-posts-section analytics-content-section" aria-labelledby="analytics-content-list-title">
         <div className="analytics-section-heading">
@@ -69,7 +70,7 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
             <p>Use esta lista para identificar quais conteúdos merecem ser repetidos ou melhorados.</p>
           </div>
         </div>
-        <AnalyticsPostsList net={net} tab={tab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
+        <AnalyticsPostsList net={net} tab={selectedTab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays}/>
       </section>}
     </div>
   )
