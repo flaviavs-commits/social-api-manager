@@ -253,7 +253,7 @@ function totalsFor(key, values) {
   return values[key]
 }
 
-export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokStats = {}, youtubeSubscribers = {}, tiktokVideos = [], accountAnalytics }) {
+export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokStats = {}, youtubeSubscribers = {}, tiktokVideos = [], accountAnalytics, accounts = [] }) {
   const nets = new Set()
   for (const m of metrics) if (m.platform) nets.add(m.platform)
   if (Object.keys(instagramFollowers).length) nets.add('instagram')
@@ -263,6 +263,7 @@ export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokSt
   for (const [platform, accounts] of Object.entries(accountAnalytics?.platforms || {})) {
     if (Array.isArray(accounts) && accounts.length) nets.add(platform)
   }
+  for (const account of accounts) if (account?.platform) nets.add(account.platform)
   return NETWORK_ORDER.filter(n => nets.has(n))
 }
 

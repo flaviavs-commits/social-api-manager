@@ -35,13 +35,10 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const [error, setError] = useState('')
   const [sourceErrors, setSourceErrors] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
-  const activeNetRef = useRef(activeNet)
   const analyticsLoadingRef = useRef(false)
   const activeAnalyticsKeyRef = useRef(null)
   const pendingAnalyticsKeyRef = useRef(null)
   const loadAnalyticsRef = useRef(null)
-  activeNetRef.current = activeNet
-
   useEffect(() => {
     localStorage.setItem(ANALYTICS_FILTERS_KEY, JSON.stringify({ activeNet, activeTab, periodDays }))
   }, [activeNet, activeTab, periodDays])
@@ -102,12 +99,6 @@ export function useAnalytics({ comparePeriod = false } = {}) {
         setData(next)
         setError('')
 
-        const nextTiktokVideos = tiktokResult.status === 'fulfilled'
-          ? (tiktokResult.value.videos || [])
-          : []
-        const nets = detectNetworks({ ...next, tiktokVideos: nextTiktokVideos })
-        if (nets.length && activeNetRef.current !== 'all' && !nets.includes(activeNetRef.current)) setActiveNet(nets[0])
-
         setLastUpdated(new Date())
       } else {
         setError(analyticsResult.reason?.message || 'Não foi possível consultar as métricas.')
@@ -152,7 +143,7 @@ export function useAnalytics({ comparePeriod = false } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodDays, comparePeriod, loadAccounts])
 
-  const networks = detectNetworks({ ...data, tiktokVideos })
+  const networks = detectNetworks({ ...data, tiktokVideos, accounts })
 
   function selectNetwork(net) {
     setActiveNet(net)

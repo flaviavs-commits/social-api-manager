@@ -1,4 +1,4 @@
-import { filterTikTokVideosByPeriod, fmtNum, formatDataBR, formatDataDelay, labelForMetric } from '../../src/lib/analytics-format.js'
+import { detectNetworks, filterTikTokVideosByPeriod, fmtNum, formatDataBR, formatDataDelay, labelForMetric } from '../../src/lib/analytics-format.js'
 
 describe('analytics formatting helpers', () => {
   it('uses labels that explain common provider metrics', () => {
@@ -13,6 +13,10 @@ describe('analytics formatting helpers', () => {
     const old = { createTime: now - (10 * 86400), title: 'Antigo' }
 
     expect(filterTikTokVideosByPeriod([recent, old], 7)).toEqual([recent])
+  })
+
+  it('keeps a connected network available when its metrics are temporarily empty', () => {
+    expect(detectNetworks({ accounts: [{ platform: 'tiktok' }] })).toEqual(['tiktok'])
   })
 
   it('limits metric values to one decimal without exposing floating-point noise', () => {
