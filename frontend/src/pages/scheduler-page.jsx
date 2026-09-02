@@ -1256,7 +1256,15 @@ export function SchedulerPage() {
       const successMessage = requestingApproval
         ? { approval: true, date, platformList: selected, workspaceName: workspaces.find(workspace => String(workspace.id) === String(approvalWorkspaceId))?.name || 'o espaço selecionado' }
         : publishNow ? null : scheduledPublicationDetails(date, selected)
-      if (!publishNow) { clearComposer(); setSavedMessage(successMessage) }
+      if (!publishNow) {
+        clearComposer()
+        if (requestingApproval) {
+          setSavedMessage(successMessage)
+        } else {
+          setPublicationStatus({ type: 'scheduled', ...successMessage })
+          setPublicationModalOpen(true)
+        }
+      }
       if (publishNow && createdPost?.id) monitorPublication(createdPost.id, eventCursor)
     } catch (caught) {
       setPublicationStatus(null)

@@ -1076,7 +1076,8 @@
   border-color: rgb(var(--accent-rgb) / .42);
 }
 
-.scheduler-publication-success .scheduler-publication-modal {
+.scheduler-publication-success .scheduler-publication-modal,
+.scheduler-publication-scheduled .scheduler-publication-modal {
   border-color: rgb(var(--success-rgb) / .42);
 }
 
@@ -1104,7 +1105,8 @@
   font-weight: 800;
 }
 
-.scheduler-publication-success .scheduler-publication-icon {
+.scheduler-publication-success .scheduler-publication-icon,
+.scheduler-publication-scheduled .scheduler-publication-icon {
   color: var(--success);
   background: var(--success-soft);
 }
@@ -1128,7 +1130,8 @@
   letter-spacing: .12em;
 }
 
-.scheduler-publication-success .scheduler-publication-kicker {
+.scheduler-publication-success .scheduler-publication-kicker,
+.scheduler-publication-scheduled .scheduler-publication-kicker {
   color: var(--success);
 }
 
@@ -1163,6 +1166,11 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.scheduler-publication-description strong {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .scheduler-publication-waiting {
@@ -1203,6 +1211,25 @@
   display: grid;
   gap: 8px;
   margin-top: 16px;
+}
+
+.scheduler-publication-schedule-details {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.scheduler-publication-schedule-label,
+.scheduler-publication-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.scheduler-publication-hint {
+  margin-top: 1px;
+  opacity: .8;
 }
 
 .scheduler-publication-result .scheduler-result-group {
