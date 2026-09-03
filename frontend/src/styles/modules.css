@@ -327,3 +327,30 @@
   color: var(--text-muted);
   font-size: 11px;
 }
+
+/* No agendador, o texto precisa de toda a largura do card; a logo fica abaixo. */
+.scheduler-page .platform-options .platform-option {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.scheduler-page .platform-options .platform-option-name {
+  grid-row: 1;
+  width: 100%;
+}
+
+.scheduler-page .platform-options .platform-option-hint {
+  grid-row: 2;
+}
+
+.scheduler-page .platform-options .platform-option-account {
+  grid-row: 3;
+  align-self: end;
+  width: 100%;
+}
+
+.scheduler-page .platform-options .platform-option-icon {
+  grid-row: 4;
+  justify-self: center;
+}
