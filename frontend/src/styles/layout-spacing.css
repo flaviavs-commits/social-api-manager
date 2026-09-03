@@ -470,10 +470,10 @@ html[data-theme='light'] .app-shell-modern .accounts-page .accounts-overview-str
   background: var(--surface) !important;
 }
 
-/* No tema claro, a plataforma conectada mantém o mesmo fundo ao passar o
- * mouse; o destaque fica no contorno, sem criar uma faixa branca. */
+/* No tema claro, o card da plataforma mantém a superfície branca ao passar o
+ * mouse; o destaque fica no contorno, sem criar um estado azul. */
 html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card:hover {
-  background-color: var(--surface-2) !important;
+  background-color: var(--surface) !important;
 }
 
 /* No tema claro, o card da plataforma selecionada/conectada usa a superfície
