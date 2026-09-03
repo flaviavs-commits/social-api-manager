@@ -476,6 +476,13 @@ html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card
   background-color: var(--surface-2) !important;
 }
 
+/* No tema claro, o card da plataforma selecionada/conectada usa a superfície
+ * branca para destacar claramente o estado ativo, inclusive ao passar o mouse. */
+html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card.is-connected,
+html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card.is-connected:hover {
+  background-color: var(--surface) !important;
+}
+
 @media (min-width: 768px) {
   .app-shell-modern .page-view {
     gap: 22px;
