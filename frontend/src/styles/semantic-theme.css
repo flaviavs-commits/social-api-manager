@@ -1309,6 +1309,11 @@ html[data-theme='light'] .shortcut-help-overlay {
 /* Scheduler-specific states. The base compositor has deliberately rich dark
  * gradients for hover/selected states, so the plain light surface bridge
  * above is not enough for these higher-specificity selectors. */
+html[data-theme='light'] .scheduler-page .platform-options {
+  background: transparent;
+  border-color: transparent;
+}
+
 html[data-theme='light'] .scheduler-page .platform-options .platform-option {
   color: var(--text);
   background: var(--surface-2);
@@ -1343,7 +1348,8 @@ html[data-theme='light'] .scheduler-page .platform-options .platform-option:has(
 }
 
 html[data-theme='light'] .scheduler-page .platform-option-check {
-  border-color: var(--border-hover);
+  border-color: transparent;
+  background: transparent;
   color: transparent;
 }
 
@@ -1447,6 +1453,10 @@ html[data-theme='light'] .scheduler-page .social-preview-card strong,
 html[data-theme='light'] .scheduler-page .social-preview-caption,
 html[data-theme='light'] .scheduler-page .social-preview-tiktok-copy > strong {
   color: var(--preview-text);
+}
+
+html[data-theme='light'] .scheduler-page .pv-ig-likes strong {
+  color: var(--text);
 }
 
 html[data-theme='light'] .scheduler-page .social-preview-caption.is-placeholder {

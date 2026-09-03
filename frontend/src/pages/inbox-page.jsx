@@ -13,6 +13,7 @@ const inboxPlatforms = [
   { id: 'instagram', label: 'Instagram' },
   { id: 'facebook', label: 'Facebook' },
   { id: 'youtube', label: 'YouTube' },
+  { id: 'tiktok', label: 'TikTok' },
 ]
 
 function readInboxFilters() {
