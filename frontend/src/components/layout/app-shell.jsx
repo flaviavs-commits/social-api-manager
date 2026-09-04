@@ -175,7 +175,7 @@ function notificationPreferenceEnabled(item, user) {
   return true
 }
 
-function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
+function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -266,11 +266,13 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, onCreatePost, onNavigate
     <header className="app-topbar-modern flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
       <div className="flex items-center gap-3">
         <button
+          type="button"
           onClick={onOpenSidebar}
-          aria-label="Abrir menu"
-          className="rounded-lg border border-subtle p-2 text-zinc-400 hover:text-gold md:hidden"
+          aria-label={sidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+          aria-expanded={sidebarOpen}
+          className="app-mobile-menu-button rounded-lg border border-subtle p-2 text-zinc-400 hover:text-gold"
         >
-          ☰
+          <span aria-hidden="true">☰</span>
         </button>
         <nav aria-label="Página atual" className="flex min-w-0 items-center text-xl font-semibold text-zinc-50">
           <span className="truncate text-base text-gold sm:text-lg">{currentLabel}</span>
@@ -425,7 +427,7 @@ function AppShellBody({ page, onPageChange, children, user }) {
       <AppSidebar page={page} open={open || tutorialWantsSidebar} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <AppTopbar currentLabel={currentLabel} user={user} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
+        <AppTopbar currentLabel={currentLabel} user={user} sidebarOpen={open} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
         <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
         <footer className="app-copyright"><CopyrightNotice /></footer>
       </div>

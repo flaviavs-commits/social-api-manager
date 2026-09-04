@@ -990,3 +990,98 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
     transform: none;
   }
 }
+
+/* Mobile app navigation: keep the menu trigger visible even when the
+ * topbar actions need to scroll horizontally on narrow screens. */
+.app-shell-modern .app-mobile-menu-button {
+  display: none !important;
+}
+
+@media (max-width: 767px) {
+  .app-shell-modern .app-topbar-modern {
+    display: flex !important;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .app-shell-modern .app-topbar-modern > div:first-child {
+    display: flex !important;
+    align-items: center;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .app-shell-modern .app-mobile-menu-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px !important;
+    flex: 0 0 44px;
+    padding: 0 !important;
+    border: 1px solid var(--border-hover) !important;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text) !important;
+    font-size: 20px;
+    line-height: 1;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .app-shell-modern .app-topbar-modern > div:last-child {
+    min-width: 0;
+    max-width: 46vw;
+    flex: 0 1 auto;
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .app-shell-modern .app-topbar-modern > div:last-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Labels compete with the menu on phones; the same actions remain
+   * available as compact, touch-sized icon buttons. */
+  .app-shell-modern .app-topbar-modern :is(
+    .topbar-text-action, .topbar-labeled-action
+  ) {
+    width: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    justify-content: center;
+    padding-inline: 0 !important;
+    font-size: 0 !important;
+  }
+
+  .app-shell-modern .app-topbar-modern :is(
+    .topbar-text-action > span:last-child,
+    .topbar-action-label,
+    .topbar-text-action::after
+  ) {
+    display: none !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .topbar-text-action > span:first-child {
+    display: inline !important;
+    font-size: 16px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .create-post-button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px;
+    min-height: 44px !important;
+    justify-content: center;
+    padding: 0 !important;
+    font-size: 0 !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .create-post-button > span:first-child {
+    font-size: 22px !important;
+  }
+}
