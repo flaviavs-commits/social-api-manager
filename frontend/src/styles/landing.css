@@ -303,6 +303,8 @@
 
 .landing-plans { padding-bottom: 125px; }
 .landing-plans-heading { display: grid; justify-items: center; gap: 16px; margin-bottom: 42px; text-align: center; }
+.landing-plans-heading > div { width: 100%; text-align: center; }
+.landing-plans-heading .landing-section-kicker { justify-content: center; }
 .landing-plans-heading h2 { font-size: clamp(35px, 4.1vw, 52px); }
 .landing-plans-heading > p { max-width: 560px; margin: 0; color: var(--landing-muted); font-size: 16px; line-height: 1.65; text-align: center; text-wrap: pretty; }
 .landing-plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; align-items: stretch; }
