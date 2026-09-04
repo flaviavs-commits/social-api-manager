@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PREVIEW_ASPECTS, SOCIAL_MEDIA_RESOLUTIONS, mediaKindLabel, nearestPreviewAspect, ratioLabel, resolvePreviewAspect, socialMediaResolutionHint } from '../src/lib/mediaFormat.js'
+import { PREVIEW_ASPECTS, SOCIAL_MEDIA_RESOLUTIONS, mediaKindLabel, nearestPreviewAspect, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaResolutionHint } from '../src/lib/mediaFormat.js'
 
 describe('media format preview', () => {
   it('identifica as proporções 1:1, 4:5 e 9:16', () => {
@@ -25,6 +25,16 @@ describe('media format preview', () => {
   it('mantém o Reel do Facebook em 9:16', () => {
     expect(resolvePreviewAspect({ platform: 'facebook', mediaKind: 'video', sourceRatio: 1.78, facebookFormat: 'reel' }).key).toBe('vertical')
     expect(socialMediaResolutionHint('facebook', { facebookFormat: 'reel' })).toBe('1080 × 1920 px')
+  })
+
+  it('usa tela vertical somente para formatos verticais explícitos ou obrigatórios', () => {
+    expect(shouldUseFullBleedPreview({ platform: 'instagram', instagramFormat: 'post' })).toBe(false)
+    expect(shouldUseFullBleedPreview({ platform: 'instagram', instagramFormat: 'reel' })).toBe(true)
+    expect(shouldUseFullBleedPreview({ platform: 'facebook', facebookFormat: 'post' })).toBe(false)
+    expect(shouldUseFullBleedPreview({ platform: 'facebook', facebookFormat: 'reel' })).toBe(true)
+    expect(shouldUseFullBleedPreview({ platform: 'youtube', youtubeFormat: '' })).toBe(false)
+    expect(shouldUseFullBleedPreview({ platform: 'youtube', youtubeFormat: 'short' })).toBe(true)
+    expect(shouldUseFullBleedPreview({ platform: 'tiktok' })).toBe(true)
   })
 
   it('encontra a proporção suportada mais próxima', () => {

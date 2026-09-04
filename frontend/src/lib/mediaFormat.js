@@ -106,6 +106,18 @@ export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, request
   return nearestPreviewAspect(sourceRatio, Object.values(PREVIEW_ASPECTS))
 }
 
+// A tela vertical representa somente formatos que a pessoa escolheu ou que
+// fazem parte do formato obrigatório da rede. Um formato automático deve
+// continuar usando o cartão normal, mesmo quando a publicação será adaptada
+// pela plataforma no momento do envio.
+export function shouldUseFullBleedPreview({ platform, instagramFormat = 'post', facebookFormat = 'post', youtubeFormat = '' } = {}) {
+  if (platform === 'instagram') return ['reel', 'story'].includes(instagramFormat)
+  if (platform === 'facebook') return facebookFormat === 'reel'
+  if (platform === 'youtube') return youtubeFormat === 'short'
+  if (platform === 'tiktok') return true
+  return false
+}
+
 export function mediaKindLabel(kind) {
   if (kind === 'video') return 'Vídeo detectado'
   if (kind === 'image') return 'Foto detectada'

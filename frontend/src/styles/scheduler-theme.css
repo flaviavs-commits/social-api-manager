@@ -58,7 +58,10 @@
 }
 
 .social-preview-media > img {
-  object-fit: cover;
+  /* Preserva a proporção original em qualquer rede; o quadro da rede pode
+     receber barras, mas a imagem nunca fica deformada nem é cortada. */
+  object-fit: contain;
+  background: #000;
 }
 
 .social-preview-video {

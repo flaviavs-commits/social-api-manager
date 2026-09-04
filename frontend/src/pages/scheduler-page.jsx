@@ -9,7 +9,7 @@ import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
-import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
+import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
 import { HeartIcon, CommentIcon, ShareArrowIcon, BookmarkIcon, ThumbsUpIcon, GlobeIcon, MoreIcon, MusicNoteIcon, DislikeIcon, RemixIcon, SendPlaneIcon } from '../components/ui/preview-icons.jsx'
 import '../styles/scheduler-composer.css'
@@ -708,9 +708,8 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   // prévia deve continuar mostrando o cartão do Feed. O enquadramento vertical
   // fica reservado para Reel/Story escolhidos explicitamente.
   const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory)
-  const isFacebookReel = activePlatform === 'facebook' && facebookFormat === 'reel'
   const isYoutubeShort = activePlatform === 'youtube' && youtubeFormat === 'short'
-  const isFullBleedCard = isInstagramFullBleed || isFacebookReel || activePlatform === 'tiktok' || isYoutubeShort
+  const isFullBleedCard = shouldUseFullBleedPreview({ platform: activePlatform, instagramFormat: igFormat, facebookFormat, youtubeFormat })
   const formatLabel = activePlatform === 'instagram'
     ? `${instagramVideoIsReel ? 'Reel automático' : ['reel', 'story'].includes(igFormat) ? (igFormat === 'reel' ? 'Reel' : 'Story') : 'Feed'} · ${mediaLabel}`
     : activePlatform === 'facebook'
