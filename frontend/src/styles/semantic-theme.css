@@ -91,6 +91,16 @@ html[data-theme='light'] .app-shell-modern .accounts-filter-toolbar {
   background-color: var(--app-bg);
 }
 
+/* .inbox-toolbar e .drafts-v2-toolbar caem no fallback genérico
+ * [class*='-toolbar'] acima (background-color: var(--surface), branco).
+ * Como os dois vivem dentro de um cartão branco (.panel/.drafts-v2-list-panel),
+ * isso apaga o respiro entre o campo de busca e o filtro ao lado. Usa
+ * --surface-3 para manter uma bandeja recuada e visível, sem virar branco. */
+html[data-theme='light'] .app-shell-modern .inbox-toolbar,
+html[data-theme='light'] .app-shell-modern .drafts-v2-toolbar {
+  background-color: var(--surface-3);
+}
+
 html[data-theme='light'] .panel,
 html[data-theme='light'] .card,
 html[data-theme='light'] .analytics-panel,
