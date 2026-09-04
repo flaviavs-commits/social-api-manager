@@ -46,6 +46,11 @@ function localDateTimeValue(value) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+function calendarDayDateValue(year, month, day) {
+  const date = new Date(year, month - 1, day, 10, 0, 0, 0)
+  return localDateTimeValue(date)
+}
+
 function suggestedPasteDate(post) {
   const next = new Date(postDateValue(post))
   if (Number.isNaN(next.getTime())) {
@@ -354,6 +359,30 @@ export function CalendarPage({ onNavigate }) {
     setSelectedDay({ day })
   }
 
+  function openPostComposer(day, schedule = false) {
+    const savedAt = new Date().toISOString()
+    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
+      textByPlatform: {},
+      titleByPlatform: {},
+      date: schedule ? calendarDayDateValue(year, month, day) : '',
+      publishNow: false,
+      approvalWorkspaceId: '',
+      selected: ['instagram'],
+      youtubeTitle: '',
+      youtubeVisibility: 'public',
+      youtubeMadeForKids: '',
+      youtubeFormat: '',
+      igFormat: 'post',
+      igAspect: 'auto',
+      facebookFormat: 'post',
+      tiktokAspect: 'auto',
+      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+      savedAt
+    }))
+    setSelectedDay(null)
+    onNavigate('agendador')
+  }
+
   function openEditor(post) {
     setEditing(post)
     setDate(suggestedRescheduleDate(post))
@@ -484,6 +513,21 @@ export function CalendarPage({ onNavigate }) {
             <button type="button" className="link-button" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia">Fechar</button>
           </div>
           {selectedDayPosts.length ? <div className="calendar-day-details">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRetryNow={() => retryPost(post)} onReview={() => reviewFailure(post)} onOpenIntegrations={() => onNavigate('integracoes')} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)}/>)}</div> : <p className="empty-state">Nenhuma publicação neste dia.</p>}
+          <div className="calendar-day-create-actions">
+            <div>
+              <p className="calendar-day-create-kicker">PLANEJE ESTE DIA</p>
+              <strong>Quer publicar mais alguma coisa?</strong>
+              <span>Abra o Meu Post para criar o conteúdo ou já deixar o horário reservado.</span>
+            </div>
+            <div className="calendar-day-create-buttons">
+              <button type="button" className="calendar-day-create-button is-secondary" onClick={() => openPostComposer(selectedDay.day)}>
+                Criar post
+              </button>
+              <button type="button" className="calendar-day-create-button is-primary" onClick={() => openPostComposer(selectedDay.day, true)}>
+                Agendar post
+              </button>
+            </div>
+          </div>
         </section>
       </div>}
 
