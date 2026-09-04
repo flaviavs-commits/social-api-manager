@@ -358,7 +358,7 @@ function InsightBreakdowns({ accounts }) {
             labels: entries.slice(0, 20).map(([label]) => label),
             datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
         }}
-        options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { legend: { display: false } }, scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 6 } }, y: { ...baseChartOptions().scales.y, ticks: { ...baseChartOptions().scales.y.ticks, autoSkip: false, font: { size: 10 } } } } }}
+ options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { ...baseChartOptions().plugins, legend: { display: false } }, scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 6 } }, y: { ...baseChartOptions().scales.y, ticks: { ...baseChartOptions().scales.y.ticks, autoSkip: false, font: { size: 10 } } } } }}
       />
     </div>
   </details>

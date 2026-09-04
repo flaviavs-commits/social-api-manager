@@ -232,7 +232,7 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
         </div>
         <span className="analytics-chart-legend-hint">Passe o mouse no gráfico para ver os valores</span>
       </div>
-      <div style={{ position: 'relative', minHeight: 200 }}>
+      <div className="analytics-chart-canvas-wrap">
         {trend.length
           ? <Line
               data={{
@@ -251,14 +251,14 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
     <div className="an-summary-row">
       <div className="an-summary-section">
         <div className="an-summary-section-title">Posts por Plataforma</div>
-        <div style={{ position: 'relative', minHeight: 200 }}>
+        <div className="analytics-chart-canvas-wrap">
           {platformCounts.length
             ? <Bar
                 data={{
                   labels: platformCounts.map(([p]) => PLAT_LABELS[p] || p),
                   datasets: [{ data: platformCounts.map(([, count]) => count), backgroundColor: platformCounts.map(([p]) => PLAT_COLORS[p] || '#d1993e'), borderRadius: 6, maxBarThickness: 56 }],
                 }}
-                options={{ ...baseChartOptions(), plugins: { legend: { display: false } } }}
+                options={{ ...baseChartOptions(), plugins: { ...baseChartOptions().plugins, legend: { display: false } } }}
               />
             : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Nenhum post publicado no período.</p>}
         </div>

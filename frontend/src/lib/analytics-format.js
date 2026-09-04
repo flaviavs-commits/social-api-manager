@@ -275,18 +275,31 @@ export function chartThemeColors() {
   return {
     tick: isLightTheme ? '#667085' : CHART_TICK_COLOR,
     grid: isLightTheme ? 'rgba(29,39,51,0.1)' : CHART_GRID_COLOR,
+    tooltipBackground: isLightTheme ? '#172631' : '#0b0b0c',
+    tooltipText: '#ffffff',
+    tooltipBorder: isLightTheme ? '#9b6410' : '#d1993e',
   }
 }
 
 export function baseChartOptions() {
-  const { tick: tickColor, grid: gridColor } = chartThemeColors()
+  const { tick: tickColor, grid: gridColor, tooltipBackground, tooltipText, tooltipBorder } = chartThemeColors()
   return {
     responsive: true,
     maintainAspectRatio: false,
+    color: tickColor,
     scales: {
       y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
       x: { ticks: { color: tickColor }, grid: { display: false } },
     },
-    plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12 } } },
+    plugins: {
+      legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12 } },
+      tooltip: {
+        backgroundColor: tooltipBackground,
+        titleColor: tooltipText,
+        bodyColor: tooltipText,
+        borderColor: tooltipBorder,
+        borderWidth: 1,
+      },
+    },
   }
 }
