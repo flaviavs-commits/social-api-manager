@@ -357,7 +357,15 @@
   .landing-nav-links.is-open { display: flex; }
   .landing-nav-links a { padding: 13px 12px; border-radius: 5px; }
   .landing-nav-links a:hover { background: #27272a; }
-  .landing-login-link { display: none; }
+  .landing-login-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 8px 4px;
+    color: var(--landing-text);
+    font-size: 12px;
+    white-space: nowrap;
+  }
   .landing-menu-button { display: block; margin-left: auto; }
   .landing-nav-actions { gap: 10px; }
   .landing-nav-cta { padding: 10px 12px; font-size: 10px; }
