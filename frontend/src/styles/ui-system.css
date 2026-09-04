@@ -453,6 +453,18 @@ html[data-theme] .app-shell-modern :is(
   box-shadow: var(--card-shadow);
 }
 
+/* Full-bleed previews (Reels/Story/Shorts/TikTok) are a phone-screen mockup,
+ * not a padded content card: they carry their own fixed width + 9:16
+ * aspect-ratio (scheduler-composer.css) and absolutely-positioned, edge-to-edge
+ * media. Letting the generic card recipe above apply `height: 100%` stretches
+ * the mockup to the sidebar's height instead of 9:16, and the forced padding
+ * insets the media away from the frame — together making the preview look
+ * oversized and out of proportion. Opt this variant out of both. */
+html[data-theme] .app-shell-modern .social-preview-card.is-fullbleed {
+  height: auto;
+  padding: 0 !important;
+}
+
 html[data-theme] .app-shell-modern :is(
   .panel,
   .card,
