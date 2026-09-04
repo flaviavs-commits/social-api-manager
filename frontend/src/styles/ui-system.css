@@ -802,6 +802,14 @@ html[data-theme='light'] .app-shell-modern .scheduler-page .social-preview-card 
   opacity: 1 !important;
 }
 
+/* O nickname da legenda precisa permanecer destacado mesmo quando o texto
+ * inteiro da legenda está usando o estilo de placeholder. */
+html[data-theme] .app-shell-modern .scheduler-page .pv-ig-caption strong {
+  color: var(--accent-strong) !important;
+  font-style: normal;
+  opacity: 1;
+}
+
 /* Mantém o espaçamento entre os rascunhos, mas evita que ele revele uma
  * superfície branca contínua atrás dos cards. */
 html[data-theme] .app-shell-modern .drafts-page-v2 .drafts-v2-card-list {
