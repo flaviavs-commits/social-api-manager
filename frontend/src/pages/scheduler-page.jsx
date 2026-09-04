@@ -704,7 +704,10 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   const mediaLabel = activeMediaProfile ? `${activeMediaProfile.kind === 'video' ? 'Vídeo' : 'Foto'} · ${resolvedAspect.label}` : resolvedAspect.label
   const instagramVideoIsReel = activePlatform === 'instagram' && activeMediaProfile?.kind === 'video' && igFormat !== 'story'
   const isInstagramStory = activePlatform === 'instagram' && igFormat === 'story'
-  const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory || instagramVideoIsReel)
+  // Um vídeo no Feed pode ser publicado como Reel automaticamente, mas a
+  // prévia deve continuar mostrando o cartão do Feed. O enquadramento vertical
+  // fica reservado para Reel/Story escolhidos explicitamente.
+  const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory)
   const isFacebookReel = activePlatform === 'facebook' && facebookFormat === 'reel'
   const isYoutubeShort = activePlatform === 'youtube' && youtubeFormat === 'short'
   const isFullBleedCard = isInstagramFullBleed || isFacebookReel || activePlatform === 'tiktok' || isYoutubeShort
