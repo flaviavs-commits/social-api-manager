@@ -226,8 +226,9 @@ async function patchPost(req, res) {
 
     const updated = await reagendarPost({ id, scheduledAt, ...ctx(req) })
     if (!updated) return res.status(404).json({ erro: 'Post não encontrado ou não pode ser reagendado' })
-    res.json({ ok: true })
+    res.json({ ok: true, post: updated })
   } catch (e) {
+    if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })
     serverError(res, e)
   }
 }

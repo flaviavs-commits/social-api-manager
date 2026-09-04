@@ -601,8 +601,10 @@ async function listarUltimosSnapshotsMetricas(postIds) {
 // para alimentar o calendário. Exclui apenas cancelados.
 async function listarPostsCalendario({ year, month, userId, isAdmin }) {
   // month é 1-based (1=janeiro, 12=dezembro)
-  const inicio = new Date(Date.UTC(year, month - 1, 1))
-  const fim    = new Date(Date.UTC(year, month, 1))
+  // As datas ficam armazenadas como UTC em colunas sem timezone. O filtro
+  // deve representar meia-noite de Brasília para o mês exibido.
+  const inicio = new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00-03:00`)
+  const fim    = new Date(`${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, '0')}-01T00:00:00-03:00`)
 
   // O calendário usa o horário efetivo: posts publicados agora entram pelo
   // published_at; os que ainda aguardam publicação entram pelo scheduled_at.
@@ -610,7 +612,7 @@ async function listarPostsCalendario({ year, month, userId, isAdmin }) {
   // foi publicado/agendado.
   const calendarDate = `COALESCE(published_at, scheduled_at)`
   const conds  = [`${calendarDate} >= $1`, `${calendarDate} < $2`, `status <> 'cancelled'`]
-  const params = [inicio.toISOString(), fim.toISOString()]
+  const params = [inicio.toISOString().replace('Z', ''), fim.toISOString().replace('Z', '')]
 
   if (userId !== null && userId !== undefined) {
     params.push(userId)
@@ -664,14 +666,14 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
        WHERE id = $2
          AND status IN ('scheduled', 'agendado', 'error', 'erro', 'failed')
          ${ownerFilter}
-       RETURNING id
+       RETURNING id, scheduled_at AS "scheduledAt", status
     ), cleared_accounts AS (
       UPDATE post_accounts
          SET publication_error = NULL
        WHERE post_id IN (SELECT id FROM updated)
        RETURNING post_id
     )
-    SELECT id FROM updated`,
+    SELECT id, "scheduledAt", status FROM updated`,
     hasUserScope ? [scheduledAt, id, userId] : [scheduledAt, id]
   )
   return rows[0] || null

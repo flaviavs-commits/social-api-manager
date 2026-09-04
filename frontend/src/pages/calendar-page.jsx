@@ -78,6 +78,23 @@ function formatPasteDate(value) {
     : date.toLocaleString('pt-BR', { dateStyle: 'full', timeStyle: 'short' })
 }
 
+function formatSavedSchedule(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'o horário salvo'
+    : new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'full', timeStyle: 'short' }).format(date)
+}
+
+function brazilMonthOf(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { year: null, month: null }
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: 'numeric' }).formatToParts(date)
+  return {
+    year: Number(parts.find(part => part.type === 'year')?.value),
+    month: Number(parts.find(part => part.type === 'month')?.value)
+  }
+}
+
 function isAccountError(detail) {
   return /conta.*(?:não encontrada|nao encontrada|não encontrado|nao encontrado|desconect)|token|autoriz|permiss|access|\b401\b|\b403\b|reconect/i.test(detail)
 }
@@ -211,7 +228,7 @@ export function CalendarPage({ onNavigate }) {
   const notify = useToast()
   const [message, setMessage] = useState('')
   const load = useCallback(() => apiFetch(`/api/posts/calendar?year=${year}&month=${month}`).then(data => data.posts || []), [month, year])
-  const { value: posts, loading, error, setError, reload } = useApiResource(load, [])
+  const { value: posts, loading, error, setError, setValue: setPosts, reload } = useApiResource(load, [])
 
   useEffect(() => {
     const interval = window.setInterval(() => { reload().catch(() => {}) }, 30_000)
@@ -243,7 +260,24 @@ export function CalendarPage({ onNavigate }) {
 
   async function reschedule(event) {
     event.preventDefault()
-    try { await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) }); setEditing(null); setMessage('Publicação reagendada.'); await reload(); notify('Publicação reagendada.') }
+    try {
+      const result = await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) })
+      const savedAt = result.post?.scheduledAt || result.post?.scheduled_at || date
+      const targetMonth = brazilMonthOf(savedAt)
+      if (targetMonth.year && targetMonth.month) {
+        setYear(targetMonth.year)
+        setMonth(targetMonth.month)
+        const refreshed = await apiFetch(`/api/posts/calendar?year=${targetMonth.year}&month=${targetMonth.month}`)
+        setPosts(refreshed.posts || [])
+      } else {
+        await reload()
+      }
+      setEditing(null)
+      setSelectedDay(null)
+      const exactDate = formatSavedSchedule(savedAt)
+      setMessage(`Horário salvo: ${exactDate}. O calendário foi atualizado com a informação persistida.`)
+      notify(`Publicação reagendada para ${exactDate}.`)
+    }
     catch (e) { setError(e.message); notify(e.message, 'error') }
   }
 
@@ -456,7 +490,7 @@ export function CalendarPage({ onNavigate }) {
         <div className="calendar-view-toggle" role="group" aria-label="Modo de visualização"><button type="button" className={viewMode === 'calendar' ? 'active' : ''} onClick={() => setViewMode('calendar')}>Calendário</button><button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>Lista</button></div>
       </div>
 
-      {message && <div className={`calendar-copy-notice${copiedPost ? ' is-copy-ready' : ' is-complete'}`} role="status"><span className="calendar-copy-notice-icon" aria-hidden="true">{copiedPost ? '⧉' : '✓'}</span><div className="calendar-copy-notice-copy"><span className="calendar-copy-notice-kicker">{copiedPost ? 'DUPLICAR AGENDAMENTO' : 'AGENDAMENTO ATUALIZADO'}</span><strong>{copiedPost ? 'Post copiado com segurança' : 'Novo agendamento criado'}</strong><p>{message}</p>{copiedPost && <small className="calendar-copy-notice-destination">Nova publicação: <strong>{formatPasteDate(pasteDate)}</strong></small>}{copiedPost && !pasting && <small>O agendamento original não será alterado. A nova cópia será criada no dia e horário que você escolher.</small>}</div>{copiedPost && <button type="button" className="calendar-paste-button" onClick={openPaste}>{pasting ? 'Alterar dia e horário' : 'Escolher dia e horário'}</button>}</div>}
+      {message && <div className={`calendar-copy-notice${copiedPost ? ' is-copy-ready' : ' is-complete'}`} role="status"><span className="calendar-copy-notice-icon" aria-hidden="true">{copiedPost ? '⧉' : '✓'}</span><div className="calendar-copy-notice-copy"><span className="calendar-copy-notice-kicker">{copiedPost ? 'DUPLICAR AGENDAMENTO' : 'AGENDAMENTO ATUALIZADO'}</span><strong>{copiedPost ? 'Post copiado com segurança' : 'Agendamento atualizado'}</strong><p>{message}</p>{copiedPost && <small className="calendar-copy-notice-destination">Nova publicação: <strong>{formatPasteDate(pasteDate)}</strong></small>}{copiedPost && !pasting && <small>O agendamento original não será alterado. A nova cópia será criada no dia e horário que você escolher.</small>}</div>{copiedPost && <button type="button" className="calendar-paste-button" onClick={openPaste}>{pasting ? 'Alterar dia e horário' : 'Escolher dia e horário'}</button>}</div>}
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400" role="alert">{error}</p>}
       {loading && <p className="mb-4 text-sm text-zinc-500" aria-live="polite">Carregando publicações do mês...</p>}
 
