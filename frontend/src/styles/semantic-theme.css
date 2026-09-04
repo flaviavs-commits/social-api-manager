@@ -100,6 +100,14 @@ html[data-theme='light'] .app-shell-modern .drafts-v2-toolbar {
   background-color: var(--app-bg);
 }
 
+/* .dashboard-insights-grid é só um wrapper de grid (dois .panel lado a lado
+ * com gap), mas o nome bate em [class*='-insight'] no fallback genérico
+ * acima, que pinta o wrapper de branco. Como os dois cartões dentro dele
+ * já são brancos, isso apaga o respiro de --app-bg entre eles. */
+html[data-theme='light'] .app-shell-modern .dashboard-insights-grid {
+  background-color: var(--app-bg);
+}
+
 html[data-theme='light'] .panel,
 html[data-theme='light'] .card,
 html[data-theme='light'] .analytics-panel,
