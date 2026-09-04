@@ -259,6 +259,12 @@ async function runMigrations() {
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_id TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS location_name TEXT'),
     bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS first_comment TEXT'),
+    // migrations/074_post_cover.sql — faltava o espelho aqui, então instalações
+    // que só rodam runMigrations() no boot (Railway) nunca ganhavam as colunas
+    // e listarPosts (usado por /api/posts, /api/inbox* e /api/posts/analytics)
+    // quebrava com "column cover_path does not exist" em produção.
+    bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS cover_path TEXT'),
+    bestEffort('ALTER TABLE posts ADD COLUMN IF NOT EXISTS cover_type TEXT'),
     bestEffort('ALTER TABLE contas ADD COLUMN IF NOT EXISTS zernio_account_id TEXT'),
     ensureZernioProfiles(),
     ensureZernioWebhookEvents(),
