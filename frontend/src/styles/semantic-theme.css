@@ -86,6 +86,11 @@ html[data-theme='light'] .app-shell-modern [class*='-table'] {
   border-color: var(--border);
 }
 
+/* O espaço do filtro deve revelar o fundo da página, sem alterar o gap. */
+html[data-theme='light'] .app-shell-modern .accounts-filter-toolbar {
+  background-color: var(--app-bg);
+}
+
 html[data-theme='light'] .panel,
 html[data-theme='light'] .card,
 html[data-theme='light'] .analytics-panel,

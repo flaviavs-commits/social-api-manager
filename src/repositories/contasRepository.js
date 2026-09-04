@@ -168,6 +168,32 @@ async function listarIdsZernioDoUsuario(userId) {
   return rows
 }
 
+// Contas Zernio com identidade suficiente para montar o Inbox remoto. A
+// validação continua sendo feita no banco para que accountId nunca seja uma
+// porta de acesso a outra conta do sistema.
+async function listarContasZernioDoUsuario({ userId, platform = null } = {}) {
+  const params = [userId]
+  const conds = ['c.user_id = $1', 'c.ativo = TRUE', 'c.zernio_account_id IS NOT NULL']
+  if (platform) {
+    params.push(platform)
+    conds.push(`c.platform = $${params.length}`)
+  }
+  const { rows } = await pool.query(`
+    SELECT c.id, c.platform, c.handle, c.avatar_url AS "avatarUrl",
+           c.zernio_account_id AS "zernioAccountId",
+           c.zernio_profile_id AS "zernioProfileId"
+      FROM contas c
+     WHERE ${conds.join(' AND ')}
+     ORDER BY c.platform, c.criado_em ASC
+  `, params)
+  return rows
+}
+
+async function buscarContaZernioDoUsuario({ userId, platform, zernioAccountId } = {}) {
+  const contas = await listarContasZernioDoUsuario({ userId, platform })
+  return contas.find(conta => String(conta.zernioAccountId) === String(zernioAccountId)) || null
+}
+
 async function removerContasZernioAusentes(userId, zernioAccountIds, zernioProfileId) {
   const ids = Array.isArray(zernioAccountIds) ? zernioAccountIds.filter(Boolean) : []
   const profileFilter = zernioProfileId ? ' AND zernio_profile_id = $3' : ''
@@ -429,7 +455,7 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 }
 
 module.exports = {
-  getDashboardStats, listarContas, listarIdsZernioDoUsuario, removerContasZernioAusentes,
+  getDashboardStats, listarContas, listarIdsZernioDoUsuario, listarContasZernioDoUsuario, buscarContaZernioDoUsuario, removerContasZernioAusentes,
   listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta, definirZernioAccountId,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,

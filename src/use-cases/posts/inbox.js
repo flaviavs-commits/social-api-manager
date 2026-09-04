@@ -1,16 +1,44 @@
 const pool = require('../../db/pool')
 const postsRepo = require('../../infra/db/postsRepository')
+const contasRepo = require('../../repositories/contasRepository')
 const commentsService = require('../../services/commentsService')
+
+function remotePostKey(post) {
+  return `${post.externalPlatform}:${post.externalPostId}`
+}
+
+function remotePostIdentity(account, platform, externalPostId) {
+  return {
+    id: `remote:${platform}:${account.zernioAccountId}:${externalPostId}`,
+    remote: true,
+    externalPostId: String(externalPostId),
+    externalPlatform: platform,
+    accountId: account.id,
+    zernioAccountId: String(account.zernioAccountId),
+    handle: account.handle || '',
+    avatarUrl: account.avatarUrl || null,
+    platform,
+    replySupported: commentsService.PLATAFORMAS_COM_RESPOSTA.includes(platform)
+  }
+}
 
 // GET /api/posts/inbox — lista posts publicados com suporte a comentários
 // (retorna metadados; comentários são carregados por demanda em /:id/comments)
 async function listarInbox({ userId, isAdmin, platform = null }) {
   const all = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
   const plats = commentsService.PLATAFORMAS_COM_COMENTARIOS
-  return all
+  const locais = all
     .filter(p => p.externalPostId && plats.includes(p.externalPlatform))
     .filter(p => !platform || p.externalPlatform === platform)
-    .sort((a, b) => new Date(b.publishedAt || b.scheduledAt) - new Date(a.publishedAt || a.scheduledAt))
+  let remotos = []
+  try {
+    remotos = await commentsService.listarPostsRemotos({ userId, platform })
+  } catch {
+    remotos = []
+  }
+  const chavesLocais = new Set(locais.map(remotePostKey))
+  return [...locais, ...remotos.filter(post => !chavesLocais.has(remotePostKey(post)))]
+    .sort((a, b) => new Date(b.publishedAt || b.scheduledAt || 0) - new Date(a.publishedAt || a.scheduledAt || 0))
     .slice(0, 100)
 }
 
@@ -129,4 +157,31 @@ async function responderComentario({ id, userId, isAdmin, commentId, text }) {
   return commentsService.responderComentario(post, commentId, text)
 }
 
-module.exports = { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, responderComentario }
+async function buscarPostRemoto({ userId, platform, zernioAccountId, externalPostId }) {
+  if (!commentsService.PLATAFORMAS_COM_COMENTARIOS.includes(platform)) return null
+  if (!zernioAccountId || !externalPostId) return null
+  const account = await contasRepo.buscarContaZernioDoUsuario({ userId, platform, zernioAccountId })
+  return account ? remotePostIdentity(account, platform, externalPostId) : null
+}
+
+async function listarComentariosRemotos({ userId, platform, zernioAccountId, externalPostId }) {
+  const post = await buscarPostRemoto({ userId, platform, zernioAccountId, externalPostId })
+  if (!post) return null
+  const result = await commentsService.listarComentariosPost({ ...post, userId, userRole: 'user' })
+  return {
+    comments: result.comments || [],
+    error: null,
+    post: { ...post, replySupported: result.replySupported ?? post.replySupported }
+  }
+}
+
+async function responderComentarioRemoto({ userId, platform, zernioAccountId, externalPostId, commentId, text }) {
+  const post = await buscarPostRemoto({ userId, platform, zernioAccountId, externalPostId })
+  if (!post) return null
+  return commentsService.responderComentario({ ...post, userId, userRole: 'user' }, commentId, text)
+}
+
+module.exports = {
+  listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos,
+  listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto
+}

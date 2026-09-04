@@ -13,11 +13,12 @@ const zernioClient = require('./zernioClient')
 // único é detectado pelo item type=video e publicado como Reel.
 const IG_CONTENT_TYPE = { story: 'story' }
 
-function montarMediaItems(post) {
+function montarMediaItems(post, { includeThumbnail = false } = {}) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   return items.map(item => ({
     type: item.type === 'video' ? 'video' : 'image',
-    url: mediaUrl(item.path)
+    url: mediaUrl(item.path),
+    ...(includeThumbnail && item.type === 'video' && post.coverPath ? { thumbnail: mediaUrl(post.coverPath) } : {})
   }))
 }
 
@@ -73,6 +74,7 @@ async function publicarZernioInstagram(token, post, { requestId, metadata } = {}
   // (post_first_comments/processarPrimeirosComentarios em scheduler.js), que
   // continua existindo só para as redes ainda não migradas.
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
+  if (videoUnico && post.coverPath) platformSpecificData.instagramThumbnail = mediaUrl(post.coverPath)
 
   const response = await zernioClient.createPost({
     content: post.text || '',
@@ -168,7 +170,8 @@ async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
     ...(temVideo
       ? {
           allow_duet: !post.tiktokDisableDuet,
-          allow_stitch: !post.tiktokDisableStitch
+          allow_stitch: !post.tiktokDisableStitch,
+          ...(post.coverPath ? { video_cover_image_url: mediaUrl(post.coverPath) } : {})
         }
       : {
           media_type: 'photo',
@@ -183,7 +186,7 @@ async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
   const response = await zernioClient.createPost({
     content,
     publishNow: true,
-    mediaItems: montarMediaItems({ mediaItems: items }),
+    mediaItems: montarMediaItems({ ...post, mediaItems: items }, { includeThumbnail: post.youtubeIsShort !== true }),
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{ platform: 'tiktok', accountId: token.accessToken }],
     tiktokSettings

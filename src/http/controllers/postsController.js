@@ -4,7 +4,7 @@ const { parseId, serverError } = require('../../utils/http')
 const { ValidationError } = require('../../domain/posts/errors')
 
 const { gerarUploadUrl } = require('../../use-cases/posts/gerarUploadUrl')
-const { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, responderComentario } = require('../../use-cases/posts/inbox')
+const { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto } = require('../../use-cases/posts/inbox')
 const { listarPosts, listarPostsCalendario } = require('../../use-cases/posts/listarPosts')
 const { buscarAnalytics, buscarMetricsHistory } = require('../../use-cases/posts/buscarAnalytics')
 const { listarTiktokVideos } = require('../../use-cases/posts/listarTiktokVideos')
@@ -187,6 +187,18 @@ async function getComments(req, res) {
   }
 }
 
+async function getRemoteComments(req, res) {
+  try {
+    const { platform, accountId, postId } = req.query
+    if (!platform || !accountId || !postId) return res.status(400).json({ erro: 'platform, accountId e postId são obrigatórios' })
+    const result = await listarComentariosRemotos({ userId: req.user.id, platform, zernioAccountId: accountId, externalPostId: postId })
+    if (!result) return res.status(404).json({ erro: 'Publicação remota não encontrada ou conta não conectada' })
+    res.json(result)
+  } catch (e) {
+    res.status(400).json({ erro: e.message })
+  }
+}
+
 async function postCommentReply(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -220,6 +232,21 @@ async function patchPost(req, res) {
   }
 }
 
+async function postRemoteCommentReply(req, res) {
+  try {
+    const { platform, accountId, postId, commentId } = req.body || {}
+    const text = (req.body?.text || '').trim()
+    if (!platform || !accountId || !postId || !commentId) return res.status(400).json({ erro: 'Dados da publicação ou comentário ausentes' })
+    if (!text) return res.status(400).json({ erro: 'Escreva uma resposta antes de enviar' })
+    if (text.length > 2000) return res.status(400).json({ erro: 'Resposta muito longa (máximo 2000 caracteres)' })
+    const reply = await responderComentarioRemoto({ userId: req.user.id, platform, zernioAccountId: accountId, externalPostId: postId, commentId, text })
+    if (!reply) return res.status(404).json({ erro: 'Publicação remota não encontrada ou conta não conectada' })
+    res.status(201).json({ reply })
+  } catch (e) {
+    res.status(400).json({ erro: e.message })
+  }
+}
+
 async function deletePost(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -250,5 +277,5 @@ async function postRepeat(req, res) {
 module.exports = {
   postUploadUrl, getInboxUnread, postCommentSeen, postInboxSeen, getInbox, getCalendar, getPosts,
   getAnalytics, getTiktokVideos, getTiktokCreatorInfo, getFacebookPlaces, getMetricsHistory, postCreate, getComments,
-  postCommentReply, patchPost, deletePost, postRepeat
+  getRemoteComments, postCommentReply, postRemoteCommentReply, patchPost, deletePost, postRepeat
 }

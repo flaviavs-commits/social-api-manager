@@ -137,6 +137,14 @@ async function getPost(postId) {
   return zernioFetch(`/posts/${postId}`)
 }
 
+async function listPosts(query, requestOptions = {}) {
+  return zernioFetch('/posts', { query, ...requestOptions })
+}
+
+async function listInboxComments(query, requestOptions = {}) {
+  return zernioFetch('/inbox/comments', { query, ...requestOptions })
+}
+
 // Configurações de webhook são gerenciadas com a mesma API key usada para
 // publicar. Mantemos esses métodos no cliente para permitir o cadastro
 // controlado do endpoint da aplicação sem duplicar autenticação HTTP.
@@ -233,7 +241,7 @@ async function getYoutubePlaylists(accountId) {
 module.exports = {
   ZernioError,
   connectUrl, listAccounts, listFacebookPages, selectFacebookPage, getAccountHealth, disconnectAccount, listProfiles, createProfile,
-  createPost, getPost, listWebhookSettings, createWebhookSettings, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
+  createPost, getPost, listPosts, listInboxComments, listWebhookSettings, createWebhookSettings, getAnalytics, getDailyMetrics, getContentDecay, getBestTimeToPost, getPostTimeline,
   getPostComments, replyToComment,
   getFollowerStats, getFacebookPageInsights, getInstagramAccountInsights,
   getInstagramDemographics, getTiktokAccountInsights, getYoutubeChannelInsights,

@@ -1,18 +1,19 @@
 const pool = require('../../db/pool')
 const crypto = require('crypto')
 
-async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, facebookFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, accountId = null, userId, status = 'scheduled' }) {
+async function criarPost({ text, textByPlatform = null, titleByPlatform = null, platforms, scheduledAt, repeat = 'none', mediaPath = null, mediaType = null, mediaItems = null, coverPath = null, coverType = null, youtubeTitle = null, youtubeVisibility = 'public', youtubeCategoryId = null, youtubeFormat = null, youtubeIsShort = null, youtubeMadeForKids = null, igFormat = null, facebookFormat = null, tiktokPrivacyLevel = null, tiktokDisableComment = null, tiktokDisableDuet = null, tiktokDisableStitch = null, locationId = null, locationName = null, firstComment = null, accountId = null, userId, status = 'scheduled' }) {
   const { rows } = await pool.query(`
-    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, facebook_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, location_id, location_name, first_comment, account_id, user_id, status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+    INSERT INTO posts (text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, media_path, media_type, media_items, youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids, ig_format, facebook_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, location_id, location_name, first_comment, account_id, user_id, status, cover_path, cover_type)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
     RETURNING *, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_category_id AS "youtubeCategoryId",
       youtube_format AS "youtubeFormat", youtube_is_short AS "youtubeIsShort", youtube_made_for_kids AS "youtubeMadeForKids",
       ig_format AS "igFormat", facebook_format AS "facebookFormat",
       tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment",
       tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
-      location_id AS "locationId", location_name AS "locationName", first_comment AS "firstComment"
-  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, accountId, userId, status])
+      location_id AS "locationId", location_name AS "locationName", first_comment AS "firstComment",
+      cover_path AS "coverPath", cover_type AS "coverType"
+  `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, accountId, userId, status, coverPath, coverType])
   return rows[0]
 }
 
@@ -83,7 +84,7 @@ async function listarPosts({ status, userId, isAdmin, page, limit } = {}) {
     SELECT
       id, text, text_by_platform AS "textByPlatform", title_by_platform AS "titleByPlatform", platforms,
       scheduled_at AS "scheduledAt", repeat, status, error_message AS "errorMessage", retry_count AS "retryCount", next_retry_at AS "nextRetryAt", criado_em, user_id AS "userId",
-      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
+      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems", cover_path AS "coverPath", cover_type AS "coverType",
       youtube_title AS "youtubeTitle", youtube_visibility AS "youtubeVisibility", youtube_category_id AS "youtubeCategoryId", youtube_format AS "youtubeFormat", youtube_is_short AS "youtubeIsShort", youtube_made_for_kids AS "youtubeMadeForKids",
       ig_format AS "igFormat", facebook_format AS "facebookFormat", tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment", tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
       account_id AS "accountId",
@@ -114,7 +115,7 @@ async function buscarPostPorId(id, userId, isAdmin) {
     SELECT
       p.id, p.text, p.text_by_platform AS "textByPlatform", p.title_by_platform AS "titleByPlatform", p.platforms,
       p.scheduled_at AS "scheduledAt", p.repeat, p.status, p.criado_em, p.user_id AS "userId",
-      p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems",
+      p.media_path AS "mediaPath", p.media_type AS "mediaType", p.media_items AS "mediaItems", p.cover_path AS "coverPath", p.cover_type AS "coverType",
       p.youtube_title AS "youtubeTitle", p.youtube_visibility AS "youtubeVisibility", p.youtube_category_id AS "youtubeCategoryId", p.youtube_format AS "youtubeFormat", p.youtube_is_short AS "youtubeIsShort",
       p.youtube_made_for_kids AS "youtubeMadeForKids",
       p.ig_format AS "igFormat", p.facebook_format AS "facebookFormat",
@@ -223,7 +224,7 @@ async function reservarPostsPendentes() {
       )
       RETURNING
         id, text, text_by_platform, title_by_platform, platforms, scheduled_at, repeat, status, user_id,
-        media_path, media_type, media_items,
+        media_path, media_type, media_items, cover_path, cover_type,
         youtube_title, youtube_visibility, youtube_category_id, youtube_format, youtube_is_short, youtube_made_for_kids,
         ig_format, facebook_format, tiktok_privacy_level, tiktok_disable_comment, tiktok_disable_duet, tiktok_disable_stitch, account_id,
         retry_count, location_id, location_name, first_comment
@@ -231,7 +232,7 @@ async function reservarPostsPendentes() {
     SELECT
       r.id, r.text, r.text_by_platform AS "textByPlatform", r.title_by_platform AS "titleByPlatform", r.platforms,
       r.scheduled_at AS "scheduledAt", r.repeat, r.status, r.user_id AS "userId",
-      r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems",
+      r.media_path AS "mediaPath", r.media_type AS "mediaType", r.media_items AS "mediaItems", r.cover_path AS "coverPath", r.cover_type AS "coverType",
       r.youtube_title AS "youtubeTitle", r.youtube_visibility AS "youtubeVisibility", r.youtube_category_id AS "youtubeCategoryId", r.youtube_format AS "youtubeFormat", r.youtube_is_short AS "youtubeIsShort",
       r.youtube_made_for_kids AS "youtubeMadeForKids",
       r.ig_format AS "igFormat", r.facebook_format AS "facebookFormat",
@@ -251,7 +252,7 @@ async function reservarPostsPendentes() {
     LEFT JOIN post_accounts pa ON pa.post_id = r.id
     LEFT JOIN contas c ON c.id = pa.account_id
     GROUP BY r.id, r.text, r.text_by_platform, r.title_by_platform, r.platforms, r.scheduled_at, r.repeat, r.status, r.user_id,
-             r.media_path, r.media_type, r.media_items, r.youtube_title, r.youtube_visibility,
+             r.media_path, r.media_type, r.media_items, r.cover_path, r.cover_type, r.youtube_title, r.youtube_visibility,
              r.youtube_category_id, r.youtube_format, r.youtube_is_short, r.youtube_made_for_kids, r.ig_format, r.facebook_format,
              r.tiktok_privacy_level, r.tiktok_disable_comment, r.tiktok_disable_duet, r.tiktok_disable_stitch, r.account_id, r.retry_count,
              r.location_id, r.location_name, r.first_comment, u.role

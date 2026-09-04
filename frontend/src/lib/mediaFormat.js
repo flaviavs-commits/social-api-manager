@@ -19,7 +19,7 @@ export const SOCIAL_MEDIA_RESOLUTIONS = {
       { key: 'portrait', label: 'Retrato', dimensions: '1080 × 1350 px', ratio: 4 / 5 },
       { key: 'wide', label: 'Paisagem', dimensions: '1080 × 566 px', ratio: 1.91 },
     ],
-    reel: { key: 'vertical', label: 'Reel', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
+    reel: { key: 'vertical', label: 'Reels', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
     story: { key: 'vertical', label: 'Story', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
   },
   facebook: {
@@ -28,7 +28,7 @@ export const SOCIAL_MEDIA_RESOLUTIONS = {
       { key: 'square', label: 'Quadrado', dimensions: '1080 × 1080 px', ratio: 1 },
       { key: 'portrait', label: 'Retrato', dimensions: '1080 × 1350 px', ratio: 4 / 5 },
     ],
-    reel: { key: 'vertical', label: 'Reel', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
+    reel: { key: 'vertical', label: 'Reels', dimensions: '1080 × 1920 px', ratio: 9 / 16 },
   },
   youtube: {
     video: { key: 'landscape', label: 'Vídeo', dimensions: '1920 × 1080 px', ratio: 16 / 9 },
@@ -70,7 +70,7 @@ export function socialMediaLimitHint(platform, { instagramFormat = 'post', faceb
   if (platform === 'tiktok') return 'Foto até 20 MB · vídeo até 4 GB · mínimo 720p · 3 s a 10 min.'
   if (platform === 'youtube') return 'Vídeo até 256 GB e 12 h · Short com menos de 60 s · thumbnail até 2 MB.'
   if (platform === 'facebook') {
-    if (facebookFormat === 'reel') return 'Imagem até 10 MB · vídeo até 4 GB · Reel até 90 s.'
+    if (facebookFormat === 'reel') return 'Imagem até 10 MB · vídeo até 4 GB · Reels até 90 s.'
     return 'Imagem até 10 MB · vídeo até 4 GB · Feed até 240 min.'
   }
   return ''

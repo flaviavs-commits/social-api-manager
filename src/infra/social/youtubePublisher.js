@@ -37,6 +37,24 @@ async function aguardarProcessamentoYoutube(videoId, accessToken, post) {
   }
 }
 
+async function enviarThumbnailYoutube(videoId, accessToken, post) {
+  if (!post.coverPath) return
+  const { buffer } = await mediaToBlob(post.coverPath)
+  if (buffer.length > 2 * 1024 * 1024) throw new Error('A capa do YouTube precisa ter no máximo 2 MB.')
+  const response = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': post.coverType || 'image/jpeg',
+      'Content-Length': String(buffer.length)
+    },
+    body: buffer
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(data?.error?.message || `YouTube respondeu ${response.status} ao enviar a capa`)
+  return data
+}
+
 // Upload resumable em vez de multipart: envia o vídeo em um PUT único de stream
 // (em vez de montar um multipart/form-data com o arquivo todo em memória),
 // permite retomar em caso de falha de rede a meio do envio, e os primeiros bytes
@@ -106,6 +124,14 @@ async function publicarYoutube(token, post) {
   })
   const data = await uploadRes.json()
   if (!uploadRes.ok) throw new Error(data?.error?.message || `YouTube respondeu ${uploadRes.status} ao enviar o vídeo`)
+
+  if (data.id && post.coverPath && post.youtubeIsShort !== true) {
+    try {
+      await enviarThumbnailYoutube(data.id, token.accessToken, post)
+    } catch (error) {
+      await registrarLog({ type: 'warn', message: `Vídeo publicado, mas a capa do YouTube não foi aplicada: ${error.message}`, platform: 'youtube', user_id: post.userId })
+    }
+  }
 
   // 3. Acompanha o processamento em background e notifica o frontend quando
   // o vídeo realmente ficar disponível — não bloqueia a resposta da publicação.

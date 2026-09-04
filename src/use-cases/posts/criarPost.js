@@ -296,6 +296,17 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // interna ou metadata da nuvem.
   if (media.some(m => !isBlobUrl(m.url))) throw new ValidationError('URL de mídia inválida — envie o arquivo pelo upload padrão.')
 
+  let cover = null
+  try {
+    const parsed = body.cover ? (typeof body.cover === 'object' ? body.cover : JSON.parse(body.cover)) : null
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) cover = parsed
+  } catch {
+    throw new ValidationError('cover inválida')
+  }
+  if (cover && (!cover.url || !cover.mimetype || !cover.mimetype.startsWith('image/') || !isBlobUrl(cover.url))) {
+    throw new ValidationError('A capa precisa ser uma imagem enviada pelo upload padrão.')
+  }
+
   let captions = []
   try {
     captions = JSON.parse(body.captions || '[]')
@@ -332,6 +343,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   const { items, mediaType, mediaMetadata: mediaMetadataCompartilhada, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel: shortElegivelCompartilhado } = await processarMidia(media, captions, platforms, igFormat, { facebookFormat, youtubeFormat })
   const mediaPath = items[0]?.path || null
   const mediaItems = items.length > 1 ? items : null
+  const coverPath = cover?.url || null
+  const coverType = cover?.mimetype || null
 
   // Processa a mídia própria de cada rede que tiver (em paralelo) — o
   // resultado alimenta tanto a validação por rede (domain/posts/post.js)
@@ -435,7 +448,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
 
   const post = await postsRepo.criarPost({
     text: text?.trim() || null, textByPlatform, titleByPlatform, platforms, scheduledAt: scheduledAtUTC, repeat,
-    mediaPath, mediaType, mediaItems,
+    mediaPath, mediaType, mediaItems, coverPath, coverType,
     youtubeTitle: youtubeTitle?.trim() || null, youtubeVisibility, youtubeCategoryId: youtubeCategoryId || null,
     youtubeFormat: youtubeFormat || null, youtubeIsShort, youtubeMadeForKids: youtubeMadeForKids ?? null, igFormat: igFormat || null, facebookFormat: facebookFormat || null,
     tiktokPrivacyLevel: platforms.includes('tiktok') ? tiktokPrivacyLevel : null,

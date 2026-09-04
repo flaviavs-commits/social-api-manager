@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube' }
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
 function formatDate(value) {
   if (!value) return 'data não informada'
@@ -17,6 +17,24 @@ function mediaItemsOf(post) {
   return post.mediaItems?.length
     ? post.mediaItems
     : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
+}
+
+function SafeAvatar({ src, alt = '', className, fallback }) {
+  const [failed, setFailed] = useState(false)
+  return <span className={className}>{src && !failed ? <img src={src} alt={alt} onError={() => setFailed(true)} /> : fallback}</span>
+}
+
+function SafeMedia({ item, index }) {
+  const [failed, setFailed] = useState('')
+  const isVideo = item.type === 'video' || item.type === 'VIDEO' || item.mediaType === 'video' || item.media_type === 'VIDEO'
+  const source = item.url || item.mediaUrl || item.media_url || item.path
+  const poster = item.thumbnail || item.thumbnailUrl || item.thumbnail_url || item.poster || (isVideo ? item.path : null)
+  if (!source) return null
+  if (isVideo && !failed) return <video src={source} poster={poster && poster !== source ? poster : undefined} controls preload="metadata" onError={() => setFailed('video')} />
+  if (isVideo && failed === 'video' && poster) return <img src={poster} alt={`Prévia da mídia ${index + 1} da publicação`} onError={() => setFailed('poster')} />
+  if (poster && poster !== source && !failed) return <img src={poster} alt={`Prévia da mídia ${index + 1} da publicação`} onError={() => setFailed('poster')} />
+  if (!failed) return <img src={source} alt={`Mídia ${index + 1} da publicação`} onError={() => setFailed('image')} />
+  return <div className="comments-post-media-fallback">Prévia indisponível</div>
 }
 
 function previewFromInboxPost(post) {
@@ -47,21 +65,13 @@ function PostPreview({ post }) {
 
   const media = items.length > 0
     ? <div className="comments-post-media" aria-label={`${items.length} mídia${items.length > 1 ? 's' : ''} da publicação`}>
-        {items.map((item, index) => {
-          const source = item.path || item.url || item.mediaUrl
-          if (!source) return null
-          return item.type === 'video' || item.type === 'VIDEO'
-            ? <video key={`${source}-${index}`} src={source} controls preload="metadata" />
-            : <img key={`${source}-${index}`} src={source} alt={`Mídia ${index + 1} da publicação`} />
-        })}
+        {items.map((item, index) => <SafeMedia key={`${item.url || item.path || index}-${index}`} item={item} index={index} />)}
       </div>
     : <div className="comments-post-media-empty">Esta publicação não tem mídia disponível para visualização.</div>
 
   return <article className={`comments-post-preview comments-post-preview-${platform}`}>
     <header className="comments-post-account">
-      <span className={`comments-post-avatar comments-post-avatar-${platform}`}>
-        {post.avatarUrl ? <img src={post.avatarUrl} alt="" /> : <PlatformIcon platform={platform} className="h-4 w-4" />}
-      </span>
+      <SafeAvatar src={post.avatarUrl} className={`comments-post-avatar comments-post-avatar-${platform}`} fallback={<PlatformIcon platform={platform} className="h-4 w-4" />} />
       <span className="comments-post-account-copy"><strong>{handle}</strong><small>{label} · publicado em {formatDate(post.publishedAt)}</small></span>
       <span className="comments-post-platform-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-4 w-4" /></span>
     </header>
@@ -78,13 +88,15 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, platform, replySupported, onReplied, savedTexts = [] }) {
+function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const data = comment.createdAt ? formatDate(comment.createdAt) : ''
   const author = comment.author || 'desconhecido'
+  const authorAvatar = comment.authorAvatarUrl || comment.profilePictureUrl || comment.avatarUrl || null
+  const viewerName = post?.handle || 'sua conta'
 
   async function send() {
     const text = replyText.trim()
@@ -92,11 +104,14 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied, save
     setSending(true)
     setError('')
     try {
-      await apiFetch(`/api/posts/${postId}/comments/${comment.id}/reply`, { method: 'POST', body: JSON.stringify({ text }) })
+      const request = post?.remote
+        ? { url: '/api/posts/inbox/remote-comments/reply', body: { platform: post.externalPlatform, accountId: post.zernioAccountId, postId: post.externalPostId, commentId: comment.id, text } }
+        : { url: `/api/posts/${postId}/comments/${comment.id}/reply`, body: { text } }
+      await apiFetch(request.url, { method: 'POST', body: JSON.stringify(request.body) })
       setReplyText('')
       setSentReplies(current => [...current, {
         id: `local-reply-${Date.now()}`,
-        author: 'Sua resposta',
+        author: viewerName,
         text,
         createdAt: new Date().toISOString()
       }])
@@ -119,7 +134,7 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied, save
 
   return <article className="comment-row">
     <div className="comment-author-line">
-      <span className="comment-author-avatar">{author.slice(0, 1).toUpperCase()}</span>
+      <SafeAvatar src={authorAvatar} className="comment-author-avatar" fallback={author.slice(0, 1).toUpperCase()} />
       <span className="comment-author">@{author.replace(/^@/, '')}</span>
     </div>
     <p className="comment-text">{comment.text}</p>
@@ -131,6 +146,7 @@ function CommentRow({ comment, postId, platform, replySupported, onReplied, save
     {replySupported
       ? <div className="comment-reply-composer">
           <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
+          <div className="comment-reply-identity"><SafeAvatar src={post?.avatarUrl} className="comment-reply-identity-avatar" fallback={<PlatformIcon platform={platform} className="h-3 w-3" />} /><span>Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong></span></div>
           <div className="comment-reply-form">
           <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
           <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
@@ -153,18 +169,21 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
   const load = useCallback((silent = false, signal) => {
     if (!silent) setLoading(true)
     setError('')
-    return apiFetch(`/api/posts/${postId}/comments`, { signal })
+    const remote = initialPost?.remote
+      ? `?platform=${encodeURIComponent(initialPost.externalPlatform)}&accountId=${encodeURIComponent(initialPost.zernioAccountId)}&postId=${encodeURIComponent(initialPost.externalPostId)}`
+      : ''
+    return apiFetch(remote ? `/api/posts/inbox/remote-comments${remote}` : `/api/posts/${postId}/comments`, { signal })
       .then(result => {
         if (signal?.aborted) return
         const nextComments = result.comments || []
         setComments(nextComments)
-        setPost(result.post || null)
+        setPost(current => ({ ...(current || {}), ...(result.post || {}) }))
         setError(result.error || '')
-        if (nextComments.length) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
+        if (nextComments.length && !initialPost?.remote) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
       })
       .catch(caught => { if (!signal?.aborted) setError(caught.message) })
       .finally(() => { if (!silent && !signal?.aborted) setLoading(false) })
-  }, [postId])
+  }, [initialPost, postId])
 
   useEffect(() => {
     let active = true
@@ -215,7 +234,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} platform={post?.platform} replySupported={post?.replySupported} onReplied={load} savedTexts={savedTexts} />)}
+      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={load} savedTexts={savedTexts} />)}
     </div>}
   </div>
 

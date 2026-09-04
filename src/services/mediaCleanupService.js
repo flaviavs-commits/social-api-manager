@@ -40,6 +40,7 @@ const CANDIDATE_POSTS_QUERY = `
     p.id,
     p.media_path AS "mediaPath",
     p.media_items AS "mediaItems",
+    p.cover_path AS "coverPath",
     COALESCE(
       JSONB_AGG(pa.media_items) FILTER (WHERE pa.media_items IS NOT NULL),
       '[]'::jsonb
@@ -47,7 +48,7 @@ const CANDIDATE_POSTS_QUERY = `
   FROM posts p
   LEFT JOIN post_accounts pa ON pa.post_id = p.id
   WHERE ${eligiblePostPredicate('p')}
-  GROUP BY p.id, p.media_path, p.media_items
+  GROUP BY p.id, p.media_path, p.media_items, p.cover_path
   ORDER BY p.id ASC
   LIMIT $1
 `
@@ -60,6 +61,13 @@ const REFERENCES_QUERY = `
     SELECT p.media_path AS url
     FROM posts p
     WHERE p.media_path = ANY($1::text[])
+      AND NOT (${eligiblePostPredicate('p')})
+
+    UNION ALL
+
+    SELECT p.cover_path AS url
+    FROM posts p
+    WHERE p.cover_path = ANY($1::text[])
       AND NOT (${eligiblePostPredicate('p')})
 
     UNION ALL
@@ -194,6 +202,7 @@ function collectBlobUrls(row) {
   }
 
   add(row.mediaPath)
+  add(row.coverPath)
   collectItems(row.mediaItems)
   collectItems(row.accountMediaItems)
 

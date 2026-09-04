@@ -5,12 +5,12 @@ const zernioClient = require('../infra/social/zernioClient')
 // Redes onde já é possível listar comentários reais com o escopo OAuth que
 // a conexão atual já solicita. TikTok (Content Posting API) não expõe
 // leitura de comentários de terceiros — fica de fora por agora.
-const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube']
+const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube', 'tiktok']
 
 // Todas as redes que entram no Inbox têm um caminho de resposta. Quando a
 // conta foi conectada pelo Zernio usamos o endpoint unificado dele; contas
 // legadas continuam usando a API oficial da própria rede.
-const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'facebook', 'youtube']
+const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'facebook', 'youtube', 'tiktok']
 
 const COMMENTS_FETCH_TIMEOUT_MS = 4000
 
@@ -133,10 +133,110 @@ async function listarComentariosZernio(token, externalPostId) {
     // O Zernio usa `id` para o identificador que deve ser enviado ao endpoint
     // de resposta e também expõe `cid` em algumas plataformas.
     id: c.id || c.cid,
-    author: c.from?.username || c.from?.name || 'desconhecido',
+    author: c.from?.username || c.from?.name || c.author?.username || c.author?.name || c.username || 'desconhecido',
+    ...(c.from?.profilePicture || c.from?.profile_picture || c.from?.avatarUrl || c.author?.profilePicture || c.author?.avatarUrl || c.profilePicture || c.avatarUrl
+      ? { authorAvatarUrl: c.from?.profilePicture || c.from?.profile_picture || c.from?.avatarUrl || c.author?.profilePicture || c.author?.avatarUrl || c.profilePicture || c.avatarUrl }
+      : {}),
     text: c.message || c.text || '',
     createdAt: c.createdTime || c.created_at || null
   }))
+}
+
+function remoteMediaItems(row) {
+  const media = row.mediaItems || row.media || row.media_items || []
+  if (Array.isArray(media) && media.length) return media.map(item => ({
+    path: item.path || item.url || item.mediaUrl || item.media_url || item.thumbnail || item.thumbnailUrl,
+    url: item.url || item.mediaUrl || item.media_url || item.path || null,
+    thumbnail: item.thumbnail || item.thumbnailUrl || item.thumbnail_url || item.poster || null,
+    type: String(item.type || item.mediaType || item.media_type || '').toLowerCase().includes('video') ? 'video' : 'image'
+  })).filter(item => item.path)
+  const image = row.picture || row.image || row.thumbnail || row.thumbnailUrl || row.thumbnail_url || row.mediaUrl || row.media_url
+  return image ? [{ path: image, url: image, thumbnail: row.thumbnail || row.thumbnailUrl || row.thumbnail_url || image, type: String(row.mediaType || row.media_type || row.type || '').toLowerCase().includes('video') ? 'video' : 'image' }] : []
+}
+
+function remotePostId(row) {
+  return row.platformPostId || row.platform_post_id || row.externalPostId || row.external_post_id || row.postId || row.id || row._id
+}
+
+function normalizarPostRemoto(row, conta, fallbackPlatform = null) {
+  const externalPostId = remotePostId(row)
+  if (!externalPostId) return null
+  const platform = String(row.platform || row.network || fallbackPlatform || conta.platform || '').toLowerCase()
+  if (!platform || !PLATAFORMAS_COM_COMENTARIOS.includes(platform)) return null
+  const zernioAccountId = row.accountId || row.account_id || conta.zernioAccountId
+  const text = row.content || row.caption || row.text || row.message || ''
+  return {
+    id: `remote:${platform}:${zernioAccountId}:${externalPostId}`,
+    remote: true,
+    externalPostId: String(externalPostId),
+    externalPlatform: platform,
+    accountId: conta.id,
+    zernioAccountId: String(zernioAccountId),
+    handle: row.accountUsername || row.account_username || row.username || conta.handle || '',
+    avatarUrl: row.accountAvatarUrl || row.account_avatar_url || row.avatarUrl || conta.avatarUrl || null,
+    publishedAt: row.createdTime || row.created_time || row.publishedAt || row.published_at || row.createdAt || null,
+    text,
+    title: row.title || row.name || '',
+    youtubeTitle: row.title || '',
+    permalink: row.permalink || row.platformPostUrl || row.platform_post_url || row.url || null,
+    commentCount: Number(row.commentCount ?? row.comment_count ?? 0),
+    likeCount: Number(row.likeCount ?? row.like_count ?? 0),
+    replySupported: PLATAFORMAS_COM_RESPOSTA.includes(platform),
+    mediaItems: remoteMediaItems(row)
+  }
+}
+
+// Carrega o histórico remoto por perfil. O endpoint de posts traz também
+// publicações sem comentário; o endpoint do Inbox complementa a resposta com
+// contagem, avatar e preview que algumas contas só expõem nessa rota.
+async function listarPostsRemotos({ userId, platform = null }) {
+  const contasRepo = require('../repositories/contasRepository')
+  const contas = await contasRepo.listarContasZernioDoUsuario({ userId, platform })
+  if (!contas.length) return []
+
+  const porPerfil = new Map()
+  for (const conta of contas) {
+    const chave = `${conta.zernioProfileId || `account:${conta.zernioAccountId}`}::${conta.platform}`
+    if (!porPerfil.has(chave)) porPerfil.set(chave, { conta, contas: [] })
+    porPerfil.get(chave).contas.push(conta)
+  }
+
+  const resultados = await Promise.allSettled([...porPerfil.values()].map(async grupo => {
+    const { conta, contas: grupoContas } = grupo
+    const baseQuery = {
+      ...(conta.zernioProfileId ? { profileId: conta.zernioProfileId } : { accountId: conta.zernioAccountId }),
+      ...(platform ? { platform } : {}),
+      limit: 100
+    }
+    const [postsResult, inboxResult] = await Promise.allSettled([
+      zernioClient.listPosts({ ...baseQuery, source: 'external', status: 'published' }, { timeoutMs: 8000, retries: 0 }),
+      zernioClient.listInboxComments({ ...baseQuery, sortBy: 'date', sortOrder: 'desc' }, { timeoutMs: 8000, retries: 0 })
+    ])
+    const rows = []
+    const append = value => {
+      const list = value?.posts || value?.data || value?.items || []
+      if (Array.isArray(list)) rows.push(...list)
+    }
+    if (postsResult.status === 'fulfilled') append(postsResult.value)
+    if (inboxResult.status === 'fulfilled') append(inboxResult.value)
+
+    return rows.map(row => {
+      const accountId = row.accountId || row.account_id
+      const rowConta = grupoContas.find(item => String(item.zernioAccountId) === String(accountId)) || grupoContas[0]
+      return normalizarPostRemoto(row, rowConta, platform)
+    }).filter(Boolean)
+  }))
+
+  const unique = new Map()
+  for (const result of resultados) {
+    if (result.status !== 'fulfilled') continue
+    for (const post of result.value) {
+      const key = `${post.externalPlatform}:${post.externalPostId}:${post.zernioAccountId}`
+      const current = unique.get(key)
+      unique.set(key, current ? { ...current, ...post, mediaItems: post.mediaItems.length ? post.mediaItems : current.mediaItems } : post)
+    }
+  }
+  return [...unique.values()].sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)).slice(0, 100)
 }
 
 async function responderComentarioYoutube(token, commentId, text) {
@@ -172,7 +272,12 @@ async function buscarMidiaInstagram(token, externalPostId) {
 
   const itensFonte = data.children?.data?.length ? data.children.data : [data]
   const itens = itensFonte.map(i => ({
-    path: i.media_type === 'VIDEO' ? (i.thumbnail_url || i.media_url) : i.media_url,
+    // Para vídeo, `media_url` é o arquivo reproduzível e `thumbnail_url` é
+    // apenas o poster. Manter os dois evita que o navegador tente tocar uma
+    // imagem como vídeo e ainda conserva a prévia quando o vídeo expira.
+    path: i.media_url || i.thumbnail_url,
+    url: i.media_url || null,
+    thumbnail: i.thumbnail_url || null,
     type: i.media_type === 'VIDEO' ? 'video' : 'image'
   }))
 
@@ -212,7 +317,7 @@ async function buscarTokenPost(post) {
 async function listarComentariosPost(post) {
   const token = await buscarTokenPost(post)
   try {
-    if (token.zernioAccountId && ['facebook', 'instagram', 'youtube'].includes(post.externalPlatform)) {
+    if (token.zernioAccountId && PLATAFORMAS_COM_COMENTARIOS.includes(post.externalPlatform)) {
       const comments = await listarComentariosZernio(token, post.externalPostId)
       return { comments, replySupported: true }
     }
@@ -244,7 +349,7 @@ async function responderComentario(post, commentId, text) {
   const token = await buscarTokenPost(post)
 
   try {
-    if (token.zernioAccountId && ['facebook', 'instagram', 'youtube'].includes(post.externalPlatform)) {
+    if (token.zernioAccountId && PLATAFORMAS_COM_COMENTARIOS.includes(post.externalPlatform)) {
       return await responderComentarioZernio(token, post.externalPostId, commentId, text)
     }
 
@@ -260,4 +365,4 @@ async function responderComentario(post, commentId, text) {
   }
 }
 
-module.exports = { listarComentariosPost, responderComentario, buscarMidiaPost, PLATAFORMAS_COM_COMENTARIOS, PLATAFORMAS_COM_RESPOSTA }
+module.exports = { listarComentariosPost, responderComentario, buscarMidiaPost, listarPostsRemotos, PLATAFORMAS_COM_COMENTARIOS, PLATAFORMAS_COM_RESPOSTA }

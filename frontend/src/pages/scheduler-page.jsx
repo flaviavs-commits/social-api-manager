@@ -439,7 +439,7 @@ function previewAspectOptions(platform, instagramFormat, mediaKind) {
   return Object.values(PREVIEW_ASPECTS)
 }
 
-function PreviewVideo({ src, platform }) {
+function PreviewVideo({ src, platform, coverUrl = '' }) {
   const [frame, setFrame] = useState('')
 
   useEffect(() => {
@@ -524,14 +524,78 @@ function PreviewVideo({ src, platform }) {
   }, [src])
 
   return <div className={`social-preview-video social-preview-video-${platform}`}>
-    {frame
-      ? <img className="social-preview-video-frame" src={frame} alt="Quadro inicial do vídeo selecionado"/>
+    {coverUrl || frame
+      ? <img className="social-preview-video-frame" src={coverUrl || frame} alt={coverUrl ? 'Capa escolhida para o vídeo' : 'Quadro inicial do vídeo selecionado'}/>
       : <div className="social-preview-video-placeholder" aria-hidden="true" />}
     <span className="social-preview-video-badge">Vídeo detectado</span>
   </div>
 }
 
-function PreviewMedia({ platform, previews, igFormat, facebookFormat, aspectRequest, mediaProfile, fill = false }) {
+function VideoCoverPicker({ file, value, onChange, coverUrl, onCapture, onImageSelect, onClear }) {
+  const videoRef = useRef(null)
+  const [duration, setDuration] = useState(0)
+  const [capturing, setCapturing] = useState(false)
+  const videoUrl = useMemo(() => URL.createObjectURL(file), [file])
+
+  useEffect(() => () => URL.revokeObjectURL(videoUrl), [videoUrl])
+
+  useEffect(() => {
+    setDuration(0)
+    if (videoRef.current) videoRef.current.currentTime = 0
+  }, [file])
+
+  function handleMetadata(event) {
+    const nextDuration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0
+    setDuration(nextDuration)
+    if (onChange && value === null && nextDuration > 0) onChange(0)
+  }
+
+  function handleTimeChange(event) {
+    const nextTime = Number(event.target.value) || 0
+    if (videoRef.current) videoRef.current.currentTime = nextTime
+    onChange(nextTime)
+  }
+
+  function captureFrame() {
+    const video = videoRef.current
+    if (!video?.videoWidth || !video?.videoHeight || capturing) return
+    setCapturing(true)
+    const canvas = document.createElement('canvas')
+    const maxWidth = 1920
+    const scale = Math.min(1, maxWidth / video.videoWidth)
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+    const context = canvas.getContext('2d')
+    if (!context) { setCapturing(false); return }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob(blob => {
+      if (blob) {
+        const basename = file.name.replace(/\.[^.]+$/, '') || 'video'
+        onCapture(new File([blob], `${basename}-capa.jpg`, { type: 'image/jpeg', lastModified: Date.now() }))
+      }
+      setCapturing(false)
+    }, 'image/jpeg', 0.92)
+  }
+
+  return <div className="video-cover-picker">
+    <div className="video-cover-picker-heading"><div><strong>Escolha a capa do vídeo</strong><small>Arraste o controle até o frame que deve aparecer na rede social.</small></div>{coverUrl && <button type="button" className="video-cover-clear" onClick={onClear}>Usar capa automática</button>}</div>
+    <div className="video-cover-picker-body">
+      <video ref={videoRef} src={videoUrl} muted playsInline preload="metadata" onLoadedMetadata={handleMetadata} />
+      {coverUrl && <img src={coverUrl} alt="Frame escolhido como capa"/>}
+    </div>
+    <label className="video-cover-range">Frame selecionado <output>{formatVideoTime(value || 0)}</output><input type="range" min="0" max={duration || 0.1} step="0.01" value={Math.min(value || 0, duration || 0.1)} onChange={handleTimeChange} disabled={!duration}/></label>
+    <div className="video-cover-actions"><button type="button" className="secondary-button" onClick={captureFrame} disabled={!duration || capturing}>{capturing ? 'Criando capa…' : 'Usar este frame como capa'}</button><label className="secondary-button video-cover-file-button">Escolher outra imagem<input type="file" accept="image/*" onChange={onImageSelect}/></label></div>
+  </div>
+}
+
+function formatVideoTime(value) {
+  const total = Math.max(0, Math.round(Number(value) || 0))
+  const minutes = Math.floor(total / 60)
+  const seconds = String(total % 60).padStart(2, '0')
+  return `${minutes}:${seconds}`
+}
+
+function PreviewMedia({ platform, previews, igFormat, facebookFormat, aspectRequest, mediaProfile, fill = false, coverUrl = '' }) {
   const item = previews[0]
   const isVideo = item?.file.type.startsWith('video/')
   const aspect = resolvePreviewAspect({ platform, mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: aspectRequest, instagramFormat: igFormat, facebookFormat })
@@ -539,7 +603,7 @@ function PreviewMedia({ platform, previews, igFormat, facebookFormat, aspectRequ
   const mediaClass = isVideo ? 'is-video' : item ? 'is-photo' : ''
   if (!item) return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass} is-empty`} style={{ '--preview-aspect': String(aspect.ratio) }}><span aria-hidden="true">＋</span><small>Adicione uma imagem ou vídeo</small></div>
   const media = isVideo
-    ? <PreviewVideo src={item.url} platform={platform}/>
+    ? <PreviewVideo src={item.url} platform={platform} coverUrl={coverUrl}/>
     : <img src={item.url} alt="Prévia da publicação"/>
   return <div className={`social-preview-media social-preview-media-${platform} ${aspectClass} ${mediaClass}`} style={{ '--preview-aspect': String(aspect.ratio) }} data-media-kind={isVideo ? 'video' : 'image'} data-preview-aspect={aspect.label}>
     {media}
@@ -553,14 +617,14 @@ function PreviewAvatar({ platform, avatarUrl, size = '' }) {
 
 // --- Instagram --------------------------------------------------------
 
-function InstagramFeedCard({ accountLabel, accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption }) {
+function InstagramFeedCard({ accountLabel, accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption, coverUrl }) {
   return <>
     <div className="pv-header">
       <PreviewAvatar platform="instagram" avatarUrl={avatarUrl}/>
       <div className="pv-header-text"><strong>{accountLabel}</strong></div>
       <MoreIcon className="pv-more"/>
     </div>
-    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} coverUrl={coverUrl}/>
     <div className="pv-ig-actions">
       <div className="pv-ig-actions-left"><HeartIcon/><CommentIcon/><ShareArrowIcon/></div>
       <BookmarkIcon/>
@@ -571,9 +635,9 @@ function InstagramFeedCard({ accountLabel, accountHandle, avatarUrl, previews, i
   </>
 }
 
-function InstagramFullBleedCard({ accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption, isStory }) {
+function InstagramFullBleedCard({ accountHandle, avatarUrl, previews, igFormat, aspectRequest, mediaProfile, caption, isStory, coverUrl }) {
   return <div className="pv-fullbleed">
-    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    <PreviewMedia platform="instagram" previews={previews} igFormat={igFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill coverUrl={coverUrl}/>
     {isStory && <div className="pv-story-progress" aria-hidden="true"><span/><span className="is-empty"/><span className="is-empty"/></div>}
     <div className="pv-fullbleed-top">
       <PreviewAvatar platform="instagram" avatarUrl={avatarUrl} size="sm"/>
@@ -598,7 +662,7 @@ function InstagramFullBleedCard({ accountHandle, avatarUrl, previews, igFormat, 
 
 // --- Facebook -----------------------------------------------------------
 
-function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, facebookFormat, caption }) {
+function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, facebookFormat, caption, coverUrl }) {
   return <>
     <div className="pv-header">
       <PreviewAvatar platform="facebook" avatarUrl={avatarUrl}/>
@@ -606,7 +670,7 @@ function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectR
       <MoreIcon className="pv-more"/>
     </div>
     <p className={`pv-fb-text${caption ? '' : ' is-placeholder'}`}>{caption || 'O texto da sua publicação aparecerá aqui.'}</p>
-    <PreviewMedia platform="facebook" previews={previews} facebookFormat={facebookFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+      <PreviewMedia platform="facebook" previews={previews} facebookFormat={facebookFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} coverUrl={coverUrl}/>
     <div className="pv-fb-stats"><span className="pv-fb-stats-reactions"><i className="pv-fb-reaction-dot"><ThumbsUpIcon/></i>0</span><span>0 comentários · 0 compartilhamentos</span></div>
     <div className="pv-fb-actions">
       <button type="button"><ThumbsUpIcon/> Curtir</button>
@@ -618,10 +682,10 @@ function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectR
 
 // --- YouTube --------------------------------------------------------------
 
-function YoutubeVideoCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title, duration }) {
+function YoutubeVideoCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title, duration, coverUrl }) {
   return <>
     <div className="pv-yt-thumb-wrap">
-      <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile}/>
+      <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} coverUrl={coverUrl}/>
       {mediaProfile?.kind === 'video' && <span className="pv-yt-duration">{formatDuration(duration)}</span>}
     </div>
     <div className="pv-yt-meta">
@@ -632,9 +696,9 @@ function YoutubeVideoCard({ accountLabel, avatarUrl, previews, mediaProfile, asp
   </>
 }
 
-function YoutubeShortCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title }) {
+function YoutubeShortCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectRequest, title, coverUrl }) {
   return <div className="pv-fullbleed pv-short">
-    <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    <PreviewMedia platform="youtube" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill coverUrl={coverUrl}/>
     <span className="pv-short-badge">Shorts</span>
     <div className="pv-short-rail">
       <span className="pv-reel-rail-item"><HeartIcon/><b>0</b></span>
@@ -653,9 +717,9 @@ function YoutubeShortCard({ accountLabel, avatarUrl, previews, mediaProfile, asp
 
 // --- TikTok --------------------------------------------------------------
 
-function TiktokCard({ accountHandle, avatarUrl, previews, mediaProfile, aspectRequest, caption, title }) {
+function TiktokCard({ accountHandle, avatarUrl, previews, mediaProfile, aspectRequest, caption, title, coverUrl }) {
   return <div className="pv-fullbleed pv-tt">
-    <PreviewMedia platform="tiktok" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill/>
+    <PreviewMedia platform="tiktok" previews={previews} aspectRequest={aspectRequest} mediaProfile={mediaProfile} fill coverUrl={coverUrl}/>
     <div className="pv-reel-rail pv-tt-rail">
       <span className="pv-tt-avatar"><PreviewAvatar platform="tiktok" avatarUrl={avatarUrl} size="sm"/><i className="pv-tt-plus" aria-hidden="true">+</i></span>
       <span className="pv-reel-rail-item"><HeartIcon/><b>0</b></span>
@@ -680,7 +744,7 @@ function formatDuration(seconds) {
   return `${minutes}:${String(secs).padStart(2, '0')}`
 }
 
-function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts }) {
+function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '' }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   useEffect(() => {
@@ -704,16 +768,16 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   const mediaLabel = activeMediaProfile ? `${activeMediaProfile.kind === 'video' ? 'Vídeo' : 'Foto'} · ${resolvedAspect.label}` : resolvedAspect.label
   const instagramVideoIsReel = activePlatform === 'instagram' && activeMediaProfile?.kind === 'video' && igFormat !== 'story'
   const isInstagramStory = activePlatform === 'instagram' && igFormat === 'story'
-  // Um vídeo no Feed pode ser publicado como Reel automaticamente, mas a
+  // Um vídeo no Feed pode ser publicado como Reels automaticamente, mas a
   // prévia deve continuar mostrando o cartão do Feed. O enquadramento vertical
-  // fica reservado para Reel/Story escolhidos explicitamente.
+  // fica reservado para Reels/Story escolhidos explicitamente.
   const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory)
   const isYoutubeShort = activePlatform === 'youtube' && youtubeFormat === 'short'
   const isFullBleedCard = shouldUseFullBleedPreview({ platform: activePlatform, instagramFormat: igFormat, facebookFormat, youtubeFormat })
   const formatLabel = activePlatform === 'instagram'
-    ? `${instagramVideoIsReel ? 'Reel automático' : ['reel', 'story'].includes(igFormat) ? (igFormat === 'reel' ? 'Reel' : 'Story') : 'Feed'} · ${mediaLabel}`
+    ? `${instagramVideoIsReel ? 'Reels automático' : ['reel', 'story'].includes(igFormat) ? (igFormat === 'reel' ? 'Reels' : 'Story') : 'Feed'} · ${mediaLabel}`
     : activePlatform === 'facebook'
-      ? `${facebookFormat === 'reel' ? 'Reel' : 'Feed'} · ${mediaLabel}`
+      ? `${facebookFormat === 'reel' ? 'Reels' : 'Feed'} · ${mediaLabel}`
       : activePlatform === 'youtube'
         ? `${youtubeFormat === 'short' ? 'Short' : 'Vídeo'} · ${mediaLabel}`
         : activePlatform === 'tiktok' && activeMediaProfile?.kind === 'video'
@@ -723,19 +787,19 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   return <aside className="post-preview" aria-label="Pré-visualização da publicação">
     <div className="post-preview-heading"><div><p className="eyebrow">PREVIEW REALISTA</p><h3>Veja em cada rede</h3></div><span className="post-preview-status">{approvalRequested ? 'Aguardando aprovação' : publishNow ? 'Agora' : date ? 'Agendada' : 'Rascunho'}</span></div>
     <div className="preview-network-tabs" role="tablist" aria-label="Prévia por rede social">{availablePlatforms.map(platform => <button type="button" role="tab" aria-selected={activePlatform === platform} className={`preview-network-tab preview-network-tab-${platform}${activePlatform === platform ? ' is-active' : ''}`} key={platform} onClick={() => setActivePlatform(platform)}><span className="preview-network-tab-icon"><PlatformIcon platform={platform} className="h-4 w-4"/></span>{previewLabels[platform]}</button>)}</div>
-     <div className="social-preview-format"><span>Formato simulado</span><strong>{formatLabel}</strong><small>Resolução recomendada: {resolutionHint}</small></div><div className="social-preview-detection" role="status"><span className={activeMediaProfile?.kind === 'video' ? 'is-video' : 'is-image'}>{activeMediaProfile ? mediaKindLabel(activeMediaProfile.kind) : 'Aguardando mídia'}</span><small>{activeMediaProfile?.ratio ? `Original ${ratioLabel(activeMediaProfile.width, activeMediaProfile.height)}` : 'A proporção será detectada ao adicionar a mídia.'}</small></div>{instagramVideoIsReel && <p className="social-preview-format-note">Vídeo único será enviado como Reel e compartilhado no feed.</p>}<div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
+     <div className="social-preview-format"><span>Formato simulado</span><strong>{formatLabel}</strong><small>Resolução recomendada: {resolutionHint}</small></div><div className="social-preview-detection" role="status"><span className={activeMediaProfile?.kind === 'video' ? 'is-video' : 'is-image'}>{activeMediaProfile ? mediaKindLabel(activeMediaProfile.kind) : 'Aguardando mídia'}</span><small>{activeMediaProfile?.ratio ? `Original ${ratioLabel(activeMediaProfile.width, activeMediaProfile.height)}` : 'A proporção será detectada ao adicionar a mídia.'}</small></div>{instagramVideoIsReel && <p className="social-preview-format-note">Vídeo único será enviado como Reels e compartilhado no feed.</p>}<div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
       {activePlatform === 'instagram' ? (
         isInstagramFullBleed
-           ? <InstagramFullBleedCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={activeMediaProfile} caption={activeText} isStory={isInstagramStory}/>
-           : <InstagramFeedCard accountLabel={accountLabel} accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={activeMediaProfile} caption={activeText}/>
+           ? <InstagramFullBleedCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={activeMediaProfile} caption={activeText} isStory={isInstagramStory} coverUrl={coverUrl}/>
+           : <InstagramFeedCard accountLabel={accountLabel} accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={activeMediaProfile} caption={activeText} coverUrl={coverUrl}/>
        ) : activePlatform === 'facebook' ? (
-          <FacebookCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} facebookFormat={facebookFormat} caption={activeText}/>
+          <FacebookCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} facebookFormat={facebookFormat} caption={activeText} coverUrl={coverUrl}/>
        ) : activePlatform === 'youtube' ? (
          isYoutubeShort
-           ? <YoutubeShortCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText}/>
-           : <YoutubeVideoCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText} duration={activeMediaProfile?.duration}/>
+           ? <YoutubeShortCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText} coverUrl={coverUrl}/>
+           : <YoutubeVideoCard accountLabel={accountLabel} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} title={youtubeTitle || activeText} duration={activeMediaProfile?.duration} coverUrl={coverUrl}/>
        ) : (
-        <TiktokCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} caption={activeText} title={activeTitle}/>
+        <TiktokCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} caption={activeText} title={activeTitle} coverUrl={coverUrl}/>
       )}
     </div>
      <p className="post-preview-hint">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta. {activeFiles.length > 1 && !['instagram', 'tiktok', 'facebook'].includes(activePlatform) ? `${activeFiles.length} mídias selecionadas — apenas a primeira aparece na prévia desta rede.` : ''}</p>
@@ -775,6 +839,9 @@ export function SchedulerPage() {
   const [mediaPreviews, setMediaPreviews] = useState([])
   const [mediaMetaByKey, setMediaMetaByKey] = useState({})
   const [videoMetaByKey, setVideoMetaByKey] = useState({})
+  const [coverFile, setCoverFile] = useState(null)
+  const [coverSourceKey, setCoverSourceKey] = useState('')
+  const [coverTime, setCoverTime] = useState(null)
   const [youtubeTitle, setYoutubeTitle] = useState('')
   const [youtubeVisibility, setYoutubeVisibility] = useState('public')
   const [youtubeMadeForKids, setYoutubeMadeForKids] = useState('')
@@ -814,7 +881,7 @@ export function SchedulerPage() {
   }), [])
 
   function clearComposer() {
-    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
   }
 
   function reviewError() {
@@ -1091,6 +1158,37 @@ export function SchedulerPage() {
       return next
     })
   }
+
+  function chooseImageCover(key) {
+    setCoverFile(null)
+    setCoverTime(null)
+    setCoverSourceKey(key)
+    setFiles(current => {
+      const currentIndex = current.findIndex(file => mediaFileKey(file) === key)
+      if (currentIndex <= 0) return current
+      const next = [...current]
+      const [cover] = next.splice(currentIndex, 1)
+      next.unshift(cover)
+      return next
+    })
+  }
+
+  function selectCoverImage(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('A capa precisa ser uma imagem.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError('A imagem da capa precisa ter no máximo 2 MB.')
+      return
+    }
+    setCoverFile(normalizeMediaFile(file))
+    setCoverSourceKey('custom')
+    setCoverTime(null)
+  }
   useEffect(() => {
     let draft = window.__socialAiPostDraft || null
     try {
@@ -1141,6 +1239,19 @@ export function SchedulerPage() {
     return () => { cancelled = true }
   }, [allComposerFiles])
 
+  useEffect(() => {
+    if (coverFile) return
+    const isCurrentPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
+    if (isCurrentPhotoCarousel && files.length) {
+      const firstKey = mediaFileKey(files[0])
+      if (coverSourceKey !== firstKey) setCoverSourceKey(firstKey)
+      return
+    }
+    const selectedCoverExists = files.some(file => mediaFileKey(file) === coverSourceKey)
+    if (files.length && (!selectedCoverExists || !coverSourceKey)) setCoverSourceKey(mediaFileKey(files[0]))
+    if (!files.length) setCoverSourceKey('')
+  }, [files, coverFile, coverSourceKey])
+
   // Lê metadados (largura/altura) dos vídeos selecionados para checar a
   // proporção exigida pelo TikTok antes do upload — ver postValidation.js.
   useEffect(() => {
@@ -1171,6 +1282,22 @@ export function SchedulerPage() {
       duration: meta?.duration || 0,
     }
   }, [allComposerFiles, mediaMetaByKey])
+
+  const coverFilePreviewUrl = useMemo(() => coverFile ? URL.createObjectURL(coverFile) : '', [coverFile])
+  useEffect(() => () => {
+    if (coverFilePreviewUrl) URL.revokeObjectURL(coverFilePreviewUrl)
+  }, [coverFilePreviewUrl])
+  const selectedCoverPreview = mediaPreviews.find(preview => preview.key === coverSourceKey)
+  const videoCoverFile = files.find(file => file.type.startsWith('video/'))
+  const isPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
+  const coverPreviewUrl = coverFilePreviewUrl || (isPhotoCarousel ? selectedCoverPreview?.url : '') || ''
+  useEffect(() => {
+    if (coverFile && !videoCoverFile) {
+      setCoverFile(null)
+      setCoverSourceKey('')
+      setCoverTime(null)
+    }
+  }, [videoCoverFile, coverFile])
 
   const carouselQualityNotes = useMemo(() => {
     if (files.length < 2 || files.some(file => !file.type.startsWith('image/'))) return []
@@ -1232,7 +1359,10 @@ export function SchedulerPage() {
     try {
       const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
       setProgress(allComposerFiles.length ? 'Enviando mídias...' : 'Validando agendamento...')
-      const filesToUpload = allComposerFiles
+      const filesToUpload = Array.from(new Map([
+        ...allComposerFiles,
+        ...(coverFile ? [coverFile] : [])
+      ].map(file => [mediaFileKey(file), file])).values())
       const uploadedFiles = await uploadWithConcurrency(filesToUpload, uploadFile, 3, (completed, total) => setProgress(`Enviando mídias (${completed}/${total})...`))
       const uploadedByKey = new Map(filesToUpload.map((file, index) => [mediaFileKey(file), uploadedFiles[index]]))
       const uploadedItems = platformFiles => platformFiles.map(file => uploadedByKey.get(mediaFileKey(file))).filter(Boolean)
@@ -1240,11 +1370,13 @@ export function SchedulerPage() {
       const mediaByPlatform = Object.fromEntries(Object.entries(filesByPlatform)
         .filter(([platform]) => selected.includes(platform))
         .map(([platform, platformFiles]) => [platform, uploadedItems(platformFiles)]))
+      const uploadedCover = coverFile ? uploadedByKey.get(mediaFileKey(coverFile)) : null
+      const cover = uploadedCover ? { url: uploadedCover.url, mimetype: uploadedCover.mimetype, name: uploadedCover.name, time: Number.isFinite(coverTime) ? coverTime : null } : null
       const scheduledAt = publishNow ? new Date().toISOString() : date
       const platformTexts = textsForSelectedPlatforms(textByPlatform, selected)
       const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
       setProgress(requestingApproval ? 'Salvando para aprovação...' : publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')
-       const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, requiresApproval: requestingApproval, media: JSON.stringify(media), mediaByPlatform: JSON.stringify(mediaByPlatform), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
+       const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, requiresApproval: requestingApproval, media: JSON.stringify(media), mediaByPlatform: JSON.stringify(mediaByPlatform), cover: JSON.stringify(cover), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
       if (publishNow && !createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar a confirmação. Verifique o histórico de atividades.')
       if (requestingApproval) {
         await apiFetch(`/api/workspaces/${approvalWorkspaceId}/approvals`, { method: 'POST', body: JSON.stringify({ postId: Number(createdPost.id) }) })
@@ -1294,7 +1426,6 @@ export function SchedulerPage() {
   const carouselPlatforms = selected.filter(platform => platform === 'instagram' || platform === 'tiktok' || platform === 'facebook' && facebookFormat === 'post')
   const carouselLimit = selected.includes('instagram') || selected.includes('facebook') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_PHOTO_MAX_ITEMS
   const carouselLabel = selected.includes('instagram') ? 'Feed do Instagram' : selected.includes('facebook') ? 'Feed do Facebook' : 'TikTok'
-  const isPhotoCarousel = files.length > 1 && files.every(file => file.type.startsWith('image/'))
 
   function closePublicationModal() {
     setPublicationModalOpen(false)
@@ -1354,12 +1485,16 @@ export function SchedulerPage() {
       </div>
       {files.length > 0 && <div className={`media-preview-grid${selected.includes('tiktok') ? ' media-preview-grid-tiktok' : ''}`} aria-label="Arquivos selecionados">{mediaPreviews.map((item, index) => <article className="media-preview-card" key={item.key}>
         {isPhotoCarousel && index === 0 && <span className="media-cover-badge">Capa</span>}
-        {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <video className="media-video-thumb" src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} />}
-        <div className="media-preview-info"><strong title={item.file.name}>{isPhotoCarousel ? `${index + 1}. ${item.file.name}` : item.file.name}</strong><small>{item.file.type.startsWith('video/') ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</small></div>
-        {isPhotoCarousel && <div className="media-order-actions"><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Mover ${item.file.name} para a esquerda`}>←</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === files.length - 1} aria-label={`Mover ${item.file.name} para a direita`}>→</button></div>}
+         {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <video className="media-video-thumb" src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} />}
+         <div className="media-preview-info"><strong title={item.file.name}>{isPhotoCarousel ? `${index + 1}. ${item.file.name}` : item.file.name}</strong><small>{item.file.type.startsWith('video/') ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</small></div>
+         {isPhotoCarousel && <button type="button" className={`media-cover-select${index === 0 ? ' is-selected' : ''}`} onClick={() => chooseImageCover(item.key)}>{index === 0 ? 'Capa selecionada' : 'Usar como capa'}</button>}
+         {isPhotoCarousel && <div className="media-order-actions"><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Mover ${item.file.name} para a esquerda`}>←</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === files.length - 1} aria-label={`Mover ${item.file.name} para a direita`}>→</button></div>}
         <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
       </article>)}{carouselPlatforms.length > 0 && <label className="media-add-card"><span aria-hidden="true">＋</span><small>Adicionar fotos</small><input className="upload-picker-input" type="file" multiple accept="image/*" onChange={selectFiles} aria-label="Adicionar fotos ao carrossel"/></label>}</div>}
-      {mediaProfile && <div className="media-detection-panel" role="status"><div><strong>{mediaKindLabel(mediaProfile.kind)}</strong><span>{mediaProfile.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'Lendo a proporção original…'}</span></div><small>{mediaProfile.width && mediaProfile.height ? `${mediaProfile.width} × ${mediaProfile.height}px` : 'A prévia será ajustada automaticamente.'}</small>{selected.includes('tiktok') && mediaProfile.kind === 'video' && <small>Versão enviada ao TikTok: {TIKTOK_VIDEO_DIMENSIONS.label} · vertical 9:16</small>}</div>}
+      {videoCoverFile && <VideoCoverPicker file={videoCoverFile} value={coverTime} onChange={setCoverTime} coverUrl={coverFilePreviewUrl} onCapture={file => { if (file.size > 2 * 1024 * 1024) { setError('O frame escolhido ficou maior que 2 MB. Escolha outro frame.'); return } setCoverFile(file); setCoverSourceKey('custom') }} onImageSelect={selectCoverImage} onClear={() => { setCoverFile(null); setCoverSourceKey(''); setCoverTime(null) }} />}
+      {videoCoverFile && selected.includes('youtube') && youtubeFormat === 'short' && <p className="media-cover-hint">O YouTube não aplica capas personalizadas em Shorts; nos demais formatos e redes compatíveis, a capa escolhida será enviada.</p>}
+       {isPhotoCarousel && <p className="media-cover-hint">A primeira foto será a capa do carrossel. Clique em “Usar como capa” para trocar.</p>}
+       {mediaProfile && <div className="media-detection-panel" role="status"><div><strong>{mediaKindLabel(mediaProfile.kind)}</strong><span>{mediaProfile.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'Lendo a proporção original…'}</span></div><small>{mediaProfile.width && mediaProfile.height ? `${mediaProfile.width} × ${mediaProfile.height}px` : 'A prévia será ajustada automaticamente.'}</small>{selected.includes('tiktok') && mediaProfile.kind === 'video' && <small>Versão enviada ao TikTok: {TIKTOK_VIDEO_DIMENSIONS.label} · vertical 9:16</small>}</div>}
       {isPhotoCarousel && carouselQualityNotes.length > 0 && <div className="carousel-quality-panel" role="status"><strong>Revisão visual do carrossel</strong>{carouselQualityNotes.map(note => <span key={note}>• {note}</span>)}</div>}
       {selected.length > 0 && <div className="platform-text-editors" aria-label="Textos e configurações específicas por rede"><div className="platform-text-editors-heading"><strong>Texto de cada rede</strong><span>Adapte o conteúdo para cada rede social. A mídia usada é a selecionada acima.</span></div><div className="platform-composer-list">{selected.map(platform => {
         const platformLabel = PLATFORM_TEXT_LIMITS[platform]?.label || aiPlatformLabels[platform] || platform
@@ -1375,8 +1510,8 @@ export function SchedulerPage() {
             <label className="tiktok-description-field"><span><span>Descrição</span><small>{(textByPlatform.tiktokDescription || '').length}/4000</small></span><textarea value={textByPlatform.tiktokDescription || ''} onChange={event => updatePlatformText('tiktok', event.target.value)} maxLength={4000} placeholder="Escrever uma descrição longa pode ajudar a obter, em média, 3x mais visualizações" aria-label="Descrição do TikTok"/><span className="tiktok-description-actions"><button type="button" onClick={() => insertTiktokToken('#')}># Hashtags</button><button type="button" onClick={() => insertTiktokToken('@')}>@ Mencionar</button></span></label>
           </div> : <label className={`platform-text-editor platform-text-editor-${platform}`}><span className="platform-text-editor-label"><span>{platformLabel}</span><span>{value.length}/{limit} caracteres</span></span><textarea value={value} onChange={event => updatePlatformText(platform, event.target.value)} maxLength={limit} placeholder={`Escreva o texto do ${platformLabel}...`} aria-label={`Texto específico do ${platformLabel}`}/><small>Este conteúdo é enviado somente para o {platformLabel}.</small></label>}
            </div><section className="platform-composer-settings" aria-label={`Configurações do ${platformLabel}`}><div className="platform-composer-settings-heading"><div><strong>Configurações da rede</strong><span>Ajustes aplicados somente ao {platformLabel}.</span></div><span className="platform-composer-settings-scope">Somente {platformLabel}</span></div>
-             {platform === 'instagram' && <div className="platform-composer-settings-grid"><label>Formato Instagram<select value={igFormat} onChange={event => setIgFormat(event.target.value)}><option value="post">Feed (imagem/carrossel)</option><option value="reel">Reel</option><option value="story">Story</option></select></label><label>Proporção da prévia Instagram<select value={igAspect} onChange={event => setIgAspect(event.target.value)}>{igFormat === 'post' && <><option value="auto">Automático · detectar</option><option value="square">Foto · 1:1 · 1080 × 1080</option><option value="portrait">Foto · 4:5 · 1080 × 1350</option><option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option></>}{['reel', 'story'].includes(igFormat) && <option value="vertical">Vídeo vertical · 9:16 · 1080 × 1920</option>}</select></label><p className="platform-composer-no-settings">{socialMediaLimitHint('instagram', { instagramFormat: igFormat })}</p></div>}
-              {platform === 'facebook' && <div className="platform-composer-settings-grid"><label>Formato Facebook<select value={facebookFormat} onChange={event => setFacebookFormat(event.target.value)}><option value="post">Feed (imagem/vídeo)</option><option value="reel">Reel · vídeo 9:16</option></select></label><p className="platform-composer-no-settings">{facebookFormat === 'reel' ? 'Reel: um único vídeo vertical 9:16 · 1080 × 1920 px.' : `Feed: ${SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}.`} {socialMediaLimitHint('facebook', { facebookFormat })}</p></div>}
+             {platform === 'instagram' && <div className="platform-composer-settings-grid"><label>Formato Instagram<select value={igFormat} onChange={event => setIgFormat(event.target.value)}><option value="post">Feed (imagem/carrossel)</option><option value="reel">Reels</option><option value="story">Story</option></select></label><label>Proporção da prévia Instagram<select value={igAspect} onChange={event => setIgAspect(event.target.value)}>{igFormat === 'post' && <><option value="auto">Automático · detectar</option><option value="square">Foto · 1:1 · 1080 × 1080</option><option value="portrait">Foto · 4:5 · 1080 × 1350</option><option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option></>}{['reel', 'story'].includes(igFormat) && <option value="vertical">Vídeo vertical · 9:16 · 1080 × 1920</option>}</select></label><p className="platform-composer-no-settings">{socialMediaLimitHint('instagram', { instagramFormat: igFormat })}</p></div>}
+              {platform === 'facebook' && <div className="platform-composer-settings-grid"><label>Formato Facebook<select value={facebookFormat} onChange={event => setFacebookFormat(event.target.value)}><option value="post">Feed (imagem/vídeo)</option><option value="reel">Reels · vídeo 9:16</option></select></label><p className="platform-composer-no-settings">{facebookFormat === 'reel' ? 'Reels: um único vídeo vertical 9:16 · 1080 × 1920 px.' : `Feed: ${SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}.`} {socialMediaLimitHint('facebook', { facebookFormat })}</p></div>}
               {platform === 'youtube' && <div className="platform-composer-settings-grid"><label>Título do YouTube<input value={youtubeTitle} onChange={event => setYoutubeTitle(event.target.value)} maxLength={100}/></label><label>Visibilidade<select value={youtubeVisibility} onChange={event => setYoutubeVisibility(event.target.value)}><option value="public">Público</option><option value="unlisted">Não listado</option><option value="private">Privado</option></select></label><label>Feito para crianças (YouTube)<select value={youtubeMadeForKids} onChange={event => setYoutubeMadeForKids(event.target.value)}><option value="">Selecione...</option><option value="false">Não</option><option value="true">Sim</option></select></label><label>Categoria do YouTube<select value={youtubeCategoryId} onChange={event => setYoutubeCategoryId(event.target.value)}><option value="">Automática</option>{youtubeCategories.map(category => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label><label>Formato do YouTube<select value={youtubeFormat} onChange={event => setYoutubeFormat(event.target.value)}><option value="">Automático · detectar</option><option value="video">Vídeo · 1920 × 1080</option><option value="short">Short · 9:16 · 1080 × 1920 · menos de 60s</option></select></label><p className="platform-composer-no-settings">{socialMediaLimitHint('youtube', { youtubeFormat })}</p></div>}
         {platform === 'tiktok' && <div className="platform-composer-settings-grid"><label>Formato do TikTok<span className="platform-composer-fixed-format">{files.length > 1 && isPhotoCarousel ? `Carrossel de fotos · até ${TIKTOK_PHOTO_MAX_ITEMS} imagens · ajuste sem corte` : files[0]?.type.startsWith('image/') ? 'Foto · qualquer proporção · ajuste sem corte para 1080 × 1920 px' : `${TIKTOK_VIDEO_DIMENSIONS.label} · vídeo 9:16`}</span></label><label>Privacidade TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label><fieldset className="checkbox-group"><legend>Interações do TikTok</legend><div className="checkbox-row"><label><input type="checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)}/> Bloquear comentários</label><label><input type="checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)}/> Bloquear duet</label><label><input type="checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)}/> Bloquear stitch</label></div></fieldset><p className="platform-composer-no-settings">{socialMediaLimitHint('tiktok')}</p></div>}
           </section>
@@ -1399,5 +1534,5 @@ export function SchedulerPage() {
 
       {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : approvalWorkspaceId ? 'enviar para aprovação' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
     <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
-  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
+  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} coverUrl={coverPreviewUrl} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
 }

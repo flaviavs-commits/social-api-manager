@@ -23,6 +23,8 @@ router.use(requirePaidPlan)
 
 router.get('/inbox/unread', requireInboxPlan, controller.getInboxUnread)
 router.post('/inbox/seen', requireInboxPlan, controller.postInboxSeen)
+router.get('/inbox/remote-comments', requireInboxPlan, controller.getRemoteComments)
+router.post('/inbox/remote-comments/reply', requireInboxPlan, controller.postRemoteCommentReply)
 router.post('/:id/comments/seen', requireInboxPlan, controller.postCommentSeen)
 router.get('/inbox', requireInboxPlan, controller.getInbox)
 
