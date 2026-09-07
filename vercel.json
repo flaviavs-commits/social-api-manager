@@ -1,5 +1,6 @@
 {
   "framework": null,
+  "buildCommand": "npm run frontend:build",
   "outputDirectory": "public",
   "crons": [
     { "path": "/api/cron/media-cleanup", "schedule": "0 3 * * *" }
