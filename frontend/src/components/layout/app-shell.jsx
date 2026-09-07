@@ -44,6 +44,11 @@ const navigation = [
   ,['equipe', 'Equipe']
 ].filter(([key]) => key !== 'equipe' || TEAM_APPROVAL_UI_ENABLED)
 
+const navigationGroups = [
+  ['Principal', navigation.slice(0, 3)],
+  ['Seu espaço', navigation.slice(3)],
+]
+
 function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   const d = icons[name]
   if (!d) return null
@@ -60,42 +65,49 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
     <aside
       className={`app-sidebar sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}${collapsed ? ' is-collapsed' : ''}`}
     >
-      <a href="/app/dashboard" onClick={event => { event.preventDefault(); onNavigate('dashboard') }} aria-label="Meu Ecoo Mídia - ir para o dashboard" className="group flex flex-col items-center gap-2 border-b border-subtle px-5 py-5 text-center">
-        <img src="/logo.png" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
-        <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
-      </a>
-      <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
+      <div className="sidebar-header">
+        <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu'}><span aria-hidden="true">☰</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
+        <a href="/app/dashboard" onClick={event => { event.preventDefault(); onNavigate('dashboard') }} aria-label="Meu Ecoo Mídia - ir para o dashboard" className="sidebar-brand group flex flex-col items-center gap-2 text-center">
+          <img src="/logo.png" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
+          <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
+        </a>
+      </div>
 
       <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
-        {navigation.map(([key, label]) => {
-          const active = page === key
-          const locked = user && !hasActivePlanModule(user.plan, key, user.planActive, user.planUnrestricted)
-          return (
-            <button
-              key={key}
-              data-tutorial-target={key}
-              onClick={() => onNavigate(key)}
-              title={collapsed ? label : undefined}
-              aria-label={label}
-              aria-current={active ? 'page' : undefined}
-              className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${locked ? 'opacity-60' : ''} ${
-                active
-                  ? 'border-gold bg-gold/10 text-gold'
-                  : 'border-transparent text-zinc-400 hover:bg-surface-soft hover:text-zinc-100'
-              }`}
-            >
-              <span className="flex items-center gap-2.5">
-                <NavIcon name={key} />
-                <span className="sidebar-nav-label">{label}</span>
-              </span>
-              {(active || locked) && (
-                <span className={`sidebar-active-label rounded-full px-2 py-0.5 text-[11px] font-semibold ${locked ? 'bg-gold/10 text-gold' : 'bg-green-500/10 text-green-500'}`}>
-                  {locked ? 'Plano' : 'Ativo'}
-                </span>
-              )}
-            </button>
-          )
-        })}
+        {navigationGroups.map(([groupLabel, groupItems], groupIndex) => (
+          <div className={`sidebar-nav-group${groupIndex ? ' sidebar-nav-group-separated' : ''}`} key={groupLabel}>
+            <h2 className="sidebar-nav-group-label">{groupLabel}</h2>
+            {groupItems.map(([key, label]) => {
+              const active = page === key
+              const locked = user && !hasActivePlanModule(user.plan, key, user.planActive, user.planUnrestricted)
+              return (
+                <button
+                  key={key}
+                  data-tutorial-target={key}
+                  onClick={() => onNavigate(key)}
+                  title={collapsed ? label : undefined}
+                  aria-label={label}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group flex items-center justify-between rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition-colors ${locked ? 'opacity-60' : ''} ${
+                    active
+                      ? 'border-gold bg-gold/10 text-gold'
+                      : 'border-transparent text-zinc-400 hover:bg-surface-soft hover:text-zinc-100'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <NavIcon name={key} />
+                    <span className="sidebar-nav-label">{label}</span>
+                  </span>
+                  {(active || locked) && (
+                    <span className={`sidebar-active-label rounded-full px-2 py-0.5 text-[11px] font-semibold ${locked ? 'bg-gold/10 text-gold' : 'bg-green-500/10 text-green-500'}`}>
+                      {locked ? 'Plano' : 'Ativo'}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="sidebar-legal-links mx-3 mb-3 border-t border-subtle pt-3">

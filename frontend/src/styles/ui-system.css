@@ -11,6 +11,157 @@ body,
   overflow-x: hidden;
 }
 
+/* Sidebar inspired by the familiar YouTube navigation rhythm. The brand
+ * image remains the existing /logo.png asset; only its surrounding layout
+ * changes. */
+html[data-theme] .app-shell-modern .sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-theme] .app-shell-modern .sidebar-brand {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+}
+
+html[data-theme] .app-shell-modern .sidebar-collapse-button {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0;
+}
+
+html[data-theme] .app-shell-modern .sidebar-collapse-button:hover,
+html[data-theme] .app-shell-modern .sidebar-collapse-button:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+html[data-theme] .app-shell-modern .sidebar-collapse-button span:first-child {
+  font-size: 23px;
+  line-height: 1;
+}
+
+html[data-theme] .app-shell-modern .sidebar-collapse-label {
+  display: none;
+}
+
+html[data-theme] .app-shell-modern .sidebar-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 12px 18px;
+}
+
+html[data-theme] .app-shell-modern .sidebar-nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+html[data-theme] .app-shell-modern .sidebar-nav-group-separated {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme] .app-shell-modern .sidebar-nav-group-label {
+  margin: 0;
+  padding: 6px 12px 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+html[data-theme] .app-shell-modern .sidebar-navigation button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-left: 0 !important;
+  border-radius: 12px;
+}
+
+html[data-theme] .app-shell-modern .sidebar-navigation button > span:first-child {
+  min-width: 0;
+  gap: 14px;
+}
+
+html[data-theme] .app-shell-modern .sidebar-navigation button svg {
+  display: block;
+  width: 20px !important;
+  height: 20px !important;
+  flex: 0 0 20px;
+}
+
+html[data-theme] .app-shell-modern .sidebar-navigation button.is-active {
+  border-left: 0 !important;
+  background: var(--surface-2) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+@media (min-width: 768px) {
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-header {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 8px;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-brand {
+    width: 100%;
+    order: 2;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-collapse-button {
+    order: 1;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-navigation {
+    padding: 12px 8px 18px;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-navigation button {
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar.is-collapsed .sidebar-nav-group-label {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  html[data-theme] .app-shell-modern .sidebar-header {
+    justify-content: center;
+    padding: 10px 4px 12px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-brand {
+    flex: 0 1 auto;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-brand img {
+    width: 62px;
+    height: 42px;
+    object-fit: contain;
+  }
+}
+
 .app-shell-modern .app-main-content,
 .app-shell-modern .page-view {
   min-width: 0;
