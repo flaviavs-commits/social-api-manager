@@ -3,6 +3,9 @@ import { apiFetch } from '../../lib/api.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+const COMMENTS_REFRESH_INTERVAL_MS = 15_000
+const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 5_000
+const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 60_000
 
 function formatDate(value) {
   if (!value) return 'data não informada'
@@ -164,6 +167,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
   const [post, setPost] = useState(() => previewFromInboxPost(initialPost))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [waitingForComments, setWaitingForComments] = useState(false)
   const [savedTexts, setSavedTexts] = useState([])
 
   const load = useCallback((silent = false, signal) => {
@@ -174,14 +178,19 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
       : ''
     return apiFetch(remote ? `/api/posts/inbox/remote-comments${remote}` : `/api/posts/${postId}/comments`, { signal })
       .then(result => {
-        if (signal?.aborted) return
+        if (signal?.aborted) return { aborted: true }
         const nextComments = result.comments || []
         setComments(nextComments)
         setPost(current => ({ ...(current || {}), ...(result.post || {}) }))
         setError(result.error || '')
         if (nextComments.length && !initialPost?.remote) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
+        return { hasComments: nextComments.length > 0, hasError: Boolean(result.error) }
       })
-      .catch(caught => { if (!signal?.aborted) setError(caught.message) })
+      .catch(caught => {
+        if (signal?.aborted) return { aborted: true }
+        setError(caught.message)
+        return { hasComments: false, hasError: true }
+      })
       .finally(() => { if (!silent && !signal?.aborted) setLoading(false) })
   }, [initialPost, postId])
 
@@ -195,15 +204,21 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     setPost(previewFromInboxPost(initialPost))
     setComments([])
     setError('')
+    setWaitingForComments(false)
     setLoading(true)
+    const emptyRetryUntil = Date.now() + COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS
 
     const refresh = (silent = false) => {
       const currentVersion = ++version
       if (timer) window.clearTimeout(timer)
       controller.abort()
       controller = new AbortController()
-      load(silent, controller.signal).finally(() => {
-        if (active && currentVersion === version) timer = window.setTimeout(() => refresh(true), 15000)
+      load(silent, controller.signal).then(result => {
+        if (!active || currentVersion !== version || result?.aborted) return
+        const waiting = !result?.hasComments && !result?.hasError && Date.now() < emptyRetryUntil
+        setWaitingForComments(waiting)
+        const nextRefreshIn = waiting ? COMMENTS_EMPTY_RETRY_INTERVAL_MS : COMMENTS_REFRESH_INTERVAL_MS
+        timer = window.setTimeout(() => refresh(true), nextRefreshIn)
       })
     }
 
@@ -232,7 +247,8 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     <PostPreview post={visiblePost} />
     {error && <p className="error-message" style={{ textAlign: 'center', padding: '1.5rem' }}>{error}</p>}
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
-    {!error && !loading && !comments.length && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
+    {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
+    {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
       {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={load} savedTexts={savedTexts} />)}
     </div>}
