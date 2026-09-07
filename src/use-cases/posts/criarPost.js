@@ -4,9 +4,11 @@
 const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const { processarPost } = require('../../services/scheduler')
+const { schedulePost } = require('../../infra/social/publisher')
 const { probeVideo } = require('../../infra/storage/videoProbe')
 const { converterParaJpeg, lerDimensoesImagem, converterImagemParaTiktok, converterVideoParaTiktok, converterVideoParaInstagram } = require('../../infra/storage/mediaConverter')
-const { salvarBuffer, isBlobUrl } = require('../../infra/storage/blobStorage')
+const { salvarBuffer, isBlobUrl, readResponseLimited, readResponsePrefix, ALLOWED_MEDIA_TYPES } = require('../../infra/storage/blobStorage')
+const { validarAssinaturaMedia } = require('../../infra/storage/mediaSignature')
 const { isShortEligible, isAspectRatioValidForTiktok, isAspectRatioValidForInstagram, isVerticalNineBySixteen } = require('../../domain/posts/videoRules')
 const { validarCriacaoPost, montarItensMedia, normalizarScheduledAtBR, scheduledAtParaUTC } = require('../../domain/posts/post')
 const { parseSelectedAccountIds, validateSelectedAccounts } = require('../../domain/posts/accountSelection')
@@ -17,7 +19,59 @@ const path = require('path')
 const os = require('os')
 const fs = require('fs')
 const crypto = require('crypto')
-const { pipeline } = require('stream/promises')
+
+const MEDIA_FETCH_TIMEOUT_MS = 30_000
+const MAX_CONCURRENT_MEDIA_JOBS = Math.max(1, Number.parseInt(process.env.MAX_CONCURRENT_MEDIA_JOBS || '2', 10) || 2)
+let activeMediaJobs = 0
+const mediaJobWaiters = []
+
+async function acquireMediaJob() {
+  if (activeMediaJobs < MAX_CONCURRENT_MEDIA_JOBS) {
+    activeMediaJobs += 1
+    return
+  }
+  await new Promise(resolve => mediaJobWaiters.push(resolve))
+  activeMediaJobs += 1
+}
+
+function releaseMediaJob() {
+  activeMediaJobs = Math.max(0, activeMediaJobs - 1)
+  const next = mediaJobWaiters.shift()
+  if (next) next()
+}
+
+async function fetchMediaBuffer(url, message) {
+  const response = await fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
+  })
+  if (!response.ok) throw new Error(message)
+  return readResponseLimited(response)
+}
+
+async function fetchMediaPrefix(url, message) {
+  const response = await fetch(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(MEDIA_FETCH_TIMEOUT_MS),
+  })
+  if (!response.ok) throw new Error(message)
+  return readResponsePrefix(response)
+}
+
+async function validarAssinaturasMedia(files) {
+  const verificadas = new Map()
+  await Promise.all(files.map(async file => {
+    const mimetype = String(file.mimetype || '').toLowerCase()
+    const key = `${file.url}\u0000${mimetype}`
+    let validacao = verificadas.get(key)
+    if (!validacao) {
+      validacao = fetchMediaPrefix(file.url, 'Não foi possível validar a mídia enviada.')
+        .then(prefix => validarAssinaturaMedia(prefix, mimetype))
+      verificadas.set(key, validacao)
+    }
+    if (!(await validacao)) throw new ValidationError('O conteúdo da mídia não corresponde ao tipo informado.')
+  }))
+}
 
 // Instagram e TikTok recebem imagens em JPEG. Formatos de celular como HEIC,
 // PNG, GIF e WebP são convertidos sem reduzir a resolução ou alterar o
@@ -32,13 +86,9 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, t
     if (!f.mimetype.startsWith('image/')) return f
     if (f.mimetype === 'image/jpeg') return f
 
-    const fetchRes = await fetch(f.url)
-    if (!fetchRes.ok) throw new Error('Não foi possível baixar a imagem para preparar a publicação.')
-    // fetch nativo devolve um Web ReadableStream em .body, que o sharp NÃO
-    // aceita como input (só Buffer, path ou Node Readable clássico) — sem
-    // converter para Buffer aqui, toda conversão pra JPEG falha com
-    // "Unsupported input" e o post inteiro quebra com 500.
-    const inputBuffer = Buffer.from(await fetchRes.arrayBuffer())
+    // O limite é aplicado no stream, e não apenas pelo Content-Length, pois
+    // o Blob pode responder em chunked transfer ou com tamanho adulterado.
+    const inputBuffer = await fetchMediaBuffer(f.url, 'Não foi possível baixar a imagem para preparar a publicação.')
     const jpegBuffer = await converterParaJpeg(inputBuffer, { mimetype: f.mimetype })
     const url = await salvarBuffer(`${crypto.randomUUID()}.jpg`, jpegBuffer, 'image/jpeg')
     if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(jpegBuffer).catch(() => null)
@@ -52,9 +102,7 @@ async function converterMidiasSeNecessario(files, platforms, dimensoesPorPath, t
 // que não houve buffer intermediário disponível para medir de graça.
 async function lerDimensoesImagemPorUrl(url, tamanhosPorPath) {
   try {
-    const res = await fetch(url)
-    if (!res.ok) return null
-    const buffer = Buffer.from(await res.arrayBuffer())
+    const buffer = await fetchMediaBuffer(url, 'Não foi possível ler a imagem enviada.')
     if (tamanhosPorPath) tamanhosPorPath[url] = buffer.length
     return await lerDimensoesImagem(buffer)
   } catch {
@@ -72,10 +120,9 @@ async function probarVideos(files, tamanhosPorPath) {
     const ext = f.mimetype === 'video/quicktime' ? 'mov' : 'mp4'
     const tmpPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${ext}`)
     try {
-      const fetchRes = await fetch(f.url)
-      if (!fetchRes.ok) return null
-      await pipeline(fetchRes.body, fs.createWriteStream(tmpPath))
-      if (tamanhosPorPath) tamanhosPorPath[f.url] = (await fs.promises.stat(tmpPath)).size
+      const inputBuffer = await fetchMediaBuffer(f.url, 'Não foi possível baixar o vídeo enviado.')
+      await fs.promises.writeFile(tmpPath, inputBuffer)
+      if (tamanhosPorPath) tamanhosPorPath[f.url] = inputBuffer.length
       return await probeVideo(tmpPath)
     } catch {
       return null
@@ -99,9 +146,7 @@ async function normalizarVideosTiktok(files, probes, tamanhosPorPath) {
     const probe = probes[index]
     if (probe?.width === 1080 && probe?.height === 1920 && file.mimetype === 'video/mp4') return file
 
-    const response = await fetch(file.url)
-    if (!response.ok) throw new Error('Não foi possível baixar o vídeo para preparar a versão do TikTok.')
-    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const inputBuffer = await fetchMediaBuffer(file.url, 'Não foi possível baixar o vídeo para preparar a versão do TikTok.')
     const outputBuffer = await converterVideoParaTiktok(inputBuffer)
     const url = await salvarBuffer(`${crypto.randomUUID()}-tiktok.mp4`, outputBuffer, 'video/mp4')
     if (tamanhosPorPath) tamanhosPorPath[url] = tamanhosPorPath[file.url] ?? inputBuffer.length
@@ -113,9 +158,7 @@ async function normalizarImagensTiktok(files, dimensoesPorPath, tamanhosPorPath)
   return Promise.all(files.map(async file => {
     if (!file.mimetype.startsWith('image/')) return file
 
-    const response = await fetch(file.url)
-    if (!response.ok) throw new Error('Não foi possível baixar a foto para preparar a versão do TikTok.')
-    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const inputBuffer = await fetchMediaBuffer(file.url, 'Não foi possível baixar a foto para preparar a versão do TikTok.')
     const outputBuffer = await converterImagemParaTiktok(inputBuffer)
     const url = await salvarBuffer(`${crypto.randomUUID()}-tiktok.jpg`, outputBuffer, 'image/jpeg')
     if (dimensoesPorPath) dimensoesPorPath[url] = await lerDimensoesImagem(outputBuffer).catch(() => null)
@@ -128,9 +171,7 @@ async function normalizarVideosInstagram(files, tamanhosPorPath) {
   return Promise.all(files.map(async file => {
     if (!file.mimetype.startsWith('video/')) return file
 
-    const response = await fetch(file.url)
-    if (!response.ok) throw new Error('Não foi possível baixar o vídeo para preparar a versão do Instagram.')
-    const inputBuffer = Buffer.from(await response.arrayBuffer())
+    const inputBuffer = await fetchMediaBuffer(file.url, 'Não foi possível baixar o vídeo para preparar a versão do Instagram.')
     const outputBuffer = await converterVideoParaInstagram(inputBuffer)
     const url = await salvarBuffer(`${crypto.randomUUID()}-instagram.mp4`, outputBuffer, 'video/mp4')
     if (tamanhosPorPath) tamanhosPorPath[url] = tamanhosPorPath[file.url] ?? inputBuffer.length
@@ -138,7 +179,7 @@ async function normalizarVideosInstagram(files, tamanhosPorPath) {
   }))
 }
 
-async function processarMidia(media, captions, platforms, igFormat, { normalizarTiktok = false, normalizarInstagram = false, facebookFormat = 'post', youtubeFormat } = {}) {
+async function processarMidiaSemLimite(media, captions, platforms, igFormat, { normalizarTiktok = false, normalizarInstagram = false, facebookFormat = 'post', youtubeFormat } = {}) {
   const dimensoesPorPath = {}
   const tamanhosPorPath = {}
   let files = await converterMidiasSeNecessario(media, platforms, dimensoesPorPath, tamanhosPorPath)
@@ -215,6 +256,20 @@ async function processarMidia(media, captions, platforms, igFormat, { normalizar
   return { items, mediaType, mediaMetadata, aspectRatioValidoTiktok, aspectRatioValidoInstagram, aspectRatioValidoFacebook, shortElegivel }
 }
 
+// Um usuário pode provocar várias conversões/probes no mesmo post e também
+// enviar várias requisições em paralelo. O limite por processo evita que cada
+// uma mantenha múltiplos buffers grandes e processos ffprobe/ffmpeg ativos ao
+// mesmo tempo. Em múltiplas instâncias, o limite continua sendo aplicado por
+// instância, complementado pelo rate limit HTTP.
+async function processarMidia(...args) {
+  await acquireMediaJob()
+  try {
+    return await processarMidiaSemLimite(...args)
+  } finally {
+    releaseMediaJob()
+  }
+}
+
 async function criarPost({ body, userId, userRole, isAdmin }) {
   const startedAt = Date.now()
   const { text, scheduledAt, repeat = 'none', youtubeTitle, youtubeVisibility = 'public', youtubeCategoryId, youtubeFormat, igFormat, facebookFormat = 'post', tiktokPrivacyLevel, locationId, locationName, firstComment } = body
@@ -240,6 +295,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   } catch {
     throw new ValidationError('platforms inválido')
   }
+  if (!Array.isArray(platforms)) throw new ValidationError('platforms inválido')
 
   // Contas específicas escolhidas no modal "Gerenciar contas específicas"
   // (ex.: só 1 das 2 contas de Instagram conectadas) — opcional, por
@@ -289,6 +345,11 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('media inválido')
   }
   if (!Array.isArray(media) || media.some(m => !m?.url || !m?.mimetype)) throw new ValidationError('Cada item de media precisa ter url e mimetype')
+  if (media.length > 35) throw new ValidationError('O post pode conter no máximo 35 mídias.')
+  for (const item of media) {
+    item.mimetype = String(item.mimetype).toLowerCase()
+    if (!ALLOWED_MEDIA_TYPES.has(item.mimetype)) throw new ValidationError('Tipo de mídia não permitido.')
+  }
   // Bloqueia SSRF: só aceita mídia que já passou pelo upload direto ao Vercel
   // Blob (POST /upload-url) — o servidor faz fetch() dessas URLs mais adiante
   // (conversão de imagem, probe de vídeo, publishers), então aceitar qualquer
@@ -303,7 +364,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   } catch {
     throw new ValidationError('cover inválida')
   }
-  if (cover && (!cover.url || !cover.mimetype || !cover.mimetype.startsWith('image/') || !isBlobUrl(cover.url))) {
+  if (cover) cover.mimetype = String(cover.mimetype || '').toLowerCase()
+  if (cover && (!cover.url || !ALLOWED_MEDIA_TYPES.has(cover.mimetype) || !cover.mimetype.startsWith('image/') || !isBlobUrl(cover.url))) {
     throw new ValidationError('A capa precisa ser uma imagem enviada pelo upload padrão.')
   }
 
@@ -332,11 +394,24 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     throw new ValidationError('captionsByPlatform inválido')
   }
   for (const [platform, mediaDaRede] of Object.entries(mediaByPlatform)) {
+    if (!platforms.includes(platform)) throw new ValidationError(`mediaByPlatform contém uma rede que não foi selecionada: ${platform}.`)
     if (!Array.isArray(mediaDaRede) || mediaDaRede.some(m => !m?.url || !m?.mimetype))
       throw new ValidationError(`Cada item de mediaByPlatform.${platform} precisa ter url e mimetype`)
+    if (mediaDaRede.length > 35) throw new ValidationError(`mediaByPlatform.${platform} pode conter no máximo 35 mídias.`)
     if (mediaDaRede.some(m => !isBlobUrl(m.url)))
       throw new ValidationError(`URL de mídia inválida em mediaByPlatform.${platform} — envie o arquivo pelo upload padrão.`)
+    for (const item of mediaDaRede) {
+      item.mimetype = String(item.mimetype).toLowerCase()
+      if (!ALLOWED_MEDIA_TYPES.has(item.mimetype)) throw new ValidationError(`Tipo de mídia não permitido em mediaByPlatform.${platform}.`)
+    }
   }
+
+  const todasAsMidias = [
+    ...media,
+    ...(cover ? [cover] : []),
+    ...Object.values(mediaByPlatform).flat(),
+  ]
+  await validarAssinaturasMedia(todasAsMidias)
 
   // A mídia compartilhada mantém resolução e enquadramento originais em
   // todas as redes; cada API faz o enquadramento final.
@@ -464,6 +539,22 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   await postsRepo.definirContasDoPost(post.id, contas, itemsByPlatform)
   const postAccounts = await postsRepo.listarContasDoPost(post.id)
   console.info(`[posts] #${post.id} pronto para ${requiresApproval ? 'aprovação' : publishNow ? 'publicação' : 'agendamento'} em ${Date.now() - startedAt}ms`)
+
+  // Para posts futuros compostos apenas por contas Zernio, agenda no provedor
+  // agora. O cron local não pode ser a fonte da publicação, pois a aplicação
+  // pode estar desligada no horário escolhido. scheduledAtBR preserva o horário
+  // de Brasília e o offset -03:00 recebido do formulário.
+  const agendaExternaZernio = !requiresApproval && !publishNow && repeat === 'none' && postAccounts.length > 0 && postAccounts.every(account => account.zernioAccountId)
+  if (agendaExternaZernio) {
+    const resultados = await schedulePost({ ...post, scheduledFor: scheduledAtBR, accounts: postAccounts, userRole })
+    const falhas = resultados.filter(resultado => resultado.success === false)
+    if (falhas.length) {
+      const status = resultados.some(resultado => resultado.success === 'scheduled') ? 'partial' : 'error'
+      const detalhe = falhas.map(resultado => `${resultado.platform}: ${resultado.error || 'falha ao agendar no Zernio'}`).join(' | ')
+      await postsRepo.atualizarStatusPost(post.id, status, detalhe)
+      return { post: { ...post, status, warnings }, status: 201 }
+    }
+  }
 
   // O histórico é observabilidade: uma falha ao gravá-lo não pode desfazer
   // nem impedir a criação do post já persistido.

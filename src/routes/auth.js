@@ -11,7 +11,7 @@ const { safeStringify, safeMessage } = require('../utils/redact')
 const { validarComplexidadeSenha } = require('../utils/http')
 const totp = require('../services/totp')
 const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAuthState, verificarGoogleOAuthState } = require('../utils/authToken')
-const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, AUTH_COOKIE, PENDING_2FA_COOKIE } = require('../utils/authCookie')
+const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, issueGoogleOAuthStateCookie, clearGoogleOAuthStateCookie, AUTH_COOKIE, PENDING_2FA_COOKIE, GOOGLE_OAUTH_STATE_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
 const { DEFAULT_PLAN, PLANS, SUPPORTED_PLATFORMS, getPlanConnectionLimit, getPlanPlatforms, normalizePlan } = require('../config/plans')
 const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
@@ -399,10 +399,12 @@ router.get('/google', (req, res) => {
     if (refererOrigin && origensPermitidas().includes(refererOrigin)) origin = refererOrigin
   } catch {}
 
-  // state CSRF: nonce assinado (HMAC) devolvido pelo Google no callback e
-  // validado ali sem depender de sessão/cookie. Sem ele, um atacante poderia
-  // forjar o callback (login CSRF), logando a vítima numa conta controlada por ele.
+  // state CSRF: nonce assinado e também vinculado a um cookie HttpOnly do
+  // navegador. A assinatura impede adulteração; o cookie impede que alguém
+  // gere um callback na própria sessão e o entregue a outra pessoa (login
+  // CSRF). O cookie é apagado no callback e expira em 10 minutos.
   const state = gerarGoogleOAuthState(origin ? { origin } : {})
+  issueGoogleOAuthStateCookie(res, verificarGoogleOAuthState(state).nonce)
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
@@ -426,6 +428,7 @@ router.get('/google-connect', (req, res) => {
   const redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI
   const scopes = ['openid', 'email', 'profile'].join(' ')
   const state = gerarGoogleOAuthState({ purpose: 'ai-connect' })
+  issueGoogleOAuthStateCookie(res, verificarGoogleOAuthState(state).nonce)
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth` +
     `?client_id=${process.env.GOOGLE_CLIENT_ID}` +
@@ -458,25 +461,30 @@ function paginaPopupAiConnect({ ok, email, erro }) {
 
 router.get('/google/callback', async (req, res) => {
   const { code, error, state } = req.query
+  const expectedNonce = readCookie(req, GOOGLE_OAUTH_STATE_COOKIE)
 
   // Extrai o domínio de origem do state (se presente e ainda válido) antes
   // de qualquer redirect de erro, para devolver o usuário ao mesmo domínio
   // de onde o login começou em vez de sempre cair no FRONTEND_URL padrão.
   let origin = null
-  try { origin = verificarGoogleOAuthState(state)?.origin || null } catch {}
+  let stateData
+  try {
+    stateData = verificarGoogleOAuthState(state, expectedNonce)
+    origin = stateData?.origin || null
+  } catch {}
+
+  // O callback é de uso único do navegador: mesmo em erro/cancelamento, não
+  // deixe o nonce válido para uma segunda tentativa com o mesmo state.
+  clearGoogleOAuthStateCookie(res)
+
+  if (!stateData) {
+    return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.', origin))
+  }
 
   if (error) {
     return res.send(friendlyAuthError('Login com Google cancelado.', origin))
   }
 
-  // Valida a assinatura/expiração do state (proteção CSRF) sem depender de
-  // sessão/cookie — o nonce viaja assinado dentro do próprio parâmetro.
-  let stateData
-  try {
-    stateData = verificarGoogleOAuthState(state)
-  } catch {
-    return res.send(friendlyAuthError('Sessão de login inválida ou expirada. Tente novamente.', origin))
-  }
   const isAiConnect = stateData?.purpose === 'ai-connect'
 
   try {

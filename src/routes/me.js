@@ -8,7 +8,8 @@ const credentialsRepo = require('../repositories/credentialsRepository')
 const { serverError, validarComplexidadeSenha } = require('../utils/http')
 const { addLog } = require('../middleware/logger')
 const totp = require('../services/totp')
-const { isBlobUrl } = require('../infra/storage/blobStorage')
+const { isBlobUrl, readResponsePrefix, ALLOWED_MEDIA_TYPES } = require('../infra/storage/blobStorage')
+const { validarAssinaturaMedia } = require('../infra/storage/mediaSignature')
 
 const BCRYPT_COST = 12
 
@@ -16,6 +17,22 @@ const router = Router()
 
 const PROFILE_PLATFORMS = new Set(['instagram', 'facebook', 'youtube', 'tiktok'])
 const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
+
+async function avatarValido(url) {
+  try {
+    const response = await fetch(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) return false
+    const contentType = String(response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase()
+    if (!contentType.startsWith('image/') || !ALLOWED_MEDIA_TYPES.has(contentType)) return false
+    const prefix = await readResponsePrefix(response)
+    return validarAssinaturaMedia(prefix, contentType)
+  } catch {
+    return false
+  }
+}
 const totpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -126,6 +143,8 @@ router.post('/avatar', async (req, res) => {
     if (avatarUrl) {
       if (!isBlobUrl(avatarUrl))
         return res.status(400).json({ erro: 'avatarUrl precisa ser uma imagem enviada pelo aplicativo.' })
+      if (!(await avatarValido(avatarUrl)))
+        return res.status(400).json({ erro: 'O arquivo enviado não é uma imagem válida.' })
     }
 
     const user = await usersRepo.atualizarAvatar(req.user.id, avatarUrl || null)

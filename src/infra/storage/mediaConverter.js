@@ -9,6 +9,8 @@ const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 
+const FFMPEG_TIMEOUT_SECONDS = 180
+
 if (ffmpegPath && fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath)
 
 async function converterParaJpeg(inputBuffer, { mimetype } = {}) {
@@ -77,6 +79,7 @@ async function converterVideoParaTiktok(inputBuffer) {
           '-b:a', '128k'
         ])
         .format('mp4')
+        .timeout(FFMPEG_TIMEOUT_SECONDS)
         .on('end', resolve)
         .on('error', reject)
         .save(outputPath)
@@ -118,6 +121,7 @@ async function converterVideoParaInstagram(inputBuffer) {
           '-movflags', '+faststart'
         ])
         .format('mp4')
+        .timeout(FFMPEG_TIMEOUT_SECONDS)
         .on('end', resolve)
         .on('error', reject)
         .save(outputPath)

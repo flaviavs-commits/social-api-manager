@@ -64,18 +64,22 @@ function decodeMediaProxyUrl(value) {
 // porque funções serverless da Vercel têm limite de tamanho de payload
 // (4.5MB no plano Hobby) — vídeos comuns de celular já excedem isso
 // facilmente, então o upload precisa ir direto do navegador para o storage.
-async function gerarUploadUrl(filename, mimetype) {
+async function gerarUploadUrl(filename, mimetype, { maxSizeBytes = MAX_UPLOAD_SIZE_BYTES, allowedMediaTypes = ALLOWED_MEDIA_TYPES } = {}) {
   const ext = path.extname(filename) || ''
   const pathname = `${crypto.randomUUID()}${ext}`
   const validUntil = Date.now() + UPLOAD_URL_TTL_MS
+  const allowedTypes = allowedMediaTypes instanceof Set ? allowedMediaTypes : new Set(allowedMediaTypes)
+  const maximumSizeInBytes = Number.isFinite(Number(maxSizeBytes)) && Number(maxSizeBytes) > 0
+    ? Number(maxSizeBytes)
+    : MAX_UPLOAD_SIZE_BYTES
 
   const signed = await issueSignedToken({ pathname, operations: ['put'], validUntil })
   const { presignedUrl } = await presignUrl(signed, {
     operation: 'put',
     pathname,
     access: BLOB_ACCESS,
-    allowedContentTypes: Array.from(ALLOWED_MEDIA_TYPES),
-    maximumSizeInBytes: MAX_UPLOAD_SIZE_BYTES,
+    allowedContentTypes: Array.from(allowedTypes),
+    maximumSizeInBytes,
     validUntil
   })
 
@@ -178,6 +182,28 @@ async function readResponseLimited(response, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
   return Buffer.concat(chunks, total)
 }
 
+async function readResponsePrefix(response, maxBytes = 64 * 1024) {
+  if (!response.body) return Buffer.alloc(0)
+  const reader = response.body.getReader()
+  const chunks = []
+  let total = 0
+  try {
+    while (total < maxBytes) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const remaining = maxBytes - total
+      const chunk = Buffer.from(value).subarray(0, remaining)
+      chunks.push(chunk)
+      total += chunk.length
+      if (value.byteLength >= remaining) break
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
+  }
+  return Buffer.concat(chunks, total)
+}
+
 async function readBlobStreamLimited(blobResult, maxBytes = MAX_UPLOAD_SIZE_BYTES) {
   const declared = Number(blobResult?.blob?.size || 0)
   if (declared > maxBytes) throw new Error('Mídia excede o tamanho máximo permitido')
@@ -195,5 +221,5 @@ async function readBlobStreamLimited(blobResult, maxBytes = MAX_UPLOAD_SIZE_BYTE
 module.exports = {
   ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES, gerarUploadUrl, salvarBuffer, isBlobUrl,
   isActualBlobUrl, canonicalBlobUrl, excluirBlobs, isPrivateBlobMode, getPrivateBlob, mediaProxyUrl, decodeMediaProxyUrl,
-  readResponseLimited, readBlobStreamLimited
+  readResponseLimited, readResponsePrefix, readBlobStreamLimited
 }

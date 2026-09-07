@@ -67,8 +67,16 @@ function gerarGoogleOAuthState(extra = {}) {
   return sign({ ...extra, nonce: crypto.randomBytes(16).toString('hex'), exp: Date.now() + 10 * 60 * 1000 }, process.env.AUTH_TOKEN_SECRET)
 }
 
-function verificarGoogleOAuthState(state) {
-  return verify(state, process.env.AUTH_TOKEN_SECRET)
+function verificarGoogleOAuthState(state, expectedNonce) {
+  const payload = verify(state, process.env.AUTH_TOKEN_SECRET)
+  if (expectedNonce !== undefined) {
+    const actual = Buffer.from(String(payload.nonce || ''))
+    const expected = Buffer.from(String(expectedNonce || ''))
+    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+      throw new Error('State OAuth não pertence a este navegador')
+    }
+  }
+  return payload
 }
 
 module.exports = {

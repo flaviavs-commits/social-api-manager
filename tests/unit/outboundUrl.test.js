@@ -14,4 +14,12 @@ describe('validateOutboundHttpsUrl', () => {
   ])('bloqueia destino proibido: %s', async url => {
     await expect(validateOutboundHttpsUrl(url)).rejects.toThrow()
   })
+
+  test.each([
+    'https://[::ffff:10.0.0.1]/hook',
+    'https://[::ffff:172.16.0.1]/hook',
+    'https://[::ffff:192.168.1.1]/hook',
+  ])('bloqueia IPv4 privado representado como IPv6: %s', async url => {
+    await expect(validateOutboundHttpsUrl(url)).rejects.toThrow()
+  })
 })

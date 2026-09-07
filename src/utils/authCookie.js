@@ -4,8 +4,10 @@ const crypto = require('crypto')
 const AUTH_COOKIE = 'auth_session'
 const PENDING_2FA_COOKIE = 'pending_2fa'
 const CSRF_COOKIE = 'csrf_token'
+const GOOGLE_OAUTH_STATE_COOKIE = 'google_oauth_state'
 const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60
 const PENDING_MAX_AGE_SECONDS = 5 * 60
+const GOOGLE_OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60
 
 function cookieOptions(maxAge) {
   const production = process.env.NODE_ENV === 'production'
@@ -22,6 +24,14 @@ function setCookie(res, name, value, maxAge) {
   const current = res.getHeader('Set-Cookie')
   const cookies = Array.isArray(current) ? current : current ? [current] : []
   cookies.push(`${name}=${encodeURIComponent(value)}; ${cookieOptions(maxAge)}`)
+  res.setHeader('Set-Cookie', cookies)
+}
+
+function setGoogleOAuthStateCookie(res, nonce, maxAge = GOOGLE_OAUTH_STATE_MAX_AGE_SECONDS) {
+  const production = process.env.NODE_ENV === 'production'
+  const current = res.getHeader('Set-Cookie')
+  const cookies = Array.isArray(current) ? current : current ? [current] : []
+  cookies.push(`${GOOGLE_OAUTH_STATE_COOKIE}=${encodeURIComponent(nonce || '')}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax${production ? '; Secure' : ''}`)
   res.setHeader('Set-Cookie', cookies)
 }
 
@@ -60,6 +70,14 @@ function clearPending2faCookie(res) {
   clearCookie(res, PENDING_2FA_COOKIE)
 }
 
+function issueGoogleOAuthStateCookie(res, nonce) {
+  setGoogleOAuthStateCookie(res, nonce)
+}
+
+function clearGoogleOAuthStateCookie(res) {
+  setGoogleOAuthStateCookie(res, '', 0)
+}
+
 function readCookie(req, name) {
   const header = req.headers.cookie || ''
   for (const item of header.split(';')) {
@@ -75,11 +93,14 @@ function readCookie(req, name) {
 module.exports = {
   AUTH_COOKIE,
   PENDING_2FA_COOKIE,
+  GOOGLE_OAUTH_STATE_COOKIE,
   CSRF_COOKIE,
   issueAuthSession,
   issuePending2fa,
   clearAuthCookies,
   clearPending2faCookie,
+  issueGoogleOAuthStateCookie,
+  clearGoogleOAuthStateCookie,
   readCookie,
   issueCsrfToken
 }

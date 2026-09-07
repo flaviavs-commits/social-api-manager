@@ -4,10 +4,11 @@ export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 let csrfToken = null
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, body = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body
   }
 }
 
@@ -68,7 +69,7 @@ async function request(path, options = {}) {
 
 export async function publicApiFetch(path, options = {}) {
   const { response, body } = await request(path, options)
-  if (!response.ok) throw new ApiError(errorMessage(body, 'Não foi possível concluir a operação'), response.status)
+  if (!response.ok) throw new ApiError(errorMessage(body, 'Não foi possível concluir a operação'), response.status, body)
   return body
 }
 
@@ -81,7 +82,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new ApiError(errorMessage(body, 'Não foi possível concluir a operação'), response.status)
+    throw new ApiError(errorMessage(body, 'Não foi possível concluir a operação'), response.status, body)
   }
 
   return body

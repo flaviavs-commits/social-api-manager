@@ -63,6 +63,12 @@ describe('gerarGoogleOAuthState / verificarGoogleOAuthState', () => {
     const state = gerarGoogleOAuthState({})
     expect(() => verificarGoogleOAuthState(state + 'X')).toThrow()
   })
+  test('state só é aceito com o nonce do navegador', () => {
+    const state = gerarGoogleOAuthState({})
+    const nonce = verificarGoogleOAuthState(state).nonce
+    expect(verificarGoogleOAuthState(state, nonce).nonce).toBe(nonce)
+    expect(() => verificarGoogleOAuthState(state, 'nonce-de-outra-sessao')).toThrow('não pertence a este navegador')
+  })
 })
 
 describe('gerarTokenAprovacaoAgente / verificarTokenAprovacaoAgente', () => {

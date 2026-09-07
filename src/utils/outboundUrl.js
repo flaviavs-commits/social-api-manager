@@ -1,10 +1,27 @@
 const dns = require('dns').promises
 const net = require('net')
+const { Agent } = require('undici')
 
 function ipv4ToNumber(value) {
   const parts = value.split('.').map(Number)
   if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return null
   return (((parts[0] * 256 + parts[1]) * 256 + parts[2]) * 256 + parts[3]) >>> 0
+}
+
+function mappedIpv4FromIpv6(value) {
+  const normalized = String(value || '').toLowerCase()
+  const suffix = normalized.startsWith('::ffff:')
+    ? normalized.slice('::ffff:'.length)
+    : normalized.startsWith('0:0:0:0:0:ffff:')
+      ? normalized.slice('0:0:0:0:0:ffff:'.length)
+      : null
+  if (!suffix) return null
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(suffix)) return suffix
+  const parts = suffix.split(':')
+  if (parts.length !== 2 || parts.some(part => !/^[0-9a-f]{1,4}$/.test(part))) return null
+  const high = Number.parseInt(parts[0], 16)
+  const low = Number.parseInt(parts[1], 16)
+  return `${high >>> 8}.${high & 0xff}.${low >>> 8}.${low & 0xff}`
 }
 
 function isPrivateIp(address) {
@@ -28,12 +45,16 @@ function isPrivateIp(address) {
     return ranges.some(([start, end]) => value >= start && value <= end)
   }
   if (family === 6) {
-    return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb') || normalized.startsWith('ff') || normalized.startsWith('::ffff:127.') || normalized.startsWith('::ffff:10.') || normalized.startsWith('::ffff:192.168.')
+    // IPv4-mapped IPv6 pode contornar uma lista que só testa family === 4.
+    // Reaplica exatamente as mesmas faixas privadas ao sufixo IPv4.
+    const mappedIpv4 = mappedIpv4FromIpv6(normalized)
+    if (mappedIpv4) return isPrivateIp(mappedIpv4)
+    return normalized === '::' || normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb') || normalized.startsWith('ff')
   }
   return true
 }
 
-async function validateOutboundHttpsUrl(value) {
+async function resolveOutboundHttpsUrl(value) {
   let parsed
   try { parsed = new URL(String(value || '')) } catch { throw new Error('URL de destino inválida') }
   if (parsed.protocol !== 'https:' || parsed.username || parsed.password || (parsed.port && parsed.port !== '443')) {
@@ -52,7 +73,32 @@ async function validateOutboundHttpsUrl(value) {
   if (!addresses.length || addresses.some(entry => isPrivateIp(entry.address))) {
     throw new Error('Destino resolve para rede privada ou reservada')
   }
-  return parsed.toString()
+  return { url: parsed.toString(), address: addresses[0].address, family: addresses[0].family || net.isIP(addresses[0].address) }
 }
 
-module.exports = { isPrivateIp, validateOutboundHttpsUrl }
+async function validateOutboundHttpsUrl(value) {
+  return (await resolveOutboundHttpsUrl(value)).url
+}
+
+// A validação DNS precisa usar o mesmo endereço que a conexão usará. Se o
+// fetch resolvesse o hostname novamente, um DNS controlado pelo atacante
+// poderia responder com IP público na validação e IP privado na conexão
+// (DNS rebinding). O dispatcher fixa o resultado público validado, mantendo o
+// hostname original para SNI/certificado HTTPS.
+async function prepareOutboundHttpsRequest(value) {
+  const resolved = await resolveOutboundHttpsUrl(value)
+  const dispatcher = new Agent({
+    connect: {
+      lookup(_hostname, _options, callback) {
+        callback(null, resolved.address, resolved.family)
+      },
+    },
+  })
+  return {
+    url: resolved.url,
+    dispatcher,
+    close: () => dispatcher.close(),
+  }
+}
+
+module.exports = { isPrivateIp, validateOutboundHttpsUrl, prepareOutboundHttpsRequest }

@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, serverError } = require('../utils/http')
+const { isBlobUrl, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('../infra/storage/blobStorage')
 
 const router = Router()
 
@@ -23,12 +24,17 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, url, mimeType, sizeBytes, folder, tags } = req.body || {}
-    if (!name?.trim() || !url?.trim()) return res.status(400).json({ erro: 'Nome e URL são obrigatórios.' })
-    if (!/^https:\/\//i.test(url.trim())) return res.status(400).json({ erro: 'A mídia precisa usar uma URL HTTPS.' })
+    if (typeof name !== 'string' || !name.trim() || typeof url !== 'string' || !url.trim()) return res.status(400).json({ erro: 'Nome e URL são obrigatórios.' })
+    if (!isBlobUrl(url.trim())) return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload do aplicativo.' })
+    const normalizedMimeType = String(mimeType || '').toLowerCase()
+    if (!ALLOWED_MEDIA_TYPES.has(normalizedMimeType)) return res.status(400).json({ erro: 'Tipo de mídia não permitido.' })
+    const normalizedSizeBytes = Number(sizeBytes)
+    if (!Number.isFinite(normalizedSizeBytes) || normalizedSizeBytes < 0 || normalizedSizeBytes > MAX_UPLOAD_SIZE_BYTES)
+      return res.status(400).json({ erro: 'Tamanho de mídia inválido.' })
     const normalizedTags = Array.isArray(tags) ? tags.map(tag => String(tag).trim().toLowerCase()).filter(Boolean).slice(0, 20) : []
-    const normalizedFolder = folder?.trim() || 'Geral'
+    const normalizedFolder = typeof folder === 'string' && folder.trim() ? folder.trim() : 'Geral'
     await pool.query('INSERT INTO media_folders (user_id, name) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM media_folders WHERE user_id=$1 AND LOWER(name)=LOWER($2))', [req.user.id, normalizedFolder])
-    const { rows } = await pool.query(`INSERT INTO media_assets (user_id, name, url, mime_type, size_bytes, folder, tags) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.id, name.trim().slice(0, 255), url.trim(), mimeType || null, Number.isFinite(Number(sizeBytes)) ? Number(sizeBytes) : null, normalizedFolder, normalizedTags])
+    const { rows } = await pool.query(`INSERT INTO media_assets (user_id, name, url, mime_type, size_bytes, folder, tags) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [req.user.id, name.trim().slice(0, 255), url.trim(), normalizedMimeType, normalizedSizeBytes, normalizedFolder, normalizedTags])
     res.status(201).json({ id: rows[0].id })
   } catch (err) { serverError(res, err) }
 })

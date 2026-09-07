@@ -1,11 +1,11 @@
 const { Router } = require('express')
+const crypto = require('crypto')
 const rateLimit = require('express-rate-limit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const { getManagementApiKey, getOrCreateOpenRouterUserKey } = require('../services/openrouterKeyService')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
-const { isBlobUrl } = require('../infra/storage/blobStorage')
 const { getCapability, getPublicCapabilities } = require('../services/ai/agentCatalog')
 const { interpretAgentMessage } = require('../services/ai/agentInterpreter')
 const { executeAgentAction } = require('../services/ai/agentExecutor')
@@ -14,7 +14,8 @@ const { buscarAnalytics } = require('../use-cases/posts/buscarAnalytics')
 const { buildAnalyticsInsights } = require('../services/ai/analyticsInsights')
 const { safeMessage } = require('../utils/redact')
 const { registrarAprovacao, consumirAprovacao } = require('../repositories/agentApprovalsRepository')
-const { validarCriacaoPost } = require('../domain/posts/post')
+const { criarPost } = require('../use-cases/posts/criarPost')
+const { ValidationError } = require('../domain/posts/errors')
 const { detectarTemaRestrito } = require('../services/ai/contentSafety')
 const { reserveAiImage, releaseAiImage } = require('../services/ai/imageQuota')
 
@@ -1891,22 +1892,48 @@ router.post('/agent', async (req, res) => {
 })
 
 // POST /api/ai/schedule
-// Aceita publishNow (por post ou no nível raiz) para publicar imediatamente
-// em vez de agendar. Também aceita mediaPath/mediaType — quando presentes
-// (post veio do fluxo de análise de mídia do agente, com o arquivo já
-// enviado ao Blob), publishNow é liberado mesmo para redes que exigem mídia
-// (Instagram/YouTube/TikTok). Sem mídia, só é seguro publicar agora quando
-// NENHUMA plataforma do post exigir mídia (hoje, só o Facebook aceita post
-// de só texto) — validado aqui mesmo se o front mandar publishNow errado.
+// O endpoint recebe o formato compacto usado pela tela do Assistente, mas a
+// criação/publicação passa pelo mesmo caso de uso do agendador manual. Isso
+// mantém validações, seleção de contas, conversão de mídia, status assíncrono
+// e regras de aprovação em uma única fronteira server-side.
 router.post('/schedule', async (req, res) => {
   try {
     const { posts } = req.body
     if (!Array.isArray(posts) || !posts.length) return res.status(400).json({ erro: 'Nenhum post para agendar' })
     if (posts.length > 20) return res.status(400).json({ erro: 'Você pode agendar no máximo 20 posts por operação.' })
 
-    const repo = require('../infra/db/postsRepository')
-    const contasRepo = require('../repositories/contasRepository')
-    const { publishPost } = require('../infra/social/publisher')
+    const publishNowRequested = req.body.publishNow === true || posts.some(post => post?.publishNow === true)
+    const approvalToken = typeof req.body.approvalToken === 'string' ? req.body.approvalToken : null
+    const requestHash = crypto.createHash('sha256').update(JSON.stringify({
+      publishNow: req.body.publishNow === true,
+      posts,
+    })).digest('hex')
+
+    // Publicação imediata é uma ação externa irreversível. O primeiro pedido
+    // apenas emite uma aprovação curta e vinculada ao corpo; a publicação só
+    // continua quando o segundo pedido apresenta esse token de uso único.
+    if (publishNowRequested) {
+      if (!approvalToken) {
+        const confirmationToken = gerarTokenAprovacaoAgente(req.user.id, 'publish_now', { requestHash })
+        const confirmation = verificarTokenAprovacaoAgente(confirmationToken, req.user.id)
+        await registrarAprovacao({ nonce: confirmation.jti, userId: req.user.id, action: confirmation.action, args: confirmation.args, expiresAt: new Date(confirmation.exp) })
+        return res.status(409).json({
+          erro: 'Confirme a publicação para continuar.',
+          requiresConfirmation: true,
+          confirmationToken,
+        })
+      }
+
+      let approval
+      try { approval = verificarTokenAprovacaoAgente(approvalToken, req.user.id) }
+      catch { return res.status(400).json({ erro: 'A confirmação expirou. Tente publicar novamente.' }) }
+      if (approval.action !== 'publish_now' || approval.args?.requestHash !== requestHash) {
+        return res.status(400).json({ erro: 'A confirmação não corresponde a esta publicação.' })
+      }
+      const consumed = await consumirAprovacao({ nonce: approval.jti, userId: req.user.id, action: approval.action, args: approval.args })
+      if (!consumed) return res.status(409).json({ erro: 'Esta confirmação já foi usada, expirou ou não é mais válida.' })
+    }
+
     const criados = []
 
     for (const p of posts) {
@@ -1915,115 +1942,78 @@ router.post('/schedule', async (req, res) => {
       if (plataformas.length < 1 || plataformas.length > 4 || plataformas.some(platform => !SUPPORTED_PLATFORMS.includes(platform))) {
         return res.status(400).json({ erro: 'O post contém uma rede social inválida.' })
       }
-      const querPublicarAgora = p.publishNow === true || req.body.publishNow === true
       const mediaItems = Array.isArray(p.mediaItems)
         ? p.mediaItems.filter(item => item && item.path)
         : []
       const mediaPath = p.mediaPath || mediaItems[0]?.path || null
-      const temMidia = !!mediaPath || mediaItems.length > 0
       if (mediaItems.length > 35) return res.status(400).json({ erro: 'Um post pode ter no máximo 35 mídias.' })
-      if (temMidia && mediaPath && !isBlobUrl(mediaPath)) {
-        return res.status(400).json({ erro: 'A mídia precisa ser enviada pelo upload oficial do aplicativo.' })
-      }
-      if (mediaItems.some(item => !isBlobUrl(item.path))) {
-        return res.status(400).json({ erro: 'Todas as imagens do carrossel precisam ser enviadas pelo upload oficial do aplicativo.' })
-      }
-      const exigeMidia = (p.plataformas || []).some(plat => PLATFORM_REQUIREMENTS[plat]?.media === 'required')
-      const publishNow = querPublicarAgora && (temMidia || !exigeMidia)
-      const horario = publishNow ? null : new Date(p.horario)
-      if (!publishNow && (!p.horario || Number.isNaN(horario.getTime()))) return res.status(400).json({ erro: 'Horário de publicação inválido.' })
-      const itemsParaValidacao = mediaItems.length
-        ? mediaItems.map(item => ({ path: item.path, type: item.type === 'video' || String(item.mimetype || '').startsWith('video/') ? 'video' : 'image', size: item.size, width: item.width, height: item.height, duration: item.duration }))
-        : (mediaPath ? [{ path: mediaPath, type: String(p.mediaType || '').startsWith('video/') || p.mediaType === 'video' ? 'video' : 'image', size: p.mediaSize, width: p.mediaWidth, height: p.mediaHeight, duration: p.mediaDuration }] : [])
-      const validationError = validarCriacaoPost({
-        text: typeof p.texto === 'string' ? p.texto : '',
-        textByPlatform: p.textByPlatform || {},
-        youtubeTitle: p.titulo || p.youtubeTitle || '',
-        titleByPlatform: p.titleByPlatform || {},
-        youtubeVisibility: p.youtubeVisibility || 'public',
-        youtubeCategoryId: p.youtubeCategoryId || null,
-        youtubeFormat: p.youtubeFormat || null,
-        youtubeMadeForKids: p.youtubeMadeForKids,
-        igFormat: p.igFormat || null,
-        facebookFormat: p.facebookFormat || null,
-        tiktokPrivacyLevel: p.tiktokPrivacyLevel,
-        platforms: plataformas,
-        repeat: 'none',
-        items: itemsParaValidacao,
-        mediaMetadata: itemsParaValidacao,
-        mediaType: itemsParaValidacao[0]?.type || null,
-        aspectRatioValidoTiktok: null,
-        aspectRatioValidoInstagram: null,
-        scheduledAtUTC: publishNow ? null : horario.toISOString().replace('Z', ''),
-        publishNow,
-      })
-      if (validationError) return res.status(400).json({ erro: validationError })
+      const publishNow = p.publishNow === true || req.body.publishNow === true
+      const media = mediaItems.length
+        ? mediaItems.map(item => ({
+            url: item.path,
+            mimetype: item.mimetype || (item.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+            size: item.size,
+            width: item.width,
+            height: item.height,
+            duration: item.duration,
+          }))
+        : mediaPath
+          ? [{
+              url: mediaPath,
+              mimetype: p.mediaType && String(p.mediaType).startsWith('video/') ? p.mediaType : 'image/jpeg',
+              size: p.mediaSize,
+              width: p.mediaWidth,
+              height: p.mediaHeight,
+              duration: p.mediaDuration,
+            }]
+          : []
+      const accountIds = Array.isArray(p.accountIds)
+        ? p.accountIds
+        : p.accountId !== undefined && p.accountId !== null
+          ? [p.accountId]
+          : undefined
 
-      // Resolve as contas conectadas de cada rede marcada e as vincula ao post
-      // (post_accounts) — sem isso, publishPost() não teria nenhuma conta para
-      // publicar (post.accounts viria vazio) e Promise.all([]).every(...)
-      // retornaria true por vacuidade, marcando o post como "published" sem
-      // nenhuma chamada real à API da rede. Mesmo padrão do Agendador manual
-      // (ver use-cases/posts/criarPost.js).
-      const contas = await contasRepo.listarContasAtivasPorPlataformas(p.plataformas || [], req.user.id, false)
-      const platformsSemConta = (p.plataformas || []).filter(plat => !contas.some(c => c.platform === plat))
-      if (platformsSemConta.length) {
-        const labels = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }
-        const nomes = platformsSemConta.map(plat => labels[plat] || plat).join(', ')
-        registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'erro', detalhes: `sem conta conectada: ${nomes}` })
-        return res.status(400).json({ erro: `Nenhuma conta de ${nomes} conectada. Conecte uma conta ou desmarque a rede.` })
-      }
-
-      const post = await repo.criarPost({
-        text:              p.texto,
-        textByPlatform:    p.textByPlatform || null,
-        titleByPlatform:   p.titleByPlatform || null,
-        platforms:         plataformas,
-        scheduledAt:       publishNow ? new Date() : horario,
-        repeat:            'none',
-        mediaPath,
-        mediaType:         p.mediaType || null,
-        mediaItems:        mediaItems.length > 1 ? mediaItems : null,
-        youtubeTitle:      p.titulo || null,
-        youtubeVisibility: 'public',
-        youtubeFormat: p.youtubeFormat || null,
-        youtubeIsShort:    null,
-        facebookFormat:    p.facebookFormat || null,
-        tiktokPrivacyLevel: p.tiktokPrivacyLevel || null,
-        tiktokDisableComment: p.tiktokDisableComment || false,
-        tiktokDisableDuet:    p.tiktokDisableDuet || false,
-        tiktokDisableStitch:  p.tiktokDisableStitch || false,
-        accountId:         p.accountId || null,
-        userId:            req.user.id,
-        status:            publishNow ? 'processing' : 'scheduled',
+      const { post, status } = await criarPost({
+        body: {
+          text: typeof p.texto === 'string' ? p.texto : '',
+          textByPlatform: JSON.stringify(p.textByPlatform || {}),
+          titleByPlatform: JSON.stringify(p.titleByPlatform || {}),
+          platforms: JSON.stringify(plataformas),
+          scheduledAt: publishNow ? new Date().toISOString() : p.horario,
+          repeat: 'none',
+          media: JSON.stringify(media),
+          youtubeTitle: p.titulo || p.youtubeTitle || '',
+          youtubeVisibility: p.youtubeVisibility || 'public',
+          youtubeCategoryId: p.youtubeCategoryId || undefined,
+          youtubeFormat: p.youtubeFormat || undefined,
+          youtubeMadeForKids: p.youtubeMadeForKids,
+          igFormat: p.igFormat || undefined,
+          facebookFormat: p.facebookFormat || 'post',
+          tiktokPrivacyLevel: p.tiktokPrivacyLevel,
+          tiktokDisableComment: p.tiktokDisableComment,
+          tiktokDisableDuet: p.tiktokDisableDuet,
+          tiktokDisableStitch: p.tiktokDisableStitch,
+          accountIds: accountIds ? JSON.stringify(accountIds) : undefined,
+          publishNow,
+          requiresApproval: p.requiresApproval === true,
+          cover: p.cover ? JSON.stringify(p.cover) : undefined,
+          firstComment: p.firstComment,
+          locationId: p.locationId,
+          locationName: p.locationName,
+        },
+        userId: req.user.id,
+        userRole: req.user.role,
+        isAdmin: false,
       })
 
-      await repo.definirContasDoPost(post.id, contas)
-      const postAccounts = await repo.listarContasDoPost(post.id)
-
-      if (!publishNow) {
-        registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'sucesso', detalhes: `agendado · plataformas: ${(p.plataformas||[]).join(',')} · horário: ${post.scheduledAt || p.horario}` })
-        criados.push(post)
-        continue
-      }
-
-      const results = await publishPost({ ...post, mediaPath, mediaType: p.mediaType || null, mediaItems: mediaItems.length > 1 ? mediaItems : null, accounts: postAccounts, userId: req.user.id, userRole: req.user.role })
-      // Instagram devolve "pending" (container ainda processando) — o cron
-      // finaliza depois; não é sucesso nem erro ainda nesse momento.
-      const status = results.some(r => r.success === 'pending') ? 'processing'
-        : results.every(r => r.success === true) ? 'published'
-        : results.some(r => r.success === true) ? 'partial'
-        : 'error'
-      await repo.atualizarStatusPost(post.id, status)
-      registrarAtividadeIA({
-        userId: req.user.id, acao: 'publish-now', status: status === 'error' ? 'erro' : status === 'partial' ? 'parcial' : 'sucesso',
-        detalhes: `plataformas: ${(p.plataformas||[]).join(',')}${status === 'error' || status === 'partial' ? ` · ${results.filter(r=>!r.success).map(r=>`${r.platform}: ${r.error}`).join('; ')}` : ''}`,
-      })
-      criados.push({ ...post, status, results })
+      const activity = publishNow ? 'publish-now' : 'schedule'
+      registrarAtividadeIA({ userId: req.user.id, acao: activity, status: 'sucesso', detalhes: `${publishNow ? 'publicação solicitada' : 'agendado'} · plataformas: ${(plataformas || []).join(',')} · horário: ${post.scheduledAt || p.horario}` })
+      criados.push({ ...post, status: post.status || status })
     }
 
-    res.status(201).json({ agendados: criados.length, posts: criados })
+    res.status(criados.some(post => post.status === 'processing') ? 202 : 201).json({ agendados: criados.length, posts: criados })
   } catch (err) {
+    if (err instanceof ValidationError) return res.status(400).json({ erro: err.message })
     registrarAtividadeIA({ userId: req.user.id, acao: 'schedule', status: 'erro', detalhes: err.message })
     serverError(res, err)
   }

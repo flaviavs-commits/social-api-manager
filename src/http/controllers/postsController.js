@@ -2,6 +2,11 @@
 // sem regra de negócio nem acesso a dados aqui.
 const { parseId, serverError } = require('../../utils/http')
 const { ValidationError } = require('../../domain/posts/errors')
+const { normalizePlan, isPaidPlan } = require('../../config/plans')
+const { ALLOWED_MEDIA_TYPES } = require('../../infra/storage/blobStorage')
+
+const FREE_UPLOAD_MAX_SIZE_BYTES = 10 * 1024 * 1024
+const FREE_UPLOAD_TYPES = new Set(Array.from(ALLOWED_MEDIA_TYPES).filter(type => type.startsWith('image/')))
 
 const { gerarUploadUrl } = require('../../use-cases/posts/gerarUploadUrl')
 const { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto } = require('../../use-cases/posts/inbox')
@@ -24,7 +29,13 @@ function ctx(req) {
 
 async function postUploadUrl(req, res) {
   try {
-    const { uploadUrl, mediaUrl, mimetype } = await gerarUploadUrl(req.body || {})
+    const unrestricted = req.user?.planUnrestricted === true || req.user?.role === 'admin'
+    const paid = unrestricted || (req.user?.planActive !== false && isPaidPlan(normalizePlan(req.user?.plan)))
+    const uploadOptions = paid ? {} : {
+      maxSizeBytes: FREE_UPLOAD_MAX_SIZE_BYTES,
+      allowedMediaTypes: FREE_UPLOAD_TYPES,
+    }
+    const { uploadUrl, mediaUrl, mimetype } = await gerarUploadUrl({ ...(req.body || {}), ...uploadOptions })
     res.json({ uploadUrl, mediaUrl, mimetype })
   } catch (e) {
     if (e instanceof ValidationError) return res.status(400).json({ erro: e.message })

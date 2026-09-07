@@ -17,7 +17,13 @@ function getConfig() {
   const url = process.env.MEU_ECOO_API_URL
   const token = process.env.MEU_ECOO_SERVICE_TOKEN
   if (!url || !token) return null
-  return { url, token }
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search || parsed.hash) return null
+    return { url: parsed.toString().replace(/\/$/, ''), token }
+  } catch {
+    return null
+  }
 }
 
 async function sincronizarCredencial(email, password, nome) {

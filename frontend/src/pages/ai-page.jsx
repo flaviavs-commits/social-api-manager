@@ -330,14 +330,23 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       updatePost(index, { ...uploadedMedia, imageUrl: postWithImage.imageUrl, carouselImages: postWithImage.carouselImages || [], imageModel: postWithImage.imageModel })
       setPublicationProgress('Enviando publicação para a rede...')
       const eventCursor = await latestPublicationEventId(apiFetch)
-      const data = await apiFetch('/api/ai/schedule', {
-        method: 'POST',
-        timeoutMs: 60_000,
-        body: JSON.stringify({
-          publishNow: true,
-          posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaSize: uploadedMedia.mediaSize, mediaType: 'image', ...(platform === 'tiktok' ? { tiktokPrivacyLevel } : {}) }],
-        }),
-      })
+      const publishRequest = {
+        publishNow: true,
+        posts: [{ texto: post.text, titulo: post.titulo || '', plataformas: platforms, horario: new Date().toISOString(), mediaPath: uploadedMedia.mediaPath, mediaItems: uploadedMedia.mediaItems, mediaSize: uploadedMedia.mediaSize, mediaType: 'image', ...(platform === 'tiktok' ? { tiktokPrivacyLevel } : {}) }],
+      }
+      let data
+      try {
+        data = await apiFetch('/api/ai/schedule', { method: 'POST', timeoutMs: 60_000, body: JSON.stringify(publishRequest) })
+      } catch (confirmationError) {
+        const token = confirmationError.body?.confirmationToken
+        if (confirmationError.status !== 409 || !confirmationError.body?.requiresConfirmation || !token) throw confirmationError
+        if (!window.confirm('Confirma a publicação desta imagem na rede selecionada?')) throw new Error('Publicação cancelada.')
+        data = await apiFetch('/api/ai/schedule', {
+          method: 'POST',
+          timeoutMs: 60_000,
+          body: JSON.stringify({ ...publishRequest, approvalToken: token }),
+        })
+      }
       const createdPost = data.posts?.[0]
       if (!createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar sua confirmação. Verifique a atividade do Assistente IA.')
       const result = publicationStatusFromResponse(data, createdPost.id, platforms)
