@@ -3,9 +3,9 @@ import { apiFetch } from '../../lib/api.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
-const COMMENTS_REFRESH_INTERVAL_MS = 15_000
-const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 5_000
-const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 60_000
+const COMMENTS_REFRESH_INTERVAL_MS = 60_000
+const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 60_000
+const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 5 * COMMENTS_REFRESH_INTERVAL_MS
 
 function formatDate(value) {
   if (!value) return 'data não informada'

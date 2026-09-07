@@ -32,7 +32,9 @@ describe('CommentsModal', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000)
     })
+    expect(apiFetchMock.mock.calls.filter(([path]) => path === '/api/posts/42/comments')).toHaveLength(1)
 
+    await act(async () => { await vi.advanceTimersByTimeAsync(55_000) })
     expect(screen.getByText('Comentário recém-publicado')).toBeInTheDocument()
     expect(apiFetchMock.mock.calls.filter(([path]) => path === '/api/posts/42/comments')).toHaveLength(2)
   })
