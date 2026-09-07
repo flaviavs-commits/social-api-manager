@@ -54,6 +54,7 @@
       "currency": "brl",
       "cadence": "por mês",
       "meuEcooAccess": "discount",
+      "meuEcooBasePriceCents": 10050,
       "meuEcooDiscountPercent": 40,
       "meuEcooOffer": "MeuEcoo com 40% de desconto ou sem oferta",
       "meuEcooFeatures": [

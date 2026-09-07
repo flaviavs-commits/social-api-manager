@@ -11,6 +11,19 @@ export function getPlan(plan) {
   return PLANS[normalizePlan(plan)]
 }
 
+export function getMeuEcooPricing(plan) {
+  const basePriceCents = Math.max(Math.round(Number(plan?.meuEcooBasePriceCents) || 0), 0)
+  const discountPercent = Math.min(Math.max(Number(plan?.meuEcooDiscountPercent) || 0, 0), 100)
+  const discountCents = Math.round(basePriceCents * discountPercent / 100)
+
+  return {
+    basePriceCents,
+    discountPercent,
+    discountCents,
+    finalPriceCents: Math.max(basePriceCents - discountCents, 0),
+  }
+}
+
 export function hasPlanModule(plan, moduleName, unrestricted = false) {
   return unrestricted || getPlan(plan).modules.includes(moduleName)
 }

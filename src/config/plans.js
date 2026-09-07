@@ -18,6 +18,20 @@ function getPlan(plan) {
   return PLANS[normalizePlan(plan)]
 }
 
+function getMeuEcooPricing(plan) {
+  const selectedPlan = typeof plan === 'string' ? getPlan(plan) : plan || {}
+  const basePriceCents = Math.max(Math.round(Number(selectedPlan.meuEcooBasePriceCents) || 0), 0)
+  const discountPercent = Math.min(Math.max(Number(selectedPlan.meuEcooDiscountPercent) || 0, 0), 100)
+  const discountCents = Math.round(basePriceCents * discountPercent / 100)
+
+  return {
+    basePriceCents,
+    discountPercent,
+    discountCents,
+    finalPriceCents: Math.max(basePriceCents - discountCents, 0),
+  }
+}
+
 function getPlanConnectionLimit(plan) {
   return Number(getPlan(plan).maxConnections) || SUPPORTED_PLATFORMS.length
 }
@@ -46,7 +60,10 @@ function publicPlanCatalog() {
     currency: plan.currency,
     cadence: plan.cadence,
     meuEcooAccess: plan.meuEcooAccess || 'none',
+    meuEcooBasePriceCents: getMeuEcooPricing(plan).basePriceCents,
     meuEcooDiscountPercent: Number(plan.meuEcooDiscountPercent) || 0,
+    meuEcooDiscountCents: getMeuEcooPricing(plan).discountCents,
+    meuEcooDiscountedPriceCents: getMeuEcooPricing(plan).finalPriceCents,
     meuEcooOffer: plan.meuEcooOffer || 'Sem acesso ao MeuEcoo',
     aiImageLimit: getPlanImageLimit(id),
     maxConnections: getPlanConnectionLimit(id),
@@ -98,4 +115,4 @@ function requirePaidPlan(req, res, next) {
   return next()
 }
 
-module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getPlanConnectionLimit, getPlanImageLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }
+module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getMeuEcooPricing, getPlanConnectionLimit, getPlanImageLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }

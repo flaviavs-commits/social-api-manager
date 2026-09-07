@@ -1,4 +1,4 @@
-const { requirePlanModule, requirePaidPlan } = require('../../src/config/plans')
+const { getMeuEcooPricing, requirePlanModule, requirePaidPlan } = require('../../src/config/plans')
 const { PLANS } = require('../../src/config/plans')
 
 function response() {
@@ -45,6 +45,15 @@ describe('requirePlanModule', () => {
       'Analise de métricas',
     ]))
     expect(PLANS.pro.modules).toEqual(expect.arrayContaining(['equipe', 'relatorios', 'inbox', 'tokens', 'biblioteca']))
+  })
+
+  test('calcula o benefício do MeuEcoo Pro em centavos', () => {
+    expect(getMeuEcooPricing('pro')).toMatchObject({
+      basePriceCents: 10050,
+      discountPercent: 40,
+      discountCents: 4020,
+      finalPriceCents: 6030,
+    })
   })
 
   test('permite o módulo quando o plano contém a funcionalidade', () => {
