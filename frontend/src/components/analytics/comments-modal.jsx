@@ -100,6 +100,8 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
   const author = comment.author || 'desconhecido'
   const authorAvatar = comment.authorAvatarUrl || comment.profilePictureUrl || comment.avatarUrl || null
   const viewerName = post?.handle || 'sua conta'
+  const isReply = Boolean(comment.parentId)
+  const platformLabel = PLATFORM_LABELS[platform] || platform || 'rede social'
 
   async function send() {
     const text = replyText.trim()
@@ -135,13 +137,16 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     } catch (caught) { setError(caught.message) }
   }
 
-  return <article className={`comment-row${comment.parentId ? ' comment-row-nested' : ''}`}>
+  return <article className={`comment-row${isReply ? ' comment-row-nested' : ''}`}>
     <div className="comment-author-line">
       <SafeAvatar src={authorAvatar} className="comment-author-avatar" fallback={author.slice(0, 1).toUpperCase()} />
-      <span className="comment-author">@{author.replace(/^@/, '')}</span>
+      <div className="comment-author-copy">
+        <span className="comment-author">@{author.replace(/^@/, '')}</span>
+        <span className="comment-source-badge"><PlatformIcon platform={platform} className="h-3 w-3" />{isReply ? 'Resposta sincronizada' : `Recebido do ${platformLabel}`}</span>
+      </div>
     </div>
-    <p className="comment-text">{comment.text}</p>
-    {data && <div className="comment-date">{data}</div>}
+    <div className="comment-message"><p className="comment-text">{comment.text}</p></div>
+    {data && <div className="comment-meta"><span className="comment-date">{data}</span>{isReply && <span className="comment-reply-context">↳ resposta ao comentário</span>}</div>}
     {sentReplies.filter(reply => !remoteReplies.some(remoteReply => remoteReply.text === reply.text)).map(reply => <div className="comment-own-reply" key={reply.id}>
       <div className="comment-own-reply-heading"><span>↳</span><strong>Sua resposta</strong><small>publicada agora</small></div>
       <p>{reply.text}</p>
