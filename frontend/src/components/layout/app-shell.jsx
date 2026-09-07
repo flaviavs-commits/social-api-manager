@@ -64,7 +64,7 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
         <img src="/logo.png" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
         <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
       </a>
-      <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={collapsed ? 'Expandir menu' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
+      <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu'}><span aria-hidden="true">{collapsed ? '→' : '←'}</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
 
       <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
         {navigation.map(([key, label]) => {
