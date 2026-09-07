@@ -91,7 +91,7 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [] }) {
+function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [], remoteReplies = [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
@@ -135,18 +135,18 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     } catch (caught) { setError(caught.message) }
   }
 
-  return <article className="comment-row">
+  return <article className={`comment-row${comment.parentId ? ' comment-row-nested' : ''}`}>
     <div className="comment-author-line">
       <SafeAvatar src={authorAvatar} className="comment-author-avatar" fallback={author.slice(0, 1).toUpperCase()} />
       <span className="comment-author">@{author.replace(/^@/, '')}</span>
     </div>
     <p className="comment-text">{comment.text}</p>
     {data && <div className="comment-date">{data}</div>}
-    {sentReplies.map(reply => <div className="comment-own-reply" key={reply.id}>
+    {sentReplies.filter(reply => !remoteReplies.some(remoteReply => remoteReply.text === reply.text)).map(reply => <div className="comment-own-reply" key={reply.id}>
       <div className="comment-own-reply-heading"><span>↳</span><strong>Sua resposta</strong><small>publicada agora</small></div>
       <p>{reply.text}</p>
     </div>)}
-    {replySupported
+    {!comment.parentId && replySupported
       ? <div className="comment-reply-composer">
           <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
           <div className="comment-reply-identity"><SafeAvatar src={post?.avatarUrl} className="comment-reply-identity-avatar" fallback={<PlatformIcon platform={platform} className="h-3 w-3" />} /><span>Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong></span></div>
@@ -157,7 +157,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
           {savedTexts.length > 0 && <select className="mt-2 w-full rounded-lg border border-subtle bg-app px-2 py-1 text-xs text-zinc-300" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title || item.body.slice(0, 50)}</option>)}</select>}
           <button type="button" className="link-button mt-1" onClick={saveReply}>Salvar texto atual</button>
         </div>
-      : <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
+      : !comment.parentId && <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
     {error && <p className="error-message comment-reply-error">{error}</p>}
   </article>
 }
@@ -250,7 +250,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
     {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} />)}
+      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} remoteReplies={comments.filter(reply => String(reply.parentId) === String(comment.id))} />)}
     </div>}
   </div>
 

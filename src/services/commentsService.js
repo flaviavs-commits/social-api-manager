@@ -129,17 +129,30 @@ async function listarComentariosZernio(token, externalPostId) {
     retries: 0
   })
 
-  return (data.comments || []).map(c => ({
-    // O Zernio usa `id` para o identificador que deve ser enviado ao endpoint
-    // de resposta e também expõe `cid` em algumas plataformas.
-    id: c.id || c.cid,
-    author: c.from?.username || c.from?.name || c.author?.username || c.author?.name || c.username || 'desconhecido',
-    ...(c.from?.profilePicture || c.from?.profile_picture || c.from?.avatarUrl || c.author?.profilePicture || c.author?.avatarUrl || c.profilePicture || c.avatarUrl
-      ? { authorAvatarUrl: c.from?.profilePicture || c.from?.profile_picture || c.from?.avatarUrl || c.author?.profilePicture || c.author?.avatarUrl || c.profilePicture || c.avatarUrl }
-      : {}),
-    text: c.message || c.text || '',
-    createdAt: c.createdTime || c.created_at || null
-  }))
+  function normalizeComment(comment, parentId = null) {
+    if (!comment || typeof comment !== 'object') return []
+    const id = comment.id || comment.cid
+    const currentParentId = comment.parentId || comment.parent_id || parentId
+    const normalized = id ? {
+      // O Zernio usa `id` para o identificador que deve ser enviado ao endpoint
+      // de resposta e também expõe `cid` em algumas plataformas.
+      id,
+      author: comment.from?.username || comment.from?.name || comment.author?.username || comment.author?.name || comment.username || 'desconhecido',
+      ...(comment.from?.profilePicture || comment.from?.profile_picture || comment.from?.avatarUrl || comment.author?.profilePicture || comment.author?.avatarUrl || comment.profilePicture || comment.avatarUrl
+        ? { authorAvatarUrl: comment.from?.profilePicture || comment.from?.profile_picture || comment.from?.avatarUrl || comment.author?.profilePicture || comment.author?.avatarUrl || comment.profilePicture || comment.avatarUrl }
+        : {}),
+      text: comment.message || comment.text || '',
+      createdAt: comment.createdTime || comment.created_at || null,
+      ...(currentParentId ? { parentId: currentParentId } : {})
+    } : null
+    const replies = Array.isArray(comment.replies) ? comment.replies : comment.replies?.data
+    return [
+      ...(normalized ? [normalized] : []),
+      ...(Array.isArray(replies) ? replies.flatMap(reply => normalizeComment(reply, id || currentParentId)) : [])
+    ]
+  }
+
+  return (Array.isArray(data.comments) ? data.comments : []).flatMap(comment => normalizeComment(comment))
 }
 
 function remoteMediaItems(row) {

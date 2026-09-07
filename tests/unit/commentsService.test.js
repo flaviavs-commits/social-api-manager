@@ -25,6 +25,20 @@ describe('commentsService', () => {
     )
   })
 
+  test('inclui respostas aninhadas retornadas pelo Zernio', async () => {
+    buscarContaToken.mockResolvedValue({ accessToken: 'account-id', zernioAccountId: 'zernio-account' })
+    zernioClient.getPostComments.mockResolvedValue({ comments: [{
+      id: 'comment-1', message: 'Olá', from: { name: 'Ana' }, createdTime: '2026-01-01T00:00:00Z',
+      replies: [{ id: 'reply-1', message: 'Olá, Ana!', from: { name: 'Minha conta' }, createdTime: '2026-01-01T00:01:00Z' }]
+    }] })
+
+    await expect(service.listarComentariosPost({ externalPlatform: 'instagram', externalPostId: 'post-1', userId: 1 }))
+      .resolves.toMatchObject({ comments: [
+        { id: 'comment-1', text: 'Olá' },
+        { id: 'reply-1', author: 'Minha conta', text: 'Olá, Ana!', parentId: 'comment-1' }
+      ] })
+  })
+
   test('mantém suporte a token direto legado', async () => {
     buscarContaToken.mockResolvedValue({ accessToken: 'meta-token' })
     const fetchMock = jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, status: 200, json: jest.fn().mockResolvedValue({ data: [{ id: 'c1', message: 'Oi', from: { name: 'Bia' } }] }) })
