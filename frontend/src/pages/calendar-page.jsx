@@ -557,9 +557,6 @@ export function CalendarPage({ onNavigate }) {
               <button type="button" className="calendar-day-create-button is-secondary" onClick={() => openPostComposer(selectedDay.day)}>
                 Criar post
               </button>
-              <button type="button" className="calendar-day-create-button is-primary" onClick={() => openPostComposer(selectedDay.day, true)}>
-                Agendar post
-              </button>
             </div>
           </div>
         </section>

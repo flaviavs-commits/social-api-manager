@@ -1,4 +1,4 @@
-name: CI do Front-end
+name: CI/CD
 
 on:
   push:
@@ -31,8 +31,37 @@ jobs:
       - name: Executar lint
         run: npm run lint --if-present
 
-      - name: Executar testes
-        run: npm test --if-present
+      - name: Executar testes do backend
+        run: npm test
+
+      - name: Executar testes dos componentes
+        run: npm run test:components
 
       - name: Gerar build
         run: npm run frontend:build
+
+  publicar:
+    name: Publicar produção
+    needs: validar
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar Vercel CLI
+        run: npm install --global vercel@54.14.5
+
+      - name: Publicar na Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel deploy . --prod --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" --project="$VERCEL_PROJECT_ID"

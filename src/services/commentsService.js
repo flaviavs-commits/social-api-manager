@@ -50,48 +50,76 @@ function traduzirErroMeta(data, status, rede) {
 }
 
 async function listarComentariosInstagram(token, externalPostId) {
-  const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,text,username,timestamp&access_token=${encodeURIComponent(token.accessToken)}`
+  const url = `https://graph.instagram.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,text,username,timestamp,replies{id,text,username,timestamp}&access_token=${encodeURIComponent(token.accessToken)}`
   const res = await fetchComTimeout(url)
   const data = await res.json()
   if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Instagram'))
 
-  return (data.data || []).map(c => ({
-    id: c.id,
-    author: c.username || 'desconhecido',
-    text: c.text || '',
-    createdAt: c.timestamp || null
-  }))
+  return (data.data || []).flatMap(c => [
+    {
+      id: c.id,
+      author: c.username || 'desconhecido',
+      text: c.text || '',
+      createdAt: c.timestamp || null
+    },
+    ...((c.replies?.data || c.replies || []).map(reply => ({
+      id: reply.id,
+      author: reply.username || 'desconhecido',
+      text: reply.text || '',
+      createdAt: reply.timestamp || null,
+      parentId: c.id
+    })))
+  ])
 }
 
 
 async function listarComentariosFacebook(token, externalPostId) {
-  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,message,from{name,username},created_time&access_token=${encodeURIComponent(token.accessToken)}`
+  const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(externalPostId)}/comments?fields=id,message,from{name,username},created_time,comments.limit(100){id,message,from{name,username},created_time}&access_token=${encodeURIComponent(token.accessToken)}`
   const res = await fetchComTimeout(url)
   const data = await res.json()
   if (!res.ok) throw new Error(traduzirErroMeta(data, res.status, 'Facebook'))
 
-  return (data.data || []).map(c => ({
-    id: c.id,
-    author: c.from?.username || c.from?.name || 'desconhecido',
-    text: c.message || '',
-    createdAt: c.created_time || null
-  }))
+  return (data.data || []).flatMap(c => [
+    {
+      id: c.id,
+      author: c.from?.username || c.from?.name || 'desconhecido',
+      text: c.message || '',
+      createdAt: c.created_time || null
+    },
+    ...((c.comments?.data || c.replies?.data || c.replies || []).map(reply => ({
+      id: reply.id,
+      author: reply.from?.username || reply.from?.name || 'desconhecido',
+      text: reply.message || '',
+      createdAt: reply.created_time || null,
+      parentId: c.id
+    })))
+  ])
 }
 
 async function listarComentariosYoutube(token, externalPostId) {
-  const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(externalPostId)}&access_token=${encodeURIComponent(token.accessToken)}`
+  const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet,replies&videoId=${encodeURIComponent(externalPostId)}&maxResults=100&textFormat=plainText&access_token=${encodeURIComponent(token.accessToken)}`
   const res = await fetchComTimeout(url)
   const data = await res.json()
   if (!res.ok) throw new Error(data?.error?.message || `YouTube respondeu ${res.status}`)
 
-  return (data.items || []).map(item => {
+  return (data.items || []).flatMap(item => {
     const snippet = item.snippet?.topLevelComment?.snippet
-    return {
-      id: item.id,
-      author: snippet?.authorDisplayName || 'desconhecido',
-      text: snippet?.textDisplay || '',
-      createdAt: snippet?.publishedAt || null
-    }
+    const topLevelCommentId = item.snippet?.topLevelComment?.id || item.id
+    return [
+      {
+        id: topLevelCommentId,
+        author: snippet?.authorDisplayName || 'desconhecido',
+        text: snippet?.textOriginal || snippet?.textDisplay || '',
+        createdAt: snippet?.publishedAt || null
+      },
+      ...((item.replies?.comments || []).map(reply => ({
+        id: reply.id,
+        author: reply.snippet?.authorDisplayName || 'desconhecido',
+        text: reply.snippet?.textOriginal || reply.snippet?.textDisplay || '',
+        createdAt: reply.snippet?.publishedAt || null,
+        parentId: topLevelCommentId
+      })))
+    ]
   })
 }
 

@@ -78,4 +78,26 @@ describe('CommentsModal', () => {
     expect(reply.closest('.comment-replies')).toBeInTheDocument()
     expect(reply.closest('.comment-row-nested')).toBeInTheDocument()
   })
+
+  it('transforma respostas agrupadas pela rede em comentários aninhados', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts/42/comments') return Promise.resolve({
+        comments: [{
+          id: 'comment-1',
+          author: 'Ana',
+          text: 'Comentário original',
+          replies: [{ id: 'reply-1', author: 'Breno', text: 'Resposta do Instagram' }]
+        }],
+        post: { id: 42, platform: 'instagram', replySupported: true }
+      })
+      if (path === '/api/saved-texts') return Promise.resolve({ savedTexts: [] })
+      return Promise.resolve({})
+    })
+
+    render(<CommentsModal embedded postId={42} initialPost={{ id: 42, platform: 'instagram', text: 'Meu post', replySupported: true }} />)
+
+    const reply = await screen.findByText('Resposta do Instagram', { selector: '.comment-text' })
+    expect(reply.closest('.comment-replies')).toBeInTheDocument()
+    expect(reply.closest('.comment-row')).toHaveClass('comment-row-platform-instagram', 'comment-row-nested')
+  })
 })

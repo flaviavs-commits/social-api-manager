@@ -83,6 +83,18 @@ npm start
 # Acesse: http://localhost:3000
 ```
 
+## CI/CD
+
+O workflow em `.github/workflows/ci.yml` executa os testes do backend, os testes
+dos componentes React e o build em todo push ou pull request para `main`. Um
+push aprovado em `main` publica automaticamente a aplicação na Vercel.
+
+Configure estes secrets no repositório do GitHub antes do primeiro deploy:
+
+- `VERCEL_TOKEN` — token pessoal ou de equipe da Vercel.
+- `VERCEL_ORG_ID` — ID da equipe/organização da Vercel.
+- `VERCEL_PROJECT_ID` — ID do projeto da Vercel.
+
 ## Banco de dados
 
 O sistema usa **PostgreSQL** via `pg` (`src/db/pool.js`), conectado através da

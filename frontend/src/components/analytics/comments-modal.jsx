@@ -7,6 +7,48 @@ const COMMENTS_REFRESH_INTERVAL_MS = 60_000
 const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 60_000
 const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 5 * COMMENTS_REFRESH_INTERVAL_MS
 
+function firstCommentValue(...values) {
+  return values.find(value => value !== null && value !== undefined && value !== '') ?? null
+}
+
+function commentParentId(comment) {
+  return firstCommentValue(
+    comment?.parentId,
+    comment?.parent_id,
+    comment?.parentCommentId,
+    comment?.parent_comment_id,
+    comment?.replyTo,
+    comment?.reply_to,
+    comment?.inReplyTo,
+    comment?.in_reply_to
+  )
+}
+
+function commentChildren(comment) {
+  const children = comment?.replies ?? comment?.responses ?? comment?.children
+  if (Array.isArray(children)) return children
+  if (Array.isArray(children?.data)) return children.data
+  if (Array.isArray(children?.comments)) return children.comments
+  return []
+}
+
+function flattenComments(items, inheritedParentId = null, seen = new Set()) {
+  if (!Array.isArray(items)) return []
+  return items.flatMap(comment => {
+    if (!comment || typeof comment !== 'object') return []
+    const id = firstCommentValue(comment.id, comment.cid)
+    if (id === null || seen.has(String(id))) return []
+    seen.add(String(id))
+    const parentId = commentParentId(comment) ?? inheritedParentId
+    const normalized = parentId === null ? comment : { ...comment, id, parentId }
+    return [normalized, ...flattenComments(commentChildren(comment), id, seen)]
+  })
+}
+
+function platformKey(value) {
+  return String(value || 'social').toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'social'
+}
+
 function formatDate(value) {
   if (!value) return 'data não informada'
   try {
@@ -100,8 +142,9 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
   const author = comment.author || 'desconhecido'
   const authorAvatar = comment.authorAvatarUrl || comment.profilePictureUrl || comment.avatarUrl || null
   const viewerName = post?.handle || 'sua conta'
-  const isReply = Boolean(comment.parentId)
+  const isReply = commentParentId(comment) !== null
   const platformLabel = PLATFORM_LABELS[platform] || platform || 'rede social'
+  const platformClass = platformKey(platform)
 
   async function send() {
     const text = replyText.trim()
@@ -137,12 +180,12 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     } catch (caught) { setError(caught.message) }
   }
 
-  return <article className={`comment-row${isReply ? ' comment-row-nested' : ''}`}>
+  return <article className={`comment-row comment-row-platform-${platformClass}${isReply ? ' comment-row-nested' : ''}`} data-platform={platformClass}>
     <div className="comment-author-line">
       <SafeAvatar src={authorAvatar} className="comment-author-avatar" fallback={author.slice(0, 1).toUpperCase()} />
       <div className="comment-author-copy">
         <span className="comment-author">@{author.replace(/^@/, '')}</span>
-        <span className="comment-source-badge"><PlatformIcon platform={platform} className="h-3 w-3" />{isReply ? 'Resposta sincronizada' : `Recebido do ${platformLabel}`}</span>
+        <span className="comment-source-badge"><PlatformIcon platform={platform} className="h-3 w-3" />{isReply ? `Resposta sincronizada · ${platformLabel}` : `Recebido do ${platformLabel}`}</span>
       </div>
     </div>
     <div className="comment-message"><p className="comment-text">{comment.text}</p></div>
@@ -154,7 +197,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     {replies.length > 0 && <div className="comment-replies" aria-label="Respostas deste comentário">
       {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
     </div>}
-    {!comment.parentId && replySupported
+    {commentParentId(comment) === null && replySupported
       ? <div className="comment-reply-composer">
           <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
           <div className="comment-reply-identity"><SafeAvatar src={post?.avatarUrl} className="comment-reply-identity-avatar" fallback={<PlatformIcon platform={platform} className="h-3 w-3" />} /><span>Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong></span></div>
@@ -165,7 +208,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
           {savedTexts.length > 0 && <select className="mt-2 w-full rounded-lg border border-subtle bg-app px-2 py-1 text-xs text-zinc-300" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title || item.body.slice(0, 50)}</option>)}</select>}
           <button type="button" className="link-button mt-1" onClick={saveReply}>Salvar texto atual</button>
         </div>
-      : !comment.parentId && <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
+      : commentParentId(comment) === null && <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
     {error && <p className="error-message comment-reply-error">{error}</p>}
   </article>
 }
@@ -187,7 +230,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     return apiFetch(remote ? `/api/posts/inbox/remote-comments${remote}` : `/api/posts/${postId}/comments`, { signal })
       .then(result => {
         if (signal?.aborted) return { aborted: true }
-        const nextComments = result.comments || []
+        const nextComments = flattenComments(result.comments || [])
         setComments(nextComments)
         setPost(current => ({ ...(current || {}), ...(result.post || {}) }))
         setError(result.error || '')
@@ -249,14 +292,15 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
   const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
   const repliesByParent = new Map()
   comments.forEach(comment => {
-    if (!comment.parentId) return
-    const key = String(comment.parentId)
+    const parentId = commentParentId(comment)
+    if (parentId === null) return
+    const key = String(parentId)
     const current = repliesByParent.get(key) || []
     current.push(comment)
     repliesByParent.set(key, current)
   })
   const repliesFor = commentId => repliesByParent.get(String(commentId)) || []
-  const topLevelComments = comments.filter(comment => !comment.parentId)
+  const topLevelComments = comments.filter(comment => commentParentId(comment) === null)
   const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
     <div className="modal-header comments-header">
       <div><p className="eyebrow">PUBLICAÇÃO PUBLICADA</p><h3>Comentários e respostas</h3><p className="comments-conversation-title">Confira o conteúdo e responda sua comunidade sem sair do Inbox.</p></div>
@@ -267,7 +311,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
     {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
-    {!error && !loading && topLevelComments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
+    {!error && !loading && topLevelComments.length > 0 && <div className={`comments-list comments-list-platform-${platformKey(visiblePost?.platform)}`} aria-label="Comentários da publicação">
       {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
     </div>}
   </div>
