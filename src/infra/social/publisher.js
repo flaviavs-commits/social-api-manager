@@ -115,6 +115,9 @@ function extrairExternalId(platform, data) {
 // (syncZernioAccount). A função do YouTube mantém fallback para contas antigas
 // conectadas diretamente ao Google.
 async function publicarYoutubePorProvedor(token, post, options = {}) {
+  if (options.scheduledFor && !token.zernioAccountId) {
+    throw new Error('Esta conta antiga do YouTube não permite agendamento externo pela Zernio.')
+  }
   return token.zernioAccountId ? publicarZernioYoutube(token, post, options) : publicarYoutube(token, post)
 }
 
@@ -183,7 +186,7 @@ async function reconciliarDuplicidadeZernio({ platform, existingPostId }) {
 // correspondente) — extraído para permitir publicar em todas as contas do
 // post em paralelo, em vez de uma por vez. `account` já vem resolvido (ver
 // criarPost.js): { postAccountId, accountId, platform, handle, mediaItems }.
-async function publicarNaConta(account, post, isSuperAdmin) {
+async function publicarNaConta(account, post, isSuperAdmin, { scheduledFor = null } = {}) {
   const platform = account.platform
   await postsRepo.atualizarErroPublicacaoConta(account.postAccountId, null)
   // Texto diferente por rede (Agendador manual, seletor de abas) — opcional,
@@ -270,11 +273,23 @@ async function publicarNaConta(account, post, isSuperAdmin) {
     }
     let data
     try {
-      data = await publisher(token, post, { requestId: providerRequestId, metadata })
+      data = await publisher(token, post, { requestId: providerRequestId, metadata, scheduledFor })
     } catch (err) {
       const duplicateId = existingZernioPostId(err)
       if (!duplicateId) throw err
       data = await reconciliarDuplicidadeZernio({ platform, existingPostId: duplicateId })
+    }
+
+    if (data?.scheduled) {
+      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, scheduled: true, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
+      await registrarLog({
+        type: 'info',
+        message: `Post agendado no ${platform} pela Zernio para ${scheduledFor}`,
+        platform,
+        conta_id: token.contaId,
+        user_id: post.userId
+      })
+      return { platform, accountId: account.accountId, success: 'scheduled', account: token.handle || token.accountName, data }
     }
 
     // Instagram (fluxo direto, não migrado): o container foi criado, mas
@@ -374,6 +389,13 @@ async function publishPost(post) {
   return mapWithConcurrency(accounts, account => publicarNaConta(account, post, isSuperAdmin), PUBLICATION_CONCURRENCY)
 }
 
+// Entrega posts futuros à fila da Zernio no momento da criação. Assim a
+// publicação não depende de o cron desta aplicação estar online no horário.
+async function schedulePost(post) {
+  const accounts = post.accounts || []
+  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, post.userRole === 'super_admin', { scheduledFor: post.scheduledFor }), PUBLICATION_CONCURRENCY)
+}
+
 // Verifica, por (post, conta), se o(s) container(s) pendentes do Instagram já
 // terminaram de processar — e se sim, publica de fato. Chamada pelo cron
 // (mesmo tick de processarPendentes), substituindo o polling bloqueante que
@@ -448,7 +470,7 @@ const ZERNIO_PENDING_TIMEOUT_MS = 15 * 60 * 1000
 // ou "failed"/timeout (desiste).
 async function finalizarZernioPendentes() {
   const pendentes = (await postsRepo.listarPostsComInstagramPendente())
-    .filter(linha => linha.instagramPending.provider === 'zernio')
+    .filter(linha => linha.instagramPending.provider === 'zernio' && linha.instagramPending.scheduled !== true)
 
   await Promise.all(pendentes.map(async linha => {
     const pending = linha.instagramPending
@@ -591,4 +613,24 @@ async function confirmarPublicacaoZernio({ zernioPostId, platform, zernioAccount
   return { matched: candidatos.length }
 }
 
-module.exports = { publishPost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, finalizarZernioPendentes, confirmarPublicacaoZernio }
+// Confirma apenas que a Zernio aceitou o horário. O post continua pendente
+// até chegar post.published; não grava publicação externa nem encerra status.
+async function confirmarAgendamentoZernio({ zernioPostId, platform, zernioAccountId = null, metadata = null }) {
+  if (!zernioPostId) return { matched: 0 }
+  let pendentes = metadata
+    ? await postsRepo.listarPostsComZernioPendentePorMetadata({ ...metadata, zernioPostId })
+    : []
+  if (!pendentes.length) pendentes = await postsRepo.listarPostsComZernioPendentePorPostId(zernioPostId)
+  const candidatos = pendentes.filter(linha => {
+    if (platform && linha.platform !== platform) return false
+    if (!zernioAccountId) return true
+    return linha.zernioAccountId && String(linha.zernioAccountId) === String(zernioAccountId)
+  })
+  await Promise.all(candidatos.map(async linha => {
+    await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
+    await registrarLog({ type: 'info', message: `Post confirmado na fila da Zernio para ${linha.platform}.`, platform: linha.platform, conta_id: linha.accountId, user_id: linha.userId })
+  }))
+  return { matched: candidatos.length }
+}
+
+module.exports = { publishPost, schedulePost, buscarContaToken, listarContasToken, finalizarInstagramPendentes, finalizarZernioPendentes, confirmarPublicacaoZernio, confirmarAgendamentoZernio }

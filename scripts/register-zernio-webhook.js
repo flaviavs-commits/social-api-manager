@@ -18,6 +18,7 @@ async function main() {
       'post.published',
       'post.partial',
       'post.failed',
+      'post.scheduled',
       'post.platform.published',
       'post.platform.failed'
     ]

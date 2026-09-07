@@ -13,7 +13,8 @@ jest.mock('../../../src/infra/social/zernioClient', () => ({
 }))
 
 jest.mock('../../../src/infra/social/publisher', () => ({
-  confirmarPublicacaoZernio: jest.fn()
+  confirmarPublicacaoZernio: jest.fn(),
+  confirmarAgendamentoZernio: jest.fn()
 }))
 
 jest.mock('../../../src/infra/db/postsRepository', () => ({
@@ -105,6 +106,36 @@ test('converte post.published em confirmação local com o ID da plataforma', as
   }))
   expect(postsRepo.listarPostsComZernioPendentePorMetadata).toHaveBeenCalledWith({ ...metadata, zernioPostId: 'zp-1' })
   expect(postsRepo.listarPostsComZernioPendentePorPostId).not.toHaveBeenCalled()
+})
+
+test('converte post.scheduled em confirmação de entrada na fila', async () => {
+  const metadata = {
+    app: 'social-api-manager',
+    clienteId: '7',
+    postId: '303',
+    postAccountId: '9',
+    platform: 'instagram'
+  }
+  postsRepo.listarPostsComZernioPendentePorMetadata.mockResolvedValue([{
+    id: 303,
+    postAccountId: 9,
+    accountId: 4,
+    zernioAccountId: 'za-1',
+    platform: 'instagram'
+  }])
+  publisher.confirmarAgendamentoZernio.mockResolvedValue({ matched: 1 })
+
+  const result = await service.processarPayload({
+    id: 'evt-scheduled-1',
+    event: 'post.scheduled',
+    post: { _id: 'zp-1', metadata }
+  })
+
+  expect(result).toEqual({ matched: 1 })
+  expect(publisher.confirmarAgendamentoZernio).toHaveBeenCalledWith({
+    zernioPostId: 'zp-1', platform: null, zernioAccountId: null, metadata
+  })
+  expect(publisher.confirmarPublicacaoZernio).not.toHaveBeenCalled()
 })
 
 test('processa a falha por plataforma com o motivo recebido', async () => {

@@ -109,6 +109,18 @@ test('envia metadata para correlacionar o webhook com a publicação local', asy
   expect(zernioClient.createPost.mock.calls[0][0].metadata).toEqual(metadata)
 })
 
+test('envia scheduledFor com offset e não publica imediatamente', async () => {
+  await publicarZernioFacebook(
+    { accessToken: 'facebook-account-1' },
+    { mediaItems: [{ path: 'photo.jpg', type: 'image' }], text: 'Agendado' },
+    { scheduledFor: '2026-09-08T17:15:00-03:00' }
+  )
+
+  const body = zernioClient.createPost.mock.calls[0][0]
+  expect(body.scheduledFor).toBe('2026-09-08T17:15:00-03:00')
+  expect(body.publishNow).toBeUndefined()
+})
+
 test('identifica vídeo do Instagram sem enviar contentType feed', async () => {
   zernioClient.createPost.mockResolvedValue({
     post: {

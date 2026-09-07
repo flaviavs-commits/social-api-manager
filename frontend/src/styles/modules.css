@@ -180,6 +180,7 @@
 .drafts-v2-heading h2{margin:0 0 7px;color:#f4f1e9;font-size:clamp(27px,3vw,36px);letter-spacing:-.04em}
 .drafts-v2-heading-copy>div>p:last-child{max-width:580px;margin:0;color:#9096a8;font-size:13px;line-height:1.55}
 .drafts-v2-heading-icon{display:flex;width:44px;height:44px;align-items:center;justify-content:center;margin-top:2px;border:1px solid rgba(209,153,62,.36);border-radius:13px;background:rgba(209,153,62,.12);color:#f0c877;font-size:21px;box-shadow:0 0 0 5px rgba(209,153,62,.04)}
+.drafts-v2-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .drafts-v2-refresh{display:inline-flex;align-items:center;gap:8px;min-height:38px;white-space:nowrap}
 .drafts-v2-refresh span{font-size:17px;line-height:1}
 .drafts-v2-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}

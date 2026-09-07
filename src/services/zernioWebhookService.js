@@ -2,11 +2,11 @@ const crypto = require('crypto')
 const webhooksRepo = require('../repositories/zernioWebhooksRepository')
 const zernioClient = require('../infra/social/zernioClient')
 const postsRepo = require('../infra/db/postsRepository')
-const { confirmarPublicacaoZernio } = require('../infra/social/publisher')
+const { confirmarPublicacaoZernio, confirmarAgendamentoZernio } = require('../infra/social/publisher')
 
 const ROLLUP_EVENTS = new Set(['post.published', 'post.failed', 'post.partial'])
 const PLATFORM_EVENTS = new Set(['post.platform.published', 'post.platform.failed'])
-const HANDLED_EVENTS = new Set([...ROLLUP_EVENTS, ...PLATFORM_EVENTS, 'webhook.test'])
+const HANDLED_EVENTS = new Set([...ROLLUP_EVENTS, ...PLATFORM_EVENTS, 'post.scheduled', 'webhook.test'])
 
 function header(headers, name) {
   const wanted = name.toLowerCase()
@@ -127,6 +127,16 @@ async function processarPayload(payload) {
   const eventPlatform = PLATFORM_EVENTS.has(eventName) ? platformName(payload.platform) : null
   const eventAccountId = PLATFORM_EVENTS.has(eventName) ? objectId(payload.account) : null
   let matched = 0
+
+  if (eventName === 'post.scheduled') {
+    const result = await confirmarAgendamentoZernio({
+      zernioPostId,
+      platform: eventPlatform,
+      zernioAccountId: eventAccountId,
+      metadata
+    })
+    return { matched: result.matched || 0 }
+  }
 
   for (const line of pending) {
     if (eventPlatform && line.platform !== eventPlatform) continue

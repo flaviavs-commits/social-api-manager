@@ -182,7 +182,7 @@ async function atualizarStatusPostSeProcessando(id, status, errorMessage = null)
              WHEN $1::varchar IN ('scheduled', 'processing') THEN NULL
              ELSE media_cleaned_at
            END
-     WHERE id = $3 AND status = 'processing'
+     WHERE id = $3 AND status IN ('processing', 'scheduled', 'partial')
      RETURNING id
   `, [status, errorMessage, id])
   // O fallback para undefined mantém os mocks antigos compatíveis; o driver
@@ -213,7 +213,15 @@ async function reservarPostsPendentes() {
         -- falharam por erro transitório e estão aguardando o retry (ver
         -- reagendarParaRetry, migrations/036) — o segundo caso sempre tem
         -- next_retry_at preenchido, então uma condição não interfere na outra.
-        WHERE p.status = 'scheduled' AND (p.scheduled_at <= NOW() OR p.next_retry_at <= NOW())
+         WHERE p.status = 'scheduled' AND (p.scheduled_at <= NOW() OR p.next_retry_at <= NOW())
+         -- Posts aceitos na fila externa da Zernio são publicados por ela;
+         -- o cron local não pode dispará-los novamente no mesmo horário.
+         AND NOT EXISTS (
+           SELECT 1 FROM post_accounts pa_scheduled
+           WHERE pa_scheduled.post_id = p.id
+             AND pa_scheduled.instagram_pending->>'provider' = 'zernio'
+             AND pa_scheduled.instagram_pending->>'scheduled' = 'true'
+         )
         -- Segura o post se TODAS as suas plataformas estiverem fora do ar;
         -- volta a tentar no próximo tick do cron (1 min depois) até
         -- alguma plataforma voltar a responder ('up' ou 'unknown').
@@ -273,7 +281,8 @@ async function recuperarPostsProcessingStale() {
            media_cleaned_at = NULL
      WHERE p.status = 'processing'
        AND p.criado_em < NOW() - INTERVAL '6 hours'
-       AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending->>'provider' = 'zernio' AND pa.instagram_pending->>'scheduled' = 'true')
        AND NOT EXISTS (SELECT 1 FROM post_publications pp WHERE pp.post_id = p.id)
      RETURNING p.id, p.user_id AS "userId"
   `)

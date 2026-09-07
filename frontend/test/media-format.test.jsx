@@ -8,6 +8,12 @@ describe('media format preview', () => {
     expect(ratioLabel(1080, 1920)).toBe('9:16')
   })
 
+  it('exibe proporções detectadas como razões inteiras, sem casas decimais', () => {
+    expect(ratioLabel(1000, 600)).toBe('5:3')
+    expect(ratioLabel(1080, 566)).toBe('191:100')
+    expect(ratioLabel(0, 1080)).toBe('proporção não detectada')
+  })
+
   it('escolhe automaticamente 9:16 para vídeo do TikTok', () => {
     expect(resolvePreviewAspect({ platform: 'tiktok', mediaKind: 'video', sourceRatio: 1.78 }).key).toBe('vertical')
   })

@@ -237,7 +237,7 @@ async function listarContasAtivasPorPlataformas(platforms, userId, isAdmin) {
   } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
-    SELECT c.id, c.platform, c.handle
+    SELECT c.id, c.platform, c.handle, c.zernio_account_id AS "zernioAccountId"
     FROM contas c
     WHERE ${conds.join(' AND ')}
     ORDER BY c.platform, c.criado_em ASC
@@ -260,7 +260,7 @@ async function listarContasPorIds(ids, userId, isAdmin) {
   } else if (!isAdmin) conds.push('FALSE')
 
   const { rows } = await pool.query(`
-    SELECT c.id, c.platform, c.handle
+    SELECT c.id, c.platform, c.handle, c.zernio_account_id AS "zernioAccountId"
     FROM contas c
     WHERE ${conds.join(' AND ')}
     ORDER BY c.platform, c.criado_em ASC

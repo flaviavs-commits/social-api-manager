@@ -37,7 +37,10 @@ function montarMediaItems(post, { includeThumbnail = false } = {}) {
 // upload/compressão de vídeo). Quando isso acontece, sinaliza pending do
 // mesmo jeito que o Instagram direto sinalizava (data.pending) — quem
 // chama (publisher.js/publicarNaConta) já sabe tratar esse contrato.
-function extrairDadosDaPlataforma(created, platform) {
+function extrairDadosDaPlataforma(created, platform, { scheduled = false } = {}) {
+  if (scheduled) {
+    return { scheduled: true, provider: 'zernio', zernioPostId: created._id, platform }
+  }
   const entrada = created.platforms?.find(p => p.platform === platform)
   if (!entrada?.platformPostId) {
     return { pending: true, provider: 'zernio', zernioPostId: created._id, platform }
@@ -53,12 +56,16 @@ function postDaResposta(response) {
   return created
 }
 
+function scheduleFields(scheduledFor) {
+  return scheduledFor ? { scheduledFor } : { publishNow: true }
+}
+
 function metadataDaPublicacao(metadata) {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
   return Object.keys(metadata).length ? metadata : null
 }
 
-async function publicarZernioInstagram(token, post, { requestId, metadata } = {}) {
+async function publicarZernioInstagram(token, post, { requestId, metadata, scheduledFor } = {}) {
   if (!post.mediaPath && !post.mediaItems?.length) throw new Error('Instagram exige uma imagem ou vídeo para publicar')
 
   const items = post.mediaItems?.length ? post.mediaItems : [{ path: post.mediaPath, type: post.mediaType }]
@@ -78,7 +85,7 @@ async function publicarZernioInstagram(token, post, { requestId, metadata } = {}
 
   const response = await zernioClient.createPost({
     content: post.text || '',
-    publishNow: true,
+    ...scheduleFields(scheduledFor),
     mediaItems: montarMediaItems({ ...post, mediaItems: items }),
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
@@ -89,17 +96,17 @@ async function publicarZernioInstagram(token, post, { requestId, metadata } = {}
   }, { requestId })
   const created = postDaResposta(response)
 
-  return extrairDadosDaPlataforma(created, 'instagram')
+  return extrairDadosDaPlataforma(created, 'instagram', { scheduled: Boolean(scheduledFor) })
 }
 
-async function publicarZernioFacebook(token, post, { requestId, metadata } = {}) {
+async function publicarZernioFacebook(token, post, { requestId, metadata, scheduledFor } = {}) {
   const platformSpecificData = {}
   if (post.facebookFormat === 'reel') platformSpecificData.contentType = 'reel'
   if (post.firstComment) platformSpecificData.firstComment = post.firstComment
 
   const response = await zernioClient.createPost({
     content: post.text || '',
-    publishNow: true,
+    ...scheduleFields(scheduledFor),
     mediaItems: montarMediaItems(post),
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
@@ -110,10 +117,10 @@ async function publicarZernioFacebook(token, post, { requestId, metadata } = {})
   }, { requestId })
   const created = postDaResposta(response)
 
-  return extrairDadosDaPlataforma(created, 'facebook')
+  return extrairDadosDaPlataforma(created, 'facebook', { scheduled: Boolean(scheduledFor) })
 }
 
-async function publicarZernioYoutube(token, post, { requestId, metadata } = {}) {
+async function publicarZernioYoutube(token, post, { requestId, metadata, scheduledFor } = {}) {
   const items = post.mediaItems?.length
     ? post.mediaItems
     : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
@@ -130,7 +137,7 @@ async function publicarZernioYoutube(token, post, { requestId, metadata } = {}) 
 
   const response = await zernioClient.createPost({
     content: post.text || '',
-    publishNow: true,
+    ...scheduleFields(scheduledFor),
     mediaItems: [{ type: 'video', url: mediaUrl(videos[0].path) }],
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{
@@ -141,10 +148,10 @@ async function publicarZernioYoutube(token, post, { requestId, metadata } = {}) 
   }, { requestId })
 
   const created = postDaResposta(response)
-  return extrairDadosDaPlataforma(created, 'youtube')
+  return extrairDadosDaPlataforma(created, 'youtube', { scheduled: Boolean(scheduledFor) })
 }
 
-async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
+async function publicarZernioTiktok(token, post, { requestId, metadata, scheduledFor } = {}) {
   const items = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
   if (!items.length) throw new Error('TikTok exige uma imagem ou vídeo para publicar.')
 
@@ -185,7 +192,7 @@ async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
 
   const response = await zernioClient.createPost({
     content,
-    publishNow: true,
+    ...scheduleFields(scheduledFor),
     mediaItems: montarMediaItems({ ...post, mediaItems: items }, { includeThumbnail: post.youtubeIsShort !== true }),
     ...(metadataDaPublicacao(metadata) ? { metadata: metadataDaPublicacao(metadata) } : {}),
     platforms: [{ platform: 'tiktok', accountId: token.accessToken }],
@@ -193,7 +200,7 @@ async function publicarZernioTiktok(token, post, { requestId, metadata } = {}) {
   }, { requestId })
   const created = postDaResposta(response)
 
-  return extrairDadosDaPlataforma(created, 'tiktok')
+  return extrairDadosDaPlataforma(created, 'tiktok', { scheduled: Boolean(scheduledFor) })
 }
 
 module.exports = { publicarZernioInstagram, publicarZernioFacebook, publicarZernioYoutube, publicarZernioTiktok }

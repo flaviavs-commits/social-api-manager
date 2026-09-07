@@ -3,7 +3,7 @@ export const PREVIEW_ASPECTS = {
   portrait: { key: 'portrait', label: '4:5', ratio: 4 / 5, dimensions: '1080 × 1350 px' },
   vertical: { key: 'vertical', label: '9:16', ratio: 9 / 16, dimensions: '1080 × 1920 px' },
   landscape: { key: 'landscape', label: '16:9', ratio: 16 / 9, dimensions: '1920 × 1080 px' },
-  instagramWide: { key: 'instagramWide', label: '1,91:1', ratio: 1.91, dimensions: '1080 × 566 px' },
+  instagramWide: { key: 'instagramWide', label: '191:100', ratio: 1.91, dimensions: '1080 × 566 px' },
 }
 
 export const PREVIEW_ASPECT_OPTIONS = [
@@ -81,6 +81,17 @@ function distanceBetweenRatios(left, right) {
   return Math.abs(Math.log(left / right))
 }
 
+function greatestCommonDivisor(left, right) {
+  let a = Math.abs(left)
+  let b = Math.abs(right)
+  while (b) {
+    const remainder = a % b
+    a = b
+    b = remainder
+  }
+  return a || 1
+}
+
 export function nearestPreviewAspect(ratio, options = PREVIEW_ASPECT_OPTIONS) {
   if (!Number.isFinite(ratio) || ratio <= 0) return options[0] || PREVIEW_ASPECTS.square
   return options.reduce((nearest, option) => (
@@ -89,10 +100,14 @@ export function nearestPreviewAspect(ratio, options = PREVIEW_ASPECT_OPTIONS) {
 }
 
 export function ratioLabel(width, height) {
-  if (!width || !height) return 'proporção não detectada'
-  const ratio = width / height
+  const normalizedWidth = Math.round(Number(width))
+  const normalizedHeight = Math.round(Number(height))
+  if (!Number.isFinite(normalizedWidth) || !Number.isFinite(normalizedHeight) || normalizedWidth <= 0 || normalizedHeight <= 0) return 'proporção não detectada'
+  const ratio = normalizedWidth / normalizedHeight
   const known = Object.values(PREVIEW_ASPECTS).find(option => distanceBetweenRatios(ratio, option.ratio) < 0.035)
-  return known?.label || `${ratio.toFixed(2)}:1`
+  if (known) return known.label
+  const divisor = greatestCommonDivisor(normalizedWidth, normalizedHeight)
+  return `${normalizedWidth / divisor}:${normalizedHeight / divisor}`
 }
 
 export function resolvePreviewAspect({ platform, mediaKind, sourceRatio, requested = 'auto', instagramFormat = 'post', facebookFormat = 'post' }) {
