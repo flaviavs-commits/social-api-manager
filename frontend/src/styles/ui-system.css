@@ -1331,3 +1331,35 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row strong {
     padding: 11px !important;
   }
 }
+
+/* Mobile estreito: cada conexão ocupa uma linha para preservar a leitura. */
+@media (max-width: 640px) {
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-list {
+    grid-template-columns: 1fr !important;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card {
+    display: flex !important;
+    width: 100%;
+    align-items: center;
+    text-align: left;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card-copy {
+    display: grid !important;
+    align-content: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card-copy strong,
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card-copy small {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
