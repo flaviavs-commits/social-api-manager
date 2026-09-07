@@ -159,6 +159,14 @@ function isPublicationNotification(item) {
   return /^post #\d+\s+(?:publicado com sucesso|publicado parcialmente|falhou ao publicar)/.test(String(item?.message || '').toLowerCase())
 }
 
+function isCommentNotification(item) {
+  return /^novo comentário de @/i.test(String(item?.message || ''))
+}
+
+function isBellNotification(item) {
+  return isPublicationNotification(item) || isCommentNotification(item)
+}
+
 function mergeNotifications(current, incoming) {
   const byId = new Map()
   ;[...incoming, ...current].forEach(item => byId.set(item.id, item))
@@ -169,6 +177,7 @@ function mergeNotifications(current, incoming) {
 
 function notificationPreferenceEnabled(item, user) {
   const preferences = user?.notificationPreferences || {}
+  if (isCommentNotification(item)) return preferences.comments !== false
   const kind = notificationKind(item)
   if (kind === 'success') return preferences.published !== false
   if (kind === 'warning' || kind === 'error') return preferences.failures !== false
@@ -199,7 +208,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
         const logs = result.logs || []
         if (!active) return
         notificationCursor.current = Math.max(0, ...logs.map(item => Number(item.id) || 0))
-        setNotifications(logs.filter(isPublicationNotification).slice(0, 5))
+        setNotifications(logs.filter(isBellNotification).slice(0, 5))
         primed = true
       } catch {
         // A falha no polling não deve bloquear a navegação do painel.
@@ -213,14 +222,17 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
       if (!active || !notificationsInitialized.current || notificationPolling.current) return
       notificationPolling.current = true
       try {
+        // A consulta também funciona fora do Inbox e faz o backend descobrir
+        // comentários novos para transformá-los em notificações do sininho.
+        await apiFetch('/api/posts/inbox/unread').catch(() => {})
         const result = await apiFetch(`/api/logs/since/${notificationCursor.current}`)
         const logs = result.logs || []
         if (logs.length) notificationCursor.current = Math.max(notificationCursor.current, ...logs.map(item => Number(item.id) || 0))
-        const publicationLogs = logs.filter(isPublicationNotification)
-        if (!active || !publicationLogs.length) return
+        const bellLogs = logs.filter(isBellNotification)
+        if (!active || !bellLogs.length) return
 
-        setNotifications(current => mergeNotifications(current, publicationLogs))
-        const visibleNotifications = publicationLogs.filter(item => notificationPreferenceEnabled(item, user))
+        setNotifications(current => mergeNotifications(current, bellLogs))
+        const visibleNotifications = bellLogs.filter(item => notificationPreferenceEnabled(item, user))
         if (!visibleNotifications.length) return
         setUnreadNotifications(current => current + visibleNotifications.length)
         visibleNotifications.forEach(item => {
@@ -254,7 +266,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
     setNotificationsLoading(true)
     try {
       const result = await apiFetch('/api/logs?limit=30')
-      setNotifications((result.logs || []).filter(isPublicationNotification).slice(0, 5))
+      setNotifications((result.logs || []).filter(isBellNotification).slice(0, 5))
     } catch {
       setNotifications([])
     } finally {
@@ -298,7 +310,7 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
             {notificationsLoading
               ? <p className="notification-empty">Carregando atualizações...</p>
               : notifications.length
-                ? <div className="notification-list">{notifications.map(item => { const kind = notificationKind(item); return <div className={`notification-item notification-item-${kind}`} key={item.id}><span className={`notification-mark notification-mark-${kind}`} aria-hidden="true">{kind === 'error' ? '!' : kind === 'pending' ? '…' : kind === 'warning' ? '!' : '✓'}</span><div><span className={`notification-status-label notification-status-${kind}`}>{NOTIFICATION_KIND_LABELS[kind]}</span><p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</small></div></div>})}</div>
+                ? <div className="notification-list">{notifications.map(item => { const kind = notificationKind(item); const comment = isCommentNotification(item); return <div className={`notification-item notification-item-${kind}${comment ? ' notification-item-comment' : ''}`} key={item.id}><span className={`notification-mark notification-mark-${kind}`} aria-hidden="true">{comment ? '💬' : kind === 'error' ? '!' : kind === 'pending' ? '…' : kind === 'warning' ? '!' : '✓'}</span><div><span className={`notification-status-label notification-status-${kind}`}>{comment ? 'Novo comentário' : NOTIFICATION_KIND_LABELS[kind]}</span><p>{item.message}</p><small>{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</small></div></div>})}</div>
                 : <p className="notification-empty">Nenhuma atualização recente.</p>}
             <button type="button" className="notification-see-all" onClick={() => { setNotificationsOpen(false); onNavigate('atividade') }}>Ver histórico completo</button>
           </div>}

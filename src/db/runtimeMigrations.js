@@ -277,6 +277,8 @@ async function runMigrations() {
     bestEffort(`CREATE TABLE IF NOT EXISTS platform_presets (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, platform TEXT NOT NULL, name TEXT NOT NULL, config JSONB NOT NULL DEFAULT '{}', criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS push_subscriptions (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, endpoint TEXT UNIQUE NOT NULL, p256dh TEXT, auth TEXT, criado_em TIMESTAMPTZ DEFAULT NOW())`),
     bestEffort(`CREATE TABLE IF NOT EXISTS inbox_seen_comments (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, seen_ids TEXT[] DEFAULT '{}', atualizado_em TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (user_id, post_id))`),
+    bestEffort('ALTER TABLE logs ADD COLUMN IF NOT EXISTS notification_key TEXT'),
+    bestEffort('CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_notification_key ON logs (notification_key) WHERE notification_key IS NOT NULL'),
     bestEffort(`CREATE TABLE IF NOT EXISTS ai_memory (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, model TEXT NOT NULL, tipo TEXT NOT NULL, conteudo TEXT NOT NULL, resolvido BOOLEAN DEFAULT FALSE, criado_em TIMESTAMPTZ DEFAULT NOW(), lembrar_em TIMESTAMPTZ)`),
     bestEffort('CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON credentials (user_id)'),
     bestEffort('CREATE INDEX IF NOT EXISTS idx_credentials_reset_token ON credentials (reset_token) WHERE reset_token IS NOT NULL'),

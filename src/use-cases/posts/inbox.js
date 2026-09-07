@@ -2,6 +2,9 @@ const pool = require('../../db/pool')
 const postsRepo = require('../../infra/db/postsRepository')
 const contasRepo = require('../../repositories/contasRepository')
 const commentsService = require('../../services/commentsService')
+const { registrarLog } = require('../../repositories/logsRepository')
+
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X' }
 
 function remotePostKey(post) {
   return `${post.externalPlatform}:${post.externalPostId}`
@@ -65,7 +68,26 @@ async function contarNaoLidos({ userId, isAdmin }) {
     posts.map(async p => {
       const { comments } = await commentsService.listarComentariosPost(p)
       const seen = seenMap[p.id] || new Set()
-      const newCount = (comments || []).filter(c => !seen.has(c.id)).length
+      const newComments = (comments || []).filter(c => !seen.has(c.id))
+      await Promise.all(newComments.map(async comment => {
+        const author = String(comment.author || 'alguém').replace(/^@/, '')
+        const snippet = String(comment.text || '').replace(/\s+/g, ' ').trim().slice(0, 90)
+        const platform = p.externalPlatform || 'rede social'
+        const postLabel = String(p.textByPlatform?.[platform] || p.text || p.title || `post #${p.id}`).replace(/\s+/g, ' ').trim().slice(0, 70)
+        const message = `Novo comentário de @${author} no ${PLATFORM_LABELS[platform] || platform}: ${postLabel}${snippet ? ` — “${snippet}${String(comment.text || '').length > 90 ? '…' : ''}”` : ''}`
+        try {
+          await registrarLog({
+            type: 'info',
+            message,
+            platform,
+            user_id: userId,
+            notification_key: `comment:${userId}:${p.id}:${comment.id}`
+          })
+        } catch {
+          // A notificação não pode impedir a contagem do Inbox.
+        }
+      }))
+      const newCount = newComments.length
       return { postId: p.id, newCount }
     })
   )

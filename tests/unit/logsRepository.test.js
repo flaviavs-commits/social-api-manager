@@ -21,6 +21,15 @@ describe('registrarLog', () => {
     expect(params[2]).toBe('instagram')
     expect(params[3]).toBe(5)
   })
+
+  test('passa a chave única de notificação quando fornecida', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{}] })
+    await repo.registrarLog({ type: 'info', message: 'novo comentário', user_id: 7, notification_key: 'comment:7:10:c1' })
+    const sql = pool.query.mock.calls[0][0]
+    const params = pool.query.mock.calls[0][1]
+    expect(sql).toContain('ON CONFLICT (notification_key)')
+    expect(params[5]).toBe('comment:7:10:c1')
+  })
 })
 
 describe('listarLogs', () => {

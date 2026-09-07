@@ -88,6 +88,7 @@ describe('GET /api/posts/inbox/unread', () => {
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
     expect(res.body.unread[10]).toBe(2)
+    expect(pool.query.mock.calls.some(([sql, params]) => sql.includes('notification_key') && params.includes('comment:1:10:c1'))).toBe(true)
   })
 
   test('não conta comentários já vistos', async () => {

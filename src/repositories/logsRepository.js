@@ -20,12 +20,13 @@ async function logVisivelPara(log, userId, isAdmin) {
   return row && row.user_id === userId
 }
 
-async function registrarLog({ type, message, platform = null, conta_id = null, user_id = null }) {
+async function registrarLog({ type, message, platform = null, conta_id = null, user_id = null, notification_key = null }) {
   const { rows: [log] } = await pool.query(`
-    INSERT INTO logs (type, message, platform, conta_id, user_id)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO logs (type, message, platform, conta_id, user_id, notification_key)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (notification_key) WHERE notification_key IS NOT NULL DO NOTHING
     RETURNING *
-  `, [type, safeMessage(message), platform, conta_id, user_id])
+  `, [type, safeMessage(message), platform, conta_id, user_id, notification_key])
 
   return log
 }
