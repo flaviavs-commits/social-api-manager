@@ -59,16 +59,12 @@ function NavIcon({ name, className = 'h-[18px] w-[18px]' }) {
   )
 }
 
-function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggleCollapsed }) {
+function AppSidebar({ page, open, onNavigate, onClose, user, collapsed }) {
   return (
     <>
     <aside
       className={`app-sidebar sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-subtle bg-surface transition-transform duration-200 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}${collapsed ? ' is-collapsed' : ''}`}
     >
-      <div className="sidebar-header">
-        <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu'}><span aria-hidden="true">☰</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
-      </div>
-
       <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
         {navigationGroups.map(([groupLabel, groupItems], groupIndex) => (
           <div className={`sidebar-nav-group${groupIndex ? ' sidebar-nav-group-separated' : ''}`} key={groupLabel}>
@@ -192,7 +188,7 @@ function notificationPreferenceEnabled(item, user) {
   return true
 }
 
-function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
+function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, sidebarCollapsed, onToggleCollapsed, onCreatePost, onNavigate, onOpenShortcutHelp, onOpenTutorial }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -285,6 +281,15 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
   return (
     <header className="app-topbar-modern flex items-center justify-between gap-4 border-b border-subtle bg-app px-6 py-4">
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+          aria-expanded={!sidebarCollapsed}
+          className="app-desktop-menu-button"
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -442,17 +447,20 @@ function AppShellBody({ page, onPageChange, children, user }) {
   }, [onPageChange])
 
   return (
-    <div className="app-shell-modern flex min-h-screen bg-app text-zinc-100">
+    <div className="app-shell-modern flex min-h-screen flex-col bg-app text-zinc-100">
+      <AppTopbar currentLabel={currentLabel} user={user} sidebarOpen={open} sidebarCollapsed={sidebarCollapsed} onOpenSidebar={() => setOpen(v => !v)} onToggleCollapsed={toggleSidebarCollapsed} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
+
       {/* No mobile a barra lateral fica fora da tela até alguém abrir o menu.
           Passos do tutorial cujo item só existe nela pedem que fique aberta
           (tutorialWantsSidebar, controlado pelo próprio AppTutorial), sem
           depender do toggle manual do usuário. */}
-      <AppSidebar page={page} open={open || tutorialWantsSidebar} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
+      <div className="app-shell-body flex min-h-0 flex-1">
+        <AppSidebar page={page} open={open || tutorialWantsSidebar} onNavigate={key => { onPageChange(key); setOpen(false) }} onClose={() => setOpen(false)} user={user} collapsed={sidebarCollapsed} />
 
-      <div className="flex min-h-screen flex-1 flex-col">
-        <AppTopbar currentLabel={currentLabel} user={user} sidebarOpen={open} onOpenSidebar={() => setOpen(v => !v)} onCreatePost={() => onPageChange('agendador')} onNavigate={onPageChange} onOpenShortcutHelp={() => setShortcutHelpOpen(true)} onOpenTutorial={() => setTutorialOpen(true)} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <main id="main-content" tabIndex="-1" className="app-main-content flex-1">{children}</main>
         <footer className="app-copyright"><CopyrightNotice /></footer>
+        </div>
       </div>
 
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />

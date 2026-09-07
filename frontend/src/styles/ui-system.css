@@ -1536,6 +1536,50 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-accounts {
 }
 
 /* O cabeçalho permanece estável quando a navegação lateral é compactada. */
+html[data-theme] .app-shell-modern {
+  flex-direction: column;
+}
+
+html[data-theme] .app-shell-modern .app-topbar-modern {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex: 0 0 auto;
+  min-height: 72px;
+  padding-block: 8px;
+}
+
+html[data-theme] .app-shell-modern .app-shell-body {
+  min-height: calc(100svh - 72px);
+}
+
+html[data-theme] .app-shell-modern .app-sidebar {
+  height: calc(100svh - 72px);
+  min-height: calc(100svh - 72px);
+}
+
+html[data-theme] .app-shell-modern .app-desktop-menu-button {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 23px;
+  line-height: 1;
+}
+
+html[data-theme] .app-shell-modern .app-desktop-menu-button:hover,
+html[data-theme] .app-shell-modern .app-desktop-menu-button:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 html[data-theme] .app-shell-modern .app-topbar-brand {
   display: inline-flex;
   width: 124px;
@@ -1556,6 +1600,24 @@ html[data-theme] .app-shell-modern .app-topbar-brand img {
 }
 
 @media (max-width: 767px) {
+  html[data-theme] .app-shell-modern .app-topbar-modern {
+    min-height: 58px;
+    padding-block: 4px;
+  }
+
+  html[data-theme] .app-shell-modern .app-shell-body {
+    min-height: calc(100dvh - 58px);
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  html[data-theme] .app-shell-modern .app-desktop-menu-button {
+    display: none;
+  }
+
   html[data-theme] .app-shell-modern .app-topbar-brand {
     width: 112px;
     height: 50px;
