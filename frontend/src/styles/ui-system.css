@@ -1381,7 +1381,7 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
     gap: 3px;
   }
 
-  .app-shell-modern .dashboard-page .dashboard-platform-card-copy {
+.app-shell-modern .dashboard-page .dashboard-platform-card-copy {
     align-content: center;
   }
 
@@ -1739,5 +1739,68 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+/* No drawer do celular, compacte somente a navegação; a marca permanece
+ * com o tamanho original para continuar sendo o ponto de referência. */
+@media (max-width: 767px) {
+  html[data-theme] .app-shell-modern .sidebar-navigation {
+    gap: 2px;
+    padding: 8px 12px 12px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-nav-group {
+    gap: 2px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-nav-group-separated {
+    margin-top: 4px;
+    padding-top: 8px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-nav-group-label {
+    padding: 4px 12px 2px;
+    font-size: 9px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-navigation button {
+    min-height: 38px !important;
+    padding: 7px 12px !important;
+    border-radius: 10px;
+    font-size: 14px !important;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-navigation button > span:first-child {
+    gap: 10px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-navigation button svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex-basis: 18px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-active-label {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-legal-links {
+    margin-bottom: 2px;
+    padding-top: 8px;
+  }
+
+  html[data-theme] .app-shell-modern .sidebar-legal-links a {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  html[data-theme] .app-shell-modern .app-sidebar > a[title='Administração'],
+  html[data-theme] .app-shell-modern .sidebar-logout {
+    min-height: 38px !important;
+    margin-bottom: 10px !important;
+    padding: 7px 12px !important;
+    font-size: 13px !important;
   }
 }
