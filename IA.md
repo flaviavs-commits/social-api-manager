@@ -53,6 +53,8 @@ Gerenciar publicações e métricas de redes sociais em uma única interface, co
 - [2026-08-28] DEPLOY: correção da descrição do TikTok e mídia por rede publicada no GitHub (`eafe400`), Railway (`738b5890-dbd1-40ed-8982-ac5878bc5705`, SUCCESS) e Vercel (`dpl_FJC58hiS4SRypWNT6sZpEjLLnpLd`, READY), com alias `https://meuecoomidia.com.br`. Verificação externa: `/health` e `/api/config` no Railway e `/app/agendador`/`/api/config` no domínio responderam HTTP 200.
 - [2026-08-28] CORREÇÃO ADICIONAL/TIKTOK: a descrição ainda era descartada no frontend ao montar `platformTexts`, porque o filtro comparava a chave `tiktokDescription` diretamente com a plataforma `tiktok`. DECISÃO: centralizar `textsForSelectedPlatforms()` para preservar a chave específica do TikTok no POST. VALIDAÇÃO: teste de regressão do payload passou e o bundle foi reconstruído.
 
+- [2026-09-07] CORREÇÃO/UX: a sidebar desenhava uma barra de rolagem mesmo quando seu conteúdo cabia no viewport porque `.app-sidebar` usava `overflow-y: scroll`. DECISÃO: usar `overflow-y: auto`, preservando o gutter estável e os estilos de scrollbar existentes; a barra continua disponível em alturas realmente insuficientes sem criar um trilho persistente no shell. VALIDAÇÃO: Jest (61 suítes/533 testes), Vitest de componentes (24 arquivos/110 testes), teste focado do `AppShell` (9 testes), build frontend (128 módulos) e `git diff --check` passaram antes e depois da alteração.
+
 ## Decisões de design & convenções
 
 - [2026-07-31] Aplicado o padrão Felixo de composição, mobile-first, foco visível, contraste, estados de interação e espaçamento consistente, adaptando a paleta dourada já usada pelo produto.
