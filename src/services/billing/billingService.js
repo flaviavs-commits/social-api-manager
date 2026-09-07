@@ -154,6 +154,7 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
       toPlan: reserved.toPlan,
       planName: selectedPlan.name,
       amountCents: Number(reserved.amountCents),
+      planAmountCents: Number(selectedPlan.priceCents),
       meuEcooSelected: reserved.meuEcooSelected === true,
       meuEcooAmountCents: Number(reserved.meuEcooAmountCents) || 0,
       currency: reserved.currency,

@@ -131,7 +131,7 @@ describe('billingService.requestPlanChange', () => {
 
     expect(result.charge).toMatchObject({ meuEcooSelected: true, meuEcooAmountCents: 1500 })
     expect(billingRepo.criarPendente).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
-    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, planAmountCents: 10050, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
   })
 
   test('atualiza a composição antes de repetir checkout sem sessão do gateway', async () => {
@@ -151,7 +151,7 @@ describe('billingService.requestPlanChange', () => {
       meuEcooSelected: true,
       meuEcooAmountCents: 1500,
     })
-    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooAmountCents: 1500 }))
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, planAmountCents: 10050, meuEcooAmountCents: 1500 }))
   })
 
   test('rejeita o antigo identificador de plano gratuito', async () => {

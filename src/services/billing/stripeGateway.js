@@ -61,9 +61,9 @@ async function requestStripe(path, options = {}) {
   }
 }
 
-async function createCheckout({ billingId, userId, email, fromPlan, toPlan, planName, amountCents, currency, billingMonth, idempotencyKey, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
+async function createCheckout({ billingId, userId, email, fromPlan, toPlan, planName, amountCents, planAmountCents = amountCents, currency, billingMonth, idempotencyKey, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
   ensureStripeConfigured()
-  if (!Number.isInteger(Number(amountCents)) || Number(amountCents) <= 0) {
+  if (!Number.isInteger(Number(amountCents)) || Number(amountCents) <= 0 || !Number.isInteger(Number(planAmountCents)) || Number(planAmountCents) <= 0) {
     throw gatewayError('O valor do plano não é válido.', { code: 'invalid_amount', statusCode: 400 })
   }
 
@@ -74,7 +74,7 @@ async function createCheckout({ billingId, userId, email, fromPlan, toPlan, plan
   params.set('customer_email', email)
   params.set('client_reference_id', `billing:${billingId}`)
   params.set('line_items[0][price_data][currency]', String(currency).toLowerCase())
-  params.set('line_items[0][price_data][unit_amount]', String(amountCents))
+  params.set('line_items[0][price_data][unit_amount]', String(planAmountCents))
   params.set('line_items[0][price_data][product_data][name]', `Plano ${planName}`)
   params.set('line_items[0][price_data][product_data][description]', `Troca do plano ${fromPlan} para ${toPlan}`)
   params.set('line_items[0][quantity]', '1')
