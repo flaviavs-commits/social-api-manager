@@ -67,10 +67,6 @@ function AppSidebar({ page, open, onNavigate, onClose, user, collapsed, onToggle
     >
       <div className="sidebar-header">
         <button type="button" className="sidebar-collapse-button" onClick={onToggleCollapsed} aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu'}><span aria-hidden="true">☰</span><span className="sidebar-collapse-label">{collapsed ? 'Expandir' : 'Recolher'}</span></button>
-        <a href="/app/dashboard" onClick={event => { event.preventDefault(); onNavigate('dashboard') }} aria-label="Meu Ecoo Mídia - ir para o dashboard" className="sidebar-brand group flex flex-col items-center gap-2 text-center">
-          <img src="/logo.png" alt="Meu Ecoo Mídia" className="h-14 w-auto" />
-          <p className="sidebar-tagline truncate text-[11px] leading-tight text-zinc-500">Conecte. Crie. Agende. Cresça.</p>
-        </a>
       </div>
 
       <nav aria-label="Navegação principal" className="sidebar-navigation flex flex-1 flex-col gap-1 px-3 py-4">
@@ -298,6 +294,9 @@ function AppTopbar({ currentLabel, user, onOpenSidebar, sidebarOpen, onCreatePos
         >
           <span aria-hidden="true">☰</span>
         </button>
+        <a href="/app/dashboard" onClick={event => { event.preventDefault(); onNavigate('dashboard') }} aria-label="Meu Ecoo Mídia - ir para o dashboard" className="app-topbar-brand">
+          <img src="/logo.png" alt="Meu Ecoo Mídia" />
+        </a>
         <nav aria-label="Página atual" className="flex min-w-0 items-center text-xl font-semibold text-zinc-50">
           <span className="truncate text-base text-gold sm:text-lg">{currentLabel}</span>
         </nav>

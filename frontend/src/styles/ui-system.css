@@ -1535,6 +1535,40 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-accounts {
   --metric-rgb: var(--success-rgb);
 }
 
+/* O cabeçalho permanece estável quando a navegação lateral é compactada. */
+html[data-theme] .app-shell-modern .app-topbar-brand {
+  display: inline-flex;
+  width: 124px;
+  height: 56px;
+  align-items: center;
+  flex: 0 0 124px;
+  justify-content: center;
+  overflow: visible;
+}
+
+html[data-theme] .app-shell-modern .app-topbar-brand img {
+  display: block;
+  width: 124px;
+  height: 56px;
+  max-width: none;
+  flex: 0 0 124px;
+  object-fit: contain;
+}
+
+@media (max-width: 767px) {
+  html[data-theme] .app-shell-modern .app-topbar-brand {
+    width: 112px;
+    height: 50px;
+    flex-basis: 112px;
+  }
+
+  html[data-theme] .app-shell-modern .app-topbar-brand img {
+    width: 112px;
+    height: 50px;
+    flex-basis: 112px;
+  }
+}
+
 html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card:hover {
   border-color: rgb(var(--metric-rgb, var(--accent-rgb)) / 0.52);
   box-shadow: 0 14px 28px rgb(var(--shadow-rgb) / 0.12);
