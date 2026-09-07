@@ -58,4 +58,24 @@ describe('CommentsModal', () => {
     await waitFor(() => expect(screen.getByText('Minha resposta pela aplicação')).toBeInTheDocument())
     expect(apiFetchMock).toHaveBeenCalledWith('/api/posts/42/comments/comment-1/reply', expect.objectContaining({ method: 'POST' }))
   })
+
+  it('renderiza a resposta dentro do comentário original', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts/42/comments') return Promise.resolve({
+        comments: [
+          { id: 'comment-1', author: 'Ana', text: 'Comentário original', createdAt: '2026-09-07T12:00:00Z' },
+          { id: 'reply-1', author: 'Breno', text: 'Resposta sincronizada', parentId: 'comment-1', createdAt: '2026-09-07T12:01:00Z' }
+        ],
+        post: { id: 42, platform: 'instagram', replySupported: true }
+      })
+      if (path === '/api/saved-texts') return Promise.resolve({ savedTexts: [] })
+      return Promise.resolve({})
+    })
+
+    render(<CommentsModal embedded postId={42} initialPost={{ id: 42, platform: 'instagram', text: 'Meu post', replySupported: true }} />)
+
+    const reply = await screen.findByText('Resposta sincronizada', { selector: '.comment-text' })
+    expect(reply.closest('.comment-replies')).toBeInTheDocument()
+    expect(reply.closest('.comment-row-nested')).toBeInTheDocument()
+  })
 })

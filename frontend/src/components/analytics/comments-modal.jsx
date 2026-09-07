@@ -91,7 +91,7 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [], remoteReplies = [] }) {
+function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [], remoteReplies = [], replies = [], repliesFor = () => [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
@@ -151,6 +151,9 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
       <div className="comment-own-reply-heading"><span>↳</span><strong>Sua resposta</strong><small>publicada agora</small></div>
       <p>{reply.text}</p>
     </div>)}
+    {replies.length > 0 && <div className="comment-replies" aria-label="Respostas deste comentário">
+      {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
+    </div>}
     {!comment.parentId && replySupported
       ? <div className="comment-reply-composer">
           <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
@@ -244,6 +247,16 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
   useEffect(() => { apiFetch('/api/saved-texts').then(data => setSavedTexts(data.savedTexts || [])).catch(() => {}) }, [])
 
   const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
+  const repliesByParent = new Map()
+  comments.forEach(comment => {
+    if (!comment.parentId) return
+    const key = String(comment.parentId)
+    const current = repliesByParent.get(key) || []
+    current.push(comment)
+    repliesByParent.set(key, current)
+  })
+  const repliesFor = commentId => repliesByParent.get(String(commentId)) || []
+  const topLevelComments = comments.filter(comment => !comment.parentId)
   const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
     <div className="modal-header comments-header">
       <div><p className="eyebrow">PUBLICAÇÃO PUBLICADA</p><h3>Comentários e respostas</h3><p className="comments-conversation-title">Confira o conteúdo e responda sua comunidade sem sair do Inbox.</p></div>
@@ -254,8 +267,8 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
     {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
     {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
-    {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} remoteReplies={comments.filter(reply => String(reply.parentId) === String(comment.id))} />)}
+    {!error && !loading && topLevelComments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
+      {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
     </div>}
   </div>
 
