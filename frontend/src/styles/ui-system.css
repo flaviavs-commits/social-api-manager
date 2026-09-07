@@ -1097,3 +1097,237 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
     font-size: 22px !important;
   }
 }
+
+/* Dashboard cards: a métrica principal precisa ser escaneável em um olhar. */
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px !important;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card {
+  position: relative;
+  isolation: isolate;
+  min-height: 138px;
+  padding: 19px !important;
+  overflow: hidden;
+  border-color: rgb(var(--border-hover-rgb) / 0.62);
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, var(--surface), var(--surface-2));
+  box-shadow: 0 9px 22px rgb(var(--shadow-rgb) / 0.07);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: var(--metric-accent, var(--accent));
+  content: '';
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card::after {
+  position: absolute;
+  z-index: -1;
+  right: -35px;
+  bottom: -48px;
+  width: 142px;
+  height: 142px;
+  border: 1px solid rgb(var(--metric-rgb, var(--accent-rgb)) / 0.2);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--metric-rgb, var(--accent-rgb)) / 0.13), transparent 67%);
+  content: '';
+  pointer-events: none;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-publications {
+  --metric-accent: var(--accent);
+  --metric-rgb: var(--accent-rgb);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-scheduled {
+  --metric-accent: var(--info);
+  --metric-rgb: var(--info-rgb);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-accounts {
+  --metric-accent: var(--success);
+  --metric-rgb: var(--success-rgb);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card:hover {
+  border-color: rgb(var(--metric-rgb, var(--accent-rgb)) / 0.52);
+  box-shadow: 0 14px 28px rgb(var(--shadow-rgb) / 0.12);
+  transform: translateY(-3px);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-heading {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-heading span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-heading i {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgb(var(--metric-rgb, var(--accent-rgb)) / 0.22);
+  border-radius: 11px;
+  background: rgb(var(--metric-rgb, var(--accent-rgb)) / 0.12);
+  color: var(--metric-accent, var(--accent-strong));
+  box-shadow: 0 5px 12px rgb(var(--shadow-rgb) / 0.08);
+  font-size: 15px;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card strong {
+  position: relative;
+  z-index: 1;
+  margin-top: 17px !important;
+  color: var(--text);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 750;
+  letter-spacing: -0.055em;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card small {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card small::before {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--metric-accent, var(--accent));
+  box-shadow: 0 0 0 3px rgb(var(--metric-rgb, var(--accent-rgb)) / 0.1);
+  content: '';
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card {
+  position: relative;
+  min-height: 72px;
+  padding: 13px 14px;
+  border-color: var(--border);
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--surface-2), var(--surface));
+  box-shadow: 0 5px 13px rgb(var(--shadow-rgb) / 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card:hover,
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card:focus-visible {
+  border-color: rgb(var(--accent-rgb) / 0.55);
+  background: linear-gradient(145deg, rgb(var(--accent-rgb) / 0.1), var(--surface));
+  box-shadow: 0 10px 20px rgb(var(--shadow-rgb) / 0.1);
+  transform: translateY(-2px);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card.is-connected {
+  border-color: rgb(var(--success-rgb) / 0.3);
+  background: linear-gradient(145deg, rgb(var(--success-rgb) / 0.07), var(--surface));
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card > .account-platform-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgb(var(--border-hover-rgb) / 0.45);
+  border-radius: 13px;
+  box-shadow: 0 4px 9px rgb(var(--shadow-rgb) / 0.1);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-state {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card.is-connected .dashboard-platform-state {
+  border-color: rgb(var(--success-rgb) / 0.26);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row > div {
+  position: relative;
+  gap: 7px;
+  min-height: 76px;
+  padding: 13px 14px;
+  border-color: var(--border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--surface-2), rgb(var(--surface-rgb) / 0.68));
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row > div::after {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 28px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  content: '';
+  opacity: 0.75;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row strong {
+  color: var(--text);
+  font-size: 23px;
+  letter-spacing: -0.045em;
+}
+
+@media (max-width: 1024px), (pointer: coarse) {
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card {
+    min-height: 124px;
+    padding: 15px !important;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-card strong {
+    font-size: 30px;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-metric-accounts {
+    grid-column: 1 / -1;
+  }
+
+  html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card {
+    min-height: 68px;
+    padding: 11px !important;
+  }
+}
