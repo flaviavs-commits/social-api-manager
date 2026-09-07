@@ -111,9 +111,8 @@ const STEPS = [
     title: 'Inbox: cuide da sua comunidade',
     body: 'Concentre as publicações com interações e responda aos comentários sem alternar entre várias redes.',
     tips: [
-      'Monitore Instagram, Facebook e YouTube e veja quantos comentários não lidos pedem atenção.',
-      'Pesquise uma publicação e filtre por rede ou por não lidos/já lidos.',
-      'Selecione uma ou várias publicações e marque os comentários como vistos.',
+      'Monitore Instagram, Facebook e YouTube e veja quantos comentários não respondidos pedem atenção.',
+      'Pesquise uma publicação e filtre por rede ou por não respondidos/respondidos.',
       'Abra a conversa para visualizar a mídia, ler os comentários e responder quando a plataforma permitir.',
       'Seus filtros ficam salvos neste dispositivo para a próxima visita.'
     ]

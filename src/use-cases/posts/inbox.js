@@ -45,9 +45,53 @@ async function listarInbox({ userId, isAdmin, platform = null }) {
     .slice(0, 100)
 }
 
-// GET /api/posts/inbox/unread — quantos comentários novos (não vistos) cada post tem.
+function normalizeCommentAuthor(value) {
+  return String(value || '').trim().replace(/^@/, '').toLowerCase()
+}
+
+function commentParentId(comment) {
+  return comment?.parentId
+    ?? comment?.parent_id
+    ?? comment?.parentCommentId
+    ?? comment?.parent_comment_id
+    ?? comment?.replyTo
+    ?? comment?.reply_to
+    ?? null
+}
+
+function postAccountHandles(post) {
+  const platform = post.externalPlatform || post.platform
+  const accounts = Array.isArray(post.accounts) ? post.accounts : []
+  return new Set([
+    post.handle,
+    ...accounts.filter(account => !platform || !account.platform || account.platform === platform).map(account => account.handle)
+  ].map(normalizeCommentAuthor).filter(Boolean))
+}
+
+function commentBelongsToAccount(comment, handles) {
+  return comment?.isOwn === true || comment?.authorIsOwner === true || handles.has(normalizeCommentAuthor(comment?.author))
+}
+
+function unansweredComments(comments, post) {
+  const handles = postAccountHandles(post)
+  const repliedCommentIds = new Set(
+    (comments || [])
+      .filter(comment => commentParentId(comment) !== null && commentBelongsToAccount(comment, handles))
+      .map(comment => String(commentParentId(comment)))
+  )
+  return (comments || []).filter(comment => {
+    const id = comment?.id ?? comment?.cid
+    return commentParentId(comment) === null
+      && id !== null && id !== undefined
+      && !commentBelongsToAccount(comment, handles)
+      && !repliedCommentIds.has(String(id))
+  })
+}
+
+// GET /api/posts/inbox/unread — mantém a rota por compatibilidade, mas a
+// métrica exibida pelo Inbox agora representa comentários sem resposta.
 // Faz chamadas às APIs das redes sociais só para os posts do inbox.
-async function contarNaoLidos({ userId, isAdmin }) {
+async function contarNaoRespondidos({ userId, isAdmin }) {
   const all = await postsRepo.listarPosts({ status: 'published', userId, isAdmin })
   const plats = commentsService.PLATAFORMAS_COM_COMENTARIOS
   const posts = all
@@ -87,16 +131,16 @@ async function contarNaoLidos({ userId, isAdmin }) {
           // A notificação não pode impedir a contagem do Inbox.
         }
       }))
-      const newCount = newComments.length
-      return { postId: p.id, newCount }
+      const unansweredCount = unansweredComments(comments || [], p).length
+      return { postId: p.id, unansweredCount }
     })
   )
 
-  const unread = {}
+  const unanswered = {}
   for (const r of results) {
-    if (r.status === 'fulfilled' && r.value.newCount > 0) unread[r.value.postId] = r.value.newCount
+    if (r.status === 'fulfilled' && r.value.unansweredCount > 0) unanswered[r.value.postId] = r.value.unansweredCount
   }
-  return unread
+  return unanswered
 }
 
 async function marcarComentariosVistos({ userId, postId, commentIds }) {
@@ -204,6 +248,6 @@ async function responderComentarioRemoto({ userId, platform, zernioAccountId, ex
 }
 
 module.exports = {
-  listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos,
+  listarInbox, contarNaoRespondidos, contarNaoLidos: contarNaoRespondidos, marcarComentariosVistos, marcarVariosComentariosVistos,
   listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto
 }

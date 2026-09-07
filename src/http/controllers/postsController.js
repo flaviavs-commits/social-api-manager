@@ -9,7 +9,7 @@ const FREE_UPLOAD_MAX_SIZE_BYTES = 10 * 1024 * 1024
 const FREE_UPLOAD_TYPES = new Set(Array.from(ALLOWED_MEDIA_TYPES).filter(type => type.startsWith('image/')))
 
 const { gerarUploadUrl } = require('../../use-cases/posts/gerarUploadUrl')
-const { listarInbox, contarNaoLidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto } = require('../../use-cases/posts/inbox')
+const { listarInbox, contarNaoRespondidos, marcarComentariosVistos, marcarVariosComentariosVistos, listarComentarios, listarComentariosRemotos, responderComentario, responderComentarioRemoto } = require('../../use-cases/posts/inbox')
 const { listarPosts, listarPostsCalendario } = require('../../use-cases/posts/listarPosts')
 const { buscarAnalytics, buscarMetricsHistory } = require('../../use-cases/posts/buscarAnalytics')
 const { listarTiktokVideos } = require('../../use-cases/posts/listarTiktokVideos')
@@ -45,8 +45,10 @@ async function postUploadUrl(req, res) {
 
 async function getInboxUnread(req, res) {
   try {
-    const unread = await contarNaoLidos(ctx(req))
-    res.json({ unread })
+    const unanswered = await contarNaoRespondidos(ctx(req))
+    // `unread` permanece como alias de transição para clientes antigos; a
+    // interface nova usa exclusivamente `unanswered`.
+    res.json({ unanswered, unread: unanswered })
   } catch (e) {
     serverError(res, e)
   }

@@ -68,14 +68,14 @@ describe('GET /api/posts/inbox', () => {
 })
 
 describe('GET /api/posts/inbox/unread', () => {
-  test('retorna unread vazio quando não há posts', async () => {
+  test('retorna unanswered vazio quando não há posts', async () => {
     postsRepo.listarPosts.mockResolvedValue([])
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.unread).toEqual({})
+    expect(res.body.unanswered).toEqual({})
   })
 
-  test('conta comentários novos corretamente', async () => {
+  test('conta comentários não respondidos corretamente', async () => {
     postsRepo.listarPosts.mockResolvedValue([POST_INSTAGRAM])
     // Sem seen_ids no banco
     pool.query.mockResolvedValue({ rows: [] })
@@ -87,34 +87,37 @@ describe('GET /api/posts/inbox/unread', () => {
     })
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.unread[10]).toBe(2)
+    expect(res.body.unanswered[10]).toBe(2)
     expect(pool.query.mock.calls.some(([sql, params]) => sql.includes('notification_key') && params.includes('comment:1:10:c1'))).toBe(true)
   })
 
-  test('não conta comentários já vistos', async () => {
-    postsRepo.listarPosts.mockResolvedValue([POST_INSTAGRAM])
-    // c1 já foi visto
-    pool.query.mockResolvedValue({ rows: [{ post_id: 10, seen_ids: ['c1'] }] })
+  test('não conta comentários que já receberam resposta da conta', async () => {
+    postsRepo.listarPosts.mockResolvedValue([{ ...POST_INSTAGRAM, accounts: [{ platform: 'instagram', handle: 'minhaconta' }] }])
+    pool.query.mockResolvedValue({ rows: [] })
     commentsService.listarComentariosPost.mockResolvedValue({
       comments: [
         { id: 'c1', author: 'user1', text: 'Ótimo!' },
+        { id: 'r1', parentId: 'c1', author: 'minhaconta', text: 'Obrigado!' },
         { id: 'c2', author: 'user2', text: 'Novo!' },
       ]
     })
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.unread[10]).toBe(1) // só c2 é novo
+    expect(res.body.unanswered[10]).toBe(1) // só c2 aguarda resposta
   })
 
-  test('post sem comentários novos não aparece no unread', async () => {
-    postsRepo.listarPosts.mockResolvedValue([POST_INSTAGRAM])
-    pool.query.mockResolvedValue({ rows: [{ post_id: 10, seen_ids: ['c1'] }] })
+  test('post sem comentários não respondidos não aparece no unanswered', async () => {
+    postsRepo.listarPosts.mockResolvedValue([{ ...POST_INSTAGRAM, accounts: [{ platform: 'instagram', handle: 'minhaconta' }] }])
+    pool.query.mockResolvedValue({ rows: [] })
     commentsService.listarComentariosPost.mockResolvedValue({
-      comments: [{ id: 'c1', author: 'user1', text: 'Ótimo!' }]
+      comments: [
+        { id: 'c1', author: 'user1', text: 'Ótimo!' },
+        { id: 'r1', parentId: 'c1', author: 'minhaconta', text: 'Obrigado!' },
+      ]
     })
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.unread[10]).toBeUndefined()
+    expect(res.body.unanswered[10]).toBeUndefined()
   })
 
   test('erro na API da rede social não quebra os outros posts', async () => {
@@ -129,8 +132,8 @@ describe('GET /api/posts/inbox/unread', () => {
 
     const res = await request(app).get('/api/posts/inbox/unread').set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
-    expect(res.body.unread[10]).toBeUndefined() // falhou, sem contar
-    expect(res.body.unread[20]).toBe(1)          // ok
+    expect(res.body.unanswered[10]).toBeUndefined() // falhou, sem contar
+    expect(res.body.unanswered[20]).toBe(1)          // ok
   })
 })
 

@@ -91,8 +91,8 @@ const CAPABILITIES = [
     description: 'Lista publicações com comentários disponíveis para atendimento.', parameters: ['platform'], examples: ['tenho comentários para responder?'],
   },
   {
-    id: 'unread_inbox', label: 'Consultar não lidos', category: 'relacionamento', mode: 'read',
-    description: 'Conta comentários novos que ainda não foram vistos.', examples: ['tenho comentários não lidos?'],
+    id: 'unread_inbox', label: 'Consultar não respondidos', category: 'relacionamento', mode: 'read',
+    description: 'Conta comentários que ainda não receberam uma resposta da conta conectada.', examples: ['tenho comentários não respondidos?'],
   },
   {
     id: 'mark_comments_seen', label: 'Marcar comentários como vistos', category: 'relacionamento', mode: 'write', confirmation: true,

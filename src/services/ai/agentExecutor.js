@@ -203,9 +203,9 @@ Responda em texto simples. Não use JSON.`
       return { message: posts.length ? `Encontrei ${posts.length} publicação(ões) no inbox.` : 'Não há publicações com interações disponíveis.', data: { posts }, navigation: 'inbox' }
     }
     case 'unread_inbox': {
-      const unread = await contarNaoLidos(ctx)
-      const total = Object.values(unread).reduce((sum, value) => sum + Number(value || 0), 0)
-      return { message: total ? `Há ${total} comentário(s) não lido(s).` : 'Você não tem comentários não lidos.', data: { unread, total }, navigation: 'inbox' }
+      const unanswered = await contarNaoLidos(ctx)
+      const total = Object.values(unanswered).reduce((sum, value) => sum + Number(value || 0), 0)
+      return { message: total ? `Há ${total} comentário(s) não respondido(s).` : 'Você não tem comentários não respondidos.', data: { unanswered, total }, navigation: 'inbox' }
     }
     case 'mark_comments_seen': {
       const postId = Number(args.postId)

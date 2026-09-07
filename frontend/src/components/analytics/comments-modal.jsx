@@ -133,7 +133,7 @@ function PostPreview({ post }) {
   </article>
 }
 
-function CommentRow({ comment, postId, post, platform, replySupported, onReplied, savedTexts = [], remoteReplies = [], replies = [], repliesFor = () => [] }) {
+function CommentRow({ comment, postId, post, platform, replySupported, onReplied, onReplySent, savedTexts = [], remoteReplies = [], replies = [], repliesFor = () => [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
@@ -164,6 +164,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
         createdAt: new Date().toISOString()
       }])
       onReplied?.()
+      onReplySent?.()
     } catch (caught) {
       setError(caught.message)
     } finally {
@@ -195,7 +196,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
       <p>{reply.text}</p>
     </div>)}
     {replies.length > 0 && <div className="comment-replies" aria-label="Respostas deste comentário">
-      {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
+      {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} onReplySent={onReplySent} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
     </div>}
     {commentParentId(comment) === null && replySupported
       ? <div className="comment-reply-composer">
@@ -213,7 +214,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
   </article>
 }
 
-export function CommentsModal({ postId, initialPost = null, onClose, embedded = false }) {
+export function CommentsModal({ postId, initialPost = null, onClose, onReplySent, embedded = false }) {
   const [comments, setComments] = useState([])
   const [post, setPost] = useState(() => previewFromInboxPost(initialPost))
   const [loading, setLoading] = useState(true)
@@ -312,7 +313,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
     {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && topLevelComments.length > 0 && <div className={`comments-list comments-list-platform-${platformKey(visiblePost?.platform)}`} aria-label="Comentários da publicação">
-      {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
+      {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} onReplySent={onReplySent} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
     </div>}
   </div>
 

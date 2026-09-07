@@ -541,6 +541,30 @@ html[data-theme] .app-shell-modern .sidebar-navigation button.is-active {
   }
 }
 
+/* Status do Inbox: a atenção é determinada por resposta pendente, não por
+ * leitura. A cor de alerta só aparece quando há uma conversa aguardando ação. */
+html[data-theme] .app-shell-modern .inbox-unanswered-total {
+  padding: 6px 9px;
+  border: 1px solid rgb(var(--danger-rgb) / 0.25);
+  border-radius: 999px;
+  background: rgb(var(--danger-rgb) / 0.08);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+html[data-theme] .app-shell-modern .inbox-unanswered-badge {
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+html[data-theme] .app-shell-modern .inbox-item.has-unanswered {
+  border-color: rgb(var(--danger-rgb) / 0.3);
+}
+
 /* Comentários do Instagram: o conteúdo fica em fluxo, como no app, sem
  * transformar cada comentário em um card independente. O post continua
  * usando a prévia existente; somente a conversa recebe este tratamento. */
