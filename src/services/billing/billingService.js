@@ -99,6 +99,14 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
     throw new BillingError('A troca de plano deste mês foi cancelada. Não será criada uma nova cobrança.', 409, 'monthly_charge_attempted')
   }
 
+  if (change && !change.gatewaySessionId && ['pending', 'failed'].includes(change.status)) {
+    const currentAmount = Number(change.amountCents)
+    const currentMeuEcooAmount = Number(change.meuEcooAmountCents) || 0
+    if (currentAmount !== amounts.amountCents || change.meuEcooSelected !== amounts.meuEcooSelected || currentMeuEcooAmount !== amounts.meuEcooAmountCents) {
+      change = await billingRepo.atualizarItensMeuEcoo(change.id, amounts) || change
+    }
+  }
+
   if (!change) {
     change = await billingRepo.criarPendente({
       userId: user.id,

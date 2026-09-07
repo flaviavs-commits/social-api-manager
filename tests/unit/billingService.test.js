@@ -1,6 +1,7 @@
 jest.mock('../../src/repositories/billingRepository', () => ({
   buscarPorMes: jest.fn(),
   criarPendente: jest.fn(),
+  atualizarItensMeuEcoo: jest.fn(),
   reservarProcessamento: jest.fn(),
   anexarCheckout: jest.fn(),
   marcarFalha: jest.fn(),
@@ -131,6 +132,26 @@ describe('billingService.requestPlanChange', () => {
     expect(result.charge).toMatchObject({ meuEcooSelected: true, meuEcooAmountCents: 1500 })
     expect(billingRepo.criarPendente).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
     expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+  })
+
+  test('atualiza a composição antes de repetir checkout sem sessão do gateway', async () => {
+    const failed = change({ status: 'failed', amountCents: 10050, meuEcooSelected: false, meuEcooAmountCents: 0 })
+    const updated = change({ status: 'failed', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 })
+    billingRepo.buscarPorMes.mockResolvedValue(failed)
+    billingRepo.atualizarItensMeuEcoo.mockResolvedValue(updated)
+    billingRepo.reservarProcessamento.mockResolvedValue({ ...updated, status: 'processing' })
+    billingRepo.anexarCheckout.mockResolvedValue({ ...updated, status: 'pending', gatewaySessionId: 'cs_retry', checkoutUrl: 'https://checkout.stripe.test/cs_retry' })
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_retry', url: 'https://checkout.stripe.test/cs_retry' })
+
+    const result = await billingService.requestPlanChange({ user, targetPlan: 'pro', meuEcoo: true, now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(result.checkoutUrl).toBe('https://checkout.stripe.test/cs_retry')
+    expect(billingRepo.atualizarItensMeuEcoo).toHaveBeenCalledWith(12, {
+      amountCents: 11550,
+      meuEcooSelected: true,
+      meuEcooAmountCents: 1500,
+    })
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooAmountCents: 1500 }))
   })
 
   test('rejeita o antigo identificador de plano gratuito', async () => {

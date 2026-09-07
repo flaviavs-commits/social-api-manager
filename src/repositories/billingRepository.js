@@ -60,6 +60,22 @@ async function criarPendente({ userId, fromPlan, toPlan, amountCents, currency, 
   return change || null
 }
 
+async function atualizarItensMeuEcoo(id, { amountCents, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
+  const { rows: [change] } = await pool.query(
+    `UPDATE billing_plan_changes
+        SET amount_cents = $2,
+            meu_ecoo_selected = $3,
+            meu_ecoo_amount_cents = $4,
+            updated_at = NOW()
+      WHERE id = $1
+        AND gateway_session_id IS NULL
+        AND status IN ('pending', 'failed')
+     RETURNING ${BILLING_COLUMNS}`,
+    [id, amountCents, Boolean(meuEcooSelected), Math.max(Number(meuEcooAmountCents) || 0, 0)]
+  )
+  return change || null
+}
+
 // Apenas uma requisição pode reservar a chamada ao gateway. A janela de cinco
 // minutos permite retomar uma tentativa que perdeu a resposta HTTP; a mesma
 // idempotencyKey continua sendo enviada ao gateway para impedir duplicação.
@@ -243,6 +259,7 @@ module.exports = {
   buscarPorMes,
   buscarPorGatewaySession,
   criarPendente,
+  atualizarItensMeuEcoo,
   reservarProcessamento,
   anexarCheckout,
   marcarFalha,
