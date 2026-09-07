@@ -541,6 +541,210 @@ html[data-theme] .app-shell-modern .sidebar-navigation button.is-active {
   }
 }
 
+/* Comentários do Instagram: o conteúdo fica em fluxo, como no app, sem
+ * transformar cada comentário em um card independente. O post continua
+ * usando a prévia existente; somente a conversa recebe este tratamento. */
+html[data-theme] .app-shell-modern .comments-list-platform-instagram {
+  gap: 0;
+  padding: 0 4px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 10px;
+  padding: 16px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row:hover {
+  border-color: var(--border);
+  background: transparent;
+  box-shadow: none;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-author-line {
+  display: contents;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-author-avatar {
+  grid-column: 1;
+  grid-row: 1 / span 8;
+  width: 32px;
+  height: 32px;
+  margin-top: 1px;
+  border: 0;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-author-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  grid-column: 2;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-author {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-source-badge {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: 9px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-message,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-meta,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-own-reply,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-replies,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-composer,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-error,
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-unavailable {
+  grid-column: 2;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-message {
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-meta {
+  gap: 12px;
+  margin-top: 7px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-date {
+  margin: 0;
+  color: var(--text-subtle);
+  font-family: inherit;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-replies {
+  gap: 0;
+  margin: 12px 0 0;
+  padding: 0 0 0 12px;
+  border-top: 0;
+  border-left: 2px solid rgb(225 48 108 / 0.22);
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row-nested {
+  margin: 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row-nested .comment-author-avatar {
+  width: 26px;
+  height: 26px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row-nested .comment-message {
+  margin-top: 4px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-composer {
+  gap: 7px;
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-destination {
+  padding: 0;
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: 9px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-form {
+  align-items: center;
+  gap: 8px;
+  padding: 4px 5px 4px 12px;
+  border: 1px solid var(--border-hover);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-form input {
+  min-height: 32px;
+  padding: 5px 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-form input:focus {
+  border: 0;
+  outline: 0;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-form .action-button {
+  min-height: 30px;
+  padding: 5px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-identity {
+  order: 3;
+  color: var(--text-subtle);
+  font-size: 10px;
+}
+
+html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-composer > .link-button {
+  order: 4;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  color: var(--text-subtle);
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+    column-gap: 8px;
+    padding: 14px 0;
+  }
+
+  html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-author-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  html[data-theme] .app-shell-modern .comments-list-platform-instagram .comment-reply-form .action-button {
+    padding-inline: 10px;
+  }
+}
+
 /* Final cascade authority: theme bridges must not reintroduce a second
  * surface or a different card recipe after these rules are loaded. */
 html[data-theme] .app-shell-modern :is(
