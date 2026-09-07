@@ -23,7 +23,9 @@ const BILLING_COLUMNS = `
   meu_ecoo_email_attempts AS "meuEcooEmailAttempts",
   meu_ecoo_email_sent_at AS "meuEcooEmailSentAt",
   meu_ecoo_email_updated_at AS "meuEcooEmailUpdatedAt",
-  meu_ecoo_email_last_error AS "meuEcooEmailLastError"
+  meu_ecoo_email_last_error AS "meuEcooEmailLastError",
+  meu_ecoo_selected AS "meuEcooSelected",
+  meu_ecoo_amount_cents AS "meuEcooAmountCents"
 `
 
 async function buscarPorMes(userId, billingMonth) {
@@ -46,14 +48,14 @@ async function buscarPorGatewaySession(gatewaySessionId) {
   return change || null
 }
 
-async function criarPendente({ userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gateway }) {
+async function criarPendente({ userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gateway, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
   const { rows: [change] } = await pool.query(
     `INSERT INTO billing_plan_changes
-      (user_id, from_plan, to_plan, amount_cents, currency, billing_month, idempotency_key, gateway)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      (user_id, from_plan, to_plan, amount_cents, currency, billing_month, idempotency_key, gateway, meu_ecoo_selected, meu_ecoo_amount_cents)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (user_id, billing_month) DO NOTHING
      RETURNING ${BILLING_COLUMNS}`,
-    [userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gateway]
+    [userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gateway, Boolean(meuEcooSelected), Math.max(Number(meuEcooAmountCents) || 0, 0)]
   )
   return change || null
 }

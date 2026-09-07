@@ -43,6 +43,8 @@ function change(overrides = {}) {
     idempotencyKey: `plan-change-${user.id}-2026-08`,
     gateway: 'stripe',
     gatewaySessionId: null,
+    meuEcooSelected: false,
+    meuEcooAmountCents: 0,
     status: 'pending',
     checkoutUrl: null,
     failureCode: null,
@@ -117,6 +119,20 @@ describe('billingService.requestPlanChange', () => {
     expect(billingRepo.marcarFalha).not.toHaveBeenCalled()
   })
 
+  test('adiciona o MeuEcoo opcional ao total do Pro pelo preço com desconto', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    billingRepo.criarPendente.mockResolvedValue(change({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ status: 'processing', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ status: 'pending', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500, gatewaySessionId: 'cs_meuecoo', checkoutUrl: 'https://checkout.stripe.test/cs_meuecoo' }))
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_meuecoo', url: 'https://checkout.stripe.test/cs_meuecoo' })
+
+    const result = await billingService.requestPlanChange({ user, targetPlan: 'pro', meuEcoo: true, now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(result.charge).toMatchObject({ meuEcooSelected: true, meuEcooAmountCents: 1500 })
+    expect(billingRepo.criarPendente).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+  })
+
   test('rejeita o antigo identificador de plano gratuito', async () => {
     await expect(billingService.requestPlanChange({ user, targetPlan: 'gratuito' }))
       .rejects.toMatchObject({ code: 'invalid_plan', statusCode: 400 })
@@ -126,7 +142,7 @@ describe('billingService.requestPlanChange', () => {
 
 describe('billingService.handleWebhook', () => {
   test('confirma uma sessão paga por meio do repositório transacional', async () => {
-      billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro' })
+    billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro', meuEcooSelected: true })
     billingRepo.reservarEnvioMeuEcoo.mockResolvedValue({ id: 12, status: 'paid' })
     mailer.enviarEmailAcessoMeuEcoo.mockResolvedValue(undefined)
 
@@ -148,6 +164,19 @@ describe('billingService.handleWebhook', () => {
       accessUrl: 'https://www.meuecoo.com/',
     }))
     expect(billingRepo.marcarEnvioMeuEcooConcluido).toHaveBeenCalledWith(12)
+  })
+
+  test('não envia acesso ao MeuEcoo quando o adicional Pro não foi selecionado', async () => {
+    billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_pro_sem_meuecoo', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(mailer.enviarEmailAcessoMeuEcoo).not.toHaveBeenCalled()
+    expect(billingRepo.reservarEnvioMeuEcoo).not.toHaveBeenCalled()
   })
 
   test('não reativa um checkout cancelado depois do downgrade', async () => {

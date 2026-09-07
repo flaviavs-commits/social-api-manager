@@ -212,6 +212,22 @@ async function ensureBillingTables() {
   await bestEffort('ALTER TABLE billing_plan_changes ADD COLUMN IF NOT EXISTS meu_ecoo_email_sent_at TIMESTAMPTZ')
   await bestEffort('ALTER TABLE billing_plan_changes ADD COLUMN IF NOT EXISTS meu_ecoo_email_updated_at TIMESTAMPTZ')
   await bestEffort('ALTER TABLE billing_plan_changes ADD COLUMN IF NOT EXISTS meu_ecoo_email_last_error TEXT')
+  await bestEffort('ALTER TABLE billing_plan_changes ADD COLUMN IF NOT EXISTS meu_ecoo_selected BOOLEAN NOT NULL DEFAULT FALSE')
+  await bestEffort('ALTER TABLE billing_plan_changes ADD COLUMN IF NOT EXISTS meu_ecoo_amount_cents INTEGER NOT NULL DEFAULT 0')
+  await bestEffort(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+         WHERE conname = 'billing_plan_changes_meu_ecoo_amount_non_negative'
+           AND conrelid = 'billing_plan_changes'::regclass
+      ) THEN
+        ALTER TABLE billing_plan_changes
+          ADD CONSTRAINT billing_plan_changes_meu_ecoo_amount_non_negative
+          CHECK (meu_ecoo_amount_cents >= 0);
+      END IF;
+    END $$
+  `)
   await bestEffort("CREATE INDEX IF NOT EXISTS idx_billing_plan_changes_meu_ecoo_email ON billing_plan_changes (meu_ecoo_email_status) WHERE to_plan IN ('pro', 'premium')")
   await bestEffort("UPDATE billing_plan_changes SET from_plan = 'pro' WHERE from_plan = 'criador'")
   await bestEffort("UPDATE billing_plan_changes SET from_plan = 'premium' WHERE from_plan = 'agencia'")

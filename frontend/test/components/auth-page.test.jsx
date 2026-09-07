@@ -23,11 +23,11 @@ describe('parâmetros da tela de login', () => {
   })
 
   it('calcula o valor do MeuEcoo Pro com 40% de desconto', () => {
-    expect(getMeuEcooPricing({ meuEcooBasePriceCents: 10050, meuEcooDiscountPercent: 40 })).toEqual({
-      basePriceCents: 10050,
+    expect(getMeuEcooPricing({ meuEcooBasePriceCents: 2500, meuEcooDiscountPercent: 40 })).toEqual({
+      basePriceCents: 2500,
       discountPercent: 40,
-      discountCents: 4020,
-      finalPriceCents: 6030,
+      discountCents: 1000,
+      finalPriceCents: 1500,
     })
   })
 })

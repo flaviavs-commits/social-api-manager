@@ -170,20 +170,25 @@ O catálogo contém três planos pagos: `basico` (EcooMidia Básico, R$ 52,50/m�
 2 redes sociais), `pro` (EcooMidia Pro, R$ 100,50/mês, 3 redes sociais) e
 `premium` (EcooMidia Premium, R$ 124,50/mês, 4 redes sociais). Todos incluem
 agendamento, métricas, IA, espaços de trabalho/aprovações e
-relatórios/automações. Não existe plano gratuito. O endpoint do webhook deve ser cadastrado no Stripe como
+relatórios/automações. Não existe plano gratuito. No Pro, o MeuEcoo é um
+adicional opcional separado: custa R$ 25,00/mês e pode ser adquirido no
+checkout por R$ 15,00/mês com o cupom de 40%; o Premium mantém o MeuEcoo
+gratuito. O endpoint do webhook deve ser cadastrado no Stripe como
 `POST /api/billing/stripe/webhook` e receber o corpo bruto para validação da
 assinatura. A API autenticada expõe `GET /api/billing/status` e
-`POST /api/billing/plan-change` com `{ "plan": "basico" }`. Se as chaves não
-estiverem configuradas, nenhuma troca paga é ativada nem simulada.
+`POST /api/billing/plan-change` com `{ "plan": "pro", "meuEcoo": true }`.
+Quando `meuEcoo` é verdadeiro, o Stripe recebe uma segunda linha de cobrança
+com o valor calculado pelo servidor. Se as chaves não estiverem configuradas,
+nenhuma troca paga é ativada nem simulada.
 
-Por enquanto, o acesso ao MeuEcoo nasce exclusivamente da contratação dos
-planos `pro` e `premium` dentro do MeuEcoo Mídia. Depois que o pagamento é
-confirmado, o cliente recebe automaticamente no e-mail cadastrado um botão de
-acesso. A possibilidade de contratação ou entrada externa fica reservada para
-uma futura integração. O README não registra credenciais, tokens, valores reais
-ou dados pessoais; essas configurações permanecem somente no ambiente de
-execução. O envio tem controle de tentativas no banco para que webhooks
-repetidos não dupliquem a mensagem.
+Por enquanto, o acesso ao MeuEcoo nasce exclusivamente da contratação do
+adicional no Pro ou do Premium dentro do MeuEcoo Mídia. Depois que o pagamento
+é confirmado, o cliente elegível recebe automaticamente no e-mail cadastrado
+um botão de acesso. A possibilidade de contratação ou entrada externa fica
+reservada para uma futura integração. O README não registra credenciais,
+tokens, valores reais ou dados pessoais; essas configurações permanecem
+somente no ambiente de execução. O envio tem controle de tentativas no banco
+para que webhooks repetidos não dupliquem a mensagem.
 
 ### Esqueci minha senha
 

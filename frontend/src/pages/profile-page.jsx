@@ -3,7 +3,7 @@ import { apiFetch, logout } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 import { getTutorialStatus, requestTutorialOpen, TUTORIAL_STATUS_EVENT } from '../lib/tutorial.js'
-import { DEFAULT_PLAN, PLANS, getPlan, normalizePlan } from '../lib/plans.js'
+import { DEFAULT_PLAN, PLANS, getMeuEcooPricing, getPlan, normalizePlan } from '../lib/plans.js'
 
 function formatDateTime(value) {
   if (!value) return ''
@@ -24,13 +24,17 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString('pt-BR', { dateStyle: 'long' })
 }
 
+function formatCurrency(priceCents) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
+}
+
 export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ fullName: user?.fullName || '', timezone: 'America/Sao_Paulo', language: 'pt-BR', defaultPlatform: '', notificationPreferences: DEFAULT_NOTIFICATIONS })
   const [password, setPassword] = useState({ currentPassword: '', newPassword: '', confirmation: '' })
   const [billing, setBilling] = useState(null)
   const [billingBusy, setBillingBusy] = useState(false)
-  const [proDiscount, setProDiscount] = useState(false)
+  const [meuEcooSelected, setMeuEcooSelected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
@@ -184,7 +188,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
     setBillingBusy(true)
     try {
-      const result = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: planId }) })
+      const result = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: planId, meuEcoo: planId === 'pro' && meuEcooSelected }) })
       if (result.checkoutUrl) {
         window.location.assign(result.checkoutUrl)
         return
@@ -210,6 +214,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const currentPlan = getPlan(currentPlanId)
   const proPlan = PLANS.pro
   const proDiscountPercent = Number(proPlan?.meuEcooDiscountPercent) || 0
+  const meuEcooPricing = getMeuEcooPricing(proPlan)
   const chargeStatusMessage = billing?.charge?.status === 'paid'
     ? 'Cobrança deste mês confirmada.'
     : billing?.charge?.status === 'processing'
@@ -246,7 +251,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
     <div className="profile-columns">
       <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">SEGURANÇA</p><h3>Proteja sua conta</h3></div><span className={`profile-status-dot${current.totpEnabled ? ' is-on' : ''}`}>{current.totpEnabled ? 'Ativo' : 'Recomendado'}</span></div><div className="profile-security-row"><span className="profile-card-icon">⌁</span><div><strong>Autenticação em 2 fatores</strong><small>{current.totpEnabled ? 'Sua conta pede um código extra no login.' : 'Adicione uma camada extra de proteção.'}</small></div><button type="button" className="link-button" onClick={() => onNavigate?.('seguranca')}>{current.totpEnabled ? 'Gerenciar' : 'Configurar'}</button></div><form className="profile-password-form" onSubmit={changePassword}><h4>Alterar senha</h4><label>Senha atual<input type="password" value={password.currentPassword} onChange={event => setPassword(current => ({ ...current, currentPassword: event.target.value }))} autoComplete="current-password" placeholder="Digite sua senha atual" /></label><label>Nova senha<input type="password" value={password.newPassword} onChange={event => setPassword(current => ({ ...current, newPassword: event.target.value }))} autoComplete="new-password" placeholder="Mínimo de 6 caracteres" /></label><label>Confirmar nova senha<input type="password" value={password.confirmation} onChange={event => setPassword(current => ({ ...current, confirmation: event.target.value }))} autoComplete="new-password" placeholder="Repita a nova senha" /></label><button type="submit" className="secondary-button" disabled={passwordSaving}>{passwordSaving ? 'Alterando…' : 'Alterar senha'}</button></form></section>
-    <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">USO DA APLICAÇÃO</p><h3>Seu plano e consumo</h3></div><span className={`profile-status-dot${current.planActive !== false ? ' is-on' : ''}`}>{current.planActive !== false ? 'Ativo' : 'Pagamento pendente'}</span></div><div className="profile-usage-card"><span className="profile-card-icon">✦</span><div><strong>Plano atual: {currentPlan.name}</strong><small>{current.planActive === false ? 'Finalize o pagamento para liberar a Inteligência Artificial.' : 'Seu plano possui Inteligência Artificial.'}</small></div><b>IA</b></div>{chargeStatusMessage && <p className="profile-billing-note" role="status">{chargeStatusMessage}</p>}<div className="profile-plan-options" aria-label="Escolha seu plano">{Object.values(PLANS).map(planOption => { const isCurrent = currentPlanId === planOption.id; const isActive = current.planActive !== false; const isProChoiceAvailable = planOption.id === 'pro' && !(isCurrent && isActive); return <article key={planOption.id} className={`profile-plan-option${isCurrent ? ' is-current' : ''}`}><div><strong>{planOption.name}</strong><small>{planOption.checkoutPrice}/{planOption.cadence}</small></div><p>{planOption.description}</p>{planOption.meuEcooOffer && <p className="profile-plan-meuecoo">{planOption.meuEcooOffer}</p>}{isProChoiceAvailable && <fieldset className="profile-discount-choice"><legend>Benefício do MeuEcoo no Tier 02</legend><label><input type="radio" name="pro-discount" checked={!proDiscount} onChange={() => setProDiscount(false)} /><span>Pagar o MeuEcoo sem desconto</span></label><label><input type="radio" name="pro-discount" checked={proDiscount} onChange={() => setProDiscount(true)} /><span><strong>Pagar o MeuEcoo com {proDiscountPercent}% de desconto</strong></span></label></fieldset>}<button type="button" className={isCurrent && isActive ? 'secondary-button' : 'action-button'} onClick={() => choosePlan(planOption.id)} disabled={billingBusy || (isCurrent && isActive)}>{isCurrent && isActive ? 'Plano atual' : isCurrent ? 'Finalizar pagamento' : billingBusy ? 'Processando…' : 'Escolher plano'}</button></article> })}</div><p className="profile-help-text">Uma troca de plano abre o checkout seguro e só ativa o novo plano após a confirmação do gateway. O sistema limita a uma cobrança por usuário no mês.</p><div className="profile-quick-links"><button type="button" onClick={() => onNavigate?.('integracoes')}>Gerenciar contas <span>→</span></button><button type="button" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades <span>→</span></button></div></section>
+    <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">USO DA APLICAÇÃO</p><h3>Seu plano e consumo</h3></div><span className={`profile-status-dot${current.planActive !== false ? ' is-on' : ''}`}>{current.planActive !== false ? 'Ativo' : 'Pagamento pendente'}</span></div><div className="profile-usage-card"><span className="profile-card-icon">✦</span><div><strong>Plano atual: {currentPlan.name}</strong><small>{current.planActive === false ? 'Finalize o pagamento para liberar a Inteligência Artificial.' : 'Seu plano possui Inteligência Artificial.'}</small></div><b>IA</b></div>{chargeStatusMessage && <p className="profile-billing-note" role="status">{chargeStatusMessage}</p>}<div className="profile-plan-options" aria-label="Escolha seu plano">{Object.values(PLANS).map(planOption => { const isCurrent = currentPlanId === planOption.id; const isActive = current.planActive !== false; const isProChoiceAvailable = planOption.id === 'pro' && !(isCurrent && isActive); return <article key={planOption.id} className={`profile-plan-option${isCurrent ? ' is-current' : ''}`}><div><strong>{planOption.name}</strong><small>{planOption.checkoutPrice}/{planOption.cadence}</small></div><p>{planOption.description}</p>{planOption.meuEcooOffer && <p className="profile-plan-meuecoo">{planOption.meuEcooOffer}</p>}{isProChoiceAvailable && <fieldset className="profile-discount-choice"><legend>Benefício opcional do MeuEcoo</legend><label><input type="checkbox" checked={meuEcooSelected} onChange={event => setMeuEcooSelected(event.target.checked)} /><span><strong>Adicionar por {formatCurrency(meuEcooPricing.finalPriceCents)}/mês</strong><small>Preço cheio {formatCurrency(meuEcooPricing.basePriceCents)} · {proDiscountPercent}% de desconto</small></span></label></fieldset>}<button type="button" className={isCurrent && isActive ? 'secondary-button' : 'action-button'} onClick={() => choosePlan(planOption.id)} disabled={billingBusy || (isCurrent && isActive)}>{isCurrent && isActive ? 'Plano atual' : isCurrent ? 'Finalizar pagamento' : billingBusy ? 'Processando…' : 'Escolher plano'}</button></article> })}</div><p className="profile-help-text">Uma troca de plano abre o checkout seguro e só ativa o novo plano após a confirmação do gateway. O sistema limita a uma cobrança por usuário no mês.</p><div className="profile-quick-links"><button type="button" onClick={() => onNavigate?.('integracoes')}>Gerenciar contas <span>→</span></button><button type="button" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades <span>→</span></button></div></section>
     </div>
 
     <section className="profile-section"><div className="profile-section-heading"><div><p className="eyebrow">AJUDA</p><h3>Tutorial guiado</h3></div><span className={`profile-status-dot${tutorialStatus.completed ? ' is-on' : ''}`}>{tutorialStatus.completed ? 'Concluído' : 'Pendente'}</span></div><div className="tutorial-status-card"><span className={`tutorial-status-check${tutorialStatus.completed ? ' is-done' : ''}`} aria-hidden="true">{tutorialStatus.completed ? '✓' : '○'}</span><div><strong>{tutorialStatus.completed ? 'Você já completou o tutorial' : 'Você ainda não completou o tutorial'}</strong><small>{tutorialStatus.completed && tutorialStatus.completedAt ? `Concluído em ${formatDateTime(tutorialStatus.completedAt)}. Pode rever quando quiser.` : 'Um tour rápido pelas principais telas da plataforma.'}</small></div><button type="button" className="link-button" onClick={requestTutorialOpen}>{tutorialStatus.completed ? 'Rever tutorial' : 'Iniciar tutorial'}</button></div></section>

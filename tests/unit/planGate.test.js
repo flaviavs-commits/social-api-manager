@@ -49,10 +49,10 @@ describe('requirePlanModule', () => {
 
   test('calcula o benefício do MeuEcoo Pro em centavos', () => {
     expect(getMeuEcooPricing('pro')).toMatchObject({
-      basePriceCents: 10050,
+      basePriceCents: 2500,
       discountPercent: 40,
-      discountCents: 4020,
-      finalPriceCents: 6030,
+      discountCents: 1000,
+      finalPriceCents: 1500,
     })
   })
 

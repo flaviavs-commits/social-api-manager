@@ -2,7 +2,7 @@ const billingRepo = require('../../repositories/billingRepository')
 const usersRepo = require('../../repositories/usersRepository')
 const paymentGateway = require('./paymentGateway')
 const mailer = require('../mailer')
-const { DEFAULT_PLAN, PLANS, canonicalPlanId, normalizePlan, publicPlanCatalog } = require('../../config/plans')
+const { DEFAULT_PLAN, PLANS, canonicalPlanId, getMeuEcooPricing, normalizePlan, publicPlanCatalog } = require('../../config/plans')
 
 class BillingError extends Error {
   constructor(message, statusCode = 400, code = 'billing_error') {
@@ -29,9 +29,24 @@ function publicCharge(change) {
     billingMonth: change.billingMonth,
     status: change.status,
     checkoutUrl: change.checkoutUrl || null,
+    meuEcooSelected: change.meuEcooSelected === true,
+    meuEcooAmountCents: Number(change.meuEcooAmountCents) || 0,
     failureCode: change.status === 'failed' ? change.failureCode : null,
     createdAt: change.createdAt,
     paidAt: change.paidAt || null,
+  }
+}
+
+function billingAmounts(plan, meuEcooOptIn = false) {
+  const meuEcooPricing = getMeuEcooPricing(plan)
+  const meuEcooSelected = plan.meuEcooAccess === 'free' || (plan.meuEcooAccess === 'discount' && meuEcooOptIn === true)
+  const meuEcooAmountCents = plan.meuEcooAccess === 'discount' && meuEcooSelected
+    ? meuEcooPricing.finalPriceCents
+    : 0
+  return {
+    amountCents: Number(plan.priceCents) + meuEcooAmountCents,
+    meuEcooSelected,
+    meuEcooAmountCents,
   }
 }
 
@@ -44,13 +59,15 @@ function resultForChange(change, currentPlan) {
     requestedPlan: change.toPlan,
     charged: change.status === 'paid',
     checkoutUrl: change.checkoutUrl || null,
+    meuEcooSelected: change.meuEcooSelected === true,
+    meuEcooAmountCents: Number(change.meuEcooAmountCents) || 0,
     billingMonth: change.billingMonth,
     charge: publicCharge(change),
     httpStatus: status === 'processing' ? 202 : status === 'failed' ? 409 : 200,
   }
 }
 
-async function requestPlanChange({ user, targetPlan, now = new Date() }) {
+async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new Date() }) {
   if (!user?.id) throw new BillingError('Usuário não autenticado.', 401, 'not_authenticated')
   if (typeof targetPlan !== 'string' || !PLANS[targetPlan]) {
     throw new BillingError('Plano selecionado inválido.', 400, 'invalid_plan')
@@ -63,6 +80,7 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
   }
 
   const selectedPlan = PLANS[targetPlan]
+  const amounts = billingAmounts(selectedPlan, meuEcoo)
 
   const month = billingMonth(now)
   const idempotencyKey = `plan-change-${user.id}-${month.slice(0, 7)}`
@@ -86,11 +104,13 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
       userId: user.id,
       fromPlan: currentPlan,
       toPlan: targetPlan,
-      amountCents: Number(selectedPlan.priceCents),
+      amountCents: amounts.amountCents,
       currency: String(selectedPlan.currency || 'brl').toLowerCase(),
       billingMonth: month,
       idempotencyKey,
       gateway: String(process.env.PAYMENT_GATEWAY || 'stripe').toLowerCase(),
+      meuEcooSelected: amounts.meuEcooSelected,
+      meuEcooAmountCents: amounts.meuEcooAmountCents,
     })
     if (!change) {
       const existing = await billingRepo.buscarPorMes(user.id, month)
@@ -126,6 +146,8 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
       toPlan: reserved.toPlan,
       planName: selectedPlan.name,
       amountCents: Number(reserved.amountCents),
+      meuEcooSelected: reserved.meuEcooSelected === true,
+      meuEcooAmountCents: Number(reserved.meuEcooAmountCents) || 0,
       currency: reserved.currency,
       billingMonth: reserved.billingMonth,
       idempotencyKey: reserved.idempotencyKey,
@@ -141,6 +163,8 @@ async function requestPlanChange({ user, targetPlan, now = new Date() }) {
         requestedPlan: targetPlan,
         charged: false,
         checkoutUrl: null,
+        meuEcooSelected: reserved.meuEcooSelected === true,
+        meuEcooAmountCents: Number(reserved.meuEcooAmountCents) || 0,
         charge: publicCharge({ ...reserved, status: 'processing' }),
         httpStatus: 202,
       }
@@ -185,7 +209,8 @@ function readCustomerEmail(object) {
 
 async function sendMeuEcooAccessEmail(change, object, metadata) {
   const plan = PLANS[canonicalPlanId(change?.toPlan)]
-  if (!change?.id || !plan || plan.meuEcooAccess === 'none') return { status: 'not_required' }
+  const shouldGrantAccess = plan?.meuEcooAccess === 'free' || (plan?.meuEcooAccess === 'discount' && change?.meuEcooSelected === true)
+  if (!change?.id || !plan || !shouldGrantAccess) return { status: 'not_selected' }
 
   let email = readCustomerEmail(object)
   let fullName = object?.customer_details?.name || null

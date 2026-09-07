@@ -61,7 +61,7 @@ async function requestStripe(path, options = {}) {
   }
 }
 
-async function createCheckout({ billingId, userId, email, fromPlan, toPlan, planName, amountCents, currency, billingMonth, idempotencyKey }) {
+async function createCheckout({ billingId, userId, email, fromPlan, toPlan, planName, amountCents, currency, billingMonth, idempotencyKey, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
   ensureStripeConfigured()
   if (!Number.isInteger(Number(amountCents)) || Number(amountCents) <= 0) {
     throw gatewayError('O valor do plano não é válido.', { code: 'invalid_amount', statusCode: 400 })
@@ -78,6 +78,13 @@ async function createCheckout({ billingId, userId, email, fromPlan, toPlan, plan
   params.set('line_items[0][price_data][product_data][name]', `Plano ${planName}`)
   params.set('line_items[0][price_data][product_data][description]', `Troca do plano ${fromPlan} para ${toPlan}`)
   params.set('line_items[0][quantity]', '1')
+  if (meuEcooSelected && Number(meuEcooAmountCents) > 0) {
+    params.set('line_items[1][price_data][currency]', String(currency).toLowerCase())
+    params.set('line_items[1][price_data][unit_amount]', String(Math.round(Number(meuEcooAmountCents))))
+    params.set('line_items[1][price_data][product_data][name]', 'MeuEcoo')
+    params.set('line_items[1][price_data][product_data][description]', 'Acesso opcional ao MeuEcoo com cupom de 40% do plano Pro')
+    params.set('line_items[1][quantity]', '1')
+  }
   params.set('metadata[billing_id]', String(billingId))
   params.set('metadata[user_id]', String(userId))
   params.set('metadata[to_plan]', String(toPlan))

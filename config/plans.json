@@ -54,9 +54,9 @@
       "currency": "brl",
       "cadence": "por mês",
       "meuEcooAccess": "discount",
-      "meuEcooBasePriceCents": 10050,
+      "meuEcooBasePriceCents": 2500,
       "meuEcooDiscountPercent": 40,
-      "meuEcooOffer": "MeuEcoo com 40% de desconto ou sem oferta",
+      "meuEcooOffer": "MeuEcoo opcional por R$ 15,00/mês com 40% de desconto",
       "meuEcooFeatures": [
         "Crescimento pessoal e aprendizagem aplicada",
         "Foco, disciplina, hábitos, comunicação e inteligência emocional",

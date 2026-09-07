@@ -26,7 +26,7 @@ router.get('/status', async (req, res) => {
 
 router.post('/plan-change', planChangeLimiter, async (req, res) => {
   try {
-    const result = await billingService.requestPlanChange({ user: req.user, targetPlan: req.body?.plan })
+    const result = await billingService.requestPlanChange({ user: req.user, targetPlan: req.body?.plan, meuEcoo: req.body?.meuEcoo })
     return res.status(result.httpStatus || 200).json({
       ok: result.status !== 'failed',
       status: result.status,
@@ -34,6 +34,8 @@ router.post('/plan-change', planChangeLimiter, async (req, res) => {
       requestedPlan: result.requestedPlan,
       charged: result.charged,
       checkoutUrl: result.checkoutUrl,
+      meuEcooSelected: result.meuEcooSelected === true,
+      meuEcooAmountCents: Number(result.meuEcooAmountCents) || 0,
       billingMonth: result.billingMonth || null,
       charge: result.charge || null,
     })
