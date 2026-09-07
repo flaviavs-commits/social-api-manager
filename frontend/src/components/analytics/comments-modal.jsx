@@ -250,7 +250,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, embedded = 
     {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
     {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
     {!error && !loading && comments.length > 0 && <div className="comments-list" aria-label="Comentários da publicação">
-      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={load} savedTexts={savedTexts} />)}
+      {comments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} savedTexts={savedTexts} />)}
     </div>}
   </div>
 
