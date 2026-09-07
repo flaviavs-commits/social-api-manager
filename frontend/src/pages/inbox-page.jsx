@@ -28,7 +28,22 @@ function mediaItemsOf(post) {
 
 function firstMediaOf(post) {
   const item = mediaItemsOf(post)[0]
-  return item ? { source: item.url || item.mediaUrl || item.path, type: item.type, thumbnail: item.thumbnail || item.thumbnailUrl } : null
+  if (!item) return null
+  return {
+    source: item.url || item.mediaUrl || item.media_url || item.path,
+    type: item.type || item.mediaType || item.media_type,
+    thumbnail: item.thumbnail || item.thumbnailUrl || item.thumbnail_url || item.poster || item.posterUrl || item.preview || item.previewUrl || item.preview_url || item.cover || item.coverUrl || item.image || item.imageUrl
+  }
+}
+
+export function InboxMediaPreview({ media }) {
+  const isVideo = String(media?.type || '').toLowerCase().includes('video')
+  const candidates = [media?.thumbnail, !isVideo ? media?.source : null].filter(Boolean)
+  const [candidateIndex, setCandidateIndex] = useState(0)
+  const previewSource = candidates[candidateIndex]
+
+  if (!previewSource) return <span>{media ? '▶' : '◎'}</span>
+  return <img src={previewSource} alt="Prévia da publicação" onError={() => setCandidateIndex(index => index + 1)} />
 }
 
 export function InboxPage() {
@@ -127,7 +142,7 @@ export function InboxPage() {
       const media = firstMediaOf(post)
       return <article className={`inbox-item${count ? ' has-unread' : ''}${selectedPostIds.includes(post.id) ? ' is-selected' : ''}${selectedPostId === post.id ? ' is-active' : ''}`} key={post.id}>
         <input className="inbox-item-checkbox" type="checkbox" checked={selectedPostIds.includes(post.id)} onChange={() => toggleSelected(post.id)} aria-label={`Selecionar ${post.text || post.title || 'publicação'}`}/>
-        <span className={`inbox-item-media${media?.type === 'video' || media?.type === 'VIDEO' ? ' is-video' : ''}`} aria-hidden="true">{media?.source && media.type !== 'video' && media.type !== 'VIDEO' ? <img src={media.source} alt="" /> : <span>{media ? '▶' : '◎'}</span>}</span>
+        <span className={`inbox-item-media${media?.type === 'video' || media?.type === 'VIDEO' ? ' is-video' : ''}`} aria-hidden="true"><InboxMediaPreview media={media} /></span>
         <span className={`inbox-platform inbox-platform-${network}`} aria-hidden="true"><PlatformIcon platform={network} className="h-4 w-4" /></span>
         <div className="inbox-item-body"><strong>{post.text || post.title || 'Publicação'}</strong><small><span>{network}</span>{post.handle ? ` · @${String(post.handle).replace(/^@/, '')}` : ''} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR') : 'Publicação recente'} · {post.commentCount || 0} comentários</small></div>
         <div className="inbox-item-actions">{count > 0 && <span className="inbox-unread-badge">{count} novo{count > 1 ? 's' : ''}</span>}{count > 0 && <button type="button" className="link-button" onClick={() => markAsRead([post.id])}>Marcar lida</button>}<button type="button" className="action-button" onClick={() => setSelectedPostId(post.id)}>Abrir conversa</button></div>
