@@ -7,7 +7,7 @@ import { LoadingState } from '../components/ui/loading-state.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
-const INBOX_REFRESH_INTERVAL_MS = 15_000
+const INBOX_REFRESH_INTERVAL_MS = 60_000
 const inboxPlatforms = [
   { id: 'all', label: 'Todas as redes' },
   { id: 'instagram', label: 'Instagram' },
