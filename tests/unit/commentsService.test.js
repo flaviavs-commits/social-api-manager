@@ -12,6 +12,12 @@ const service = require('../../src/services/commentsService')
 describe('commentsService', () => {
   beforeEach(() => jest.clearAllMocks())
 
+  test('reflete as redes da Comments API e não oferece TikTok no Inbox', () => {
+    expect(service.PLATAFORMAS_COM_COMENTARIOS).toEqual(expect.arrayContaining(['instagram', 'facebook', 'youtube', 'linkedin', 'threads', 'reddit', 'bluesky', 'x']))
+    expect(service.PLATAFORMAS_COM_COMENTARIOS).not.toContain('tiktok')
+    expect(service.PLATAFORMAS_COM_COMENTARIOS).not.toContain('pinterest')
+  })
+
   test('usa Zernio para comentários de Facebook/Instagram', async () => {
     buscarContaToken.mockResolvedValue({ accessToken: 'account-id', zernioAccountId: 'zernio-account' })
     zernioClient.getPostComments.mockResolvedValue({ comments: [{ id: 'comment-1', message: 'Olá', from: { name: 'Ana' }, createdTime: '2026-01-01T00:00:00Z' }] })

@@ -2,15 +2,14 @@ const { buscarContaToken } = require('../infra/social/publisher')
 const tokensRepo = require('../repositories/tokensRepository')
 const zernioClient = require('../infra/social/zernioClient')
 
-// Redes onde já é possível listar comentários reais com o escopo OAuth que
-// a conexão atual já solicita. TikTok (Content Posting API) não expõe
-// leitura de comentários de terceiros — fica de fora por agora.
-const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube', 'tiktok']
+// Redes suportadas pela Comments API do Zernio. TikTok e Pinterest não entram
+// no Inbox porque as APIs dessas redes não expõem comentários.
+const PLATAFORMAS_COM_COMENTARIOS = ['instagram', 'facebook', 'youtube', 'linkedin', 'threads', 'reddit', 'bluesky', 'x', 'twitter']
 
 // Todas as redes que entram no Inbox têm um caminho de resposta. Quando a
 // conta foi conectada pelo Zernio usamos o endpoint unificado dele; contas
 // legadas continuam usando a API oficial da própria rede.
-const PLATAFORMAS_COM_RESPOSTA = ['instagram', 'facebook', 'youtube', 'tiktok']
+const PLATAFORMAS_COM_RESPOSTA = [...PLATAFORMAS_COM_COMENTARIOS]
 
 const COMMENTS_FETCH_TIMEOUT_MS = 4000
 
@@ -334,7 +333,9 @@ async function listarComentariosPost(post) {
       const comments = await listarComentariosZernio(token, post.externalPostId)
       return { comments, replySupported: true }
     }
-    const comments = await LISTERS[post.externalPlatform](token, post.externalPostId)
+    const lister = LISTERS[post.externalPlatform]
+    if (!lister) throw new Error(`Comentários de ${post.externalPlatform} dependem de uma conta conectada pelo Zernio`)
+    const comments = await lister(token, post.externalPostId)
     return { comments, replySupported: PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform) }
   } catch (error) {
     const oauthMessage = traduzirErroOAuth(error, post.externalPlatform)

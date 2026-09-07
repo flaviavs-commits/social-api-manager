@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { PlatformIcon } from '../ui/platform-icon.jsx'
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X', tiktok: 'TikTok' }
 const COMMENTS_REFRESH_INTERVAL_MS = 60_000
 const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 60_000
 const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 5 * COMMENTS_REFRESH_INTERVAL_MS
