@@ -546,7 +546,11 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // de Brasília e o offset -03:00 recebido do formulário.
   const agendaExternaZernio = !requiresApproval && !publishNow && repeat === 'none' && postAccounts.length > 0 && postAccounts.every(account => account.zernioAccountId)
   if (agendaExternaZernio) {
-    const resultados = await schedulePost({ ...post, scheduledFor: scheduledAtBR, accounts: postAccounts, userRole })
+    // O retorno de postsRepo.criarPost() contém `user_id` do PostgreSQL,
+    // enquanto o publisher resolve a conta usando `post.userId`. Repassar o
+    // valor autenticado explicitamente evita que usuários comuns caiam no
+    // filtro de segurança `FALSE` e recebam falso "conta desconectada".
+    const resultados = await schedulePost({ ...post, userId, scheduledFor: scheduledAtBR, accounts: postAccounts, userRole })
     const falhas = resultados.filter(resultado => resultado.success === false)
     if (falhas.length) {
       const status = resultados.some(resultado => resultado.success === 'scheduled') ? 'partial' : 'error'
