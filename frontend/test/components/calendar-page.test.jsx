@@ -20,8 +20,7 @@ describe('CalendarPage', () => {
     return render(<ToastProvider><CalendarPage onNavigate={vi.fn()} /></ToastProvider>)
   }
 
-  it('keeps create and schedule actions available on a day that already has a post', async () => {
-    const onNavigate = vi.fn()
+  it('keeps the create action available and hides scheduling on a day that already has a post', async () => {
     vi.spyOn(api, 'apiFetch').mockResolvedValue({ posts: [{
       id: 1,
       text: 'Post publicado',
@@ -30,24 +29,16 @@ describe('CalendarPage', () => {
       publishedAt: '2026-09-05T09:00:00-03:00'
     }] })
 
-    render(<ToastProvider><CalendarPage onNavigate={onNavigate} /></ToastProvider>)
+    render(<ToastProvider><CalendarPage onNavigate={vi.fn()} /></ToastProvider>)
 
     const day = await screen.findByRole('button', { name: 'Abrir publicações de 5 de Setembro de 2026' })
     day.click()
 
     expect(await screen.findByRole('button', { name: 'Criar post' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Agendar post' })).toBeInTheDocument()
-
-    screen.getByRole('button', { name: 'Agendar post' }).click()
-
-    expect(onNavigate).toHaveBeenCalledWith('agendador')
-    expect(JSON.parse(localStorage.getItem('meu-ecoo:scheduler-autosave'))).toMatchObject({
-      date: expect.stringMatching(/^2026-09-05T10:00/),
-      publishNow: false
-    })
+    expect(screen.queryByRole('button', { name: 'Agendar post' })).not.toBeInTheDocument()
   })
 
-  it('keeps the actions available when the selected day is empty', async () => {
+  it('keeps the create action and hides scheduling when the selected day is empty', async () => {
     renderCalendar()
 
     const day = await screen.findByRole('button', { name: 'Abrir publicações de 6 de Setembro de 2026' })
@@ -55,6 +46,6 @@ describe('CalendarPage', () => {
 
     await waitFor(() => expect(screen.getByText('Nenhuma publicação neste dia.')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Criar post' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Agendar post' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Agendar post' })).not.toBeInTheDocument()
   })
 })

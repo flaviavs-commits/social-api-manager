@@ -356,7 +356,32 @@ app.get('/health', (_req, res) => res.status(200).json({ status: 'ok', service: 
 
 // API pública somente leitura: autenticação por chave, sem depender de sessão
 // do navegador. As rotas autenticadas da aplicação continuam abaixo.
-app.use('/api/v1', requireApiKey, apiV1Routes)
+// Este namespace fica antes do requireAuth global, portanto precisa de um
+// limitador próprio. O primeiro limite é por IP e cobre inclusive tentativas
+// com chaves inválidas; caso contrário um atacante poderia trocar o valor do
+// header a cada requisição e criar uma chave nova no rate-limit.
+const apiV1IpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => `ip:${rateLimit.ipKeyGenerator(req.ip)}`,
+  store: createRateLimitStore('api-v1-ip'),
+  message: { erro: 'Muitas requisições na API. Aguarde alguns minutos e tente novamente.' }
+})
+
+// O limite por chave evita que um mesmo segredo válido seja usado para
+// consumir a API através de vários endereços IP.
+const apiV1KeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req => `api-key:${req.apiKeyId || rateLimit.ipKeyGenerator(req.ip)}`,
+  store: createRateLimitStore('api-v1-key'),
+  message: { erro: 'Limite da API key atingido. Aguarde alguns minutos e tente novamente.' }
+})
+app.use('/api/v1', apiV1IpLimiter, requireApiKey, apiV1KeyLimiter, apiV1Routes)
 
 // Tudo que não foi atendido pelas páginas públicas, pela SPA conhecida ou
 // pelos arquivos estáticos deve ser 404 antes do requireAuth. Caso contrário,

@@ -39,10 +39,15 @@ router.post('/', async (req, res) => {
     const name = normalizeFolderName(req.body?.name)
     if (!name) return res.status(400).json({ erro: 'Informe um nome para a pasta.' })
 
-    const existing = await pool.query('SELECT id FROM media_folders WHERE user_id=$1 AND LOWER(name)=LOWER($2) LIMIT 1', [req.user.id, name])
-    if (existing.rowCount) return res.status(409).json({ erro: 'Essa pasta já existe.' })
-
-    const { rows } = await pool.query('INSERT INTO media_folders (user_id, name) VALUES ($1, $2) RETURNING id, name', [req.user.id, name])
+    // A decisão de existência precisa ser feita pelo mesmo INSERT. Duas
+    // requisições simultâneas não podem passar por um SELECT de pré-checagem e
+    // criar a mesma pasta; o índice único case-insensitive da migration 051 é
+    // a fonte de verdade.
+    const { rows } = await pool.query(
+      'INSERT INTO media_folders (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id, name',
+      [req.user.id, name]
+    )
+    if (!rows.length) return res.status(409).json({ erro: 'Essa pasta já existe.' })
     res.status(201).json({ folder: { ...rows[0], assetCount: 0 } })
   } catch (err) { serverError(res, err) }
 })

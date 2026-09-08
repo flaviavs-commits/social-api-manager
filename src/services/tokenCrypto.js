@@ -19,6 +19,7 @@ if (KEY && KEY.length !== 32) {
 // prefixo "enc:v1:" distingue de tokens antigos em texto puro, permitindo
 // migração gradual sem quebrar nada que já estava no banco antes desta mudança.
 const PREFIX = 'enc:v1:'
+const REQUIRE_ENCRYPTED_SECRETS = String(process.env.REQUIRE_ENCRYPTED_SECRETS || '').toLowerCase() === 'true'
 
 function encrypt(plainText) {
   if (plainText == null) return plainText
@@ -32,10 +33,15 @@ function encrypt(plainText) {
   return `${PREFIX}${iv.toString('hex')}:${authTag.toString('hex')}:${ciphertext.toString('hex')}`
 }
 
-// Tokens salvos antes desta mudança continuam em texto puro no banco — decrypt
-// detecta a ausência do prefixo e devolve o valor como está, sem tentar decifrar.
+// Durante a migração, valores antigos ainda podem ser lidos. Depois de rodar
+// o script security:migrate-encrypted-secrets, a aplicação deve ser iniciada
+// com REQUIRE_ENCRYPTED_SECRETS=true para falhar fechado caso algum segredo
+// legado volte a ser gravado/restaurado.
 function decrypt(value) {
-  if (value == null || !value.startsWith(PREFIX)) return value
+  if (value == null || !value.startsWith(PREFIX)) {
+    if (REQUIRE_ENCRYPTED_SECRETS && value != null) throw new Error('Segredo legado não cifrado — execute a migração de segredos')
+    return value
+  }
   if (!KEY) throw new Error('TOKEN_ENCRYPTION_KEY não configurada — não é possível decifrar tokens')
 
   const [ivHex, authTagHex, ciphertextHex] = value.slice(PREFIX.length).split(':')
@@ -47,4 +53,4 @@ function decrypt(value) {
   return plaintext.toString('utf8')
 }
 
-module.exports = { encrypt, decrypt }
+module.exports = { encrypt, decrypt, isEncrypted: value => typeof value === 'string' && value.startsWith(PREFIX) }

@@ -6,7 +6,7 @@ import { SchedSection } from '../components/ui/sched-section.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
-import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
+import { findPublicationResult, latestPublicationEventId, processingPublicationMessage } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
@@ -827,7 +827,7 @@ export function SchedulerPage() {
   const [textByPlatform, setTextByPlatform] = useState({})
   const [titleByPlatform, setTitleByPlatform] = useState({})
   const [date, setDate] = useState('')
-  const [publishNow, setPublishNow] = useState(false)
+  const [publishNow, setPublishNow] = useState(true)
   const [workspaces, setWorkspaces] = useState([])
   const [approvalWorkspaceId, setApprovalWorkspaceId] = useState('')
   const [selected, setSelected] = useState(['instagram'])
@@ -881,7 +881,7 @@ export function SchedulerPage() {
   }), [])
 
   function clearComposer() {
-    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(true); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
   }
 
   function reviewError() {
@@ -960,8 +960,8 @@ export function SchedulerPage() {
           ...(savedTexts.tiktokDescription || legacyTiktokText ? { tiktokDescription: savedTexts.tiktokDescription || legacyTiktokText } : {})
         })
         setTitleByPlatform(savedTitles)
-        setDate(savedDraft.date || '')
-        setPublishNow(Boolean(savedDraft.publishNow))
+        setDate(savedDraft.approvalWorkspaceId ? new Date().toISOString() : '')
+        setPublishNow(!Boolean(savedDraft.approvalWorkspaceId))
         setApprovalWorkspaceId(TEAM_APPROVAL_UI_ENABLED && savedDraft.approvalWorkspaceId ? String(savedDraft.approvalWorkspaceId) : '')
         setSelected(savedSelected)
         setYoutubeTitle(savedDraft.youtubeTitle || '')
@@ -1358,7 +1358,7 @@ export function SchedulerPage() {
     }
     try {
       const eventCursor = publishNow ? await latestPublicationEventId(apiFetch) : 0
-      setProgress(allComposerFiles.length ? 'Enviando mídias...' : 'Validando agendamento...')
+      setProgress(allComposerFiles.length ? 'Enviando mídias...' : 'Validando publicação...')
       const filesToUpload = Array.from(new Map([
         ...allComposerFiles,
         ...(coverFile ? [coverFile] : [])
@@ -1372,10 +1372,10 @@ export function SchedulerPage() {
         .map(([platform, platformFiles]) => [platform, uploadedItems(platformFiles)]))
       const uploadedCover = coverFile ? uploadedByKey.get(mediaFileKey(coverFile)) : null
       const cover = uploadedCover ? { url: uploadedCover.url, mimetype: uploadedCover.mimetype, name: uploadedCover.name, time: Number.isFinite(coverTime) ? coverTime : null } : null
-      const scheduledAt = publishNow ? new Date().toISOString() : date
+      const scheduledAt = new Date().toISOString()
       const platformTexts = textsForSelectedPlatforms(textByPlatform, selected)
       const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
-      setProgress(requestingApproval ? 'Salvando para aprovação...' : publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')
+      setProgress(requestingApproval ? 'Salvando para aprovação...' : 'Preparando publicação imediata...')
        const createdPost = await apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ textByPlatform: JSON.stringify(platformTexts), titleByPlatform: JSON.stringify(titleByPlatform), scheduledAt, platforms: JSON.stringify(selected), accountIds: JSON.stringify(accountIds), publishNow, requiresApproval: requestingApproval, media: JSON.stringify(media), mediaByPlatform: JSON.stringify(mediaByPlatform), cover: JSON.stringify(cover), youtubeTitle, youtubeVisibility, youtubeMadeForKids: youtubeMadeForKids === '' ? undefined : youtubeMadeForKids === 'true', youtubeCategoryId: youtubeCategoryId || undefined, youtubeFormat: youtubeFormat || undefined, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch }) })
       if (publishNow && !createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar a confirmação. Verifique o histórico de atividades.')
       if (requestingApproval) {
@@ -1389,7 +1389,7 @@ export function SchedulerPage() {
       if (serverDraftId.current) { apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'DELETE' }).catch(() => {}); serverDraftId.current = null }
       const successMessage = requestingApproval
         ? { approval: true, date, platformList: selected, workspaceName: workspaces.find(workspace => String(workspace.id) === String(approvalWorkspaceId))?.name || 'o espaço selecionado' }
-        : publishNow ? null : scheduledPublicationDetails(date, selected)
+        : null
       if (!publishNow) {
         clearComposer()
         if (requestingApproval) {
@@ -1432,7 +1432,7 @@ export function SchedulerPage() {
     setPublicationStatus(null)
   }
 
-  return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
+  return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{approvalWorkspaceId ? 'Enviar para aprovação' : 'Publicar agora'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
 
     <SchedSection number={1} title="Plataformas">
       <div className="platform-options">{platforms.map(platform => {
@@ -1519,20 +1519,16 @@ export function SchedulerPage() {
       })}</div></div>}
     </SchedSection>
 
-    <SchedSection number={3} title="Agendamento">
+    <SchedSection number={3} title="Publicação">
       {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className={`approval-request-card${approvalWorkspaceId ? ' is-active' : ''}`}>
         <div className="approval-request-copy"><span className="approval-request-icon" aria-hidden="true">✓</span><div><strong>Revisar antes de publicar</strong><small>O post ficará bloqueado até um aprovador aceitar.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }}/><span>{approvalWorkspaceId ? 'Desativar' : 'Ativar'}</span></label>
-        {approvalWorkspaceId && <label className="approval-workspace-select">Espaço de aprovação<select value={approvalWorkspaceId} onChange={event => { setApprovalWorkspaceId(event.target.value); setPublishNow(false) }}>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label>}
+        <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); setPublishNow(!event.target.checked); if (event.target.checked) setDate(new Date().toISOString()) }}/><span>{approvalWorkspaceId ? 'Desativar' : 'Ativar'}</span></label>
+        {approvalWorkspaceId && <label className="approval-workspace-select">Espaço de aprovação<select value={approvalWorkspaceId} onChange={event => { setApprovalWorkspaceId(event.target.value); setPublishNow(false); setDate(new Date().toISOString()) }}>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label>}
       </div>}
-      {!approvalWorkspaceId && <div className={`publish-now-card${publishNow ? ' is-active' : ''}`}>
-        <div className="publish-now-copy"><span className="publish-now-icon" aria-hidden="true">⚡</span><div><strong>Publicar agora</strong><small>Envie para as redes assim que concluir a publicação.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/><span>{publishNow ? 'Desativar' : 'Ativar'}</span></label>
-      </div>}
-      {(!publishNow || approvalWorkspaceId) && <label>Data e hora<input required type="datetime-local" value={date} onChange={event => setDate(event.target.value)}/></label>}
+      {!approvalWorkspaceId && <p className="publish-now-card is-active"><strong>Publicação imediata</strong><span>O conteúdo será enviado assim que você concluir a publicação.</span></p>}
     </SchedSection>
 
-      {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : approvalWorkspaceId ? 'enviar para aprovação' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
-    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
+      {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {approvalWorkspaceId ? 'enviar para aprovação' : 'publicar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
+    <div className="scheduler-submit-actions"><button className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : approvalWorkspaceId ? 'Enviar para aprovação' : 'Publicar agora'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
   </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} coverUrl={coverPreviewUrl} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
 }

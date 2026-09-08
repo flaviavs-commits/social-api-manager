@@ -30,7 +30,7 @@ describe('config/env', () => {
       TOKEN_ENCRYPTION_KEY: 'd'.repeat(64), DATABASE_URL: 'postgres://db',
       BASE_URL: 'https://api.example.com', FRONTEND_URL: 'https://app.example.com',
       FRONTEND_ORIGIN: 'https://app.example.com', BLOB_ALLOWED_HOSTS: 'storage.public.blob.vercel-storage.com',
-      TRUST_PROXY: '1'
+      TRUST_PROXY: '1', REQUIRE_ENCRYPTED_SECRETS: 'true'
     })).not.toThrow()
   })
 
@@ -75,7 +75,7 @@ describe('config/env', () => {
       TOKEN_ENCRYPTION_KEY: 'd'.repeat(64), DATABASE_URL: 'postgres://db',
       BASE_URL: 'https://api.example.com', FRONTEND_URL: 'https://app.example.com',
       FRONTEND_ORIGIN: 'https://app.example.com', BLOB_ALLOWED_HOSTS: 'storage.public.blob.vercel-storage.com',
-      TRUST_PROXY: '1', BLOB_ACCESS_MODE: 'private'
+      TRUST_PROXY: '1', BLOB_ACCESS_MODE: 'private', REQUIRE_ENCRYPTED_SECRETS: 'true'
     }
     expect(() => assertProductionSecrets(production)).toThrow(/modo privado do Blob/i)
     expect(() => assertProductionSecrets({ ...production, BLOB_READ_WRITE_TOKEN: 'blob-token' })).not.toThrow()

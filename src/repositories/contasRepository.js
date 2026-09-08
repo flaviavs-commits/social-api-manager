@@ -9,8 +9,8 @@ function connectionPolicyError(message, code) {
   return error
 }
 
-async function enforceConnectionPolicy({ userId, platform }) {
-  const { rows: [user] } = await pool.query(
+async function enforceConnectionPolicy({ userId, platform, db = pool }) {
+  const { rows: [user] } = await db.query(
     `SELECT plan, plan_unrestricted, role, allowed_platforms AS "allowedPlatforms"
        FROM users
       WHERE id = $1 AND ativo = TRUE`,
@@ -25,7 +25,7 @@ async function enforceConnectionPolicy({ userId, platform }) {
     throw connectionPolicyError(`A rede ${platform} não está disponível nas redes escolhidas para o seu plano.`, 'PLAN_PLATFORM_NOT_ALLOWED')
   }
 
-  const { rows: [summary] } = await pool.query(
+  const { rows: [summary] } = await db.query(
     'SELECT COUNT(*)::int AS "totalAccounts" FROM contas WHERE user_id = $1',
     [userId]
   )
@@ -298,30 +298,48 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null, exte
     throw new Error('Plataforma inválida')
   }
 
-  const { rows: [existente] } = await pool.query(
-    `SELECT * FROM contas WHERE platform = $1 AND handle = $2 AND user_id = $3 LIMIT 1`,
-    [platform, name, userId]
-  )
-  if (existente) {
-    if ((avatarUrl && avatarUrl !== existente.avatar_url) || (externalUserId && externalUserId !== existente.external_user_id)) {
-      const { rows: [atualizada] } = await pool.query(
-        `UPDATE contas SET avatar_url = COALESCE($1, avatar_url), external_user_id = COALESCE($2, external_user_id) WHERE id = $3 RETURNING *`,
-        [avatarUrl, externalUserId, existente.id]
-      )
-      return atualizada
+  let client
+  try {
+    client = await pool.connect()
+    await client.query('BEGIN')
+    // O fluxo OAuth pode ser repetido pelo callback, pelo usuário ou por
+    // retries do provedor. Serializa só a combinação dono/plataforma; assim o
+    // SELECT de existência, a política de limite e o INSERT formam uma única
+    // decisão mesmo em múltiplas instâncias da API.
+    await client.query('SELECT pg_advisory_xact_lock($1, hashtext($2))', [userId, platform])
+
+    const { rows: [existente] } = await client.query(
+      `SELECT * FROM contas WHERE platform = $1 AND handle = $2 AND user_id = $3 LIMIT 1`,
+      [platform, name, userId]
+    )
+    if (existente) {
+      if ((avatarUrl && avatarUrl !== existente.avatar_url) || (externalUserId && externalUserId !== existente.external_user_id)) {
+        const { rows: [atualizada] } = await client.query(
+          `UPDATE contas SET avatar_url = COALESCE($1, avatar_url), external_user_id = COALESCE($2, external_user_id) WHERE id = $3 RETURNING *`,
+          [avatarUrl, externalUserId, existente.id]
+        )
+        await client.query('COMMIT')
+        return atualizada
+      }
+      await client.query('COMMIT')
+      return existente
     }
-    return existente
+
+    await enforceConnectionPolicy({ userId, platform, db: client })
+
+    const { rows: [conta] } = await client.query(`
+      INSERT INTO contas (platform, handle, tipo, user_id, avatar_url, external_user_id)
+      VALUES ($1, $2, 'NICHO', $3, $4, $5)
+      RETURNING *
+    `, [platform, name, userId, avatarUrl, externalUserId])
+    await client.query('COMMIT')
+    return conta
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    client?.release()
   }
-
-  await enforceConnectionPolicy({ userId, platform })
-
-  const { rows: [conta] } = await pool.query(`
-    INSERT INTO contas (platform, handle, tipo, user_id, avatar_url, external_user_id)
-    VALUES ($1, $2, 'NICHO', $3, $4, $5)
-    RETURNING *
-  `, [platform, name, userId, avatarUrl, externalUserId])
-
-  return conta
 }
 
 // Grava o accountId do Zernio (docs.zernio.com) numa conta — usado nas redes

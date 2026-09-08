@@ -76,6 +76,12 @@ function assertProductionSecrets(source = process.env) {
     throw error
   }
 
+  if (!boolean(source.REQUIRE_ENCRYPTED_SECRETS)) {
+    const error = new Error('REQUIRE_ENCRYPTED_SECRETS=true é obrigatório em produção após a migração dos segredos')
+    error.code = 'CONFIGURATION_ERROR'
+    throw error
+  }
+
   const secrets = ['AUTH_TOKEN_SECRET', 'SESSION_SECRET', 'CRON_SECRET']
   const weak = secrets.filter(name => String(source[name]).length < 32)
   if (!/^[0-9a-f]{64}$/i.test(String(source.TOKEN_ENCRYPTION_KEY || ''))) weak.push('TOKEN_ENCRYPTION_KEY(64 hex)')

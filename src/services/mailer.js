@@ -74,11 +74,13 @@ async function enviarEmailAcessoMeuEcoo(email, { fullName, planName, offer, acce
 
 async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { pdf, filename } = {}) {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para relatórios agendados')
+  const safeName = escapeHtml(name || 'Relatório operacional')
+  const subjectName = String(name || 'Relatório operacional').replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
   await transporter.sendMail({
     from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
     to: recipients.join(', '),
-    subject: `${name} — relatório dos últimos ${periodDays} dias`,
-    html: `<div style="font-family:sans-serif;max-width:620px;margin:0 auto"><h2>${name}</h2><p>Resumo operacional dos últimos ${periodDays} dias:</p><ul>${summary}</ul><p style="color:#777">O relatório completo está anexado em PDF.</p></div>`,
+    subject: `${subjectName} — relatório dos últimos ${periodDays} dias`,
+    html: `<div style="font-family:sans-serif;max-width:620px;margin:0 auto"><h2>${safeName}</h2><p>Resumo operacional dos últimos ${periodDays} dias:</p><ul>${summary}</ul><p style="color:#777">O relatório completo está anexado em PDF.</p></div>`,
     ...(pdf ? { attachments: [{ filename: filename || 'relatorio-operacional.pdf', content: pdf, contentType: 'application/pdf' }] } : {})
   })
 }

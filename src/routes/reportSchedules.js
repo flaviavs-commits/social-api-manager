@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, periodDays = 30, platform, recipients = [], frequency = 'monthly', branding = {} } = req.body || {}
-    if (!name?.trim()) return res.status(400).json({ erro: 'Informe um nome para o relatório.' })
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) return res.status(400).json({ erro: 'Informe um nome válido para o relatório (até 120 caracteres).' })
     if (!frequencies.has(frequency)) return res.status(400).json({ erro: 'Frequência inválida.' })
     if (platform && !PLATFORMS.includes(platform)) return res.status(400).json({ erro: 'Rede inválida.' })
     const emails = Array.isArray(recipients) ? recipients.map(email => String(email).trim().toLowerCase()).filter(email => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)).slice(0, 20) : []

@@ -19,7 +19,88 @@ router.patch('/:id/branding', async (req, res) => { try { const id = parseId(req
 router.get('/:id/members', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); if (!workspace) return res.status(403).json({ erro: 'Sem acesso a este espaço.' }); const { rows } = await pool.query('SELECT u.id,u.email,u.full_name AS "fullName",wm.role,wm.criado_em AS "joinedAt" FROM workspace_members wm JOIN users u ON u.id=wm.user_id WHERE wm.workspace_id=$1 ORDER BY wm.criado_em ASC', [id]); res.json({ members: rows }) } catch (err) { serverError(res, err) } })
 router.post('/:id/members', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); if (!workspace || !['owner', 'admin'].includes(workspace.role)) return res.status(403).json({ erro: 'Sem permissão para convidar membros.' }); const email = req.body?.email?.trim().toLowerCase(); const role = ['admin', 'editor', 'reviewer'].includes(req.body?.role) ? req.body.role : 'editor'; const { rows: users } = await pool.query('SELECT id FROM users WHERE LOWER(email)=LOWER($1)', [email]); if (!users.length) return res.status(404).json({ erro: 'Usuário não encontrado. Ele precisa criar uma conta antes do convite.' }); await pool.query('INSERT INTO workspace_members (workspace_id,user_id,role) VALUES ($1,$2,$3) ON CONFLICT (workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role', [id, users[0].id, role]); res.status(201).json({ ok: true }) } catch (err) { serverError(res, err) } })
 router.get('/:id/approvals', async (req, res) => { try { const id = parseId(req.params.id); if (!await access(id, req.user.id)) return res.status(403).json({ erro: 'Sem acesso a este espaço.' }); const { rows } = await pool.query(`SELECT ar.id,ar.post_id AS "postId",ar.status,ar.feedback,ar.criado_em AS "createdAt",p.text,p.platforms,p.media_path AS "mediaPath",p.media_type AS "mediaType",p.media_items AS "mediaItems",p.scheduled_at AS "scheduledAt",p.status AS "postStatus" FROM approval_requests ar JOIN posts p ON p.id=ar.post_id WHERE ar.workspace_id=$1 ORDER BY ar.criado_em DESC`, [id]); res.json({ approvals: rows }) } catch (err) { serverError(res, err) } })
-router.post('/:id/approvals', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); const postId = parseId(req.body?.postId); if (!workspace || !postId) return res.status(400).json({ erro: 'Espaço ou publicação inválidos.' }); const { rows: posts } = await pool.query("SELECT id,status FROM posts WHERE id=$1 AND user_id=$2", [postId, req.user.id]); if (!posts.length) return res.status(404).json({ erro: 'Publicação não encontrada.' }); if (!['scheduled', 'pending_approval'].includes(posts[0].status)) return res.status(409).json({ erro: 'Somente posts agendados ou aguardando aprovação podem entrar em revisão.' }); const { rows: existing } = await pool.query("SELECT id FROM approval_requests WHERE workspace_id=$1 AND post_id=$2 AND status='pending' LIMIT 1", [id, postId]); if (existing.length) return res.status(409).json({ erro: 'Esta publicação já está aguardando aprovação.' }); await pool.query("UPDATE posts SET status='pending_approval' WHERE id=$1 AND status='scheduled'", [postId]); const { rows } = await pool.query('INSERT INTO approval_requests (workspace_id,post_id,requested_by) VALUES ($1,$2,$3) RETURNING id,status', [id, postId, req.user.id]); res.status(201).json({ approval: rows[0] }) } catch (err) { serverError(res, err) } })
-router.patch('/approvals/:approvalId', async (req, res) => { try { const approvalId = parseId(req.params.approvalId); const status = ['approved', 'rejected', 'pending'].includes(req.body?.status) ? req.body.status : null; if (!status) return res.status(400).json({ erro: 'Status inválido.' }); const { rows } = await pool.query('SELECT workspace_id,post_id,requested_by FROM approval_requests WHERE id=$1', [approvalId]); const workspace = rows.length ? await access(rows[0].workspace_id, req.user.id) : null; if (!rows.length || !workspace || !['owner', 'admin', 'reviewer'].includes(workspace.role)) return res.status(403).json({ erro: 'Apenas proprietários, administradores ou revisores podem avaliar aprovações.' }); if (status === 'approved' && rows[0].requested_by === req.user.id) return res.status(403).json({ erro: 'A pessoa que solicitou a aprovação não pode aprovar o próprio conteúdo.' }); await pool.query('UPDATE approval_requests SET status=$1,feedback=$2,reviewed_by=$3,revisado_em=NOW() WHERE id=$4', [status, req.body?.feedback?.trim() || null, req.user.id, approvalId]); const postStatus = status === 'approved' ? 'scheduled' : status === 'rejected' ? 'rejected' : 'pending_approval'; await pool.query(`UPDATE posts SET status=$1 WHERE id=$2 AND status IN ('pending_approval','rejected')`, [postStatus, rows[0].post_id]); dispatchWebhook('approval_updated', { approvalId, postId: rows[0].post_id, status }, rows[0].requested_by).catch(() => {}); res.status(204).send() } catch (err) { serverError(res, err) } })
+router.post('/:id/approvals', async (req, res) => {
+  let client
+  try {
+    const id = parseId(req.params.id)
+    const workspace = await access(id, req.user.id)
+    const postId = parseId(req.body?.postId)
+    if (!workspace || !postId) return res.status(400).json({ erro: 'Espaço ou publicação inválidos.' })
+
+    client = await pool.connect()
+    await client.query('BEGIN')
+    // Lock distribuído por workspace/post: o SELECT seguido de INSERT não
+    // pode ser vencido por duas requisições concorrentes em réplicas distintas.
+    await client.query('SELECT pg_advisory_xact_lock($1, $2)', [id, postId])
+    const { rows: members } = await client.query(
+      'SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 FOR SHARE',
+      [id, req.user.id]
+    )
+    if (!members.length) { await client.query('ROLLBACK'); return res.status(403).json({ erro: 'Sem acesso a este espaço.' }) }
+    const { rows: posts } = await client.query('SELECT id,status FROM posts WHERE id=$1 AND user_id=$2 FOR UPDATE', [postId, req.user.id])
+    if (!posts.length) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Publicação não encontrada.' }) }
+    if (!['scheduled', 'pending_approval'].includes(posts[0].status)) { await client.query('ROLLBACK'); return res.status(409).json({ erro: 'Somente posts agendados ou aguardando aprovação podem entrar em revisão.' }) }
+    const { rows: existing } = await client.query("SELECT id FROM approval_requests WHERE workspace_id=$1 AND post_id=$2 AND status='pending' LIMIT 1", [id, postId])
+    if (existing.length) { await client.query('COMMIT'); return res.status(409).json({ erro: 'Esta publicação já está aguardando aprovação.' }) }
+    await client.query("UPDATE posts SET status='pending_approval' WHERE id=$1 AND status='scheduled'", [postId])
+    const { rows } = await client.query('INSERT INTO approval_requests (workspace_id,post_id,requested_by) VALUES ($1,$2,$3) RETURNING id,status', [id, postId, req.user.id])
+    await client.query('COMMIT')
+    res.status(201).json({ approval: rows[0] })
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {})
+    serverError(res, err)
+  } finally { client?.release() }
+})
+
+router.patch('/approvals/:approvalId', async (req, res) => {
+  let client
+  try {
+    const approvalId = parseId(req.params.approvalId)
+    const status = ['approved', 'rejected', 'pending'].includes(req.body?.status) ? req.body.status : null
+    if (!status) return res.status(400).json({ erro: 'Status inválido.' })
+    const { rows: initial } = await pool.query('SELECT workspace_id,post_id,requested_by FROM approval_requests WHERE id=$1', [approvalId])
+    const workspace = initial.length ? await access(initial[0].workspace_id, req.user.id) : null
+    if (!initial.length || !workspace || !['owner', 'admin', 'reviewer'].includes(workspace.role)) return res.status(403).json({ erro: 'Apenas proprietários, administradores ou revisores podem avaliar aprovações.' })
+    if (status === 'approved' && initial[0].requested_by === req.user.id) return res.status(403).json({ erro: 'A pessoa que solicitou a aprovação não pode aprovar o próprio conteúdo.' })
+
+    client = await pool.connect()
+    await client.query('BEGIN')
+    const { rows } = await client.query('SELECT workspace_id,post_id,requested_by,status FROM approval_requests WHERE id=$1 FOR UPDATE', [approvalId])
+    if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Aprovação não encontrada.' }) }
+    const { rows: members } = await client.query(
+      'SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 FOR SHARE',
+      [rows[0].workspace_id, req.user.id]
+    )
+    if (!members.length || !['owner', 'admin', 'reviewer'].includes(members[0].role)) {
+      await client.query('ROLLBACK')
+      return res.status(403).json({ erro: 'Apenas proprietários, administradores ou revisores podem avaliar aprovações.' })
+    }
+    if (status === 'approved' && rows[0].requested_by === req.user.id) {
+      await client.query('ROLLBACK')
+      return res.status(403).json({ erro: 'A pessoa que solicitou a aprovação não pode aprovar o próprio conteúdo.' })
+    }
+    const currentStatus = rows[0].status
+    const validTransition = status === 'pending'
+      ? ['approved', 'rejected'].includes(currentStatus)
+      : currentStatus === 'pending'
+    if (!validTransition) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ erro: 'A aprovação já está nesse estado ou já foi avaliada por outra requisição.' })
+    }
+    const { rows: updated } = await client.query(
+      'UPDATE approval_requests SET status=$1,feedback=$2,reviewed_by=$3,revisado_em=NOW() WHERE id=$4 AND status=$5 RETURNING id',
+      [status, typeof req.body?.feedback === 'string' ? req.body.feedback.trim().slice(0, 2000) || null : null, req.user.id, approvalId, rows[0].status]
+    )
+    if (!updated.length) { await client.query('ROLLBACK'); return res.status(409).json({ erro: 'Esta aprovação já foi alterada por outra requisição.' }) }
+    const postStatus = status === 'approved' ? 'scheduled' : status === 'rejected' ? 'rejected' : 'pending_approval'
+    await client.query("UPDATE posts SET status=$1 WHERE id=$2 AND status IN ('pending_approval','rejected')", [postStatus, rows[0].post_id])
+    await client.query('COMMIT')
+    dispatchWebhook('approval_updated', { approvalId, postId: rows[0].post_id, status }, rows[0].requested_by).catch(() => {})
+    res.status(204).send()
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {})
+    serverError(res, err)
+  } finally { client?.release() }
+})
 
 module.exports = router
