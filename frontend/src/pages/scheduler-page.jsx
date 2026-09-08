@@ -1522,12 +1522,12 @@ export function SchedulerPage() {
     <SchedSection number={3} title="Agendamento">
       {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className={`approval-request-card${approvalWorkspaceId ? ' is-active' : ''}`}>
         <div className="approval-request-copy"><span className="approval-request-icon" aria-hidden="true">✓</span><div><strong>Revisar antes de publicar</strong><small>O post ficará bloqueado até um aprovador aceitar.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }}/><span>{approvalWorkspaceId ? 'Ativado' : 'Ativar'}</span></label>
+        <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }}/><span>{approvalWorkspaceId ? 'Desativar' : 'Ativar'}</span></label>
         {approvalWorkspaceId && <label className="approval-workspace-select">Espaço de aprovação<select value={approvalWorkspaceId} onChange={event => { setApprovalWorkspaceId(event.target.value); setPublishNow(false) }}>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label>}
       </div>}
       {!approvalWorkspaceId && <div className={`publish-now-card${publishNow ? ' is-active' : ''}`}>
         <div className="publish-now-copy"><span className="publish-now-icon" aria-hidden="true">⚡</span><div><strong>Publicar agora</strong><small>Envie para as redes assim que concluir a publicação.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/><span>{publishNow ? 'Ativado' : 'Ativar'}</span></label>
+        <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/><span>{publishNow ? 'Desativar' : 'Ativar'}</span></label>
       </div>}
       {(!publishNow || approvalWorkspaceId) && <label>Data e hora<input required type="datetime-local" value={date} onChange={event => setDate(event.target.value)}/></label>}
     </SchedSection>
