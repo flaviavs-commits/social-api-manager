@@ -13,6 +13,45 @@ const FFMPEG_TIMEOUT_SECONDS = 180
 
 if (ffmpegPath && fs.existsSync(ffmpegPath)) ffmpeg.setFfmpegPath(ffmpegPath)
 
+// fluent-ffmpeg 2.1.3 não possui o método `.timeout()`. O limite precisa ser
+// controlado pelo processo Node para impedir que uma conversão trave o
+// agendamento indefinidamente em qualquer rede social.
+function executarFfmpegComTimeout(command, outputPath, timeoutSeconds = FFMPEG_TIMEOUT_SECONDS) {
+  return new Promise((resolve, reject) => {
+    let encerrado = false
+    let timeoutId
+
+    const finalizar = (callback, value) => {
+      if (encerrado) return
+      encerrado = true
+      clearTimeout(timeoutId)
+      callback(value)
+    }
+
+    command
+      .on('end', () => finalizar(resolve))
+      .on('error', error => finalizar(reject, error))
+
+    timeoutId = setTimeout(() => {
+      try {
+        command.kill('SIGKILL')
+      } catch (_error) {
+        // O processo pode já ter terminado entre o timer e o kill.
+      }
+
+      const error = new Error(`FFmpeg excedeu o tempo limite de ${timeoutSeconds} segundos.`)
+      error.code = 'FFMPEG_TIMEOUT'
+      finalizar(reject, error)
+    }, timeoutSeconds * 1000)
+
+    try {
+      command.save(outputPath)
+    } catch (error) {
+      finalizar(reject, error)
+    }
+  })
+}
+
 async function converterParaJpeg(inputBuffer, { mimetype } = {}) {
   const normalizedType = String(mimetype || '').toLowerCase()
   if (normalizedType === 'image/heic' || normalizedType === 'image/heif') {
@@ -65,25 +104,21 @@ async function converterVideoParaTiktok(inputBuffer) {
   await fs.promises.writeFile(inputPath, inputBuffer)
 
   try {
-    await new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .videoCodec('libx264')
-        .audioCodec('aac')
-        .outputOptions([
-          '-map', '0:v:0',
-          '-map', '0:a:0?',
-          '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
-          '-pix_fmt', 'yuv420p',
-          '-movflags', '+faststart',
-          '-preset', 'veryfast',
-          '-b:a', '128k'
-        ])
-        .format('mp4')
-        .timeout(FFMPEG_TIMEOUT_SECONDS)
-        .on('end', resolve)
-        .on('error', reject)
-        .save(outputPath)
-    })
+    const command = ffmpeg(inputPath)
+      .videoCodec('libx264')
+      .audioCodec('aac')
+      .outputOptions([
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-preset', 'veryfast',
+        '-b:a', '128k'
+      ])
+      .format('mp4')
+
+    await executarFfmpegComTimeout(command, outputPath)
     return await fs.promises.readFile(outputPath)
   } finally {
     await fs.promises.unlink(inputPath).catch(() => {})
@@ -101,31 +136,27 @@ async function converterVideoParaInstagram(inputBuffer) {
   await fs.promises.writeFile(inputPath, inputBuffer)
 
   try {
-    await new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .videoCodec('libx264')
-        .audioCodec('aac')
-        .outputOptions([
-          '-map', '0:v:0',
-          '-map', '0:a:0?',
-          '-vf', "scale=w='min(1080,iw)':h=-2",
-          '-r', '30',
-          '-pix_fmt', 'yuv420p',
-          '-profile:v', 'high',
-          '-level', '4.1',
-          '-crf', '20',
-          '-preset', 'veryfast',
-          '-ar', '48000',
-          '-ac', '2',
-          '-b:a', '128k',
-          '-movflags', '+faststart'
-        ])
-        .format('mp4')
-        .timeout(FFMPEG_TIMEOUT_SECONDS)
-        .on('end', resolve)
-        .on('error', reject)
-        .save(outputPath)
-    })
+    const command = ffmpeg(inputPath)
+      .videoCodec('libx264')
+      .audioCodec('aac')
+      .outputOptions([
+        '-map', '0:v:0',
+        '-map', '0:a:0?',
+        '-vf', "scale=w='min(1080,iw)':h=-2",
+        '-r', '30',
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
+        '-level', '4.1',
+        '-crf', '20',
+        '-preset', 'veryfast',
+        '-ar', '48000',
+        '-ac', '2',
+        '-b:a', '128k',
+        '-movflags', '+faststart'
+      ])
+      .format('mp4')
+
+    await executarFfmpegComTimeout(command, outputPath)
     return await fs.promises.readFile(outputPath)
   } finally {
     await fs.promises.unlink(inputPath).catch(() => {})
@@ -133,4 +164,11 @@ async function converterVideoParaInstagram(inputBuffer) {
   }
 }
 
-module.exports = { converterParaJpeg, lerDimensoesImagem, converterImagemParaTiktok, converterVideoParaTiktok, converterVideoParaInstagram }
+module.exports = {
+  converterParaJpeg,
+  lerDimensoesImagem,
+  converterImagemParaTiktok,
+  converterVideoParaTiktok,
+  converterVideoParaInstagram,
+  executarFfmpegComTimeout
+}
