@@ -1461,24 +1461,35 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
     display: none;
   }
 
-  /* Labels compete with the menu on phones; the same actions remain
-   * available as compact, touch-sized icon buttons. */
+  /* The action rail keeps the controls identifiable on phones. Its natural
+   * width is intentional: when the row is longer than the viewport, it can
+   * be swiped horizontally without compressing the brand or the page title. */
   .app-shell-modern .app-topbar-modern :is(
     .topbar-text-action, .topbar-labeled-action
   ) {
-    width: 44px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    justify-content: center;
-    padding-inline: 0 !important;
-    font-size: 0 !important;
+    width: auto !important;
+    min-width: max-content !important;
+    min-height: 40px !important;
+    justify-content: flex-start;
+    padding-inline: 10px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    background: var(--surface-2);
+    font-size: 11px !important;
   }
 
   .app-shell-modern .app-topbar-modern :is(
     .topbar-text-action > span:last-child,
-    .topbar-action-label,
-    .topbar-text-action::after
+    .topbar-action-label
   ) {
+    display: inline !important;
+    visibility: visible !important;
+    color: inherit;
+    font-size: 11px !important;
+    white-space: nowrap;
+  }
+
+  .app-shell-modern .app-topbar-modern .topbar-text-action::after {
     display: none !important;
   }
 
@@ -1488,17 +1499,31 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
   }
 
   .app-shell-modern .app-topbar-modern .create-post-button {
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 44px;
-    min-height: 44px !important;
-    justify-content: center;
-    padding: 0 !important;
-    font-size: 0 !important;
+    width: auto !important;
+    min-width: max-content !important;
+    height: 40px;
+    min-height: 40px !important;
+    justify-content: flex-start;
+    padding: 8px 12px !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
   }
 
   .app-shell-modern .app-topbar-modern .create-post-button > span:first-child {
-    font-size: 22px !important;
+    font-size: 18px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .user-profile-pill {
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: 180px !important;
+    min-height: 40px !important;
+    padding: 4px 10px 4px 5px !important;
+    font-size: 11px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .profile-menu-chevron {
+    display: inline !important;
   }
 
   .app-shell-modern .app-topbar-modern .theme-selector,
