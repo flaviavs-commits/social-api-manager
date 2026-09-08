@@ -1,27 +1,6 @@
-import { useEffect } from 'react'
-
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
 export function PublicationStatusModal({ status, platforms, progress, onReview, onClose }) {
-  const hasStatus = Boolean(status)
-
-  useEffect(() => {
-    if (!hasStatus) return undefined
-
-    const body = document.body
-    const previousOverflow = body.style.overflow
-    const previousPaddingRight = body.style.paddingRight
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-
-    body.style.overflow = 'hidden'
-    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`
-
-    return () => {
-      body.style.overflow = previousOverflow
-      body.style.paddingRight = previousPaddingRight
-    }
-  }, [hasStatus])
-
   if (!status) return null
 
   const isProcessing = status.type === 'processing'

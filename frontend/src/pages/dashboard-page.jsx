@@ -332,7 +332,7 @@ export function DashboardPage({ onNavigate }) {
       <div>
         <p className="eyebrow">VISÃO GERAL</p>
         <h2>Seu painel de conteúdo</h2>
-        <p>Tenha uma visão rápida das publicações e redes conectadas.</p>
+        <p>Tenha uma visão rápida das publicações, agendamentos e redes conectadas.</p>
       </div>
       <div className="dashboard-hero-tools">
         <div className="dashboard-live-status"><span className="dashboard-live-dot" aria-hidden="true"/><div><strong>{accountsLoading ? 'Verificando redes' : connectedPlatforms ? 'Operação conectada' : 'Conecte sua primeira rede'}</strong><small>{accountsLoading ? 'Aguarde um instante...' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes com acesso`}</small></div></div>
@@ -425,14 +425,14 @@ export function DashboardPage({ onNavigate }) {
       </section>
 
       <section className="panel dashboard-upcoming-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PRÓXIMOS PASSOS</p><h2>Próximas publicações</h2></div><button className="link-button" onClick={() => onNavigate('calendario')}>Ver calendário</button></div>
+        <div className="panel-heading"><div><p className="eyebrow">PRÓXIMOS PASSOS</p><h2>Próximos agendamentos</h2></div><button className="link-button" onClick={() => onNavigate('calendario')}>Ver calendário</button></div>
         {postsLoading
           ? <p className="empty-state" aria-live="polite">Carregando agenda...</p>
           : upcoming.length
             ? <div className="dashboard-upcoming-list">{upcoming.map(post => <div className="dashboard-upcoming-item" key={post.id}><span className="dashboard-upcoming-date">{formatPostDate(postDateValue(post))}</span><strong>{post.text || post.title || 'Publicação sem texto'}</strong><button type="button" className="link-button" onClick={() => onNavigate('calendario')}>Abrir calendário</button></div>)}</div>
             : scheduledWithoutDate
               ? <div className="dashboard-callout dashboard-callout-warning"><span className="dashboard-callout-icon" aria-hidden="true">!</span><p>{scheduledWithoutDate === 1 ? '1 publicação agendada está' : `${scheduledWithoutDate} publicações agendadas estão`} sem horário definido.</p><button className="link-button" onClick={() => onNavigate('calendario')}>Corrigir agenda</button></div>
-              : <div className="dashboard-callout"><span className="dashboard-callout-icon" aria-hidden="true">✦</span><p>Nenhuma publicação próxima. Crie uma publicação para manter suas redes ativas.</p><button className="link-button" onClick={() => onNavigate('agendador')}>Criar publicação</button></div>}
+              : <div className="dashboard-callout"><span className="dashboard-callout-icon" aria-hidden="true">✦</span><p>Nenhum agendamento próximo. Crie uma publicação para manter suas redes ativas.</p><button className="link-button" onClick={() => onNavigate('agendador')}>Agendar agora</button></div>}
       </section>
     </div>
 

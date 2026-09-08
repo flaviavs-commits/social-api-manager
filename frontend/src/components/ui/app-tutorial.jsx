@@ -57,7 +57,7 @@ const STEPS = [
   {
     page: 'agendador',
     title: 'Meu Post: produza e publique',
-    body: 'Este é o centro da operação. Monte uma publicação, adapte-a para cada rede, revise a prévia e publique quando estiver pronta.',
+    body: 'Este é o centro da operação. Monte uma publicação, adapte-a para cada rede, revise a prévia e escolha entre publicar agora ou agendar.',
     tips: [
       'Escolha Instagram, Facebook, YouTube e/ou TikTok e selecione as contas específicas que receberão o post.',
       'Escreva um texto diferente para cada rede e, quando disponível, use título e primeiro comentário.',
@@ -66,7 +66,7 @@ const STEPS = [
       'Configure opções do Instagram (Feed, Reel ou Story), YouTube (título, categoria, formato e público infantil) e TikTok (privacidade, comentários, duetos e stitches).',
       'No Facebook e Instagram, pesquise e associe um local quando essa opção fizer sentido.',
       'A IA visual pode analisar a imagem ou cenas do vídeo e sugerir descrição, hashtags e texto por rede.',
-      'Salve como rascunho/modelo, acompanhe o progresso e use o painel de pendências antes de publicar.'
+      'Salve como rascunho/modelo, acompanhe o progresso e use o painel de pendências antes de publicar ou agendar.'
     ]
   },
   {
@@ -77,9 +77,9 @@ const STEPS = [
       'Navegue entre meses, volte para Hoje e filtre o calendário por rede social.',
       'Alterne entre a visualização de calendário e lista.',
       'Abra um dia para ver texto, plataformas, mídia e status de cada publicação.',
-      'Consulte o histórico de publicações e os detalhes de cada item.',
-      'Remova do calendário um post já publicado ou exclua uma publicação pendente; isso não apaga a publicação da rede social.',
-      'Use os filtros por rede e alterne entre a visualização em calendário e lista.'
+      'Edite data e horário ou arraste um agendamento para outro dia.',
+      'Copie um agendamento para criar uma nova publicação e use Reagendar para repetir um post publicado.',
+      'Exclua um agendamento antes do envio ou remova do calendário um post já publicado; isso não apaga a publicação da rede social.'
     ]
   },
   {
@@ -237,7 +237,7 @@ const STEPS = [
     body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use a IA para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
     tips: [
       'Comece conectando as redes que deseja administrar.',
-      'Use o Meu Post para publicar agora, salvar um rascunho ou criar um modelo.',
+      'Use o Meu Post para publicar agora, agendar, salvar um rascunho ou criar um modelo.',
       'Volte ao Calendário, Inbox e Relatórios para acompanhar a operação.',
       'Se precisar de ajuda, consulte o tutorial novamente ou abra o Suporte no rodapé do Perfil.'
     ],
