@@ -24,6 +24,10 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
+.theme-option-label {
+  display: none;
+}
+
 .theme-selector button:hover {
   color: var(--text);
   background: var(--surface);
@@ -52,7 +56,11 @@
 }
 
 @media (max-width: 640px) {
-  .theme-selector button span:last-child {
+.theme-selector button span:last-child {
+    display: none;
+  }
+
+  .theme-option-label {
     display: none;
   }
 

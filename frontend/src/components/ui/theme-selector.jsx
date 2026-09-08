@@ -80,10 +80,10 @@ export function ThemeSelector() {
 
   return <div className="theme-selector" data-tutorial-target="tema" role="group" aria-label="Tema da interface">
     <button type="button" className={theme === 'light' ? 'is-active' : ''} aria-pressed={theme === 'light'} aria-label="Tema claro" title="Tema claro" onClick={() => setTheme('light')}>
-      <span aria-hidden="true">☀</span>
+      <span className="theme-option-icon" aria-hidden="true">☀</span><span className="theme-option-label">Claro</span>
     </button>
     <button type="button" className={theme === 'dark' ? 'is-active' : ''} aria-pressed={theme === 'dark'} aria-label="Tema escuro" title="Tema escuro" onClick={() => setTheme('dark')}>
-      <span aria-hidden="true">☾</span>
+      <span className="theme-option-icon" aria-hidden="true">☾</span><span className="theme-option-label">Escuro</span>
     </button>
   </div>
 }

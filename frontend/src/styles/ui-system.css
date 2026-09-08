@@ -1532,6 +1532,42 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
     flex: 0 0 auto;
   }
 
+  .app-shell-modern .app-topbar-modern .theme-selector {
+    min-height: 40px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+
+  .app-shell-modern .app-topbar-modern .theme-selector button {
+    display: inline-flex !important;
+    width: auto !important;
+    min-width: max-content !important;
+    min-height: 32px !important;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 9px !important;
+    border: 0 !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .theme-selector .theme-option-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px !important;
+    line-height: 1;
+  }
+
+  .app-shell-modern .app-topbar-modern .theme-selector .theme-option-label {
+    display: inline !important;
+    color: inherit;
+    font-size: 11px !important;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
   .app-shell-modern .app-topbar-modern .notification-popover,
   .app-shell-modern .app-topbar-modern .profile-menu {
     position: fixed;
