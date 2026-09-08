@@ -14,7 +14,6 @@
     "test:coverage": "jest --runInBand --coverage",
     "test:all": "npm test && npm run test:components",
     "test:components": "vitest run --config frontend/vitest.config.js",
-    "test:frontend:publish-only": "node scripts/assert-publish-only-frontend.js",
     "security:preflight": "node scripts/security-preflight.js",
     "security:migrate-encrypted-secrets": "node scripts/migrate-encrypted-secrets.js",
     "zernio:webhook:register": "node scripts/register-zernio-webhook.js",
