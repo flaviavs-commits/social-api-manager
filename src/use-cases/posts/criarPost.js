@@ -550,7 +550,18 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
     // enquanto o publisher resolve a conta usando `post.userId`. Repassar o
     // valor autenticado explicitamente evita que usuários comuns caiam no
     // filtro de segurança `FALSE` e recebam falso "conta desconectada".
-    const resultados = await schedulePost({ ...post, userId, scheduledFor: scheduledAtBR, accounts: postAccounts, userRole })
+    const resultados = await schedulePost({
+      ...post,
+      userId,
+      mediaPath,
+      mediaType,
+      mediaItems,
+      coverPath,
+      coverType,
+      scheduledFor: scheduledAtBR,
+      accounts: postAccounts,
+      userRole
+    })
     const falhas = resultados.filter(resultado => resultado.success === false)
     if (falhas.length) {
       const status = resultados.some(resultado => resultado.success === 'scheduled') ? 'partial' : 'error'

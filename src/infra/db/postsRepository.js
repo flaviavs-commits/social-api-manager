@@ -11,6 +11,7 @@ async function criarPost({ text, textByPlatform = null, titleByPlatform = null, 
       ig_format AS "igFormat", facebook_format AS "facebookFormat",
       tiktok_privacy_level AS "tiktokPrivacyLevel", tiktok_disable_comment AS "tiktokDisableComment",
       tiktok_disable_duet AS "tiktokDisableDuet", tiktok_disable_stitch AS "tiktokDisableStitch",
+      media_path AS "mediaPath", media_type AS "mediaType", media_items AS "mediaItems",
       location_id AS "locationId", location_name AS "locationName", first_comment AS "firstComment",
       cover_path AS "coverPath", cover_type AS "coverType"
   `, [text, textByPlatform ? JSON.stringify(textByPlatform) : null, titleByPlatform ? JSON.stringify(titleByPlatform) : null, platforms, scheduledAt, repeat, mediaPath, mediaType, mediaItems ? JSON.stringify(mediaItems) : null, youtubeTitle, youtubeVisibility, youtubeCategoryId, youtubeFormat, youtubeIsShort, youtubeMadeForKids, igFormat, facebookFormat, tiktokPrivacyLevel, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, locationId, locationName, firstComment, accountId, userId, status, coverPath, coverType])

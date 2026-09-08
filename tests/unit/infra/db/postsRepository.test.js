@@ -47,6 +47,15 @@ describe('criarPost', () => {
     expect(params[indiceDaColuna(query, 'media_items')]).toBeNull()
   })
 
+  test('retorna a mídia com os nomes usados pelo publicador', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [POST] })
+    await repo.criarPost({ text: 'x', platforms: ['instagram'], scheduledAt: new Date(), userId: 1 })
+    const query = pool.query.mock.calls[0][0]
+    expect(query).toContain('media_path AS "mediaPath"')
+    expect(query).toContain('media_type AS "mediaType"')
+    expect(query).toContain('media_items AS "mediaItems"')
+  })
+
   test('serializa textByPlatform como JSON', async () => {
     pool.query.mockResolvedValueOnce({ rows: [POST] })
     const textByPlatform = { instagram: 'texto ig', facebook: 'texto fb' }
