@@ -9,7 +9,7 @@ const requireInboxPlan = requirePlanModule('inbox')
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 30,
-  keyGenerator: req => req.user?.id ? `user:${req.user.id}` : req.ip,
+  keyGenerator: req => req.user?.id ? `user:${req.user.id}` : rateLimit.ipKeyGenerator(req.ip),
   standardHeaders: true,
   legacyHeaders: false,
   store: createRateLimitStore('uploads'),
