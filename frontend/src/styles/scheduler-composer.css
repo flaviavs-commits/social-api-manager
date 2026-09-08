@@ -1179,8 +1179,10 @@
 
 .scheduler-publication-overlay {
   z-index: 70;
-  background: rgb(3 5 9 / .72);
-  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  isolation: isolate;
+  background: rgb(3 5 9 / .84);
 }
 
 .scheduler-publication-modal {
@@ -1188,6 +1190,7 @@
   width: min(100%, 500px);
   max-width: 500px;
   padding: 24px;
+  overscroll-behavior: contain;
   border-color: var(--border-hover);
   background: var(--surface);
   box-shadow: 0 24px 70px rgb(0 0 0 / .38);
