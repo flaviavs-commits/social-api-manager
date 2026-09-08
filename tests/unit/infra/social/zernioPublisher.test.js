@@ -7,7 +7,7 @@ jest.mock('../../../../src/infra/social/mediaFetch', () => ({
 }))
 
 const zernioClient = require('../../../../src/infra/social/zernioClient')
-const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
+const { publicarZernioInstagram, publicarZernioFacebook, publicarZernioYoutube, publicarZernioTiktok } = require('../../../../src/infra/social/zernioPublisher')
 
 function zernioResponse() {
   return {
@@ -144,6 +144,42 @@ test('identifica vídeo do Instagram sem enviar contentType feed', async () => {
   expect(body.platforms[0].platformSpecificData.contentType).toBeUndefined()
 })
 
+test('envia imagem única do Instagram quando a mídia vem em mediaPath', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'ig-image-1',
+      platforms: [{ platform: 'instagram', platformPostId: 'ig-image-1' }]
+    }
+  })
+
+  await publicarZernioInstagram(
+    { accessToken: 'instagram-account-1' },
+    { mediaPath: 'photo.jpg', mediaType: 'image', text: 'Imagem' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].mediaItems).toEqual([
+    { type: 'image', url: 'https://cdn.test/photo.jpg' }
+  ])
+})
+
+test('envia vídeo único do Instagram quando a mídia vem em mediaPath', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'ig-video-1',
+      platforms: [{ platform: 'instagram', platformPostId: 'ig-video-1' }]
+    }
+  })
+
+  await publicarZernioInstagram(
+    { accessToken: 'instagram-account-1' },
+    { mediaPath: 'video.mp4', mediaType: 'video', text: 'Vídeo' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].mediaItems).toEqual([
+    { type: 'video', url: 'https://cdn.test/video.mp4' }
+  ])
+})
+
 test('usa contentType story somente para story do Instagram', async () => {
   zernioClient.createPost.mockResolvedValue({
     post: {
@@ -174,4 +210,58 @@ test('envia Facebook Reel como contentType reel', async () => {
   )
 
   expect(zernioClient.createPost.mock.calls[0][0].platforms[0].platformSpecificData).toEqual({ contentType: 'reel' })
+})
+
+test('envia imagem única do Facebook quando a mídia vem em mediaPath', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'fb-image-1',
+      platforms: [{ platform: 'facebook', platformPostId: 'fb-image-1' }]
+    }
+  })
+
+  await publicarZernioFacebook(
+    { accessToken: 'facebook-account-1' },
+    { mediaPath: 'photo.jpg', mediaType: 'image', text: 'Imagem' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].mediaItems).toEqual([
+    { type: 'image', url: 'https://cdn.test/photo.jpg' }
+  ])
+})
+
+test('envia vídeo único do TikTok quando a mídia vem em mediaPath', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'tt-video-1',
+      platforms: [{ platform: 'tiktok', platformPostId: 'tt-video-1' }]
+    }
+  })
+
+  await publicarZernioTiktok(
+    { accessToken: 'tiktok-account-1' },
+    { mediaPath: 'video.mp4', mediaType: 'video', text: 'Vídeo', tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].mediaItems).toEqual([
+    { type: 'video', url: 'https://cdn.test/video.mp4' }
+  ])
+})
+
+test('envia vídeo único do YouTube quando a mídia vem em mediaPath', async () => {
+  zernioClient.createPost.mockResolvedValue({
+    post: {
+      _id: 'yt-video-1',
+      platforms: [{ platform: 'youtube', platformPostId: 'yt-video-1' }]
+    }
+  })
+
+  await publicarZernioYoutube(
+    { accessToken: 'youtube-account-1' },
+    { mediaPath: 'video.mp4', mediaType: 'video', text: 'Vídeo', youtubeTitle: 'Meu vídeo' }
+  )
+
+  expect(zernioClient.createPost.mock.calls[0][0].mediaItems).toEqual([
+    { type: 'video', url: 'https://cdn.test/video.mp4' }
+  ])
 })
