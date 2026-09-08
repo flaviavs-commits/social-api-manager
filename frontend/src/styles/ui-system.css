@@ -1392,15 +1392,34 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
   .app-shell-modern .app-topbar-modern {
     display: flex !important;
     align-items: center;
+    flex-wrap: wrap;
+    column-gap: 8px;
+    row-gap: 0;
     min-width: 0;
   }
 
   .app-shell-modern .app-topbar-modern > div:first-child {
     display: flex !important;
     align-items: center;
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 100%;
+    height: 56px;
+    overflow: hidden;
+  }
+
+  .app-shell-modern .app-topbar-modern > div:first-child nav {
     min-width: 0;
     flex: 1 1 auto;
     overflow: hidden;
+  }
+
+  .app-shell-modern .app-topbar-modern > div:first-child nav span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .app-shell-modern .app-mobile-menu-button {
@@ -1424,10 +1443,16 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
   }
 
   .app-shell-modern .app-topbar-modern > div:last-child {
+    display: flex !important;
+    align-items: center;
+    width: 100%;
     min-width: 0;
-    max-width: 46vw;
-    flex: 0 1 auto;
-    gap: 5px;
+    max-width: none;
+    flex: 0 0 100%;
+    height: 46px;
+    gap: 6px;
+    padding: 3px 0 2px;
+    border-top: 1px solid var(--border);
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -1474,6 +1499,19 @@ html[data-theme] .app-shell-modern .analytics-chart-canvas-wrap {
 
   .app-shell-modern .app-topbar-modern .create-post-button > span:first-child {
     font-size: 22px !important;
+  }
+
+  .app-shell-modern .app-topbar-modern .theme-selector,
+  .app-shell-modern .app-topbar-modern .notification-control,
+  .app-shell-modern .app-topbar-modern .profile-menu-control {
+    flex: 0 0 auto;
+  }
+
+  .app-shell-modern .app-topbar-modern .notification-popover,
+  .app-shell-modern .app-topbar-modern .profile-menu {
+    position: fixed;
+    top: 106px;
+    right: 12px;
   }
 }
 
@@ -1829,12 +1867,12 @@ html[data-theme] .app-shell-modern .app-topbar-brand img {
 
 @media (max-width: 767px) {
   html[data-theme] .app-shell-modern .app-topbar-modern {
-    min-height: 58px;
-    padding-block: 4px;
+    min-height: 106px;
+    padding: 4px 12px 5px;
   }
 
   html[data-theme] .app-shell-modern .app-shell-body {
-    min-height: calc(100dvh - 58px);
+    min-height: calc(100dvh - 106px);
   }
 
   html[data-theme] .app-shell-modern .app-sidebar {
