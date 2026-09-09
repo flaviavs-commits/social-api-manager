@@ -39,5 +39,7 @@ describe('repetirPost', () => {
     expect(contasRepo.listarContasPorIds).toHaveBeenCalledWith([31], 7, false)
     expect(contasRepo.listarContasAtivasPorPlataformas).toHaveBeenCalledWith(['instagram'], 7, false)
     expect(JSON.parse(criarPost.mock.calls[0][0].body.accountIds)).toEqual([44])
+    expect(criarPost.mock.calls[0][0].body.publishNow).toBe(false)
+    expect(criarPost.mock.calls[0][0].body.forceScheduled).toBe(true)
   })
 })

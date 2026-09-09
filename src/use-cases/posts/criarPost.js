@@ -476,7 +476,8 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // "Publicar agora" cria o post já como 'processing' (em vez de 'scheduled')
   // para que o cron do agendamento nunca o veja e dispare uma segunda
   // publicação concorrente — quem publica é só esta requisição, na sequência.
-  const publishNow = body.publishNow === 'true' || body.publishNow === true
+  const forceScheduled = body.forceScheduled === 'true' || body.forceScheduled === true
+  const publishNow = !forceScheduled && (body.publishNow === 'true' || body.publishNow === true)
   if (requiresApproval && publishNow) throw new ValidationError('Desative "Publicar agora" para enviar o conteúdo para aprovação.')
 
   const erro = validarCriacaoPost({

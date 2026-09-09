@@ -104,7 +104,11 @@ async function repetirPost({ id, scheduledAt, userId, userRole, isAdmin }) {
     locationId: source.locationId || undefined,
     locationName: source.locationName || undefined,
     firstComment: source.firstComment || undefined,
-    publishNow: false
+    // Uma cópia criada pelo calendário é sempre um novo agendamento. Essa
+    // flag evita que qualquer valor herdado/serializado de publishNow faça a
+    // cópia cair no fluxo de publicação imediata.
+    publishNow: false,
+    forceScheduled: true
   }
 
   const result = await criarPost({ body, userId, userRole, isAdmin })
