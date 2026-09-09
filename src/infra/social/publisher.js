@@ -281,7 +281,7 @@ async function publicarNaConta(account, post, isSuperAdmin, { scheduledFor = nul
     }
 
     if (data?.scheduled) {
-      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, scheduled: true, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
+      await postsRepo.salvarInstagramPending(account.postAccountId, { ...data, scheduled: true, scheduledFor, tokenId: token.token_id, accountName: token.handle || token.accountName, contaId: token.contaId, criadoEm: new Date().toISOString() })
       await registrarLog({
         type: 'info',
         message: `Post agendado no ${platform} pela Zernio para ${scheduledFor}`,
@@ -470,21 +470,38 @@ const ZERNIO_PENDING_TIMEOUT_MS = 15 * 60 * 1000
 // ou "failed"/timeout (desiste).
 async function finalizarZernioPendentes() {
   const pendentes = (await postsRepo.listarPostsComInstagramPendente())
-    .filter(linha => linha.instagramPending.provider === 'zernio' && linha.instagramPending.scheduled !== true)
+    .filter(linha => linha.instagramPending.provider === 'zernio')
 
   await Promise.all(pendentes.map(async linha => {
     const pending = linha.instagramPending
     const postId = linha.id
     const platform = pending.platform
     try {
-      const { post: zernioPost } = await zernioClient.getPost(pending.zernioPostId)
+      const scheduledAt = Date.parse(pending.scheduledFor || '')
+      if (pending.scheduled === true && Number.isFinite(scheduledAt) && Date.now() < scheduledAt) return
+      // O webhook é a fonte principal. Esta consulta é um fallback para
+      // redelivery perdido/configuração ainda não assinada e também cobre
+      // posts agendados enquanto o webhook não chega.
+      const response = await zernioClient.getPost(pending.zernioPostId)
+      const zernioPost = response?.post || response
       const entrada = zernioPost?.platforms?.find(p => p.platform === platform)
 
-      if (entrada?.status === 'failed' || zernioPost?.status === 'failed') {
-        throw new Error(entrada?.errorMessage || 'O Zernio não conseguiu publicar o post.')
+      const normalizedPostStatus = String(zernioPost?.status || '').toLowerCase()
+      const normalizedEntryStatus = String(entrada?.status || entrada?.state || '').toLowerCase()
+      if (['failed', 'failure', 'error', 'cancelled', 'canceled'].includes(normalizedEntryStatus) ||
+          ['failed', 'failure', 'error', 'cancelled', 'canceled'].includes(normalizedPostStatus)) {
+        const providerError = entrada?.errorMessage || entrada?.error?.message || entrada?.error || zernioPost?.errorMessage
+        throw new Error(providerError || 'O Zernio não conseguiu publicar o post.')
       }
 
-      if (!entrada?.platformPostId) {
+      const externalId = entrada?.platformPostId || entrada?.externalPostId || null
+      const published = ['published', 'success', 'succeeded', 'completed', 'complete', 'done'].includes(normalizedEntryStatus) ||
+        ['published', 'success', 'succeeded', 'completed', 'complete', 'done'].includes(normalizedPostStatus)
+
+      if (!externalId && !published) {
+        // Não aplica o timeout de confirmação enquanto o post ainda está
+        // corretamente aguardando o horário futuro no Zernio.
+        if (pending.scheduled === true && (!Number.isFinite(scheduledAt) || Date.now() < scheduledAt)) return
         // Ainda processando — tenta de novo no próximo tick, a menos que já
         // tenha estourado o timeout de segurança.
         const iniciadoEm = new Date(pending.criadoEm || linha.criado_em || Date.now()).getTime()
@@ -494,14 +511,15 @@ async function finalizarZernioPendentes() {
         return
       }
 
-      const externalId = entrada.platformPostId
-      await postsRepo.salvarPublicacaoExterna(postId, {
-        externalPostId: externalId,
-        externalPlatform: platform,
-        publishedAt: new Date().toISOString(),
-        accountId: linha.accountId,
-        firstCommentHandled: true
-      })
+      if (externalId) {
+        await postsRepo.salvarPublicacaoExterna(postId, {
+          externalPostId: externalId,
+          externalPlatform: platform,
+          publishedAt: zernioPost?.publishedAt || new Date().toISOString(),
+          accountId: linha.accountId,
+          firstCommentHandled: true
+        })
+      }
       await postsRepo.marcarContaPublicada(linha.postAccountId)
       await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
@@ -558,7 +576,11 @@ async function fecharStatusSeSemPendencias(postId, linha) {
     type: status === 'error' ? 'err' : status === 'partial' ? 'warn' : 'ok',
     message: `Post #${postId} ${resumo}`,
     platform: null,
-    user_id: linha.userId
+    user_id: linha.userId,
+    // O Zernio entrega pelo menos uma vez e pode haver evento por plataforma
+    // seguido do rollup. A chave impede que uma redelivery gere duas
+    // notificações iguais no sininho/histórico.
+    notification_key: `zernio:post:${postId}:final:${status}`
   })
   broadcastEvent('post_published', { id: postId, status, platforms: linha.platforms, text: linha.text, results }, linha.userId)
 }
@@ -599,12 +621,26 @@ async function confirmarPublicacaoZernio({ zernioPostId, platform, zernioAccount
       await postsRepo.marcarContaPublicada(linha.postAccountId)
       await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, null)
       await postsRepo.limparInstagramPending(linha.postAccountId)
-      await registrarLog({ type: 'ok', message: `Post publicado no ${platLabel} na conta "${accountName}" com sucesso! ✓`, platform: linha.platform, conta_id: linha.accountId, user_id: linha.userId })
+      await registrarLog({
+        type: 'ok',
+        message: `Post publicado no ${platLabel} na conta "${accountName}" com sucesso! ✓`,
+        platform: linha.platform,
+        conta_id: linha.accountId,
+        user_id: linha.userId,
+        notification_key: `zernio:post:${linha.id}:account:${linha.postAccountId}:published`
+      })
     } else {
       const motivo = error || 'A Zernio não informou o motivo da falha.'
       await postsRepo.atualizarErroPublicacaoConta(linha.postAccountId, motivo)
       await postsRepo.limparInstagramPending(linha.postAccountId)
-      await registrarLog({ type: 'err', message: `Não foi possível publicar no ${platLabel} na conta "${accountName}": ${motivo}`, platform: linha.platform, conta_id: linha.accountId, user_id: linha.userId })
+      await registrarLog({
+        type: 'err',
+        message: `Não foi possível publicar no ${platLabel} na conta "${accountName}": ${motivo}`,
+        platform: linha.platform,
+        conta_id: linha.accountId,
+        user_id: linha.userId,
+        notification_key: `zernio:post:${linha.id}:account:${linha.postAccountId}:failed`
+      })
     }
 
     await fecharStatusSeSemPendencias(linha.id, linha)

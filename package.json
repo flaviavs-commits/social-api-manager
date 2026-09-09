@@ -11,6 +11,7 @@
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand tests/unit",
     "test:integration": "jest --runInBand tests/integration",
+    "test:calendar": "vitest run --config frontend/vitest.config.js --testTimeout=15000 frontend/test/components/calendar-page.test.jsx",
     "test:coverage": "jest --runInBand --coverage",
     "test:all": "npm test && npm run test:components",
     "test:components": "vitest run --config frontend/vitest.config.js",

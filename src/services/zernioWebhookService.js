@@ -44,9 +44,22 @@ function entryAccountId(value) {
   return value.accountId || value.zernioAccountId || objectId(value.account) || null
 }
 
+function localLineProviderAccountId(value) {
+  if (!value || typeof value !== 'object') return null
+  // A linha local também possui accountId, mas esse é o inteiro da tabela
+  // contas. Para casar com platforms[].accountId precisamos priorizar o ID
+  // da conta no Zernio.
+  return value.zernioAccountId || value.providerAccountId || null
+}
+
 function providerPostId(payload) {
   const post = payload?.post || payload?.data?.post
-  return post?._id || post?.zernioPostId || post?.postId || post?.id || payload?.zernioPostId || payload?.postId || null
+  // Os payloads atuais usam post._id. Mantemos os aliases das versões
+  // anteriores e também post.id para não deixar uma publicação agendada
+  // presa caso o provedor entregue o identificador nesse formato.
+  return post?._id || post?.zernioPostId || post?.postId || post?.id ||
+    payload?.zernioPostId || payload?.postId || payload?.data?.zernioPostId ||
+    payload?.data?.postId || null
 }
 
 function postFromPayload(payload) {
@@ -84,13 +97,25 @@ function isFailedStatus(status) {
 }
 
 function entryError(entry, post, payload) {
-  return entry?.errorMessage || entry?.error || entry?.failureReason || post?.errorMessage || payload?.errorMessage || payload?.error || null
+  const value = entry?.errorMessage || entry?.error || entry?.failureReason || post?.errorMessage || payload?.errorMessage || payload?.error || null
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') return value.message || value.error || JSON.stringify(value)
+  return String(value)
 }
 
 function matchingEntry(entries, line, eventPlatform, eventAccountId) {
   const samePlatform = entries.filter(entry => platformName(entry) === line.platform)
   if (!samePlatform.length) return null
-  const wantedAccount = eventAccountId ? String(eventAccountId) : null
+  // Em post.partial não existe um `payload.account` global. Quando há duas
+  // contas da mesma rede, usar sempre a primeira entrada faria uma conta
+  // publicada ser tratada como falha (ou vice-versa). O accountId salvo na
+  // pendência local é o segundo critério de correlação do rollup.
+  const wantedAccount = eventAccountId
+    ? String(eventAccountId)
+    : localLineProviderAccountId(line)
+      ? String(localLineProviderAccountId(line))
+      : null
   return samePlatform.find(entry => {
     const id = entryAccountId(entry)
     return wantedAccount && id ? String(id) === wantedAccount : !wantedAccount
@@ -192,8 +217,15 @@ async function receber({ rawBody, headers }) {
     return { status: 400, body: { erro: 'Identificador do webhook inconsistente.' } }
   }
   const eventId = bodyEventId || (headerEventId ? String(headerEventId) : null)
-  const eventName = String(payload?.event || '').trim()
+  // O evento também é enviado no header; aceitar o fallback mantém a
+  // integração compatível com entregas antigas que não repetiam `event` no
+  // JSON, sem abrir mão de exigir um nome para enfileirar o callback.
+  const eventName = String(payload?.event || header(headers, 'X-Zernio-Event') || '').trim()
   if (!eventId || !eventName) return { status: 400, body: { erro: 'Webhook sem id ou evento.' } }
+
+  // Normaliza o payload persistido para que o worker assíncrono também saiba
+  // qual evento processar quando a informação veio somente no header.
+  if (!payload.event) payload.event = eventName
 
   const queued = await webhooksRepo.enfileirar({ eventId, eventName, payload })
   return {

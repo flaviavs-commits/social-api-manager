@@ -63,6 +63,21 @@ test('aceita redelivery sem criar um segundo evento', async () => {
   expect(result.body).toEqual({ received: true, duplicate: true })
 })
 
+test('aceita o evento no header quando a entrega não repete event no JSON', async () => {
+  repo.enfileirar.mockResolvedValue({ id: 12, eventId: 'evt-header' })
+  const payload = { id: 'evt-header', post: { id: 'zp-header' } }
+  const signedPayload = signed(payload)
+  signedPayload.headers['x-zernio-event'] = 'post.published'
+
+  const result = await service.receber(signedPayload)
+
+  expect(result.status).toBe(200)
+  expect(repo.enfileirar).toHaveBeenCalledWith(expect.objectContaining({
+    eventName: 'post.published',
+    payload: expect.objectContaining({ ...payload, event: 'post.published' })
+  }))
+})
+
 test('recusa assinatura inválida sem enfileirar payload', async () => {
   const result = await service.receber({
     rawBody: Buffer.from('{"id":"evt-1","event":"post.published"}'),
@@ -159,6 +174,30 @@ test('processa a falha por plataforma com o motivo recebido', async () => {
   expect(publisher.confirmarPublicacaoZernio).toHaveBeenCalledWith(expect.objectContaining({
     zernioPostId: 'zp-2', platform: 'tiktok', zernioAccountId: 'za-2', success: false, error: 'Privacidade não permitida'
   }))
+})
+
+test('correlaciona cada conta no rollup parcial', async () => {
+  postsRepo.listarPostsComZernioPendentePorPostId.mockResolvedValue([
+    { id: 305, postAccountId: 11, accountId: 6, zernioAccountId: 'za-ok', platform: 'instagram' },
+    { id: 305, postAccountId: 12, accountId: 7, zernioAccountId: 'za-failed', platform: 'instagram' }
+  ])
+  publisher.confirmarPublicacaoZernio.mockResolvedValue({ matched: 1 })
+
+  const result = await service.processarPayload({
+    id: 'evt-partial-1',
+    event: 'post.partial',
+    post: {
+      id: 'zp-3',
+      platforms: [
+        { platform: 'instagram', accountId: 'za-ok', status: 'published', platformPostId: 'ig-ok' },
+        { platform: 'instagram', accountId: 'za-failed', status: 'failed', error: { message: 'Conta desconectada' } }
+      ]
+    }
+  })
+
+  expect(result).toEqual({ matched: 2 })
+  expect(publisher.confirmarPublicacaoZernio).toHaveBeenNthCalledWith(1, expect.objectContaining({ zernioAccountId: 'za-ok', success: true }))
+  expect(publisher.confirmarPublicacaoZernio).toHaveBeenNthCalledWith(2, expect.objectContaining({ zernioAccountId: 'za-failed', success: false, error: 'Conta desconectada' }))
 })
 
 test('marca a fila como processada após concluir o evento', async () => {

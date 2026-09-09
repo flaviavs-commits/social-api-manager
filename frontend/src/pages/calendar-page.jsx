@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { useApiResource } from '../hooks/use-api-resource.js'
@@ -92,6 +92,17 @@ function brazilMonthOf(value) {
   return {
     year: Number(parts.find(part => part.type === 'year')?.value),
     month: Number(parts.find(part => part.type === 'month')?.value)
+  }
+}
+
+function brazilCalendarDateOf(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { year: null, month: null, day: null }
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(date)
+  return {
+    year: Number(parts.find(part => part.type === 'year')?.value),
+    month: Number(parts.find(part => part.type === 'month')?.value),
+    day: Number(parts.find(part => part.type === 'day')?.value)
   }
 }
 
@@ -227,8 +238,40 @@ export function CalendarPage({ onNavigate }) {
   const [draggedPost, setDraggedPost] = useState(null)
   const notify = useToast()
   const [message, setMessage] = useState('')
-  const load = useCallback(() => apiFetch(`/api/posts/calendar?year=${year}&month=${month}`).then(data => data.posts || []), [month, year])
+  const previousStatuses = useRef(null)
+  const load = useCallback(async () => {
+    // O endpoint do mês é a fonte principal da grade. A segunda consulta
+    // garante que agendamentos recentes também apareçam na Lista mesmo quando
+    // o horário persistido cruza o limite do mês por causa do fuso horário.
+    const [calendarResult, scheduledResult] = await Promise.allSettled([
+      apiFetch(`/api/posts/calendar?year=${year}&month=${month}`),
+      apiFetch('/api/posts?status=scheduled&limit=100')
+    ])
+    if (calendarResult.status === 'rejected') throw calendarResult.reason
+    const monthPosts = calendarResult.value?.posts || []
+    const scheduledPosts = scheduledResult.status === 'fulfilled' ? scheduledResult.value?.posts || [] : []
+    return uniquePosts([...monthPosts, ...scheduledPosts])
+  }, [month, year])
   const { value: posts, loading, error, setError, setValue: setPosts, reload } = useApiResource(load, [])
+
+  useEffect(() => {
+    if (!posts.length) return
+    const currentStatuses = new Map(posts.filter(post => post.id != null).map(post => [post.id, normalizePostStatus(post)]))
+    const previous = previousStatuses.current
+    if (previous) {
+      posts.forEach(post => {
+        if (post.id == null) return
+        const before = previous.get(post.id)
+        const after = normalizePostStatus(post)
+        if (!before || before === after) return
+        const label = postText(post).slice(0, 70)
+        if (after === 'published' || after === 'publicado') notify(`Publicação ${label ? `“${label}” ` : ''}publicada com sucesso.`)
+        else if (after === 'partial' || after === 'parcial') notify(`Publicação ${label ? `“${label}” ` : ''}publicada parcialmente.`, 'warning')
+        else if (['error', 'erro', 'failed'].includes(after)) notify(`Publicação ${label ? `“${label}” ` : ''}falhou. Confira os detalhes no calendário.`, 'error')
+      })
+    }
+    previousStatuses.current = currentStatuses
+  }, [posts, notify])
 
   useEffect(() => {
     const interval = window.setInterval(() => { reload().catch(() => {}) }, 30_000)
@@ -379,12 +422,17 @@ export function CalendarPage({ onNavigate }) {
   const normalizedPosts = uniquePosts(posts)
   const filteredPosts = normalizedPosts.filter(post => platformFilter === 'all' || platformsOf(post).includes(platformFilter))
   const sortedPosts = [...filteredPosts].sort((a, b) => new Date(postDateValue(a)) - new Date(postDateValue(b)))
+  const scheduledOutsideMonth = filteredPosts.filter(post => {
+    if (!isScheduled(post)) return false
+    const dateParts = brazilMonthOf(postDateValue(post))
+    return dateParts.year !== year || dateParts.month !== month
+  })
 
   function postsForDay(day) {
     return filteredPosts
       .filter(post => {
-        const value = new Date(postDateValue(post))
-        return value.getFullYear() === year && value.getMonth() + 1 === month && value.getDate() === day
+        const value = brazilCalendarDateOf(postDateValue(post))
+        return value.year === year && value.month === month && value.day === day
       })
       .sort((a, b) => new Date(postDateValue(a)) - new Date(postDateValue(b)))
   }
@@ -493,6 +541,10 @@ export function CalendarPage({ onNavigate }) {
       {message && <div className={`calendar-copy-notice${copiedPost ? ' is-copy-ready' : ' is-complete'}`} role="status"><span className="calendar-copy-notice-icon" aria-hidden="true">{copiedPost ? '⧉' : '✓'}</span><div className="calendar-copy-notice-copy"><span className="calendar-copy-notice-kicker">{copiedPost ? 'DUPLICAR AGENDAMENTO' : 'AGENDAMENTO ATUALIZADO'}</span><strong>{copiedPost ? 'Post copiado com segurança' : 'Agendamento atualizado'}</strong><p>{message}</p>{copiedPost && <small className="calendar-copy-notice-destination">Nova publicação: <strong>{formatPasteDate(pasteDate)}</strong></small>}{copiedPost && !pasting && <small>O agendamento original não será alterado. A nova cópia será criada no dia e horário que você escolher.</small>}</div>{copiedPost && <button type="button" className="calendar-paste-button" onClick={openPaste}>{pasting ? 'Alterar dia e horário' : 'Escolher dia e horário'}</button>}</div>}
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400" role="alert">{error}</p>}
       {loading && <p className="mb-4 text-sm text-zinc-500" aria-live="polite">Carregando publicações do mês...</p>}
+      {scheduledOutsideMonth.length > 0 && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-sm text-zinc-300" role="status">
+        <span><strong className="text-gold">{scheduledOutsideMonth.length} {scheduledOutsideMonth.length === 1 ? 'agendamento' : 'agendamentos'}</strong> {scheduledOutsideMonth.length === 1 ? 'está' : 'estão'} fora de {monthNames[month - 1]} e já foi carregado.</span>
+        <button type="button" className="link-button" onClick={() => setViewMode('list')}>Ver na lista</button>
+      </div>}
 
       {viewMode === 'calendar' ? <div className="calendar-grid-scroll"><div className="grid min-w-[680px] grid-cols-7 overflow-hidden rounded-xl border border-subtle bg-surface">
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(label => (

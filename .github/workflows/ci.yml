@@ -37,6 +37,9 @@ jobs:
       - name: Executar testes dos componentes
         run: npm run test:components
 
+      - name: Validar calendário e agendamentos
+        run: npm run test:calendar
+
       - name: Gerar build
         run: npm run frontend:build
 
