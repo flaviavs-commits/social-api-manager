@@ -186,6 +186,60 @@ async function confirmarPagamento({ gatewaySessionId, gatewayPaymentId, amountCe
   }
 }
 
+// Confirma um pagamento feito diretamente por um Payment Link estático da
+// Stripe (sem passar pelo checkout dinâmico do app, portanto sem uma linha
+// pendente em billing_plan_changes). O client_reference_id do link identifica
+// o usuário; o valor cobrado identifica o plano. Idempotente por
+// gateway_session_id: uma reentrega do webhook encontra a linha já criada.
+async function confirmarPagamentoDireto({ userId, fromPlan, toPlan, amountCents, currency, billingMonth, gatewaySessionId, gatewayPaymentId }) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows: [existing] } = await client.query(
+      `SELECT ${BILLING_COLUMNS} FROM billing_plan_changes WHERE gateway_session_id = $1 FOR UPDATE`,
+      [gatewaySessionId]
+    )
+    if (existing) {
+      await client.query('COMMIT')
+      return existing
+    }
+
+    const idempotencyKey = `direct-link-${gatewaySessionId}`
+    const { rows: [change] } = await client.query(
+      `INSERT INTO billing_plan_changes
+        (user_id, from_plan, to_plan, amount_cents, currency, billing_month, idempotency_key, gateway,
+         gateway_session_id, gateway_payment_id, status, paid_at,
+         meu_ecoo_email_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'stripe', $8, $9, 'paid', NOW(),
+         CASE WHEN $3 IN ('pro', 'premium') THEN 'pending' ELSE NULL END)
+       ON CONFLICT (user_id, billing_month) DO NOTHING
+       RETURNING ${BILLING_COLUMNS}`,
+      [userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gatewaySessionId, gatewayPaymentId || null]
+    )
+
+    if (!change) {
+      // Já existe uma cobrança registrada para este usuário neste mês (feita
+      // pelo fluxo normal do app). Não sobrescrevemos: a reconciliação
+      // precisa ser manual para não arriscar duplicar/errar o plano.
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    await client.query(
+      `UPDATE users SET plan = $1, plan_active = TRUE, plan_unrestricted = FALSE WHERE id = $2 AND ativo = TRUE`,
+      [toPlan, userId]
+    )
+    await client.query('COMMIT')
+    return change
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 async function marcarFalhaPorSession(gatewaySessionId, { code = 'payment_failed', message = 'O gateway não confirmou o pagamento.' } = {}) {
   const { rows: [change] } = await pool.query(
     `UPDATE billing_plan_changes
@@ -265,6 +319,7 @@ module.exports = {
   marcarFalha,
   manterProcessando,
   confirmarPagamento,
+  confirmarPagamentoDireto,
   marcarFalhaPorSession,
   reservarEnvioMeuEcoo,
   marcarEnvioMeuEcooConcluido,

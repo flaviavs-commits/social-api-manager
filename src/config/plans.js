@@ -49,6 +49,18 @@ function isPaidPlan(plan) {
   return Number(getPlan(plan).priceCents) > 0
 }
 
+// Usado para reconciliar pagamentos feitos diretamente por um Payment Link
+// estático da Stripe, onde não há metadata.to_plan (o link não passa pelo
+// checkout dinâmico do app). O valor cobrado identifica o plano com segurança
+// porque cada plano tem um priceCents/currency distinto.
+function findPlanByAmount(amountCents, currency) {
+  const normalizedCurrency = String(currency || '').toLowerCase()
+  const match = Object.values(PLANS).find(plan =>
+    Number(plan.priceCents) === Number(amountCents) && String(plan.currency).toLowerCase() === normalizedCurrency
+  )
+  return match ? match.id : null
+}
+
 function publicPlanCatalog() {
   return Object.fromEntries(Object.entries(PLANS).map(([id, plan]) => [id, {
     id,
@@ -115,4 +127,4 @@ function requirePaidPlan(req, res, next) {
   return next()
 }
 
-module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getMeuEcooPricing, getPlanConnectionLimit, getPlanImageLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, publicPlanCatalog, requirePlanModule, requirePaidPlan }
+module.exports = { PLANS, DEFAULT_PLAN, PLAN_ALIASES, SUPPORTED_PLATFORMS, canonicalPlanId, normalizePlan, getPlan, getMeuEcooPricing, getPlanConnectionLimit, getPlanImageLimit, getPlanPlatforms, hasPlanModule, isPaidPlan, findPlanByAmount, publicPlanCatalog, requirePlanModule, requirePaidPlan }

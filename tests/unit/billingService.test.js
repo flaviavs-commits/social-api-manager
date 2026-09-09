@@ -7,10 +7,16 @@ jest.mock('../../src/repositories/billingRepository', () => ({
   marcarFalha: jest.fn(),
   manterProcessando: jest.fn(),
   confirmarPagamento: jest.fn(),
+  confirmarPagamentoDireto: jest.fn(),
   marcarFalhaPorSession: jest.fn(),
   reservarEnvioMeuEcoo: jest.fn(),
   marcarEnvioMeuEcooConcluido: jest.fn(),
   marcarFalhaEnvioMeuEcoo: jest.fn(),
+}))
+
+jest.mock('../../src/repositories/usersRepository', () => ({
+  buscarPorId: jest.fn(),
+  buscarPorEmail: jest.fn(),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -25,6 +31,7 @@ jest.mock('../../src/services/mailer', () => ({
 }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
+const usersRepo = require('../../src/repositories/usersRepository')
 const paymentGateway = require('../../src/services/billing/paymentGateway')
 const mailer = require('../../src/services/mailer')
 const billingService = require('../../src/services/billing/billingService')
@@ -209,5 +216,77 @@ describe('billingService.handleWebhook', () => {
     })
 
     expect(result).toEqual({ status: 'ignored' })
+  })
+
+  test('associa um pagamento feito direto por um Payment Link via client_reference_id', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+    billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 99, userId: 7, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_direct_link', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_direct', client_reference_id: 'user:7' } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(usersRepo.buscarPorId).toHaveBeenCalledWith(7)
+    expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7,
+      toPlan: 'pro',
+      amountCents: 10050,
+      currency: 'brl',
+      gatewaySessionId: 'cs_direct_link',
+      gatewayPaymentId: 'pi_direct',
+    }))
+  })
+
+  test('marca como não vinculado o pagamento por link sem identificação alguma', async () => {
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_no_ref', payment_status: 'paid', amount_total: 10050, currency: 'brl' } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+    expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
+    expect(usersRepo.buscarPorId).not.toHaveBeenCalled()
+  })
+
+  test('marca como não vinculado quando o valor não corresponde a nenhum plano', async () => {
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_bad_amount', payment_status: 'paid', amount_total: 999, currency: 'brl', client_reference_id: 'user:7' } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+    expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
+  })
+
+  test('vincula pelo e-mail do comprador quando o link não traz client_reference_id', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+    billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 99, userId: 7, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_por_email', payment_status: 'paid', amount_total: 10050, currency: 'brl', customer_details: { email: 'Cliente@Allowed.test' } } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    // O e-mail é normalizado antes da busca.
+    expect(usersRepo.buscarPorEmail).toHaveBeenCalledWith('cliente@allowed.test')
+    expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, toPlan: 'pro' }))
+  })
+})
+
+describe('billingService.getPlanDirectLink', () => {
+  test('gera o link do Payment Link com client_reference_id e e-mail pré-preenchido', () => {
+    const url = billingService.getPlanDirectLink({ plan: 'pro', userId: 7, email: 'cliente@allowed.test' })
+
+    expect(url).toMatch(/^https:\/\/buy\.stripe\.com\//)
+    expect(url).toContain('client_reference_id=user%3A7')
+    expect(url).toContain('prefilled_email=cliente%40allowed.test')
+  })
+
+  test('rejeita plano inválido', () => {
+    expect(() => billingService.getPlanDirectLink({ plan: 'inexistente', userId: 7 }))
+      .toThrow(expect.objectContaining({ code: 'invalid_plan' }))
   })
 })

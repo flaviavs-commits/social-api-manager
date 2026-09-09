@@ -14,6 +14,17 @@ const planChangeLimiter = rateLimit({
   store: createRateLimitStore('billing'),
   message: { erro: 'Muitas tentativas de troca de plano. Aguarde alguns minutos.' },
 })
+// Gerar o link é leitura pura (só formata a URL do plano), então tem orçamento
+// próprio: consumir a cota de plan-change para consultar um link impediria o
+// cliente de efetivamente trocar de plano em seguida.
+const planLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRateLimitStore('billing-link'),
+  message: { erro: 'Muitas consultas de link de pagamento. Aguarde alguns minutos.' },
+})
 
 router.get('/status', async (req, res) => {
   try {
@@ -52,6 +63,17 @@ router.post('/plan-change', planChangeLimiter, async (req, res) => {
             : 'Não foi possível iniciar a troca de plano agora.'
     await addLog('err', `Falha na troca de plano: ${error.message}`, null, null, req.user.id)
     return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ erro: publicMessage, code: error.code || 'billing_error' })
+  }
+})
+
+router.get('/plan-link/:plan', planLinkLimiter, async (req, res) => {
+  try {
+    const url = billingService.getPlanDirectLink({ plan: req.params.plan, userId: req.user.id, email: req.user.email })
+    res.json({ url })
+  } catch (error) {
+    const statusCode = Number(error.statusCode) || 500
+    await addLog('err', `Falha ao gerar link direto de pagamento: ${error.message}`, null, null, req.user.id)
+    return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({ erro: error.code === 'invalid_plan' ? 'Plano selecionado inválido.' : 'Não foi possível gerar o link de pagamento agora.', code: error.code || 'billing_error' })
   }
 })
 

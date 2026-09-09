@@ -2,7 +2,8 @@ const billingRepo = require('../../repositories/billingRepository')
 const usersRepo = require('../../repositories/usersRepository')
 const paymentGateway = require('./paymentGateway')
 const mailer = require('../mailer')
-const { DEFAULT_PLAN, PLANS, canonicalPlanId, getMeuEcooPricing, normalizePlan, publicPlanCatalog } = require('../../config/plans')
+const { addLog } = require('../../middleware/logger')
+const { DEFAULT_PLAN, PLANS, canonicalPlanId, findPlanByAmount, getMeuEcooPricing, normalizePlan, publicPlanCatalog } = require('../../config/plans')
 
 class BillingError extends Error {
   constructor(message, statusCode = 400, code = 'billing_error') {
@@ -183,6 +184,23 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
   }
 }
 
+// Gera a URL do Payment Link estático de um plano já com o client_reference_id
+// do usuário amarrado, conforme a documentação da Stripe
+// (https://docs.stripe.com/payment-links/url-parameters). Uso: o time de
+// suporte/vendas envia esse link (em vez do link "cru" de config/plans.json)
+// para associar automaticamente o pagamento à conta do cliente no webhook.
+function getPlanDirectLink({ plan, userId, email }) {
+  const selectedPlan = PLANS[canonicalPlanId(plan)]
+  if (!selectedPlan) throw new BillingError('Plano selecionado inválido.', 400, 'invalid_plan')
+  if (!selectedPlan.checkoutUrl) throw new BillingError('Este plano não possui um link de pagamento configurado.', 503, 'plan_link_missing')
+  if (!Number.isInteger(Number(userId)) || Number(userId) <= 0) throw new BillingError('Usuário inválido.', 400, 'invalid_user')
+
+  const url = new URL(selectedPlan.checkoutUrl)
+  url.searchParams.set('client_reference_id', `user:${userId}`)
+  if (email) url.searchParams.set('prefilled_email', email)
+  return url.toString()
+}
+
 async function getStatus({ userId, currentPlan, planActive }) {
   const month = billingMonth()
   const charge = await billingRepo.buscarPorMes(userId, month)
@@ -198,6 +216,16 @@ async function getStatus({ userId, currentPlan, planActive }) {
 
 function readPaymentIntentId(value) {
   return typeof value === 'string' ? value : value?.id || null
+}
+
+// client_reference_id de um Payment Link direto (link enviado manualmente
+// para um usuário já cadastrado) segue o padrão "user:<id>", da mesma forma
+// como o checkout dinâmico usa "billing:<id>". Ver getPlanDirectLink().
+function readUserIdFromClientReference(value) {
+  const match = /^user:(\d+)$/.exec(String(value || ''))
+  if (!match) return null
+  const userId = Number(match[1])
+  return Number.isInteger(userId) && userId > 0 ? userId : null
 }
 
 function getMeuEcooAccessUrl() {
@@ -251,6 +279,70 @@ async function sendMeuEcooAccessEmail(change, object, metadata) {
   }
 }
 
+// Um pagamento confirmado que não conseguimos vincular a nenhuma conta é
+// dinheiro que entrou sem ninguém ser creditado. Nunca falha silenciosamente:
+// registra o que faltou para permitir a reconciliação manual.
+async function logUnlinkedPayment(object, reason) {
+  await addLog(
+    'err',
+    `Pagamento confirmado sem vínculo com uma conta (${reason}). ` +
+    `session=${object?.id || 'desconhecida'} ` +
+    `payment_intent=${readPaymentIntentId(object?.payment_intent) || 'desconhecido'} ` +
+    `valor=${object?.amount_total} ${String(object?.currency || '').toUpperCase()} ` +
+    `client_reference_id=${object?.client_reference_id || 'ausente'} ` +
+    `email=${readCustomerEmail(object) || 'ausente'}`
+  )
+  return { status: 'unlinked', reason }
+}
+
+// Resolve a conta de um pagamento feito fora do app. A referência explícita do
+// link (client_reference_id) tem prioridade; o e-mail do comprador é a rede de
+// segurança para os Payment Links que já circulam sem essa marcação.
+async function resolveDirectLinkUser(object) {
+  const userId = readUserIdFromClientReference(object.client_reference_id)
+  if (userId) {
+    const user = await usersRepo.buscarPorId(userId)
+    return { user, matchedBy: 'client_reference_id' }
+  }
+
+  const email = readCustomerEmail(object)
+  if (email) {
+    const user = await usersRepo.buscarPorEmail(email)
+    return { user, matchedBy: 'email' }
+  }
+
+  return { user: null, matchedBy: null }
+}
+
+async function handleDirectLinkPayment(object) {
+  const amountCents = Number(object.amount_total)
+  const currency = String(object.currency || '').toLowerCase()
+  const directPlan = findPlanByAmount(amountCents, currency)
+  if (!directPlan) return logUnlinkedPayment(object, 'o valor pago não corresponde a nenhum plano')
+
+  const { user, matchedBy } = await resolveDirectLinkUser(object)
+  if (!user?.id) return logUnlinkedPayment(object, 'não foi possível identificar a conta do comprador')
+
+  const confirmed = await billingRepo.confirmarPagamentoDireto({
+    userId: user.id,
+    fromPlan: normalizePlan(user.plan || DEFAULT_PLAN),
+    toPlan: directPlan,
+    amountCents,
+    currency,
+    billingMonth: billingMonth(),
+    gatewaySessionId: object.id,
+    gatewayPaymentId: readPaymentIntentId(object.payment_intent),
+  })
+
+  if (confirmed?.status !== 'paid') {
+    return logUnlinkedPayment(object, `já existe uma cobrança registrada no mês para o usuário ${user.id}`)
+  }
+
+  await addLog('ok', `Pagamento por link direto vinculado ao usuário ${user.id} (via ${matchedBy}): plano ${directPlan}, sessão ${object.id}.`, null, null, user.id)
+  await sendMeuEcooAccessEmail(confirmed, object, { user_id: user.id })
+  return { status: 'paid' }
+}
+
 async function handleWebhook(event) {
   const object = event?.data?.object
   if (!object?.id) return { status: 'ignored' }
@@ -259,19 +351,25 @@ async function handleWebhook(event) {
     if (event.type === 'checkout.session.completed' && object.payment_status !== 'paid') return { status: 'pending' }
     const metadata = object.metadata || {}
     const toPlan = canonicalPlanId(metadata.to_plan)
-    if (!toPlan) throw new BillingError('Webhook sem plano registrado.', 400, 'invalid_webhook_plan')
-    const confirmed = await billingRepo.confirmarPagamento({
-      gatewaySessionId: object.id,
-      gatewayPaymentId: readPaymentIntentId(object.payment_intent),
-      amountCents: Number(object.amount_total),
-      currency: String(object.currency || '').toLowerCase(),
-      toPlan,
-    })
-    if (confirmed?.status === 'paid') {
-      await sendMeuEcooAccessEmail(confirmed, object, metadata)
-      return { status: 'paid' }
+
+    if (toPlan) {
+      const confirmed = await billingRepo.confirmarPagamento({
+        gatewaySessionId: object.id,
+        gatewayPaymentId: readPaymentIntentId(object.payment_intent),
+        amountCents: Number(object.amount_total),
+        currency: String(object.currency || '').toLowerCase(),
+        toPlan,
+      })
+      if (confirmed?.status === 'paid') {
+        await sendMeuEcooAccessEmail(confirmed, object, metadata)
+        return { status: 'paid' }
+      }
+      return { status: 'ignored' }
     }
-    return { status: 'ignored' }
+
+    // Sem metadata.to_plan: não veio do checkout dinâmico do app, então é um
+    // pagamento feito direto por um Payment Link estático da Stripe.
+    return handleDirectLinkPayment(object)
   }
 
   if (event.type === 'checkout.session.async_payment_failed') {
@@ -287,4 +385,4 @@ async function handleWebhook(event) {
   return { status: 'ignored' }
 }
 
-module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, handleWebhook }
+module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook }
