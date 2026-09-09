@@ -238,6 +238,8 @@ export function CalendarPage({ onNavigate }) {
   const [draggedPost, setDraggedPost] = useState(null)
   const notify = useToast()
   const [message, setMessage] = useState('')
+  const pastePanelRef = useRef(null)
+  const pasteInputRef = useRef(null)
   const previousStatuses = useRef(null)
   const load = useCallback(async () => {
     // O endpoint do mês é a fonte principal da grade. A segunda consulta
@@ -361,6 +363,13 @@ export function CalendarPage({ onNavigate }) {
     if (!copiedPost) return
     if (!pasteDate) setPasteDate(suggestedPasteDate(copiedPost))
     setPasting(true)
+    // A notificação fica no topo e o formulário de duplicação fica abaixo do
+    // calendário. Levar o usuário até o formulário torna o botão acionável,
+    // inclusive quando ele já estava aberto fora da área visível.
+    window.setTimeout(() => {
+      pastePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      pasteInputRef.current?.focus()
+    }, 0)
   }
 
   async function pastePost(event) {
@@ -577,13 +586,13 @@ export function CalendarPage({ onNavigate }) {
         })}
       </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => { const failureKind = postFailureKind(post); const retryableError = ['error', 'erro'].includes(normalizePostStatus(post)) && failureKind === 'retryable'; return <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}{retryableError && <><button className="link-button" onClick={() => retryPost(post)}>Tentar novamente</button><button className="link-button" onClick={() => openEditor(post)}>Reagendar</button></>}{failureKind === 'content' && <button className="link-button" onClick={() => reviewFailure(post)}>Revisar</button>}{failureKind === 'account' && <button className="link-button" onClick={() => onNavigate('integracoes')}>Conexão</button>}</span></article> }) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
-      {pasting && copiedPost && <section className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
+      {pasting && copiedPost && <section ref={pastePanelRef} className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
         <div>
           <h2 className="mb-1 text-lg font-semibold text-zinc-50">Escolha onde colar o post</h2>
           <p className="text-sm text-zinc-400">A cópia de “{postText(copiedPost)}” será criada no dia e horário abaixo. O agendamento original continuará intacto.</p>
         </div>
         <form className="flex flex-wrap items-center gap-3" onSubmit={pastePost}>
-          <label className="calendar-paste-label">Dia e horário da nova publicação<input required type="datetime-local" value={pasteDate} onChange={event => setPasteDate(event.target.value)}/></label>
+          <label className="calendar-paste-label">Dia e horário da nova publicação<input ref={pasteInputRef} required type="datetime-local" value={pasteDate} onChange={event => setPasteDate(event.target.value)}/></label>
           <button className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Confirmar nova publicação</button>
           <button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setPasting(false)}>Cancelar</button>
         </form>
