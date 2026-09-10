@@ -586,11 +586,14 @@ async function handleInvoicePaid(object) {
 }
 
 // past_due é aviso, não revogação (ver SUBSCRIPTION_STATUSES_REVOKE_ACCESS) —
-// aqui só registra o log para acompanhamento; 'customer.subscription.updated'
-// (que a Stripe dispara junto) é quem sincroniza o status 'past_due' em si.
-// Notificar o cliente por e-mail fica fora do escopo desta task (o corpo da
-// task só pede os 3 itens de "o que fazer", nenhum deles é e-mail ao
-// cliente) — registrado aqui para não passar como decisão silenciosa.
+// 'customer.subscription.updated' (que a Stripe dispara junto) é quem
+// sincroniza o status 'past_due' em si; aqui só registra o log e avisa o
+// cliente. Decisão registrada no IA.md de 10/09/2026 ("decidir alerta ao
+// cliente em falha de cobrança recorrente"): a cada tentativa que falhar, não
+// só perto do cancelamento — mais simples (um evento = um e-mail) e dá ao
+// cliente a chance de agir cedo. E-mail best-effort: falha de envio (ex.:
+// Gmail fora do ar) vira log de erro e não derruba o webhook, mesmo padrão já
+// usado no alerta de pagamento não vinculado.
 async function handleInvoicePaymentFailed(object) {
   const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
   await addLog(
@@ -599,6 +602,20 @@ async function handleInvoicePaymentFailed(object) {
     `invoice=${object?.id || 'desconhecida'} customer=${object?.customer || 'desconhecido'}` +
     (user?.id ? ` user=${user.id}` : ' (conta não identificada)')
   )
+
+  if (user?.email) {
+    const subscription = object?.subscription ? await subscriptionsRepo.buscarPorStripeSubscriptionId(object.subscription) : null
+    const plan = PLANS[canonicalPlanId(subscription?.plan || user.plan)]
+    try {
+      await mailer.enviarEmailFalhaCobrancaAssinatura(user.email, {
+        fullName: user.fullName || user.full_name || null,
+        planName: plan?.name || null,
+      })
+    } catch (error) {
+      await addLog('err', `Falha ao enviar aviso de cobrança recusada ao cliente: ${error.message}`)
+    }
+  }
+
   return { status: 'failed' }
 }
 

@@ -19,10 +19,11 @@ concluídas, o sistema está num **estado intermediário**:
 - O webhook já trata o **ciclo de vida da assinatura**:
   `customer.subscription.created/updated/deleted` sincronizam a tabela
   `subscriptions` e `users.plan_active`; `invoice.paid` confirma renovação
-  (concede acesso); `invoice.payment_failed` só registra log (não revoga —
-  `past_due` é aviso, a Stripe tenta cobrar de novo sozinha). Ver
+  (concede acesso); `invoice.payment_failed` registra log e avisa o cliente
+  por e-mail a cada falha (não revoga acesso — `past_due` é aviso, a Stripe
+  tenta cobrar de novo sozinha). Ver
   `billingService.handleSubscriptionCreated/Updated/Deleted`,
-  `handleInvoicePaid/PaymentFailed`.
+  `handleInvoicePaid/PaymentFailed`, `mailer.enviarEmailFalhaCobrancaAssinatura`.
 - Não existe cancelamento self-service até a task do Customer Portal.
 - A trava `UNIQUE(user_id, billing_month)` de `billing_plan_changes` (pensada
   para cobrança avulsa) e a chave de idempotência por evento de renovação

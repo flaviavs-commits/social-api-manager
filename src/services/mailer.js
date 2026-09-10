@@ -121,4 +121,30 @@ async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sess
   })
 }
 
-module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado }
+// Decisão registrada no IA.md de 10/09/2026 (task "decidir alerta ao cliente
+// em falha de cobrança recorrente"): e-mail simples, disparado a cada
+// tentativa que falhar (não só perto do cancelamento) — sem link de
+// atualização de forma de pagamento, porque isso depende do Customer Portal
+// (task ainda não feita).
+async function enviarEmailFalhaCobrancaAssinatura(email, { fullName, planName }) {
+  ensureEmailConfigured()
+  const safeName = escapeHtml(fullName || 'Olá')
+  const safePlanName = escapeHtml(planName || 'sua assinatura')
+
+  await transporter.sendMail({
+    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: 'Não conseguimos processar a cobrança da sua assinatura',
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #222;">
+        <h2 style="color: #333;">${safeName}, a cobrança deste mês falhou</h2>
+        <p>Tentamos cobrar a renovação do plano <strong>${safePlanName}</strong>, mas o pagamento não foi processado — geralmente por cartão vencido, sem limite ou recusado pelo banco.</p>
+        <p>Vamos tentar novamente automaticamente nos próximos dias. Se o problema persistir, o acesso à sua assinatura pode ser suspenso.</p>
+        <p style="color: #777; font-size: 13px;">Se você já regularizou o pagamento, pode ignorar este e-mail.</p>
+      </div>
+    `,
+    text: `${fullName || 'Olá'}, a cobrança da renovação do plano ${planName || 'sua assinatura'} falhou. Vamos tentar novamente automaticamente nos próximos dias. Se o problema persistir, o acesso pode ser suspenso.`,
+  })
+}
+
+module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado, enviarEmailFalhaCobrancaAssinatura }

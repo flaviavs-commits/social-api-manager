@@ -42,6 +42,7 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
 jest.mock('../../src/services/mailer', () => ({
   enviarEmailAcessoMeuEcoo: jest.fn(),
   enviarEmailAlertaPagamentoNaoVinculado: jest.fn().mockResolvedValue(undefined),
+  enviarEmailFalhaCobrancaAssinatura: jest.fn().mockResolvedValue(undefined),
 }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
@@ -498,6 +499,44 @@ describe('billingService.handleWebhook — ciclo de vida da assinatura', () => {
 
     expect(result).toEqual({ status: 'failed' })
     expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+  })
+
+  test('invoice.payment_failed avisa o cliente por e-mail com o nome do plano da assinatura', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', fullName: 'Cliente Teste', plan: 'basico' })
+    subscriptionsRepo.buscarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro' })
+
+    await billingService.handleWebhook({
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_falha', customer: 'cus_123', subscription: 'sub_123' } },
+    })
+
+    expect(mailer.enviarEmailFalhaCobrancaAssinatura).toHaveBeenCalledWith('cliente@allowed.test', expect.objectContaining({
+      fullName: 'Cliente Teste',
+      planName: 'EcooMidia Pro',
+    }))
+  })
+
+  test('invoice.payment_failed não quebra o webhook quando o envio do e-mail falha', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+    mailer.enviarEmailFalhaCobrancaAssinatura.mockRejectedValueOnce(new Error('Gmail fora do ar'))
+
+    const result = await billingService.handleWebhook({
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_falha', customer: 'cus_123' } },
+    })
+
+    expect(result).toEqual({ status: 'failed' })
+  })
+
+  test('invoice.payment_failed sem conta identificada não tenta enviar e-mail', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue(null)
+
+    await billingService.handleWebhook({
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_falha_orfa', customer: 'cus_desconhecido' } },
+    })
+
+    expect(mailer.enviarEmailFalhaCobrancaAssinatura).not.toHaveBeenCalled()
   })
 })
 
