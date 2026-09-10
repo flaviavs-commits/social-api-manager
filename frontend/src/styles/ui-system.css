@@ -2227,3 +2227,27 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row strong {
     font-size: 13px !important;
   }
 }
+
+/* O assistente fica acima da navegação inferior e acompanha a altura útil do
+ * viewport. Isso evita que o formulário seja cortado em celulares baixos ou
+ * quando o teclado virtual reduz o viewport dinâmico. */
+@media (max-width: 767px) {
+  .ai-assistant-widget {
+    right: 12px;
+    bottom: calc(76px + 12px + env(safe-area-inset-bottom));
+  }
+
+  .ai-assistant-panel {
+    width: min(390px, calc(100vw - 2rem)) !important;
+    height: min(520px, max(300px, calc(100dvh - 8rem))) !important;
+    max-height: min(520px, max(300px, calc(100dvh - 8rem)));
+  }
+
+  .ai-assistant-panel > div {
+    overscroll-behavior: contain;
+  }
+
+  .ai-assistant-panel input {
+    font-size: 16px;
+  }
+}

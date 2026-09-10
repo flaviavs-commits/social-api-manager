@@ -80,10 +80,10 @@ function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChang
 
 function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, processingMessage, error, input, onInputChange, onSend, onConfirm, onClose, messagesRef, onContinueToPost }) {
   return (
-    <section role="dialog" aria-label="Assistente inteligente" className="flex h-[520px] w-[min(390px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl">
+    <section role="dialog" aria-label="Assistente inteligente" className="ai-assistant-panel flex h-[520px] w-[min(390px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl">
       <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
         <div className="flex items-center gap-2"><RobotAvatar /><div><p className="text-sm font-semibold text-zinc-50">Assistente inteligente</p><p className="text-[11px] text-zinc-500">Ajuda para agilizar sua rotina</p></div></div>
-        <button aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
+        <button type="button" aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
       </header>
       <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
         {messages.length === 0 && <p className="text-sm text-zinc-500">Peça uma ideia, uma imagem ou consulte seus posts. Revise antes de publicar.</p>}
@@ -93,7 +93,7 @@ function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sendin
       </div>
       <form onSubmit={onSend} className="flex items-center gap-2 border-t border-subtle p-3">
         <input value={input} onChange={onInputChange} placeholder="Digite o que você precisa..." aria-label="Mensagem para o Assistente inteligente" className="flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 outline-none focus:border-gold/50" />
-        <button disabled={sending || !input.trim()} className="rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40">Enviar</button>
+        <button type="submit" disabled={sending || !input.trim()} className="rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40">Enviar</button>
       </form>
     </section>
   )
@@ -161,8 +161,8 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     onNavigate?.('agendador')
   }
 
-  return <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+  return <div className="ai-assistant-widget fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
     {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} processingMessage={processingMessage} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} onContinueToPost={continueToPost} />}
-    <button onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} className="ai-assistant-toggle flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : <RobotAvatar size="large" />}</button>
+    <button type="button" onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} className="ai-assistant-toggle flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : <RobotAvatar size="large" />}</button>
   </div>
 }
