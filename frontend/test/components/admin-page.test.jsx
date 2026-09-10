@@ -18,6 +18,7 @@ function mockApi(overrides = {}) {
     if (path.startsWith('/api/admin/billing/reconciliation') && !path.includes('/link')) {
       return Promise.resolve(overrides.report || EMPTY_REPORT)
     }
+    if (path === '/api/logs?limit=200') return Promise.resolve({ logs: overrides.logs || [] })
     if (overrides.extra?.[path]) return overrides.extra[path]()
     return Promise.reject(new Error(`rota não mockada: ${path}`))
   })
@@ -194,5 +195,57 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
     await userEvent.selectOptions(screen.getByDisplayValue('Últimos 7 dias'), '30')
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/admin/billing/reconciliation?days=30'))
+  })
+})
+
+describe('AdminPage — histórico de ações administrativas', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, '', '/admin.html')
+  })
+
+  const LOG_ROLE = { id: 10, type: 'ok', message: 'Papel alterado para "user".', timestamp: '2026-09-10T12:00:00.000Z' }
+  const LOG_ERRO = { id: 11, type: 'err', message: 'Falha ao enviar alerta de pagamento não vinculado: Gmail indisponível', timestamp: '2026-09-10T11:00:00.000Z' }
+
+  async function renderNaAbaHistorico() {
+    window.history.pushState({}, '', '/admin.html?tab=historico')
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Histórico' })).toHaveAttribute('aria-current', 'page'))
+  }
+
+  it('mostra o estado vazio quando não há ação administrativa registrada', async () => {
+    mockApi()
+    await renderNaAbaHistorico()
+    await waitFor(() => expect(screen.getByText('Nenhuma ação administrativa registrada ainda.')).toBeInTheDocument())
+  })
+
+  it('lista as ações vindas de /api/logs', async () => {
+    mockApi({ logs: [LOG_ROLE, LOG_ERRO] })
+    await renderNaAbaHistorico()
+
+    await waitFor(() => expect(screen.getByText('Papel alterado para "user".')).toBeInTheDocument())
+    expect(screen.getByText(/Falha ao enviar alerta/)).toBeInTheDocument()
+  })
+
+  it('filtra por tipo de atividade', async () => {
+    mockApi({ logs: [LOG_ROLE, LOG_ERRO] })
+    await renderNaAbaHistorico()
+    await waitFor(() => expect(screen.getByText('Papel alterado para "user".')).toBeInTheDocument())
+
+    await userEvent.selectOptions(screen.getByLabelText('Filtrar tipo de atividade'), 'err')
+
+    expect(screen.queryByText('Papel alterado para "user".')).not.toBeInTheDocument()
+    expect(screen.getByText(/Falha ao enviar alerta/)).toBeInTheDocument()
+  })
+
+  it('filtra por busca textual', async () => {
+    mockApi({ logs: [LOG_ROLE, LOG_ERRO] })
+    await renderNaAbaHistorico()
+    await waitFor(() => expect(screen.getByText('Papel alterado para "user".')).toBeInTheDocument())
+
+    await userEvent.type(screen.getByLabelText('Buscar no histórico'), 'gmail')
+
+    expect(screen.queryByText('Papel alterado para "user".')).not.toBeInTheDocument()
+    expect(screen.getByText(/Falha ao enviar alerta/)).toBeInTheDocument()
   })
 })

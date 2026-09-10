@@ -137,6 +137,16 @@ describe('POST /api/admin/users/:id/role', () => {
     expect(res.status).toBe(200)
     expect(res.body.user.role).toBe('user')
   })
+
+  test('registra auditoria no próprio histórico do admin (histórico de ações administrativas)', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.atualizarRole.mockResolvedValue({ id: 1, email: ADMIN.email, role: 'user' })
+    await request(app)
+      .post(`/api/admin/users/${ADMIN.id}/role`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ role: 'user' })
+    expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'ok', user_id: ADMIN.id, message: expect.stringContaining('user') }))
+  })
 })
 
 // ── POST /api/admin/users/:id/ativo ───────────────────────────────────────────
@@ -167,6 +177,16 @@ describe('POST /api/admin/users/:id/ativo', () => {
       .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ ativo: false })
     expect(res.status).toBe(403)
+  })
+
+  test('registra auditoria no próprio histórico do admin ao reativar a própria conta', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.atualizarAtivo.mockResolvedValue({ id: 1, email: ADMIN.email, ativo: true })
+    await request(app)
+      .post(`/api/admin/users/${ADMIN.id}/ativo`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ ativo: true })
+    expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'ok', user_id: ADMIN.id, message: expect.stringContaining('ativo') }))
   })
 })
 

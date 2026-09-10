@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { PLANS } from '../lib/plans.js'
+import { useApiResource } from '../hooks/use-api-resource.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 
@@ -24,7 +25,10 @@ function Notice({ notice }) {
 const TABS = [
   ['usuarios', 'Usuários'],
   ['conciliacao', 'Conciliação'],
+  ['historico', 'Histórico'],
 ]
+
+const LOG_TYPE_LABELS = { err: 'Erro', ok: 'Sucesso', info: 'Informação' }
 
 function tabFromLocation(search = window.location.search) {
   const tab = new URLSearchParams(search).get('tab')
@@ -117,6 +121,27 @@ function AdminTabs({ tab, onChange }) {
   return <nav className="admin-tabs" aria-label="Seções do painel admin">{TABS.map(([key, label]) => <button key={key} type="button" className={`admin-tab${tab === key ? ' is-active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => onChange(key)}>{label}</button>)}</nav>
 }
 
+// Histórico de ações administrativas: reaproveita /api/logs, o mesmo
+// endpoint já usado pela Central de Atividades do app principal
+// (activity-page.jsx) — escopado ao próprio admin autenticado, preservando a
+// garantia de que ninguém vê dado de outra conta fora dos dois pontos já
+// auditados explicitamente (link de pagamento, vínculo manual). As ações de
+// papel/situação passaram a gerar log em 10/09/2026 especificamente para
+// esta seção não nascer vazia.
+function HistorySection() {
+  const [type, setType] = useState('all')
+  const [search, setSearch] = useState('')
+  const loadLogs = useCallback(() => apiFetch('/api/logs?limit=200').then(data => data.logs || []), [])
+  const { value: logs, loading, error, reload } = useApiResource(loadLogs, [])
+
+  const visibleLogs = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return logs.filter(log => (type === 'all' || log.type === type) && (!query || String(log.message).toLowerCase().includes(query)))
+  }, [logs, search, type])
+
+  return <section className="admin-content"><div className="admin-section-heading"><h2>Histórico de ações administrativas</h2><div className="admin-reconciliation-controls"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar…" aria-label="Buscar no histórico" /><select value={type} onChange={event => setType(event.target.value)} aria-label="Filtrar tipo de atividade"><option value="all">Todos os tipos</option>{Object.entries(LOG_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button type="button" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div>{error && <p className="admin-notice admin-notice--error" role="alert">{error}</p>}<div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Quando</th><th>Tipo</th><th>Ação</th></tr></thead><tbody>{loading ? <tr><td colSpan="3" className="admin-empty">Carregando…</td></tr> : !visibleLogs.length ? <tr><td colSpan="3" className="admin-empty">{search || type !== 'all' ? 'Nenhuma ação corresponde aos filtros.' : 'Nenhuma ação administrativa registrada ainda.'}</td></tr> : visibleLogs.map(log => <tr key={log.id}><td>{log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '—'}</td><td><span className={`admin-pill admin-pill--${log.type === 'err' ? 'inactive' : log.type === 'ok' ? 'active' : 'user'}`}>{LOG_TYPE_LABELS[log.type] || 'Atividade'}</span></td><td>{log.message}</td></tr>)}</tbody></table></div></section>
+}
+
 export function AdminPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [users, setUsers] = useState([])
@@ -168,5 +193,5 @@ export function AdminPage() {
   const toggleActive = user => update(user.id, 'ativo', { ativo: !user.ativo }, 'Situação atualizada.')
   const onError = text => setNotice({ type: 'error', text })
 
-  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection users={users} onError={onError} />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
+  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection users={users} onError={onError} />}{tab === 'historico' && <HistorySection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
 }

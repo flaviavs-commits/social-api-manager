@@ -18,6 +18,7 @@ async function updateRole(req, res) {
     const user = await users.atualizarRole(id, req.body.role)
     if (!user) return res.status(404).json({ erro: 'Usuário não encontrado' })
     invalidarCacheUsuario(id)
+    await addLog('ok', `Papel alterado para "${req.body.role}".`, null, null, req.user.id)
     res.json({ user })
   } catch (error) { serverError(res, error, 'Não foi possível atualizar o papel do usuário') }
 }
@@ -32,6 +33,7 @@ async function updateActive(req, res) {
     const user = await users.atualizarAtivo(id, req.body.ativo)
     if (!user) return res.status(404).json({ erro: 'Usuário não encontrado' })
     invalidarCacheUsuario(id)
+    await addLog('ok', `Situação alterada para "${req.body.ativo ? 'ativo' : 'desativado'}".`, null, null, req.user.id)
     res.json({ user })
   } catch (error) { serverError(res, error, 'Não foi possível atualizar o usuário') }
 }
