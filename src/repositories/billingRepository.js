@@ -167,10 +167,14 @@ async function confirmarPagamento({ gatewaySessionId, gatewayPaymentId, amountCe
       return change
     }
     if (Number(change.amountCents) !== Number(amountCents) || String(change.currency).toLowerCase() !== String(currency).toLowerCase()) {
-      throw new Error('A cobrança confirmada não corresponde ao valor ou moeda registrados.')
+      const divergencia = new Error('A cobrança confirmada não corresponde ao valor ou moeda registrados.')
+      divergencia.code = 'amount_mismatch'
+      throw divergencia
     }
     if (toPlan && change.toPlan !== toPlan) {
-      throw new Error('A cobrança confirmada não corresponde ao plano registrado.')
+      const divergencia = new Error('A cobrança confirmada não corresponde ao plano registrado.')
+      divergencia.code = 'plan_mismatch'
+      throw divergencia
     }
 
     const { rows: [paidChange] } = await client.query(

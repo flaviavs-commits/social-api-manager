@@ -464,13 +464,29 @@ async function handleWebhook(event) {
     const toPlan = canonicalPlanId(metadata.to_plan)
 
     if (toPlan) {
-      const confirmed = await billingRepo.confirmarPagamento({
-        gatewaySessionId: object.id,
-        gatewayPaymentId: readPaymentIntentId(object.payment_intent),
-        amountCents: Number(object.amount_total),
-        currency: String(object.currency || '').toLowerCase(),
-        toPlan,
-      })
+      let confirmed
+      try {
+        confirmed = await billingRepo.confirmarPagamento({
+          gatewaySessionId: object.id,
+          gatewayPaymentId: readPaymentIntentId(object.payment_intent),
+          amountCents: Number(object.amount_total),
+          currency: String(object.currency || '').toLowerCase(),
+          toPlan,
+        })
+      } catch (error) {
+        // Divergência de valor/moeda/plano entre o que foi cobrado e o que
+        // foi registrado (ex.: Stripe Tax, cupom, preço mudou entre criar o
+        // checkout e o cliente pagar) não é falha de servidor — é caso de
+        // reconciliação, como um pagamento sem vínculo. Tratar como 500
+        // faria a Stripe reentregar pra sempre com o mesmo resultado,
+        // deixando o cliente pago sem plano num laço invisível. Qualquer
+        // outro erro (ex.: falha real de banco) continua subindo — a Stripe
+        // deve reentregar nesse caso.
+        if (error.code === 'amount_mismatch' || error.code === 'plan_mismatch') {
+          return logUnlinkedPayment(object, error.message)
+        }
+        throw error
+      }
       if (confirmed?.status === 'paid') {
         await sendMeuEcooAccessEmail(confirmed, object, metadata)
         return { status: 'paid' }

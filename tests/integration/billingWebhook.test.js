@@ -154,6 +154,32 @@ describe('checkout dinâmico — confirmação pelo webhook', () => {
     expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
   })
 
+  test('divergência de valor responde 200 (não 500) e não deixa a Stripe reentregando pra sempre', async () => {
+    const divergencia = new Error('A cobrança confirmada não corresponde ao valor ou moeda registrados.')
+    divergencia.code = 'amount_mismatch'
+    billingRepo.confirmarPagamento.mockRejectedValue(divergencia)
+
+    const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
+      id: 'cs_valor_divergente',
+      metadata: { to_plan: 'pro' },
+    })))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ received: true, status: 'unlinked' })
+  })
+
+  test('erro real (não divergência) continua respondendo com erro, para a Stripe reentregar', async () => {
+    billingRepo.confirmarPagamento.mockRejectedValue(new Error('connection terminated unexpectedly'))
+
+    const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
+      id: 'cs_erro_infra',
+      metadata: { to_plan: 'pro' },
+    })))
+
+    expect(res.status).toBeGreaterThanOrEqual(500)
+    expect(res.body).toEqual({ erro: 'Não foi possível processar o webhook agora.' })
+  })
+
   test('não confirma enquanto o pagamento não estiver liquidado', async () => {
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_pendente',

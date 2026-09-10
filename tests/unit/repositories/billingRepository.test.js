@@ -172,3 +172,44 @@ describe('confirmarPagamentoDireto', () => {
     expect(updateUsers[0]).toMatch(/ativo = TRUE/)
   })
 })
+
+describe('confirmarPagamento — divergência de valor/plano', () => {
+  // A task "impedir que divergência de valor derrube o webhook com 500
+  // permanente" (10/09/2026) depende deste contrato: o erro precisa ter um
+  // .code que billingService.handleWebhook reconheça, para tratar como
+  // reconciliação em vez de deixar subir como 500 genérico.
+  const registroPago = linha({ amountCents: 10050, currency: 'brl', toPlan: 'pro', status: 'processing' })
+
+  test('valor divergente lança erro com code amount_mismatch e faz ROLLBACK', async () => {
+    client.query
+      .mockResolvedValueOnce({ rows: [] })               // BEGIN
+      .mockResolvedValueOnce({ rows: [registroPago] })    // SELECT ... FOR UPDATE
+      .mockResolvedValueOnce({ rows: [] })                // ROLLBACK
+
+    await expect(repo.confirmarPagamento({
+      gatewaySessionId: 'cs_link',
+      gatewayPaymentId: 'pi_link',
+      amountCents: 10099, // diferente do registrado (10050)
+      currency: 'brl',
+      toPlan: 'pro',
+    })).rejects.toMatchObject({ code: 'amount_mismatch' })
+
+    expect(sqlDasChamadas()).toContain('ROLLBACK')
+    expect(client.release).toHaveBeenCalledTimes(1)
+  })
+
+  test('plano divergente lança erro com code plan_mismatch', async () => {
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [registroPago] })
+      .mockResolvedValueOnce({ rows: [] })
+
+    await expect(repo.confirmarPagamento({
+      gatewaySessionId: 'cs_link',
+      gatewayPaymentId: 'pi_link',
+      amountCents: 10050,
+      currency: 'brl',
+      toPlan: 'premium', // diferente do registrado (pro)
+    })).rejects.toMatchObject({ code: 'plan_mismatch' })
+  })
+})

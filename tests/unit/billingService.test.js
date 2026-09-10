@@ -199,6 +199,44 @@ describe('billingService.handleWebhook', () => {
     expect(billingRepo.marcarEnvioMeuEcooConcluido).toHaveBeenCalledWith(12)
   })
 
+  test('divergência de valor/moeda vira unlinked (reconciliação) em vez de subir e derrubar o webhook com 500', async () => {
+    const divergencia = new Error('A cobrança confirmada não corresponde ao valor ou moeda registrados.')
+    divergencia.code = 'amount_mismatch'
+    billingRepo.confirmarPagamento.mockRejectedValue(divergencia)
+    usersRepo.listarEmailsAdmins.mockResolvedValue([])
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_divergente', payment_status: 'paid', amount_total: 10099, currency: 'brl', metadata: { to_plan: 'pro' } } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+  })
+
+  test('divergência de plano vira unlinked em vez de subir e derrubar o webhook com 500', async () => {
+    const divergencia = new Error('A cobrança confirmada não corresponde ao plano registrado.')
+    divergencia.code = 'plan_mismatch'
+    billingRepo.confirmarPagamento.mockRejectedValue(divergencia)
+    usersRepo.listarEmailsAdmins.mockResolvedValue([])
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_plano_divergente', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+  })
+
+  test('erro que não é divergência de valor/plano continua subindo (não vira unlinked)', async () => {
+    const erroDeBanco = new Error('connection terminated unexpectedly')
+    billingRepo.confirmarPagamento.mockRejectedValue(erroDeBanco)
+
+    await expect(billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_erro_infra', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+    })).rejects.toThrow('connection terminated unexpectedly')
+  })
+
   test('não envia acesso ao MeuEcoo quando o adicional Pro não foi selecionado', async () => {
     billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
 

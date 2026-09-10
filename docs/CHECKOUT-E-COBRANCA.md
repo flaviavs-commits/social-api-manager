@@ -73,6 +73,14 @@ O **plano** de um pagamento por link é identificado pelo valor pago
 não bater com nenhum plano exatamente, o sistema **não adivinha**: registra como
 `unlinked`. Isso é proposital — creditar o plano errado é pior que não creditar.
 
+O mesmo vale para o caminho 1 (checkout dinâmico): se o valor/moeda/plano
+confirmados pela Stripe não baterem exatamente com o que foi registrado na
+criação do checkout (Stripe Tax, cupom, preço mudou entre criar e pagar), o
+webhook também vira `unlinked` em vez de 500 — a Stripe reentregaria pra
+sempre com o mesmo resultado, deixando o cliente pago sem plano. Erros que
+não são divergência (ex.: falha real de conexão com o banco) continuam
+subindo como erro de servidor, para a Stripe reentregar de verdade.
+
 ### Quando um pagamento não é vinculado
 
 O webhook responde `200 {"received": true, "status": "unlinked"}` (200 para a
