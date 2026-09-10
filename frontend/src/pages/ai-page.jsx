@@ -10,10 +10,10 @@ import '../styles/ai-page-publish.css'
 // segundos adicionais para devolver a resposta ou o fallback do servidor.
 const AI_GENERATION_TIMEOUT_MS = 60_000
 const AI_ACTIVITY_LABELS = {
-  generate: 'Conteúdo gerado com IA',
+  generate: 'Conteúdo criado pelo sistema',
   'analyze-media': 'Descrição de mídia gerada',
-  'image-generate': 'Imagem gerada com IA',
-  'chat-message': 'Conversa com a IA',
+  'image-generate': 'Imagem criada pelo sistema',
+  'chat-message': 'Conversa com o sistema inteligente',
   schedule: 'Agendamento processado',
   'publish-now': 'Publicação processada',
 }
@@ -26,12 +26,12 @@ const PUBLISH_PLATFORMS = [
 
 function formatAiActivity(log) {
   const action = String(log.acao || '')
-  const title = AI_ACTIVITY_LABELS[action] || (action.startsWith('agent:') || action === 'agent' ? 'Assistente IA' : 'Atividade de IA')
+  const title = AI_ACTIVITY_LABELS[action] || (action.startsWith('agent:') || action === 'agent' ? 'Assistente inteligente' : 'Atividade do sistema inteligente')
   const details = String(log.detalhes || '')
     .split(' · ')
     .filter(part => !/^(fallback|tentados|chave do servidor|chave do usuário)\b/i.test(part.trim()))
     .join(' · ')
-    .replace(/\bopenrouter(?:[-_][\w-]+)?\b/gi, 'IA')
+    .replace(/\bopenrouter(?:[-_][\w-]+)?\b/gi, 'Sistema inteligente')
     .trim()
 
   return { title, details: details || 'Processamento concluído' }
@@ -112,7 +112,7 @@ export function AiPage() {
     return {
       ...post,
       // A resposta antiga da API podia não trazer a lista de redes. Mantenha
-      // sempre um valor seguro para a publicação gerada pela IA.
+      // sempre um valor seguro para a publicação gerada pelo sistema inteligente.
       plataformas: Array.isArray(post.plataformas) && post.plataformas.length ? post.plataformas : ['instagram'],
       text: post.texto || post.text || post.caption || '',
       visualFormat: format,
@@ -348,7 +348,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         })
       }
       const createdPost = data.posts?.[0]
-      if (!createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar sua confirmação. Verifique a atividade do Assistente IA.')
+      if (!createdPost?.id) throw new Error('A publicação foi enviada, mas não foi possível acompanhar sua confirmação. Verifique a atividade do Assistente inteligente.')
       const result = publicationStatusFromResponse(data, createdPost.id, platforms)
       if (result) {
         finishAiPublication(index, result)
@@ -377,7 +377,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
 
   async function clearActivityLogs() {
     if (!activityLogs.length) return
-    if (!window.confirm('Limpar o diagnóstico do Assistente de IA?')) return
+    if (!window.confirm('Limpar o diagnóstico do Assistente inteligente?')) return
     try {
       await apiFetch('/api/ai/activity-log', { method: 'DELETE' })
       setActivityLogs([])
@@ -399,11 +399,11 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     return ({ instagram: '◎', facebook: 'f', youtube: '▶', tiktok: '♪' })[platform] || '•'
   }
 
-  return <section className={`page-view ai-page${posts.length ? ' has-results' : ' is-empty'}`}><header className="ai-page-intro"><div><p className="eyebrow">ASSISTENTE IA</p><h2>Crie conteúdo com mais agilidade</h2><p>Descreva o que você quer publicar e receba ideias prontas para revisar, adaptar, gerar uma imagem e publicar.</p></div><span className="ai-page-intro-badge"><span aria-hidden="true">✦</span> Seu copiloto de conteúdo</span></header><section className="panel ai-generator-panel">
+  return <section className={`page-view ai-page${posts.length ? ' has-results' : ' is-empty'}`}><header className="ai-page-intro"><div><p className="eyebrow">SISTEMA INTELIGENTE</p><h2>Crie conteúdo com mais agilidade</h2><p>Ganhe tempo com ideias e legendas prontas para revisar.</p></div><span className="ai-page-intro-badge"><span aria-hidden="true">✦</span> Seu copiloto de conteúdo</span></header><section className="panel ai-generator-panel">
     <div className="ai-generator-heading"><div><p className="eyebrow">CRIAR CONTEÚDO</p><h2>O que você quer publicar?</h2><p>Quanto mais contexto você informar, mais úteis serão as sugestões.</p></div><span className="ai-generator-icon" aria-hidden="true">✦</span></div>
     <form className="draft-form sched-form" onSubmit={generate}>
       <SchedSection number={1} title="Instrução">
-<textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias sobre educação financeira para jovens adultos" aria-label="Instrução para a IA"/><span className="ai-prompt-help">Você pode pedir qualquer assunto benigno: história, viagem, tecnologia, negócios, cultura, comida ou vários temas juntos. Observação: a IA não é autorizada para temas médicos, jurídicos, adultos/+18 ou análises financeiras aprofundadas.</span>
+<textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias para divulgar minha cafeteria" aria-label="Instrução para o sistema inteligente"/><span className="ai-prompt-help">Informe o tema, o público e o objetivo. Revise as sugestões antes de usar.</span><details className="ai-content-limits"><summary>Limites de conteúdo</summary><p>O sistema não atende temas médicos, jurídicos, adultos ou análises financeiras aprofundadas.</p></details>
       </SchedSection>
       <fieldset className="ai-visual-format-picker">
         <legend>Formato visual opcional</legend>
@@ -432,8 +432,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         <button type="button" className="ai-suggestion-action-button ai-publish-image-button ai-suggestion-primary-action" onClick={() => openPublishPlatformModal(index)} disabled={publishingIndex !== null || imageLoadingIndex !== null || post.publishStatus === 'published'}><span className="ai-suggestion-action-icon" aria-hidden="true">↗</span><span>{publishingIndex === index ? (post.visualFormat === 'carousel' ? 'Gerando e publicando carrossel...' : post.imageUrl ? 'Publicando...' : 'Gerando e publicando...') : post.publishStatus === 'published' ? 'Publicado' : post.visualFormat === 'carousel' ? (post.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : post.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</span></button>
       </div>
       {post.carouselImages?.length > 0
-        ? <div className="ai-generated-media ai-generated-carousel"><div className="ai-carousel-grid">{post.carouselImages.map((image, imageIndex) => <img key={`${image}-${imageIndex}`} src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} />)}</div><small>Carrossel com {post.carouselImages.length} slides{post.imageModel ? ` · criado com ${post.imageModel}.` : ' · gerado pela IA.'}</small></div>
-        : post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pela IA.'}</small></div>}
+        ? <div className="ai-generated-media ai-generated-carousel"><div className="ai-carousel-grid">{post.carouselImages.map((image, imageIndex) => <img key={`${image}-${imageIndex}`} src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} />)}</div><small>Carrossel com {post.carouselImages.length} slides{post.imageModel ? ` · criado com ${post.imageModel}.` : ' · gerado pelo sistema inteligente.'}</small></div>
+        : post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pelo sistema inteligente.'}</small></div>}
       {post.imageError && <p className="ai-image-error" role="alert">{post.imageError}</p>}
       {post.publishStatus && post.publishStatus !== 'published' && <p className={`ai-publish-status ai-publish-status-${post.publishStatus}`}>Status da publicação: {post.publishStatus === 'processing' ? 'aguardando confirmação da rede' : post.publishStatus === 'partial' ? 'publicada parcialmente' : 'não foi possível concluir'}.</p>}
     </div></article>)}</div>
@@ -464,10 +464,10 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   </div>}
   {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onReview={() => setPublicationDialog(null)} onClose={() => setPublicationDialog(null)}/>}
   <section className="panel ai-analytics-insights-panel">
-    <div className="ai-panel-heading ai-analytics-insights-heading"><div><p className="eyebrow">INTELIGÊNCIA DE PERFORMANCE</p><h2>O que está acontecendo no seu Analytics?</h2><p>A IA cruza suas métricas reais para indicar quando publicar e qual perfil está evoluindo melhor dentro de cada nicho.</p></div><span className="ai-analytics-insights-icon" aria-hidden="true">◒</span></div>
+    <div className="ai-panel-heading ai-analytics-insights-heading"><div><p className="eyebrow">INTELIGÊNCIA DE PERFORMANCE</p><h2>O que está acontecendo no seu Analytics?</h2><p>Veja os melhores horários e os perfis que estão evoluindo.</p></div><span className="ai-analytics-insights-icon" aria-hidden="true">◒</span></div>
     <div className="ai-analytics-controls"><label>Período<select value={analyticsDays} onChange={event => setAnalyticsDays(Number(event.target.value))}><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label><button type="button" className="action-button ai-analytics-button" onClick={loadAnalyticsInsights} disabled={analyticsLoading}>{analyticsLoading ? 'Analisando...' : 'Analisar Analytics'}</button></div>
     {analyticsError && <p className="error-message" role="alert">{analyticsError}</p>}
-    {!analyticsInsights && !analyticsLoading && !analyticsError && <div className="ai-analytics-empty"><span aria-hidden="true">✦</span><div><strong>Descubra o melhor momento para publicar</strong><p>Escolha o período e deixe a IA transformar seus dados em decisões práticas.</p></div></div>}
+    {!analyticsInsights && !analyticsLoading && !analyticsError && <div className="ai-analytics-empty"><span aria-hidden="true">✦</span><div><strong>Descubra o melhor momento para publicar</strong><p>Escolha o período e deixe o sistema inteligente transformar seus dados em decisões práticas.</p></div></div>}
     {analyticsInsights && <div className="ai-analytics-insights-content">
       <div className="ai-analytics-summary"><span className="ai-analytics-summary-mark" aria-hidden="true">✓</span><p>{analyticsInsights.summary}</p></div>
       {analyticsInsights.performanceAnalysis?.comparisons?.length > 0 && <section className="ai-performance-analysis" aria-labelledby="ai-performance-analysis-title"><div className="analytics-section-heading"><div><span className="ai-analytics-card-kicker">COMPARAÇÃO DE VISUALIZAÇÕES</span><h3 id="ai-performance-analysis-title">Por que um post foi melhor que outro?</h3></div><small>Correlação, não causalidade</small></div>{analyticsInsights.performanceAnalysis.comparisons.map(item => <article className="ai-performance-comparison" key={item.platform}><div className="ai-performance-comparison-heading"><strong>{item.platformLabel}</strong><span>{item.sampleSize} publicação(ões) · confiança {item.confidence}</span></div><p>{item.diagnosis}</p><div className="ai-performance-actions"><div><b>Solução recomendada</b><span>{item.solution}</span></div><div><b>Outra abordagem</b><span>{item.alternativeApproach}</span></div></div></article>)}</section>}
@@ -484,7 +484,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     </div>}
   </section>
   <section className="panel ai-logs-panel">
-    <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente IA.</p></div><div className="ai-logs-actions"><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button><button type="button" className="ai-clear-button link-button" onClick={clearActivityLogs} disabled={!activityLogs.length}>Limpar</button></div></div>
+    <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente inteligente.</p></div><div className="ai-logs-actions"><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button><button type="button" className="ai-clear-button link-button" onClick={clearActivityLogs} disabled={!activityLogs.length}>Limpar</button></div></div>
     {activityLogs.length ? <div className="ai-log-list">{activityLogs.map(log => { const activity = formatAiActivity(log); return <div className="ai-log-row" key={log.id}><span className={`ai-log-status ai-log-status-${log.status === 'success' || log.status === 'ok' ? 'ok' : 'info'}`} aria-hidden="true">{log.status === 'success' || log.status === 'ok' ? '✓' : '·'}</span><div><strong>{activity.title}</strong><small>{activity.details} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></div><span className="ai-log-status-label">{log.status}</span></div> })}</div> : <p className="empty-state">Nenhum registro do agente ainda.</p>}
   </section>
   </section>

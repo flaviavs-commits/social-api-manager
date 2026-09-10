@@ -60,8 +60,8 @@ export function AiModelPicker({ value, onChange, compact = false, visionOnly = f
   const selectedValue = visibleModels.some(model => model.id === value) ? value : (visibleModels[0]?.id || value || 'openrouter')
 
   return <label className={`ai-model-picker${compact ? ' ai-model-picker-compact' : ''}`}>
-    <span>{compact ? 'Modelo' : 'Escolha o modelo de IA'}</span>
-    <select value={selectedValue} onChange={changeModel} disabled={loading} aria-label="Modelo de IA">
+    <span>{compact ? 'Modelo' : 'Escolha o modelo do sistema'}</span>
+    <select value={selectedValue} onChange={changeModel} disabled={loading} aria-label="Modelo do sistema">
       {visibleModels.map(model => <option key={model.id} value={model.id}>
         {visibleModelLabel(model)}{model.available ? '' : ' · configure sua chave'}
       </option>)}

@@ -44,7 +44,7 @@ const descriptions = {
   integracoes: ['Contas conectadas', 'Conecte e gerencie suas redes sociais.'],
   seguranca: ['Segurança', 'Proteja sua conta e gerencie a autenticação em 2 fatores.'],
   atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
-  ai: ['Assistente IA', 'Use o assistente para planejar e revisar conteúdos.'],
+  ai: ['Assistente inteligente', 'Use o assistente para planejar e revisar conteúdos.'],
   biblioteca: ['Sua biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
  filas: ['Repetidor de posts', 'Automatize publicações que se repetem.'],
   smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],

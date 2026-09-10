@@ -8,7 +8,7 @@ describe('AiAssistantWidget', () => {
   it('starts closed and does not render the panel', () => {
     render(<AiAssistantWidget />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Abrir assistente de IA' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Abrir assistente inteligente' })).toBeInTheDocument()
   })
 
   it('renders nothing at all when hidden (e.g. on the AI page itself)', () => {
@@ -18,8 +18,8 @@ describe('AiAssistantWidget', () => {
 
   it('opens the chat panel on click and closes on Escape', () => {
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    expect(screen.getByRole('dialog', { name: 'Assistente de IA' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    expect(screen.getByRole('dialog', { name: 'Assistente inteligente' })).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -27,18 +27,18 @@ describe('AiAssistantWidget', () => {
 
   it('sends a message to the operational agent, shows the reply, and persists both turns', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
-      if (path === '/api/ai/agent') return Promise.resolve({ message: 'Ideia gerada pela IA' })
+      if (path === '/api/ai/agent') return Promise.resolve({ message: 'Ideia gerada pelo sistema inteligente' })
       if (path === '/api/ai/chat-messages') return Promise.resolve({ ok: true })
       return Promise.reject(new Error(`unexpected call to ${path}`))
     })
 
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie um post de lançamento' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: 'crie um post de lançamento' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     expect(screen.getByText('crie um post de lançamento')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('Ideia gerada pela IA')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Ideia gerada pelo sistema inteligente')).toBeInTheDocument())
 
     const chatMessageCalls = apiFetchMock.mock.calls.filter(([path]) => path === '/api/ai/chat-messages')
     expect(chatMessageCalls).toHaveLength(2)
@@ -51,11 +51,11 @@ describe('AiAssistantWidget', () => {
     })
 
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: 'crie uma imagem' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-    await waitFor(() => expect(screen.getByAltText('Imagem criada pela IA')).toHaveAttribute('src', 'data:image/png;base64,abc'))
+    await waitFor(() => expect(screen.getByAltText('Imagem criada pelo sistema inteligente')).toHaveAttribute('src', 'data:image/png;base64,abc'))
   })
 
   it('encaminha a imagem gerada para o Meu Post', async () => {
@@ -67,8 +67,8 @@ describe('AiAssistantWidget', () => {
     })
 
     render(<AiAssistantWidget onNavigate={onNavigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem para meu post' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: 'crie uma imagem para meu post' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     const continueButton = await screen.findByRole('button', { name: 'Usar no Meu Post' })
@@ -81,8 +81,8 @@ describe('AiAssistantWidget', () => {
 
   it('does not expose the selected model in the agent interface', () => {
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    expect(screen.queryByRole('combobox', { name: 'Modelo de IA' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    expect(screen.queryByRole('combobox', { name: 'Modelo do sistema' })).not.toBeInTheDocument()
   })
 
   it('shows an error message if the agent fails, without crashing the widget', async () => {
@@ -92,25 +92,25 @@ describe('AiAssistantWidget', () => {
     })
 
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'oi' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: 'oi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Falha ao interpretar pedido'))
   })
 
-  it('usa timeout estendido e explica amigavelmente quando a IA demora', async () => {
+  it('usa timeout estendido e explica amigavelmente quando o sistema inteligente demora', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
       if (path === '/api/ai/agent') return Promise.reject(Object.assign(new Error('Tempo esgotado'), { status: 408 }))
       return Promise.resolve({ ok: true })
     })
 
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: 'crie uma imagem' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: 'crie uma imagem' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('A IA está levando mais tempo que o esperado'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('O sistema inteligente está levando mais tempo que o esperado'))
     const agentCall = apiFetchMock.mock.calls.find(([path]) => path === '/api/ai/agent')
     expect(agentCall[1]).toEqual(expect.objectContaining({ timeoutMs: 120000 }))
   })
@@ -118,9 +118,9 @@ describe('AiAssistantWidget', () => {
   it('does not submit an empty or whitespace-only message', () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch')
     render(<AiAssistantWidget />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente de IA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
-    fireEvent.change(screen.getByLabelText('Mensagem para o Agente IA'), { target: { value: '   ' } })
+    fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: '   ' } })
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
     expect(apiFetchMock.mock.calls.some(([path]) => path === '/api/ai/agent')).toBe(false)
   })

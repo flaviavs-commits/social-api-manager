@@ -79,7 +79,7 @@ export function DraftsPage({ onNavigate }) {
   async function generateIdeas(event) {
     event.preventDefault()
     const content = text.trim()
-    if (!content) return setError('Escreva um tema ou instrução para a IA gerar ideias.')
+    if (!content) return setError('Escreva um tema ou instrução para o sistema inteligente gerar ideias.')
     setGenerating(true)
     setError('')
     try {
@@ -97,7 +97,7 @@ export function DraftsPage({ onNavigate }) {
           platforms: Array.isArray(post.plataformas) && post.plataformas.length ? post.plataformas : ['instagram'],
         }))
         .filter(idea => idea.text.trim())
-      if (!ideas.length) throw new Error('A IA não retornou nenhuma ideia válida. Tente reformular o tema.')
+      if (!ideas.length) throw new Error('O sistema inteligente não retornou nenhuma ideia válida. Tente reformular o tema.')
       await Promise.all(ideas.map(idea => apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify(idea) })))
       setText('')
       await reload()
@@ -150,15 +150,15 @@ export function DraftsPage({ onNavigate }) {
   const mediaCount = drafts.filter(draft => mediaItemsOf(draft).length > 0).length
 
   return <section className="page-view drafts-page drafts-page-v2">
-    <header className="drafts-v2-heading"><div className="drafts-v2-heading-copy"><span className="drafts-v2-heading-icon" aria-hidden="true">✦</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Baú de Ideias</h2><p>Você descreve o que quer fazer, a IA cria 3 opções e você escolhe qual transformar em mídia e publicar.</p></div></div><div className="drafts-v2-heading-actions"><button type="button" className="secondary-button drafts-v2-refresh" onClick={() => reload().catch(() => {})}><span aria-hidden="true">↻</span> Atualizar</button><button type="button" className="secondary-button danger-button" onClick={clearIdeas} disabled={!drafts.length}>Esvaziar Baú</button></div></header>
-    <div className="drafts-v2-howto" role="note"><span className="drafts-v2-howto-icon" aria-hidden="true">i</span><div><strong>Do tema à publicação</strong><p>Digite o que você quer criar e clique em <b>Gerar ideias</b>. A IA entrega 3 opções. Escolha uma, clique em <b>Criar post</b>, faça o upload da imagem ou vídeo no Meu Post e publique ou agende.</p></div></div>
+    <header className="drafts-v2-heading"><div className="drafts-v2-heading-copy"><span className="drafts-v2-heading-icon" aria-hidden="true">✦</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Baú de Ideias</h2><p>Transforme um tema em três ideias. Escolha uma e continue no criador de posts.</p></div></div><div className="drafts-v2-heading-actions"><button type="button" className="secondary-button drafts-v2-refresh" onClick={() => reload().catch(() => {})}><span aria-hidden="true">↻</span> Atualizar</button><button type="button" className="secondary-button danger-button" onClick={clearIdeas} disabled={!drafts.length}>Esvaziar Baú</button></div></header>
+    <div className="drafts-v2-howto" role="note"><span className="drafts-v2-howto-icon" aria-hidden="true">i</span><div><strong>Do tema à publicação</strong><p>Gere ideias, escolha uma e clique em <b>Criar post</b> para revisar e agendar.</p></div></div>
     <div className="drafts-v2-summary" aria-label="Resumo do Baú de Ideias"><article><span className="drafts-v2-stat-icon" aria-hidden="true">▤</span><div><span>Total de ideias</span><strong>{drafts.length}</strong><small>Conteúdos salvos</small></div></article><article><span className="drafts-v2-stat-icon is-purple" aria-hidden="true">◇</span><div><span>Modelos</span><strong>{templatesCount}</strong><small>Prontos para reutilizar</small></div></article><article><span className="drafts-v2-stat-icon is-green" aria-hidden="true">▧</span><div><span>Com mídia</span><strong>{mediaCount}</strong><small>Fotos ou vídeos anexados</small></div></article></div>
     <div className="drafts-v2-workspace">
       <section className="panel drafts-v2-editor-panel">
-        <div className="drafts-v2-editor-heading"><div><p className="eyebrow">CRIAR AGORA</p><h3>Gerar novas ideias</h3><p>Descreva um tema e use a mesma IA do Meu Post para criar sugestões.</p></div><span className="drafts-v2-editor-icon" aria-hidden="true">✦</span></div>
+        <div className="drafts-v2-editor-heading"><div><p className="eyebrow">CRIAR AGORA</p><h3>Gerar novas ideias</h3><p>Informe um tema e receba sugestões para revisar.</p></div><span className="drafts-v2-editor-icon" aria-hidden="true">✦</span></div>
         <form className="drafts-v2-form" onSubmit={generateIdeas}>
-          <label className="drafts-v2-text-field"><span>Minhas ideias</span><textarea value={text} onChange={event => setText(event.target.value)} placeholder="Minhas ideias" aria-label="Minhas ideias para gerar conteúdo" maxLength={5000}/><span className="drafts-v2-editor-meta"><span>{text.length}/5000 caracteres</span><span>A IA gerará 3 ideias para o Instagram</span></span></label>
-          <div className="drafts-v2-form-tip"><span aria-hidden="true">✦</span><span>Descreva o tema, público, objetivo ou tom. A IA transforma seu ponto de partida em ideias prontas.</span></div>
+          <label className="drafts-v2-text-field"><span>Minhas ideias</span><textarea value={text} onChange={event => setText(event.target.value)} placeholder="Minhas ideias" aria-label="Minhas ideias para gerar conteúdo" maxLength={5000}/><span className="drafts-v2-editor-meta"><span>{text.length}/5000 caracteres</span><span>O sistema inteligente gerará 3 ideias para o Instagram</span></span></label>
+          <div className="drafts-v2-form-tip"><span aria-hidden="true">✦</span><span>Descreva o tema, público, objetivo ou tom. O sistema inteligente transforma seu ponto de partida em ideias prontas.</span></div>
           <button className="action-button drafts-v2-save-button" type="submit" disabled={generating}>{generating ? 'Gerando ideias...' : 'Gerar ideias'} <span aria-hidden="true">→</span></button>
         </form>
       </section>

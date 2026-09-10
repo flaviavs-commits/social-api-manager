@@ -57,7 +57,7 @@ function readImageMeta(file) {
 
 async function imageSourceToFile(source, fileName = 'imagem-gerada-ia.png') {
   const response = await fetch(source)
-  if (!response.ok) throw new Error('Não foi possível carregar a imagem gerada pela IA.')
+  if (!response.ok) throw new Error('Não foi possível carregar a imagem gerada pelo sistema inteligente.')
   const blob = await response.blob()
   const extension = blob.type.split('/')[1] || 'png'
   const safeName = fileName.includes('.') ? fileName : `${fileName}.${extension}`
@@ -209,7 +209,7 @@ function captureVideoFramesForAnalysis(file) {
       try {
         duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
         // Um único frame no meio do vídeo não representa uma ação. Amostramos
-        // o começo, o desenvolvimento e o encerramento para a IA entender a
+        // o começo, o desenvolvimento e o encerramento para o sistema inteligente entender a
         // sequência sem precisar enviar o arquivo de vídeo inteiro.
         const percentages = duration > 8 ? [0.04, 0.28, 0.52, 0.76, 0.96] : [0.05, 0.35, 0.65, 0.95]
         frameTimes = Array.from(new Set(percentages.map(percent => Math.min(Math.max(duration * percent, 0), Math.max(duration - 0.05, 0)))))
@@ -299,7 +299,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     setSuccessMessage('')
     setAnalysisNotes([])
     try {
-      // Envia a sequência inteira em uma única análise para a IA entender a
+      // Envia a sequência inteira em uma única análise para o sistema inteligente entender a
       // narrativa do carrossel, escolher a melhor capa e evitar uma legenda
       // baseada apenas na primeira foto.
       const targets = files.slice(0, analysisLimit)
@@ -330,7 +330,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
         .filter(Boolean)
       const missingPlatforms = requestedPlatforms.filter(platform => !suggestions.some(suggestion => suggestion.plataforma === platform))
       if (missingPlatforms.length) {
-        setAnalysisError(`A IA não retornou uma sugestão para: ${missingPlatforms.join(', ')}. Tente novamente.`)
+        setAnalysisError(`O sistema inteligente não retornou uma sugestão para: ${missingPlatforms.join(', ')}. Tente novamente.`)
       } else {
         onApply(suggestions, { silent: true })
         setAnalysisNotes([
@@ -347,7 +347,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
       setAnalysisError(caught?.status === 408 || message.toLowerCase().includes('tempo esgotado')
         ? `A análise do ${mediaLabel} demorou mais que o esperado. Tente novamente em instantes.`
         : message.includes('limite') || message.includes('429')
-        ? 'O modelo de IA atingiu o limite de requisições. Tente novamente em instantes.'
+        ? 'O modelo do sistema atingiu o limite de requisições. Tente novamente em instantes.'
         : message.startsWith('O navegador não conseguiu') || message.startsWith('Não foi possível')
           ? message
           : `Não foi possível analisar o ${mediaLabel}. Confira o arquivo e tente novamente.`)
@@ -357,7 +357,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
 
   const ready = files.length > 0 && selected.length > 0 && (!hasVideo || hasVideoContext)
 
-  return <section className="media-ai-generator" aria-label="Gerar descrição do post com inteligência artificial" aria-busy={busy}>
+  return <section className="media-ai-generator" aria-label="Gerar descrição do post com inteligência avançada" aria-busy={busy}>
     <div className="media-ai-generator-icon" aria-hidden="true">✦</div>
     <div className="media-ai-generator-content">
       <div className="media-ai-generator-heading">
@@ -366,14 +366,14 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
           <strong>Gere uma descrição para sua mídia</strong>
         </div>
         <span className={`media-ai-generator-state${busy ? ' is-loading' : ''}${successMessage ? ' is-success' : ''}`}>
-          <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'IA visual'}
+          <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'Análise visual'}
         </span>
       </div>
-      <p className="media-ai-generator-copy">{hasVideo ? 'Conte em uma frase do que o vídeo fala. A IA usará esse contexto e as cenas para melhorar a descrição.' : contexto.trim() ? 'A IA analisa o que você pediu no texto da publicação e a sua mídia para melhorar a descrição.' : 'A IA observa a imagem ou o vídeo e preenche o texto de cada rede com uma sugestão pronta para revisar.'}</p>
+      <p className="media-ai-generator-copy">{hasVideo ? 'Descreva o vídeo em uma frase para receber uma sugestão de legenda.' : contexto.trim() ? 'Receba sugestões de legenda a partir do seu texto e da mídia.' : 'Gere legendas para cada rede a partir da sua imagem ou vídeo.'}</p>
       {hasVideo && <label className="media-ai-video-context">
         <span className="media-ai-video-context-label"><strong>Sobre o que é este vídeo?</strong><small>Uma frase curta já é suficiente</small></span>
         <textarea value={videoDescription} onChange={event => { setVideoDescription(event.target.value); setAnalysisError(''); setSuccessMessage('') }} maxLength={500} placeholder="Ex.: Mostro como organizar uma rotina de estudos em poucos passos." aria-label="Descreva em uma frase sobre o que o vídeo fala" />
-        <small className="media-ai-video-context-hint">Esse texto serve de direção para a IA e não substitui as descrições finais das redes.</small>
+        <small className="media-ai-video-context-hint">Esse texto serve de direção para o sistema inteligente e não substitui as descrições finais das redes.</small>
       </label>}
       <div className="media-ai-generator-footer">
         <div className="media-ai-generator-hints" aria-live="polite">
@@ -483,7 +483,7 @@ function PreviewVideo({ src, platform, coverUrl = '' }) {
     }
 
     // Usa a mesma confirmação de frame decodificado (requestVideoFrameCallback,
-    // com fallback de dois paints) já validada na captura para a IA — esperar
+    // com fallback de dois paints) já validada na captura para o sistema inteligente — esperar
     // apenas dois paints de relógio, sem essa confirmação, podia render um
     // frame borrado/incompleto logo após o seek para perto do primeiro
     // keyframe do vídeo, especialmente em decodificadores acelerados por GPU.

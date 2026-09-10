@@ -2,7 +2,7 @@ import { getPlan, minimumPlanForModule } from '../../lib/plans.js'
 
 const MODULE_LABELS = {
   rascunhos: 'Baú de Ideias',
-  ai: 'Assistente IA',
+  ai: 'Assistente inteligente',
   biblioteca: 'Sua biblioteca de mídia',
   filas: 'Repetidor de posts',
   smartlinks: 'Smartlinks',

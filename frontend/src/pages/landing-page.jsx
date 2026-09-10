@@ -1,161 +1,249 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { PLANS, getMeuEcooPricing } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
-import { ThemeToggleButton } from '../components/ui/theme-selector.jsx'
 import logo from '../../../public/logo.png'
-import logoIcon from '../../../public/logo-icon.png'
+import heroPhone from '../../../public/ecoo-phone-premium-remastered-v2.png'
 
-const meuEcooLogo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAbCAIAAADkn6hGAAAESElEQVR4nOyWW0wcVRjH55w5szu77A4Lu7QspQiWchFIuBoqqJR7rGirGG1Mn8REa4wxrQ+++WB80bTxRU20Jm1jTdrUVqihIlShNjUaq6XblF1Y7hWEXVh2Z2fneo5nF6sBLOtLH0z88uXMmTPn/M5l/vN9gwghzL0xxNwz+x/9r9CiuDI9OTYzMxGTpLuNtFit27fn5eTm22ypydEkYSO3hj899lHPhQvBpeWEfABzp0h0+vMCAONMT3uio+OFrpcLCkshhOvQYJ34PDeuvffuO+e6exWNob0BBdxFnIQhGGMzxzy9d8+hw2+WlFas67Bmqt9uT33T1zt4+aqB41DDMLChM4xBHWN91f++NQwY7wO/HbzS93XvxrnXoG/d/NXn8wYCy6qiI0gsZki3JEm6phngzqloGpZiBm3nTQBCoqpGIBAaHfVuRK85azEakWS1eKfjmbbMhhqHzQK94+FzA79fvBxcCuscByk3XUAttfaOetv927hQWB/6JdbzvRiV5CToqKTXVTheerx4V7VDUzWs6IV5zsZa4exF+5ETs55RqTTf+trzGfsa7DwiEVG/LwOU7zBVF5onZVMSdE2x2VmRmQoXrl0Pneye8U2IdeXCc22u/e0uxJLuwWBHvbDvUfvUnHK6P3T1hpTtQk8+bHsgB+XbUBK0E3kdQnhsVDp6fOJUzyw2yKUfljyjkUMH3HvqhN2VFp4jHn/syGeBnqGwohAGgLlF/fVOe1HRfBK0uDRus7C+8ciIP8whwKUgTSdn+oOE4DcObM3LQmPT8tFTgfODYZYFNjtUVXJ7QZuaV7PdgSRohmEJjusVrFpCQIAFHKLrw1RtgMG0jlBCLiQuGCr9hMLBRvQa8fGOAtaS5t5iynSaZBlHwrqq4LZa4WCnK2cLG4nq21zsix2pjVUWul4xihWVOO0wQwDmFFeSVS/IuUYgXOA2vbI/y5XOzi0olUWWziZhRxZ3/rvQV1fCrTXW9gcth5915LvRsF/JSIWtlfxWBwzKzp2bo6/75fDcYllmpPWh1EcqeFnWeQ7HZO10//L7nwc9Y/JNvyxJQls1/+reFDHKs4BABvzo1RYXjdrN0SkW1DccOXbC/1RjWn251SnA+YB89lLoi4GV4Aq2WFnvtP728dDPI3xrlTktBQRC+k8+fWBYr9plMJujM7e6HQ7BOyG99aFoMkEqEqqQmGKwEHAmGsgY2rIs4pP90pmhGIJAx0TTGDMHmx0Cs/lrLCmrLCkpyXJnmMyIMDCmEjqYN7P0E1+Nj7TgEOQ5iDGj0kjF0Ees2+0qKy1LgrYL6S0tjzU3NSA6FmMaVFmWboulDiFadSpG6pBFNDjRAIhY3Nq8u6m5fSN6Tbymdapmn9fzyccffNndHQwmUgH4B80yJJEKnPFU0NV1sLC4LAn6L1tNYLOzk1I0Gj+FdXDaAoHVas3Ozt0kgYH/5C/OHwAAAP//6kf7bQAAAAZJREFUAwBMvwMB9YhWkwAAAABJRU5ErkJggg=='
+const features = [
+  ['calendar', 'Agendamento', 'Programe uma vez.', 'Prepare os posts da semana inteira e deixe a publicação acontecer no horário escolhido — sem abrir rede por rede.'],
+  ['sparkle', 'Criação assistida', 'Saia da página em branco.', 'Peça ideias, legendas e variações ao sistema inteligente. Você revisa, ajusta o tom e deixa com a sua cara.'],
+  ['repeat', 'Reaproveitamento', 'Aproveite o que já criou.', 'Reutilize mídias da biblioteca, salve rascunhos e programe conteúdos que se repetem toda semana.'],
+  ['chart', 'Relatórios', 'Entenda sem montar planilhas.', 'Acompanhe alcance, engajamento e crescimento de cada rede num painel único e pronto.'],
+  ['message', 'Caixa de entrada', 'Responda em um só lugar.', 'Reúna os comentários do Instagram, Facebook e YouTube na mesma tela e responda sem trocar de aba.'],
+  ['link', 'Link na bio', 'Organize seus links.', 'Monte uma página de links para a bio e facilite o acesso a todos os seus canais.'],
+]
 
-const plans = Object.values(PLANS).map(plan => ({
-  ...plan,
-  featured: plan.id === 'pro',
-  features: plan.features.map(feature => feature.replace('Analise', 'Análise')),
-}))
+const proofPoints = [
+  ['4 redes', 'Instagram, TikTok, Facebook e YouTube no mesmo lugar'],
+  ['1 painel', 'Planejar, publicar e medir sem trocar de ferramenta'],
+  ['0 planilhas', 'Relatórios prontos, sem montagem manual'],
+  ['7 dias', 'Programe a semana inteira de conteúdo de uma vez'],
+]
 
-function formatPlanPrice(priceCents) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
-}
+const socials = [
+  ['instagram', 'Instagram'],
+  ['tiktok', 'TikTok'],
+  ['facebook', 'Facebook'],
+  ['youtube', 'YouTube'],
+]
 
-function Icon({ name, size = 18 }) {
+function Icon({ name, size = 22 }) {
   const paths = {
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
-    play: <path d="m8 5 11 7-11 7V5Z" />,
+    arrowUp: <><path d="M12 19V5" /><path d="m6 11 6-6 6 6" /></>,
     check: <path d="m5 12 4 4L19 6" />,
-    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></>,
-    chart: <><path d="M4 19V9M10 19V5M16 19v-7M22 19H2" /></>,
-    heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.7-7.5 1.1-1.1a5.5 5.5 0 0 0 0-7.8Z" />,
-    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
-    sparkle: <><path d="m12 3-1.6 4.4L6 9l4.4 1.6L12 15l1.6-4.4L18 9l-4.4-1.6L12 3ZM5 16l-.8 2.2L2 19l2.2.8L5 22l.8-2.2L8 19l-2.2-.8L5 16ZM19 14l-.8 2.2L16 17l2.2.8L19 20l.8-2.2L22 17l-2.2-.8L19 14Z" /></>,
-    folder: <><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z" /><path d="M3 9h18" /></>,
-    shield: <><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></>,
-    message: <><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.4 8.4 0 0 1-3.4-.7L4 20l1.2-3.5A7.2 7.2 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z" /><path d="M8 12h.01M12 12h.01M16 12h.01" /></>,
-    link: <><path d="M10 13.5 8.5 15a3.2 3.2 0 0 1-4.5-4.5l2-2a3.2 3.2 0 0 1 4.5 0" /><path d="m14 10.5 1.5-1.5a3.2 3.2 0 1 1 4.5 4.5l-2 2a3.2 3.2 0 0 1-4.5 0" /><path d="m8.5 15.5 7-7" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h6" /></>,
+    sparkle: <path d="m12 3-2.5 6.5L3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5L12 3Z" />,
+    repeat: <><path d="M4 10a8 8 0 0 1 14-5l2 2M20 3v4h-4M20 14A8 8 0 0 1 6 19l-2-2M4 21v-4h4" /></>,
+    chart: <><path d="M4 4v16h16M8 15v-4M13 15V7M18 15v-6" /></>,
+    message: <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l1.5-4A8.5 8.5 0 1 1 21 11.5Z" />,
+    link: <><path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-5-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 5 6l-4 4a4 4 0 0 1-6 0" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9" r="1.5" /><path d="m21 15-4.5-4.5L8 19" /></>,
-    eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></>,
-    menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
+    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
+    share: <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" /></>,
+    user: <><circle cx="12" cy="7.5" r="3.6" /><path d="M18.5 20v-1.2a3.8 3.8 0 0 0-3.8-3.8H9.3a3.8 3.8 0 0 0-3.8 3.8V20" /></>,
+    login: <><path d="M14 3h4.5A1.5 1.5 0 0 1 20 4.5v15a1.5 1.5 0 0 1-1.5 1.5H14" /><path d="m10 8 4 4-4 4" /><path d="M14 12H3.5" /></>,
+    userPlus: <><circle cx="9.5" cy="8" r="3.4" /><path d="M4 19.5a5.5 5.5 0 0 1 11 0" /><path d="M18.5 8v6M15.5 11h6" /></>,
+    card: <><rect x="2" y="5" width="20" height="14" rx="3" /><path d="M2 10h20" /></>,
+    heart: <path d="M12 20s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 5C19 15.5 12 20 12 20Z" />,
+    comment: <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l1.5-4A8.5 8.5 0 1 1 21 11.5Z" />,
+    send: <path d="m22 2-7 20-4-9-9-4Z" />,
+    bookmark: <path d="M6 3h12v18l-6-4-6 4Z" />,
+    dots: <><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></>,
+    rocket: <><path d="M12 2.5c3 2.4 4.6 5.8 4.6 9.6l-1.8 2.4H9.2L7.4 12.1c0-3.8 1.6-7.2 4.6-9.6Z" /><circle cx="12" cy="9.3" r="1.7" /><path d="M9.2 14.5 7 16.2c-1 .8-1.5 2-1.5 3.3 1.3 0 2.5-.5 3.3-1.4l1.4-1.6M14.8 14.5l2.2 1.7c1 .8 1.5 2 1.5 3.3-1.3 0-2.5-.5-3.3-1.4l-1.4-1.6" /></>,
+    bulb: <><path d="M9.2 17h5.6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z" /></>,
+    help: <><circle cx="12" cy="12" r="9" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3" /><circle cx="12" cy="17" r=".8" fill="currentColor" /></>,
+    bars: <><path d="M5 20v-6M12 20V8M19 20v-9" /></>,
   }
-
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function Logo({ footer = false }) {
-  return <a className={`landing-logo${footer ? ' landing-logo--footer' : ''}`} href="/" aria-label="MeuEcooMidia, início">
-    <img className="landing-logo-img" src={logo} alt="MeuEcooMidia" />
-  </a>
-}
-
-function DashboardMock() {
-  const metrics = [
-    { icon: 'eye', className: 'gold', label: 'Visualizações', value: '48,6 mil', change: '+28%' },
-    { icon: 'heart', className: 'pink', label: 'Interações', value: '3.842', change: '+17%' },
-    { icon: 'users', className: 'blue', label: 'Novos seguidores', value: '+1.274', change: '+32%' },
-  ]
-
-  return <div className="landing-dashboard" aria-label="Demonstração do painel MeuEcooMidia">
-    <div className="dashboard-topbar"><div className="dashboard-mini-logo" aria-hidden="true"><img src={logoIcon} alt="" /></div><div className="dashboard-search">⌕ &nbsp;Buscar na plataforma</div><div className="dashboard-user">MA</div></div>
-    <div className="dashboard-body">
-      <aside className="dashboard-sidebar"><span className="is-active">⌂</span><span>□</span><span>◇</span><span>≋</span></aside>
-      <div className="dashboard-content">
-        <div className="dashboard-heading"><div><small>VISÃO GERAL</small><h3>Bom dia, Mariana 👋</h3></div><span className="dashboard-period">Últimos 30 dias⌄</span></div>
-        <div className="dashboard-metrics">{metrics.map(metric => <div className="dashboard-metric" key={metric.label}><div className={`metric-icon ${metric.className}`}><Icon name={metric.icon} size={14} /></div><small>{metric.label}</small><strong>{metric.value}</strong><span>↗ {metric.change}</span></div>)}</div>
-        <div className="dashboard-chart"><div className="chart-title"><div><b>Crescimento da audiência</b><small>Desempenho consolidado</small></div><span>Alcance</span></div><div className="chart-area"><div className="chart-lines" /><svg viewBox="0 0 560 150" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="landing-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e7a92e" stopOpacity=".35" /><stop offset="1" stopColor="#e7a92e" stopOpacity="0" /></linearGradient></defs><path d="M0 125 C45 120 70 90 110 95 S170 112 210 72 S270 38 310 60 S370 105 420 48 S500 20 560 18 L560 150 L0 150Z" fill="url(#landing-area)" /><path d="M0 125 C45 120 70 90 110 95 S170 112 210 72 S270 38 310 60 S370 105 420 48 S500 20 560 18" fill="none" stroke="#e7a92e" strokeWidth="3" /></svg><div className="chart-labels"><span>01 Ago</span><span>08 Ago</span><span>15 Ago</span><span>22 Ago</span><span>30 Ago</span></div></div></div>
-      </div>
-    </div>
-    <div className="dashboard-float"><span className="float-check"><Icon name="check" size={14} /></span><div><b>Post publicado!</b><small>Instagram • há 2 min</small></div></div>
-  </div>
-}
-
-function CalendarMock() {
-  const days = Array.from({ length: 28 }, (_, index) => index + 1)
-  const scheduledPosts = {
-    9: { label: 'Reel', platform: 'Instagram', tone: 'instagram' },
-    14: { label: 'TikTok', platform: 'TikTok', tone: 'tiktok' },
-    20: { label: 'Short', platform: 'YouTube', tone: 'youtube' },
-    23: { label: 'Feed', platform: 'Facebook', tone: 'facebook' }
+function BrandGlyph({ name, size = 20 }) {
+  const marks = {
+    instagram: <><rect x="2.5" y="2.5" width="19" height="19" rx="5.5" /><circle cx="12" cy="12" r="4.6" /><circle cx="17.4" cy="6.6" r="1.3" /></>,
+    tiktok: <path d="M14 3c.4 2.6 2 4.2 4.6 4.5v3c-1.7.1-3.2-.4-4.6-1.3v6.1a5.8 5.8 0 1 1-5.8-5.8c.3 0 .6 0 .9.1v3.1a2.8 2.8 0 1 0 2 2.7V3H14Z" />,
+    facebook: <path d="M13.5 21v-7h2.4l.4-3h-2.8V9.1c0-.9.3-1.5 1.6-1.5H16.5V5c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4V11H7.5v3h2.6v7h3.4Z" />,
+    youtube: <><rect x="2.5" y="5.5" width="19" height="13" rx="4" /><path d="M10.5 9.3v5.4l4.6-2.7-4.6-2.7Z" /></>,
   }
-
-  return <div className="calendar-mock"><div className="calendar-head"><b>Agosto 2026</b><span>‹ &nbsp;›</span></div><div className="calendar-week">{['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((day, index) => <b key={`${day}-${index}`}>{day}</b>)}</div><div className="calendar-days">{days.map(day => { const post = scheduledPosts[day]; return <span className={post ? `has-post has-event calendar-event-${post.tone}` : ''} key={day} title={post ? `${post.platform}: ${post.label} agendado` : undefined}><b className="calendar-day-number">{day}</b>{post ? <small className="calendar-event-label">{post.label}</small> : <i />}</span> })}</div></div>
+  const filled = name === 'tiktok' || name === 'facebook'
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{marks[name]}</svg>
 }
 
-function ReportMock() {
-  return <div className="report-card"><div className="report-head"><div><span className="landing-logo-mark landing-logo-mark--small" aria-hidden="true"><img src={logoIcon} alt="" /></span><b>Relatório de desempenho</b></div><div className="period-switch"><button>7 dias</button><button className="selected">30 dias</button><button>90 dias</button></div></div><p>Visão geral • <b>30 dias</b></p><div className="report-metrics"><div><small>Visualizações</small><strong>48,6k</strong><span>↗ 28%</span></div><div><small>Interações</small><strong>3.842</strong><span>↗ 17%</span></div><div><small>Taxa de interação</small><strong>7,9%</strong><span>↗ 1,4%</span></div></div><div className="report-insight"><img className="landing-insight-logo" src={logoIcon} alt="" /><p><b>Leitura rápida</b> Seus Reels tiveram 2,4× mais alcance. Repita temas educativos em vídeos curtos.</p></div></div>
+function Brand() {
+  return <a className="mkt-brand" href="/" aria-label="Meu Ecoo Mídia — início"><img src={logo} alt="Meu Ecoo Mídia" /></a>
 }
 
-function FeatureIcon({ name, tone = '' }) {
-  return <div className={`feature-icon ${tone}`}><Icon name={name} size={20} /></div>
+function AccountMenu() {
+  return <div className="mkt-account">
+    <input type="checkbox" aria-label="Abrir menu de conta" />
+    <span className="mkt-account-btn" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2c2.757 0 5 2.243 5 5.001 0 2.756-2.243 5-5 5s-5-2.244-5-5c0-2.758 2.243-5.001 5-5.001zm0-2c-3.866 0-7 3.134-7 7.001 0 3.865 3.134 7 7 7s7-3.135 7-7c0-3.867-3.134-7.001-7-7.001zm6.369 13.353c-.497.498-1.057.931-1.658 1.302 2.872 1.874 4.378 5.083 4.972 7.346h-19.387c.572-2.29 2.058-5.503 4.973-7.358-.603-.374-1.162-.811-1.658-1.312-4.258 3.072-5.611 8.506-5.611 10.669h24c0-2.142-1.44-7.557-5.631-10.647z" />
+      </svg>
+    </span>
+    <nav className="mkt-account-menu" aria-label="Conta">
+      <span className="mkt-account-title">Sua conta</span>
+      <ul>
+        <li><a href="/login.html"><span className="mkt-account-ic"><Icon name="login" size={17} /></span><span>Entrar</span></a></li>
+        <li><a className="is-primary" href="/criar-conta"><span className="mkt-account-ic"><Icon name="userPlus" size={17} /></span><span>Criar conta grátis</span><Icon name="arrow" size={15} /></a></li>
+      </ul>
+      <p className="mkt-account-foot">Sem cartão de crédito.</p>
+    </nav>
+  </div>
 }
 
-function PlatformScreenshot({ type }) {
-  if (type === 'planner') return <div className="platform-shot platform-shot--planner" aria-label="Prévia do criador de posts e calendário">
-    <div className="platform-shot-top"><b>Novo post</b><span>Salvar rascunho</span></div>
-    <div className="platform-shot-compose"><div className="platform-shot-media"><Icon name="image" size={25} /><small>Adicione uma mídia</small></div><div className="platform-shot-compose-copy"><div className="platform-shot-networks"><PlatformIcon platform="instagram" /><PlatformIcon platform="facebook" /><PlatformIcon platform="tiktok" /><PlatformIcon platform="youtube" /><span>4 redes selecionadas</span></div><div className="platform-shot-lines"><i /><i /><i className="short" /></div><div className="platform-shot-schedule"><span><Icon name="clock" size={12} /> Amanhã, 18:00</span><b><Icon name="check" size={12} /> Agendar post</b></div></div></div>
-    <div className="platform-shot-bottom"><span><Icon name="calendar" size={13} /> Calendário</span><span><Icon name="folder" size={13} /> Biblioteca</span><span className="platform-shot-ai"><Icon name="sparkle" size={13} /> Sugestão de melhor horário</span></div>
-  </div>
+function HandCircleCallout() {
+  const ref = useRef(null)
+  const [drawn, setDrawn] = useState(false)
 
-  if (type === 'ai') return <div className="platform-shot platform-shot--ai" aria-label="Prévia do assistente de inteligência artificial">
-    <div className="platform-shot-top"><b><span className="platform-shot-avatar"><Icon name="sparkle" size={13} /></span> Assistente MeuEcooMídia</b><span>Contexto do negócio ativo</span></div>
-    <div className="platform-shot-chat"><div className="platform-shot-bubble platform-shot-bubble--user">Crie 3 ideias para a campanha de verão e agende a melhor para amanhã.</div><div className="platform-shot-bubble platform-shot-bubble--ai"><b>Separei três caminhos:</b><div className="platform-shot-ideas"><span>01 · Bastidores da marca <Icon name="check" size={11} /></span><span>02 · Dica rápida em vídeo <Icon name="check" size={11} /></span><span>03 · Oferta para a comunidade <Icon name="check" size={11} /></span></div><small>Também posso adaptar legenda, mídia e horário para cada rede.</small></div></div>
-    <div className="platform-shot-prompt"><span>Peça qualquer coisa para a IA...</span><b><Icon name="arrow" size={13} /></b></div>
-  </div>
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const prefersReduced = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReduced || typeof IntersectionObserver !== 'function') {
+      setDrawn(true)
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        setDrawn(true)
+        observer.disconnect()
+      }
+    }, { threshold: 0.6 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
-  if (type === 'analytics') return <div className="platform-shot platform-shot--analytics" aria-label="Prévia do painel de análise de desempenho e audiência">
-    <div className="platform-shot-top"><b>Visão geral</b><span>Todos os canais⌄</span></div>
-    <div className="platform-shot-metrics"><div><small>Alcance</small><strong>48,6k</strong><em>+28%</em></div><div><small>Interações</small><strong>3.842</strong><em>+17%</em></div><div><small>Seguidores</small><strong>+1.274</strong><em>+32%</em></div></div>
-    <div className="platform-shot-chart"><div className="platform-shot-chart-head"><b>Crescimento da audiência</b><span>30 dias</span></div><div className="platform-shot-bars"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div></div>
-    <div className="platform-shot-audience"><span><Icon name="users" size={13} /> Público principal: 25–34 anos</span><span><Icon name="clock" size={13} /> Melhor horário: terça, 18h</span></div>
+  return <div ref={ref} className={`mkt-callout${drawn ? ' is-drawn' : ''}`} aria-hidden="true">
+    <span className="mkt-callout-text">4 redes<br />em um só<br />lugar!</span>
+    <svg className="mkt-callout-mark" viewBox="0 0 300 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path className="mkt-callout-ring" pathLength="1" d="M70 55C41 70 33 120 55 158c24 41 96 48 158 36 47-9 78-44 74-86-4-41-58-63-118-58-38 3-71 14-90 33" />
+      <path className="mkt-callout-ring mkt-callout-ring--2" pathLength="1" d="M63 78C46 104 52 143 88 165c40 24 108 22 160-2 41-19 55-58 38-92-16-32-70-45-128-38-40 5-73 20-90 43" />
+      <path className="mkt-callout-arrow" pathLength="1" d="M96 178c-14 12-22 27-24 44m0 0 16-13m-16 13-4-20" />
+    </svg>
   </div>
+}
 
-  if (type === 'engagement') return <div className="platform-shot platform-shot--engagement" aria-label="Prévia do inbox e smartlink">
-    <div className="platform-shot-top"><b>Engajamento</b><span>3 novas interações</span></div>
-    <div className="platform-shot-engagement-grid"><div className="platform-shot-inbox"><div className="platform-shot-inbox-title"><Icon name="message" size={13} /> Inbox centralizado</div><div className="platform-shot-inbox-row active"><span>MS</span><p><b>Mariana Silva</b><small>Adorei esse conteúdo! ❤️</small></p><em>agora</em></div><div className="platform-shot-inbox-row"><span>RC</span><p><b>Rafael Costa</b><small>Qual é o link?</small></p><em>2m</em></div><div className="platform-shot-inbox-row"><span>LA</span><p><b>Luiza Alves</b><small>Comentou no YouTube</small></p><em>8m</em></div></div><div className="platform-shot-smartlink"><div className="platform-shot-smartlink-icon"><Icon name="link" size={18} /></div><b>Seu Smartlink</b><small>meuecoo.bio/minhamarca</small><div><span>Instagram</span><span>WhatsApp</span><span>Site</span><span>YouTube</span></div></div></div>
+function HeroStage() {
+  const highlightsId = useId()
+  return <div className="mkt-stage mkt-stage--render">
+    <img className="mkt-hero-render" src={heroPhone} width={1122} height={1402}
+      alt="Celular Ecoo Mídia com publicações para Instagram, Facebook, TikTok e YouTube em um só lugar."
+      fetchPriority="high" decoding="async" />
+    {/* Keep the original screen white above the studio-background blend.
+        This inset follows this exact asset; it is not a replacement UI. */}
+    <svg className="mkt-hero-highlights" viewBox="0 0 1122 1402" aria-hidden="true" focusable="false">
+      <defs>
+        <clipPath id={highlightsId}>
+          <path d="M805 143Q849 135 854 184L755 1160Q750 1214 702 1217L329 1207Q275 1202 278 1157L402 303Q410 248 460 232Z" />
+        </clipPath>
+      </defs>
+      <image href={heroPhone} width="1122" height="1402" clipPath={`url(#${highlightsId})`} />
+    </svg>
   </div>
+}
 
-  if (type === 'security') return <div className="platform-shot platform-shot--security" aria-label="Prévia das configurações de segurança e integrações">
-    <div className="platform-shot-top"><b>Segurança e integrações</b><span>Conta protegida</span></div>
-    <div className="platform-shot-security-list"><div><span className="platform-shot-security-icon"><Icon name="shield" size={16} /></span><p><b>Autenticação em duas etapas</b><small>Ativada para sua conta</small></p><em>Ativo</em></div><div><span className="platform-shot-security-icon"><Icon name="check" size={16} /></span><p><b>Login rápido via Google</b><small>Conectado com segurança</small></p><em>Ativo</em></div><div><span className="platform-shot-security-icon"><Icon name="link" size={16} /></span><p><b>Redes e chaves de acesso</b><small>Instagram · Facebook · TikTok · YouTube</small></p><em>Gerenciar</em></div></div>
-  </div>
-
-  return <div className="platform-shot platform-shot--assets" aria-label="Prévia da biblioteca de ativos"><div className="platform-shot-top"><b>Biblioteca de ativos</b><span>+ Nova pasta</span></div><div className="platform-shot-assets-head"><Icon name="folder" size={14} /> Todos os arquivos <span>128 itens</span></div><div className="platform-shot-assets-grid"><div><span className="platform-shot-thumb thumb-gold"><Icon name="image" size={17} /></span><small>Campanha verão</small></div><div><span className="platform-shot-thumb thumb-pink"><Icon name="image" size={17} /></span><small>Produtos</small></div><div><span className="platform-shot-thumb thumb-blue"><Icon name="folder" size={17} /></span><small>Textos e hashtags</small></div><div><span className="platform-shot-thumb thumb-purple"><Icon name="folder" size={17} /></span><small>Rascunhos</small></div></div></div>
+function Plans() {
+  return <section className="mkt-section mkt-container" id="planos" aria-labelledby="plans-title">
+    <div className="mkt-section-head"><p className="mkt-eyebrow">Escolha o seu ritmo</p><h2 id="plans-title">Planos que crescem<br />com você.</h2><p>Os recursos que simplificam sua rotina, com espaço para as suas redes.</p></div>
+    <div className="mkt-plans">{Object.values(PLANS).map(plan => <article className={`mkt-plan${plan.id === 'pro' ? ' mkt-plan--featured' : ''}`} key={plan.id}>
+      <div className="mkt-plan-heading"><h3>{plan.name.replace('EcooMidia ', '')}</h3>{plan.id === 'pro' && <span>Para ampliar sua rotina</span>}</div>
+      <p className="mkt-price"><strong>{plan.price}</strong><span>{plan.cadence}</span></p>
+      <p>Até <b>{plan.maxConnections} redes sociais</b> conectadas.</p>
+      <ul className="mkt-plan-highlights"><li><Icon name="check" size={18} />Agendamento e publicações recorrentes</li><li><Icon name="check" size={18} />Sistema inteligente para criar conteúdo</li><li><Icon name="check" size={18} />Relatórios em um só lugar</li></ul>
+      <details className="mkt-plan-details"><summary>Todos os recursos e limites</summary><ul>{plan.features.map(feature => <li key={feature}>{feature}</li>)}</ul></details>
+      {plan.meuEcooAccess !== 'none' && <p className="mkt-extra">{plan.meuEcooAccess === 'free' ? 'MeuEcoo incluído sem custo adicional.' : `MeuEcoo opcional: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(getMeuEcooPricing(plan).finalPriceCents / 100)}/mês, com ${plan.meuEcooDiscountPercent}% de desconto.`}</p>}
+      <a className={`mkt-button ${plan.id === 'pro' ? 'mkt-button--primary' : 'mkt-button--outline'}`} href={`/criar-conta?plan=${plan.id}`}>Escolher {plan.name.replace('EcooMidia ', '')}<Icon name="arrow" size={18} /></a>
+    </article>)}</div>
+    <details className="mkt-ecoo"><summary>O que é o MeuEcoo?</summary><p>Um produto separado, com cursos e ferramentas para desenvolver foco, hábitos e organização pessoal. Opcional no Pro e incluído no Premium.</p><a href="https://www.meuecoo.com/" target="_blank" rel="noopener noreferrer">Conhecer o MeuEcoo ↗</a></details>
+  </section>
 }
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
-
   useEffect(() => {
-    const previousScrollRestoration = window.history.scrollRestoration
-    window.history.scrollRestoration = 'manual'
-
-    if (window.location.hash) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`)
-    window.scrollTo(0, 0)
-    window.requestAnimationFrame(() => window.scrollTo(0, 0))
-
-    return () => { window.history.scrollRestoration = previousScrollRestoration }
+    const closeOnEscape = event => { if (event.key === 'Escape') setMenuOpen(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
   }, [])
 
-  return <main className="landing-page" id="inicio">
-     <header className="landing-nav-wrap"><nav className="landing-nav landing-container" aria-label="Navegação principal"><Logo /><button className="landing-menu-button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(current => !current)}><Icon name="menu" size={22} /></button><div className={`landing-nav-links${menuOpen ? ' is-open' : ''}`}><a href="#recursos" onClick={() => setMenuOpen(false)}>Recursos</a><a href="#como-funciona" onClick={() => setMenuOpen(false)}>Como funciona</a><a href="#resultados" onClick={() => setMenuOpen(false)}>Resultados</a><a className="landing-mobile-login-link" href="/login.html" onClick={() => setMenuOpen(false)}>Entrar</a></div><div className="landing-nav-actions"><ThemeToggleButton className="landing-theme-toggle"/><a className="landing-login-link" href="/login.html">Entrar</a><a className="landing-nav-cta" href="#planos" onClick={() => setMenuOpen(false)}>Conhecer os planos <Icon name="arrow" size={16} /></a></div></nav></header>
-
-    <section className="landing-hero landing-container"><div className="landing-hero-copy"><div className="landing-eyebrow"><span className="landing-live-dot" /> Gestão inteligente para redes sociais</div><h1>Sua marca mais longe.<br /><em>Seu trabalho mais simples.</em></h1><p>Planeje, publique e acompanhe os resultados de todas as suas redes sociais em um único lugar — com dados que ajudam você a decidir o próximo passo.</p><div className="landing-hero-actions"><a className="landing-btn landing-btn--primary" href="#planos">Ver planos e preços <Icon name="arrow" /></a></div><div className="landing-trust"><div className="landing-avatars"><span>LA</span><span>MS</span><span>RC</span><span>+8k</span></div><p><b>Mais tempo para criar.</b><br />Menos tempo entre abas e planilhas.</p></div></div><DashboardMock /></section>
-
-    <section className="landing-network-strip"><div className="landing-container"><p>Conecte e gerencie as redes que fazem parte da sua estratégia</p><div className="landing-network-list"><span><PlatformIcon platform="instagram" className="landing-platform-icon" /> Instagram</span><span><PlatformIcon platform="facebook" className="landing-platform-icon" /> Facebook</span><span><PlatformIcon platform="youtube" className="landing-platform-icon" /> YouTube</span><span><PlatformIcon platform="tiktok" className="landing-platform-icon" /> TikTok</span></div></div></section>
-
-    <section className="landing-platform-section landing-container" id="plataforma"><div className="landing-section-kicker">MEUECOOMÍDIA: VISÃO GERAL</div><h2>Uma plataforma inteira,<br /><em>em um só painel.</em></h2><p className="landing-platform-intro">Gerencie Instagram, Facebook, TikTok e YouTube sem alternar entre aplicativos. Planeje, publique, analise e converse com sua audiência no mesmo fluxo.</p>
-    <div className="landing-capability-grid"><article className="landing-capability-card landing-capability-card--wide"><div className="landing-capability-copy"><FeatureIcon name="calendar" /><h3>Agendamento e publicação multiplataforma.</h3><p>Prepare posts, descrições e mídias, publique em todas as redes conectadas ou escolha os canais. O sistema adapta o conteúdo às regras de cada plataforma.</p><ul><li>Melhores horários sugeridos pela IA</li><li>Publicações recorrentes e duplicação de sucesso</li><li>Calendário com tudo programado</li></ul></div><PlatformScreenshot type="planner" /></article><article className="landing-capability-card"><div className="landing-capability-copy"><FeatureIcon name="folder" tone="pink" /><h3>Gestão de ativos.</h3><p>Guarde seus rascunhos</p></div><PlatformScreenshot type="assets" /></article><article className="landing-capability-card"><div className="landing-capability-copy"><FeatureIcon name="sparkle" tone="purple" /><h3>Assistente de IA avançado.</h3><p>Transforme uma ideia em posts prontos, peça ajustes em linguagem natural e receba leituras coerentes com o contexto do seu negócio.</p><ul><li>Baú de ideias com 3 sugestões</li><li>Análise visual, contextual e tradução de métricas</li></ul></div><PlatformScreenshot type="ai" /></article><article className="landing-capability-card landing-capability-card--wide"><div className="landing-capability-copy"><FeatureIcon name="chart" tone="blue" /><h3>Análise de desempenho e audiência.</h3><p>Monitore cada rede em uma visão unificada ou filtre por plataforma. Entenda quem é sua audiência e o que fazer em seguida.</p><ul><li>Dados demográficos e melhores dias e horários</li><li>Relatórios em PDF programados por e-mail</li></ul></div><PlatformScreenshot type="analytics" /></article><article className="landing-capability-card"><div className="landing-capability-copy"><FeatureIcon name="message" tone="pink" /><h3>Engajamento e conversão.</h3><p>Responda comentários do Instagram, Facebook e YouTube no Inbox e reúna seus links em uma página para a Bio.</p></div><PlatformScreenshot type="engagement" /></article><article className="landing-capability-card"><div className="landing-capability-copy"><FeatureIcon name="shield" tone="blue" /><h3>Segurança de alto nível.</h3><p>2FA, login via Google, gestão transparente das redes conectadas e chaves de acesso para integrações externas.</p></div><PlatformScreenshot type="security" /></article></div></section>
-
-    <section className="landing-section landing-container" id="recursos"><div className="landing-section-kicker">TUDO EM UM SÓ LUGAR</div><h2>Da ideia ao resultado,<br /><em>sem perder o ritmo.</em></h2><p className="landing-section-intro">Uma plataforma feita para quem quer transformar presença digital em crescimento — sem complicação.</p><div className="landing-feature-grid"><article className="landing-feature landing-feature--featured"><div className="landing-feature-copy"><FeatureIcon name="calendar" /><h3>Planeje com clareza.<br />Publique no tempo certo.</h3><p>Organize seu calendário editorial e agende conteúdos para diferentes redes em poucos cliques.</p></div><CalendarMock /></article><article className="landing-feature"><FeatureIcon name="chart" tone="pink" /><h3>Entenda o que está funcionando.</h3><p>Relatórios claros, métricas por rede e leituras rápidas que transformam números em decisões.</p><div className="landing-stat-bars">{[42, 65, 52, 88, 74, 100].map((height, index) => <span style={{ height: `${height}%` }} key={index} />)}</div></article><article className="landing-feature"><FeatureIcon name="sparkle" tone="purple" /><h3>Crie melhor com apoio da IA.</h3><p>Gere ideias, refine legendas e receba insights para manter sua comunicação relevante.</p><div className="landing-ai-box"><span><Icon name="sparkle" size={16} /></span><p>Crie uma legenda envolvente para...</p><i /></div></article></div></section>
-
-    <section className="landing-results" id="resultados"><div className="landing-container landing-results-grid"><div className="landing-result-copy"><div className="landing-section-kicker">DADOS QUE FALAM COM VOCÊ</div><h2>Relatórios de desempenho.<br /><em>Insights que fazem sentido.</em></h2><p>Visualize o desempenho de cada rede, compare períodos e descubra rapidamente onde estão as melhores oportunidades.</p><ul><li><Icon name="check" size={17} /> Métricas consolidadas em tempo real</li><li><Icon name="check" size={17} /> Comparação entre períodos e redes</li><li><Icon name="check" size={17} /> Recomendações práticas de próxima ação</li></ul></div><ReportMock /></div></section>
-
-    <section className="landing-section landing-how-section landing-container" id="como-funciona"><div className="landing-section-kicker">COMECE SEM COMPLICAÇÃO</div><h2>Conecte. Organize. <em>Cresça.</em></h2><div className="landing-steps"><article><span>01</span><div className="landing-step-line" /><h3>Conecte suas redes</h3><p>Autorize seus perfis com segurança pelo fluxo oficial de cada plataforma.</p></article><article><span>02</span><div className="landing-step-line" /><h3>Organize seu conteúdo</h3><p>Crie, revise e agende publicações em um calendário único e visual.</p></article><article><span>03</span><div className="landing-step-line" /><h3>Acompanhe e evolua</h3><p>Veja os resultados, entenda os sinais e melhore sua estratégia continuamente.</p></article></div></section>
-
-    <section className="landing-section landing-plans landing-container" id="planos"><div className="landing-plans-heading"><div><div className="landing-section-kicker">PLANOS PARA CADA MOMENTO</div><h2>Escolha o plano ideal<br />para suas redes.</h2></div><p>Comece com o essencial e evolua quando sua presença digital crescer.</p></div><div className="landing-plans-grid">{plans.map(plan => <article className={`landing-plan${plan.featured ? ' is-popular' : ''}`} key={plan.id}>{plan.featured && <div className="landing-popular-badge">Mais escolhido</div>}<div className="landing-plan-top"><div><h3>{plan.name.replace('EcooMidia ', 'EcooMidia\n')}</h3></div><div className="landing-plan-price"><strong>{plan.price}</strong><small>{plan.cadence}</small></div></div><p>{plan.description}</p><ul>{plan.features.map(feature => <li key={feature}>{feature}</li>)}</ul>{plan.meuEcooAccess !== 'none' && <div className="landing-plan-meuecoo-box"><div className="landing-plan-meuecoo-heading"><Icon name="sparkle" size={15} /><strong>{plan.meuEcooAccess === 'free' ? 'MeuEcoo gratuito' : 'MeuEcoo opcional'}</strong></div>{plan.meuEcooAccess === 'discount' && plan.meuEcooDiscountPercent > 0 && <p className="landing-plan-meuecoo-note">De {formatPlanPrice(getMeuEcooPricing(plan).basePriceCents)} por {formatPlanPrice(getMeuEcooPricing(plan).finalPriceCents)}/mês · economize {formatPlanPrice(getMeuEcooPricing(plan).discountCents)}</p>}</div>}<a className={`landing-plan-btn${plan.featured ? ' is-primary' : ''}`} href={`/criar-conta?plan=${plan.id}`}>Assinar {plan.name} <Icon name="arrow" size={15} /></a></article>)}</div></section>
-
-     <section className="landing-meuecoo-section" id="meuecoo"><div className="landing-container landing-meuecoo-grid"><div className="landing-meuecoo-copy"><div className="landing-section-kicker"><Icon name="sparkle" size={15} /> MEUECOO</div><h2>Conhecimento que vira <em>movimento.</em></h2><p>O MeuEcoo transforma conhecimento em evolução prática. Acompanhe seu desenvolvimento em foco, disciplina, hábitos, comunicação e inteligência emocional, enquanto cuida da saúde, do bem-estar, da organização financeira e do planejamento de carreira — tudo com cursos e miniapps que convertem conceitos em ações e mostram seu progresso de forma mensurável.</p><a className="landing-btn landing-btn--primary" href="https://www.meuecoo.com/" target="_blank" rel="noopener noreferrer">Conhecer o MeuEcoo <Icon name="arrow" /></a></div><div className="landing-meuecoo-journey"><div className="landing-meuecoo-journey-head"><div className="landing-meuecoo-brand"><span className="landing-meuecoo-brand-icon" aria-hidden="true"><img src={meuEcooLogo} alt="" /></span><div><span>MEUECOO</span><strong>Uma jornada feita para você</strong></div></div><span className="landing-meuecoo-status">Em movimento</span></div><div className="landing-meuecoo-progress"><div><small>Progresso da semana</small><strong>3 de 5 passos concluídos</strong></div><div className="landing-meuecoo-progress-track"><span /></div></div><div className="landing-meuecoo-topics"><article><span><Icon name="sparkle" size={14} /></span><div><strong>Foco e hábitos</strong><small>Mais clareza para agir todos os dias.</small></div></article><article><span><Icon name="heart" size={14} /></span><div><strong>Bem-estar e equilíbrio</strong><small>Cuide da sua energia, saúde e rotina.</small></div></article><article><span><Icon name="chart" size={14} /></span><div><strong>Vida e carreira</strong><small>Planeje melhor o próximo passo.</small></div></article><article><span><Icon name="check" size={14} /></span><div><strong>Mini-apps aplicáveis</strong><small>Converta conceito em progresso mensurável.</small></div></article></div><div className="landing-meuecoo-quote"><Icon name="sparkle" size={16} /><p>Um conselheiro inteligente para acompanhar sua jornada com intenção.</p></div></div></div></section>
-
-    <section className="landing-contact" id="contato"><div className="landing-container landing-contact-inner"><Logo footer /><h2>Transforme sua rotina<br />nas redes sociais!</h2><p>Escolha o plano que combina com o momento da sua presença digital.</p><a className="landing-btn landing-btn--primary" href="#planos">Escolher meu plano <Icon name="arrow" /></a></div></section>
-    <footer className="landing-footer"><div className="landing-container landing-footer-inner"><CopyrightNotice /><div><a href="/terms-of-service.html">Termos de uso</a><a href="/privacy-policy.html">Privacidade</a><a href="mailto:suporte@meuecoomidia.com.br">Contato</a></div></div></footer>
-  </main>
+  return <div className="marketing-page">
+    <a className="mkt-skip" href="#conteudo">Pular para o conteúdo</a>
+    <header className="mkt-header"><nav className="mkt-nav mkt-container" aria-label="Navegação principal">
+      <Brand />
+      <div id="mkt-navigation" className={`mkt-nav-links${menuOpen ? ' is-open' : ''}`}>
+        <a className="is-active" href="#conteudo" onClick={() => setMenuOpen(false)}><Icon name="home" size={18} />Início</a>
+        <a href="#recursos" onClick={() => setMenuOpen(false)}><Icon name="bulb" size={18} />O que você ganha</a>
+        <a href="#como-funciona" onClick={() => setMenuOpen(false)}><Icon name="help" size={18} />Como funciona</a>
+        <a className="mkt-nav-login" href="/login.html">Entrar <Icon name="arrow" size={17} /></a>
+      </div>
+      <AccountMenu />
+      <button className="mkt-menu" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} aria-controls="mkt-navigation" onClick={() => setMenuOpen(value => !value)}><Icon name={menuOpen ? 'close' : 'menu'} /></button>
+    </nav></header>
+    <main id="conteudo">
+      <section className="mkt-hero mkt-container" aria-labelledby="hero-title">
+        <div className="mkt-hero-copy">
+          <h1 id="hero-title">Sua rotina<br />nas redes,<br /><em>resolvida.</em></h1>
+          <p className="mkt-hero-sub">Crie, agende e acompanhe suas redes sociais em poucos cliques. Sem complicação, sem estresse. <strong>É simples assim.</strong></p>
+          <div className="mkt-hero-actions">
+            <a className="mkt-button mkt-button--primary mkt-button--lg" href="/criar-conta"><Icon name="rocket" size={18} />Comece agora <Icon name="arrow" size={18} /></a>
+          </div>
+        </div>
+        <HeroStage />
+      </section>
+      <section className="mkt-section mkt-container" id="recursos" aria-labelledby="features-title">
+        <div className="mkt-section-head"><p className="mkt-eyebrow">Menos trabalho manual</p><h2 id="features-title">Sua lista de tarefas<br />em um só lugar.</h2><p>Do primeiro rascunho ao relatório, tudo no mesmo fluxo — sem pular entre aplicativos.</p></div>
+        <div className="mkt-features">{features.map(([icon, tag, title, copy]) => <article key={icon}>
+          <span className="mkt-feature-icon"><Icon name={icon} /></span>
+          <p className="mkt-feature-tag">{tag}</p>
+          <h3>{title}</h3>
+          <p className="mkt-feature-copy">{copy}</p>
+          <span className="mkt-feature-arrow" aria-hidden="true"><Icon name="arrow" size={18} /></span>
+        </article>)}</div>
+        <ul className="mkt-proof" aria-label="Resumo do que a plataforma faz">
+          {proofPoints.map(([value, label]) => <li key={value}><strong>{value}</strong><span>{label}</span></li>)}
+        </ul>
+      </section>
+      <section className="mkt-how" id="como-funciona" aria-labelledby="how-title"><div className="mkt-container">
+        <div className="mkt-section-head"><p className="mkt-eyebrow">Simples de colocar em prática</p><h2 id="how-title">Prepare agora.<br />Ganhe tempo depois.</h2><p>Três passos para tirar a rotina de conteúdo do improviso.</p></div>
+        <ol className="mkt-steps">
+          <li><span>01</span><h3>Conecte suas redes</h3><p>Reúna seus perfis com a autorização oficial de cada plataforma. Leva menos de um minuto.</p></li>
+          <li><span>02</span><h3>Prepare e revise</h3><p>Use o sistema inteligente para criar ideias e legendas, ajuste o tom e organize o que sai em cada rede.</p></li>
+          <li><span>03</span><h3>Deixe programado</h3><p>Escolha os horários. O sistema publica sozinho e reúne os resultados para você acompanhar.</p></li>
+        </ol>
+        <div className="mkt-how-note"><Icon name="clock" /><p>Menos tempo alternando entre aplicativos.<br /><strong>Mais espaço para tocar o seu negócio.</strong></p></div>
+      </div></section>
+      <Plans />
+      <section className="mkt-faq mkt-container" aria-labelledby="faq-title">
+        <div className="mkt-section-head"><p className="mkt-eyebrow">Perguntas frequentes</p><h2 id="faq-title">Ficou alguma dúvida?</h2></div>
+        <div className="mkt-faq-list">
+          <details><summary>As publicações saem automaticamente?</summary><p>Sim. Depois de revisar o conteúdo, escolher as redes e agendar, o sistema envia a publicação no horário definido. Você acompanha o status pelo painel.</p></details>
+          <details><summary>Preciso criar tudo do zero?</summary><p>Não. Use sugestões do sistema inteligente, reaproveite arquivos da biblioteca e transforme rascunhos em novas publicações.</p></details>
+          <details><summary>Posso revisar antes de publicar?</summary><p>Sim. Você confere os textos e as mídias de cada rede e escolhe quando publicar.</p></details>
+          <details><summary>Quais redes posso conectar?</summary><p>Instagram, TikTok, Facebook e YouTube, sempre pela autorização oficial de cada plataforma. O número de conexões depende do seu plano.</p></details>
+          <details><summary>Preciso de cartão de crédito para testar?</summary><p>Não. A conta gratuita libera o essencial para você experimentar o fluxo completo antes de decidir.</p></details>
+        </div>
+      </section>
+      <section className="mkt-cta"><div className="mkt-container">
+        <p className="mkt-eyebrow">Comece hoje</p>
+        <h2>Sua semana de conteúdo, pronta em minutos.</h2>
+        <p>Planeje, publique e acompanhe suas redes num lugar só. Sem cartão de crédito, cancele quando quiser.</p>
+        <a className="mkt-button mkt-button--primary mkt-button--lg" href="/criar-conta">Criar conta gratuita <Icon name="arrow" size={20} /></a>
+      </div></section>
+    </main>
+    <footer className="mkt-footer"><div className="mkt-container">
+      <div className="mkt-footer-top">
+        <div className="mkt-footer-brand"><Brand /><p>Menos tempo nas tarefas. Mais tempo nas ideias.</p><p className="mkt-footer-networks">{socials.map(([key, label]) => <span key={key}><BrandGlyph name={key} size={16} />{label}</span>)}</p></div>
+        <div className="mkt-footer-cols">
+          <nav aria-label="Produto"><strong>Produto</strong><a href="#recursos">Recursos</a><a href="#como-funciona">Como funciona</a><a href="#planos">Preços</a></nav>
+          <nav aria-label="Conta"><strong>Conta</strong><a href="/criar-conta">Criar conta</a><a href="/login.html">Entrar</a></nav>
+          <nav aria-label="Suporte"><strong>Suporte</strong><a href="mailto:suporte@meuecoomidia.com.br">Fale com a gente</a><a href="/terms-of-service.html">Termos de uso</a><a href="/privacy-policy.html">Privacidade</a></nav>
+        </div>
+      </div>
+      <CopyrightNotice />
+    </div></footer>
+  </div>
 }

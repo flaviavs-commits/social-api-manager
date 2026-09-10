@@ -65,7 +65,7 @@ const STEPS = [
       'Use uma mídia já salva na Biblioteca e confira a prévia realista por rede, formato, proporção e resolução.',
       'Configure opções do Instagram (Feed, Reel ou Story), YouTube (título, categoria, formato e público infantil) e TikTok (privacidade, comentários, duetos e stitches).',
       'No Facebook e Instagram, pesquise e associe um local quando essa opção fizer sentido.',
-      'A IA visual pode analisar a imagem ou cenas do vídeo e sugerir descrição, hashtags e texto por rede.',
+      'O sistema inteligente visual pode analisar a imagem ou cenas do vídeo e sugerir descrição, hashtags e texto por rede.',
       'Salve como rascunho/modelo, acompanhe o progresso e use o painel de pendências antes de publicar ou agendar.'
     ]
   },
@@ -162,15 +162,15 @@ const STEPS = [
   },
   {
     page: 'ai',
-    title: 'Assistente IA: planeje, crie e aprenda',
-    body: 'Descreva o que quer publicar e use a IA para gerar ideias, imagens e leituras práticas do seu desempenho.',
+    title: 'Assistente inteligente: planeje, crie e aprenda',
+    body: 'Descreva o que quer publicar e use o sistema inteligente para gerar ideias, imagens e leituras práticas do seu desempenho.',
     tips: [
       'Informe um tema e gere até três sugestões; depois peça mais ideias sem apagar as anteriores.',
       'Escolha o modelo disponível, edite o texto e gere uma imagem única ou um carrossel de 3 a 8 slides para Instagram.',
       'Escolha a rede e a conta compatível para publicar a sugestão; o YouTube exige mídia de vídeo.',
       'Acompanhe o status da publicação e consulte o diagnóstico das execuções do agente.',
       'Analise os últimos 7, 30 ou 90 dias para descobrir melhor horário, período do dia, perfis e nichos com melhor sinal.',
-      'Use as recomendações como apoio: a IA trabalha com os dados reais disponíveis e o limite depende do seu plano.'
+      'Use as recomendações como apoio: o sistema inteligente trabalha com os dados reais disponíveis e o limite depende do seu plano.'
     ]
   },
   {
@@ -181,7 +181,7 @@ const STEPS = [
       'Crie pastas, escolha o destino do upload e envie arquivos para o seu acervo.',
       'Busque por nome e filtre por pasta; veja prévias, tamanho e tags.',
       'Use uma mídia diretamente no Meu Post ou remova arquivos que não precisa mais.',
-      'Peça à IA sugestões de conteúdo com base em nicho, período, redes escolhidas e seus Analytics.',
+      'Peça sugestões de conteúdo para o seu público e as suas redes.',
       'Salve uma sugestão no Baú de Ideias para desenvolver depois.'
     ]
   },
@@ -215,7 +215,7 @@ const STEPS = [
       'Altere nome, avatar, fuso horário, idioma e plataforma padrão.',
       'Escolha quais notificações receber por e-mail: publicações, falhas e comentários.',
       'Troque sua senha, encerre a sessão atual ou saia de todos os dispositivos.',
-      'Consulte o uso de IA, compare os planos e escolha um plano pelo checkout seguro.',
+      'Consulte o uso do sistema inteligente, compare os planos e escolha um plano pelo checkout seguro.',
     'Acesse rapidamente Contas e Atividades.',
       'Aqui você pode iniciar ou rever este tutorial guiado.'
     ]
@@ -234,7 +234,7 @@ const STEPS = [
   {
     eyebrow: 'TUDO PRONTO',
     title: 'Você já conhece toda a plataforma! 🎉',
-    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use a IA para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
+    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use o sistema inteligente para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
     tips: [
       'Comece conectando as redes que deseja administrar.',
       'Use o Meu Post para publicar agora, agendar, salvar um rascunho ou criar um modelo.',

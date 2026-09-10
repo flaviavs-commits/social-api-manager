@@ -43,6 +43,7 @@ import './styles/analytics-verification.css'
 import './styles/layout-spacing.css'
 import './styles/soft-shadow.css'
 import './styles/ui-system.css'
+import './styles/readability.css'
 
 applyTheme(getStoredTheme())
 

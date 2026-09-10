@@ -1,0 +1,50 @@
+/* Shared reading sizes. Component layout and functional controls stay local. */
+html[data-theme] :is(.app-shell-modern, .auth-page, .checkout-page, .admin-page) {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 16px;
+}
+html[data-theme] :is(.page-view, .auth-page, .checkout-page, .admin-page) :is(h1, h2, h3) {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  letter-spacing: -.025em;
+  line-height: 1.25;
+}
+html[data-theme] .app-shell-modern .page-view :is(.panel-heading, .ai-page-intro, .ai-panel-heading, .scheduler-heading, .media-library-heading, .drafts-v2-heading, .inbox-heading, .profile-heading) p:not(.eyebrow) {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 68ch;
+}
+html[data-theme] .app-shell-modern .page-view :is(.eyebrow, .ai-prompt-help, .panel-subtitle, .profile-help-text, .media-ai-generator-copy, .media-ai-video-context-hint) {
+  font-size: 14px;
+  line-height: 1.55;
+}
+html[data-theme] .app-shell-modern .page-view :is(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+}
+html[data-theme] .app-shell-modern .sidebar-navigation button {
+  min-height: 44px !important;
+  font-size: 15px !important;
+}
+html[data-theme] .app-shell-modern .sidebar-nav-group-label {
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card-copy small {
+  font-size: 14px;
+}
+html[data-theme] .app-shell-modern .dashboard-page .dashboard-stat-value {
+  font-family: inherit;
+}
+html[data-theme] :is(.auth-subtitle, .auth-label, .auth-switch, .auth-input, .auth-button, .checkout-form label, .checkout-heading > p, .checkout-section-heading p) {
+  font-size: 16px;
+  line-height: 1.5;
+}
+html[data-theme] :is(.auth-rules, .checkout-password-rules, .checkout-security, .checkout-terms, .checkout-summary-note, .checkout-plan-option small) {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ai-content-limits { font-size: 14px; color: var(--text-secondary); margin-top: 10px; }
+.ai-content-limits summary { cursor: pointer; padding-block: 8px; }
+.ai-content-limits p { margin: 4px 0; max-width: 65ch; }

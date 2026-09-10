@@ -337,7 +337,7 @@ export function DashboardPage({ onNavigate }) {
       <div className="dashboard-hero-tools">
         <div className="dashboard-live-status"><span className="dashboard-live-dot" aria-hidden="true"/><div><strong>{accountsLoading ? 'Verificando redes' : connectedPlatforms ? 'Operação conectada' : 'Conecte sua primeira rede'}</strong><small>{accountsLoading ? 'Aguarde um instante...' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes com acesso`}</small></div></div>
         <div className="dashboard-actions">
-          <button type="button" className="secondary-button dashboard-ai-button" onClick={() => onNavigate('ai')}><span aria-hidden="true">✦</span> Assistente IA</button>
+          <button type="button" className="secondary-button dashboard-ai-button" onClick={() => onNavigate('ai')}><span aria-hidden="true">✦</span> Assistente inteligente</button>
           <button className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
           <button className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
           <button className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
@@ -400,7 +400,7 @@ export function DashboardPage({ onNavigate }) {
         <div className="panel-heading"><div><p className="eyebrow">INSIGHTS PARA AÇÃO</p><h2>O que fazer agora</h2><p className="panel-subtitle">Leituras simples para transformar dados em próximos testes.</p></div><span className="dashboard-insight-spark" aria-hidden="true">✦</span></div>
         <article className="dashboard-insight-card"><span className="dashboard-insight-icon">↗</span><div><strong>Conteúdo</strong><p>{analyticsInsight}</p></div></article>
         <article className="dashboard-insight-card"><span className="dashboard-insight-icon">◷</span><div><strong>Horário de postagem</strong><p>{timeInsight}</p></div></article>
-        <article className="dashboard-insight-card is-action"><span className="dashboard-insight-icon">✦</span><div><strong>Próximo teste</strong><p>Crie uma variação com a IA usando a publicação de melhor desempenho como referência.</p><button type="button" className="link-button" onClick={() => onNavigate('ai')}>Criar com IA</button></div></article>
+        <article className="dashboard-insight-card is-action"><span className="dashboard-insight-icon">✦</span><div><strong>Próximo teste</strong><p>Crie uma variação com o sistema inteligente usando a publicação de melhor desempenho como referência.</p><button type="button" className="link-button" onClick={() => onNavigate('ai')}>Criar uma variação</button></div></article>
       </section>
     </section>
 
