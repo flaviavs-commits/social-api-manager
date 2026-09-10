@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { PLANS } from '../lib/plans.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
@@ -35,19 +35,51 @@ function tabFromLocation(search = window.location.search) {
   return TABS.some(([key]) => key === tab) ? tab : TABS[0][0]
 }
 
-// Gera o Payment Link do plano escolhido já com o client_reference_id do
-// usuário desta linha, para o time mandar manualmente quando precisar (ex.:
-// cliente que não conseguiu concluir pelo checkout dentro do app). Fica só
-// nesta ação porque é o único ponto do painel admin em que um admin acessa
-// algo de outra conta — cada geração é registrada no log do admin autor.
-function PlanLinkAction({ user, onError }) {
+// Resolve um e-mail para uma conta via GET /api/admin/users/search — não
+// existe um diretório de clientes no painel (listUsers só devolve a própria
+// conta do admin, por design: "O painel administrativo mostra somente a
+// própria conta" em server.js). O admin já precisa saber o e-mail exato de
+// quem procura (veio de um contato do cliente, ou do relatório de
+// conciliação, que traz o e-mail real informado à Stripe).
+function useUserSearch(initialEmail = '') {
+  const [email, setEmail] = useState(initialEmail)
+  const [user, setUser] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  const search = useCallback(async searchEmail => {
+    const target = (searchEmail ?? email).trim()
+    if (!target) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await apiFetch(`/api/admin/users/search?email=${encodeURIComponent(target)}`)
+      setUser(result.user)
+    } catch (err) {
+      setUser(null)
+      setError(err instanceof ApiError ? err.message : 'Não foi possível buscar esse usuário.')
+    } finally { setBusy(false) }
+  }, [email])
+
+  return { email, setEmail, user, setUser, busy, error, search }
+}
+
+// Ferramenta independente (não presa a uma linha de tabela, já que a tabela
+// de usuários só lista a própria conta): busca um cliente pelo e-mail e gera
+// o Payment Link do plano escolhido já com o client_reference_id dele, para
+// o time mandar manualmente quando precisar (ex.: cliente que não conseguiu
+// concluir pelo checkout dentro do app). Cada geração fica auditada no log
+// do admin autor.
+function GeneratePlanLinkTool({ onError }) {
+  const lookup = useUserSearch()
   const [plan, setPlan] = useState(planOptions[0]?.id || '')
   const [state, setState] = useState({ busy: false, url: null, copied: false })
 
   const generate = async () => {
+    if (!lookup.user) return onError('Busque o cliente pelo e-mail antes de gerar o link.')
     setState({ busy: true, url: null, copied: false })
     try {
-      const result = await apiFetch(`/api/admin/users/${user.id}/plan-link/${plan}`)
+      const result = await apiFetch(`/api/admin/users/${lookup.user.id}/plan-link/${plan}`)
       setState({ busy: false, url: result.url, copied: false })
     } catch (error) {
       setState({ busy: false, url: null, copied: false })
@@ -60,24 +92,34 @@ function PlanLinkAction({ user, onError }) {
     catch { onError('Não foi possível copiar o link — copie manualmente.') }
   }
 
-  return <div className="admin-plan-link"><select value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={generate} disabled={state.busy || !plan}>{state.busy ? '…' : 'Gerar link'}</button>{state.url && <button type="button" onClick={copy}>{state.copied ? 'Copiado!' : 'Copiar link'}</button>}</div>
+  return <div className="admin-content"><div className="admin-section-heading"><h2>Gerar link de pagamento para um cliente</h2></div><div className="admin-reconciliation-controls"><input value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label="E-mail do cliente para gerar link de pagamento" /><button type="button" onClick={() => lookup.search()} disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button>{lookup.user && <><select value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${lookup.user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={generate} disabled={state.busy}>{state.busy ? '…' : 'Gerar link'}</button>{state.url && <button type="button" onClick={copy}>{state.copied ? 'Copiado!' : 'Copiar link'}</button>}</>}</div>{lookup.error && <p className="admin-notice admin-notice--error" role="alert">{lookup.error}</p>}{lookup.user && <p className="admin-user-found">Cliente encontrado: <strong>{lookup.user.fullName || lookup.user.email}</strong> ({lookup.user.email})</p>}</div>
 }
 
 // Vincula uma sessão paga (linha do relatório de conciliação) a uma conta e
 // plano escolhidos pelo admin — a Stripe já confirmou o pagamento, então essa
-// ação só resolve qual conta recebe o quê, sem tocar direto no banco.
-function LinkPaymentAction({ item, users, onLinked, onError }) {
-  const [userId, setUserId] = useState(item.suggestedUserId ? String(item.suggestedUserId) : '')
+// ação só resolve qual conta recebe o quê, sem tocar direto no banco. Busca
+// automaticamente pelo e-mail que a Stripe informou (item.customerEmail),
+// quando existir — o admin ainda pode trocar antes de confirmar.
+function LinkPaymentAction({ item, onLinked, onError }) {
+  const lookup = useUserSearch(item.customerEmail || '')
   const [plan, setPlan] = useState(item.suggestedPlan || planOptions[0]?.id || '')
   const [busy, setBusy] = useState(false)
+  const buscaAutomatica = useRef(false)
+
+  useEffect(() => {
+    if (buscaAutomatica.current || !item.customerEmail) return
+    buscaAutomatica.current = true
+    lookup.search(item.customerEmail)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.customerEmail])
 
   const link = async () => {
-    if (!userId) return onError('Escolha para qual usuário vincular.')
+    if (!lookup.user) return onError('Busque o cliente pelo e-mail antes de vincular.')
     setBusy(true)
     try {
       await apiFetch(`/api/admin/billing/reconciliation/${item.sessionId}/link`, {
         method: 'POST',
-        body: JSON.stringify({ userId: Number(userId), plan }),
+        body: JSON.stringify({ userId: lookup.user.id, plan }),
       })
       onLinked(item.sessionId)
     } catch (error) {
@@ -85,14 +127,14 @@ function LinkPaymentAction({ item, users, onLinked, onError }) {
     } finally { setBusy(false) }
   }
 
-  return <div className="admin-plan-link"><select value={userId} onChange={event => setUserId(event.target.value)} disabled={busy} aria-label={`Usuário para vincular a sessão ${item.sessionId}`}><option value="">Escolher usuário…</option>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select><select value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={link} disabled={busy || !userId}>{busy ? '…' : 'Vincular'}</button></div>
+  return <div className="admin-plan-link"><input value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label={`E-mail do cliente para vincular a sessão ${item.sessionId}`} /><button type="button" onClick={() => lookup.search()} disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button><select value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={link} disabled={busy || !lookup.user}>{busy ? '…' : 'Vincular'}</button>{lookup.error && <span className="admin-inline-error">{lookup.error}</span>}{lookup.user && <span className="admin-user-found">{lookup.user.email}</span>}</div>
 }
 
 // Relatório de conciliação: cruza a Stripe com o banco e mostra os pagamentos
 // confirmados sem cobrança correspondente. O alerta imediato por e-mail para
 // todo admin já é disparado no backend (billingService.logUnlinkedPayment);
 // esta seção é onde o admin resolve o que o alerta apontou.
-function ReconciliationSection({ users, onError }) {
+function ReconciliationSection({ onError }) {
   const [days, setDays] = useState(7)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -110,11 +152,18 @@ function ReconciliationSection({ users, onError }) {
     setReport(current => current ? { ...current, unmatched: current.unmatched.filter(item => item.sessionId !== sessionId) } : current)
   }
 
-  return <section className="admin-content"><div className="admin-section-heading"><h2>Pagamentos não conciliados</h2><div className="admin-reconciliation-controls"><select value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select><button type="button" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Data</th><th>Valor</th><th>E-mail do comprador</th><th>Referência</th><th>Plano sugerido</th><th>Vincular</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : !report?.unmatched?.length ? <tr><td colSpan="6" className="admin-empty">Nenhum pagamento sem conciliação nos últimos {days} dias.</td></tr> : report.unmatched.map(item => <tr key={item.sessionId}><td>{new Date(item.createdAt).toLocaleString('pt-BR')}</td><td>{formatCurrency(item.amountCents)}</td><td>{item.customerEmail || '—'}</td><td>{item.clientReferenceId || '—'}</td><td>{item.suggestedPlan ? PLANS[item.suggestedPlan]?.name : '—'}</td><td><LinkPaymentAction item={item} users={users} onLinked={handleLinked} onError={onError} /></td></tr>)}</tbody></table></div>{report?.truncated && <p className="admin-notice admin-notice--error" role="status">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p>}</section>
+  return <section className="admin-content"><div className="admin-section-heading"><h2>Pagamentos não conciliados</h2><div className="admin-reconciliation-controls"><select value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select><button type="button" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Data</th><th>Valor</th><th>E-mail do comprador</th><th>Referência</th><th>Plano sugerido</th><th>Vincular</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : !report?.unmatched?.length ? <tr><td colSpan="6" className="admin-empty">Nenhum pagamento sem conciliação nos últimos {days} dias.</td></tr> : report.unmatched.map(item => <tr key={item.sessionId}><td>{new Date(item.createdAt).toLocaleString('pt-BR')}</td><td>{formatCurrency(item.amountCents)}</td><td>{item.customerEmail || '—'}</td><td>{item.clientReferenceId || '—'}</td><td>{item.suggestedPlan ? PLANS[item.suggestedPlan]?.name : '—'}</td><td><LinkPaymentAction item={item} onLinked={handleLinked} onError={onError} /></td></tr>)}</tbody></table></div>{report?.truncated && <p className="admin-notice admin-notice--error" role="status">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p>}</section>
 }
 
+// A tabela mostra só a própria conta do admin (listUsers/listarTodos é
+// intencionalmente restrito — ver comentário em useUserSearch). A ação de
+// gerar link para um CLIENTE fica separada, como ferramenta de busca por
+// e-mail, porque não existe cliente nenhum nesta tabela para "escolher".
 function UsersSection({ currentUser, users, loading, updating, onError, onToggleRole, onToggleActive }) {
-  return <section className="admin-content"><div className="admin-section-heading"><h2>Usuários</h2>{currentUser && <span>{currentUser.email}</span>}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th>Link de pagamento</th><th>Ações</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="admin-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="7" className="admin-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => { const isMe = user.id === currentUser?.id; const isSuperAdmin = user.role === 'super_admin'; const roleBusy = updating === `role-${user.id}`; const activeBusy = updating === `ativo-${user.id}`; return <tr key={user.id}><td>{user.email}</td><td>{user.fullName || '—'}</td><td><span className={`admin-pill admin-pill--${user.role}`}>{roleLabels[user.role] || user.role}</span></td><td><span className={`admin-pill admin-pill--${user.ativo ? 'active' : 'inactive'}`}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td><td>{user.totalContas}</td><td><PlanLinkAction user={user} onError={onError} /></td><td className="admin-actions"><button type="button" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => onToggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button><button type="button" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => onToggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button></td></tr> })}</tbody></table></div></section>
+  return <>
+    <section className="admin-content"><div className="admin-section-heading"><h2>Sua conta</h2>{currentUser && <span>{currentUser.email}</span>}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th>Ações</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="6" className="admin-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => { const isMe = user.id === currentUser?.id; const isSuperAdmin = user.role === 'super_admin'; const roleBusy = updating === `role-${user.id}`; const activeBusy = updating === `ativo-${user.id}`; return <tr key={user.id}><td>{user.email}</td><td>{user.fullName || '—'}</td><td><span className={`admin-pill admin-pill--${user.role}`}>{roleLabels[user.role] || user.role}</span></td><td><span className={`admin-pill admin-pill--${user.ativo ? 'active' : 'inactive'}`}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td><td>{user.totalContas}</td><td className="admin-actions"><button type="button" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => onToggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button><button type="button" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => onToggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button></td></tr> })}</tbody></table></div></section>
+    <GeneratePlanLinkTool onError={onError} />
+  </>
 }
 
 function AdminTabs({ tab, onChange }) {
@@ -193,5 +242,5 @@ export function AdminPage() {
   const toggleActive = user => update(user.id, 'ativo', { ativo: !user.ativo }, 'Situação atualizada.')
   const onError = text => setNotice({ type: 'error', text })
 
-  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection users={users} onError={onError} />}{tab === 'historico' && <HistorySection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
+  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection onError={onError} />}{tab === 'historico' && <HistorySection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
 }

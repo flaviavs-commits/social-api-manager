@@ -8,6 +8,7 @@ const request = require('supertest')
 jest.mock('../../src/db/pool', () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }))
 jest.mock('../../src/repositories/usersRepository', () => ({
   buscarPorId: jest.fn(),
+  buscarPorEmail: jest.fn(),
   listarTodos: jest.fn(),
   atualizarRole: jest.fn(),
   atualizarAtivo: jest.fn(),
@@ -187,6 +188,49 @@ describe('POST /api/admin/users/:id/ativo', () => {
       .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ ativo: true })
     expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'ok', user_id: ADMIN.id, message: expect.stringContaining('ativo') }))
+  })
+})
+
+// ── GET /api/admin/users/search ───────────────────────────────────────────────
+// Resolve um e-mail específico para um id, sem listar o diretório completo —
+// listUsers devolve só a própria conta do admin, por design (server.js).
+
+describe('GET /api/admin/users/search', () => {
+  const CLIENTE = { id: 7, email: 'cliente@allowed.test', fullName: 'Cliente', role: 'user', ativo: true, plan: 'pro' }
+
+  test('401 sem token', async () => {
+    const res = await request(app).get('/api/admin/users/search?email=cliente@allowed.test')
+    expect(res.status).toBe(401)
+  })
+
+  test('403 para user comum', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(USER)
+    const res = await request(app).get('/api/admin/users/search?email=cliente@allowed.test').set('Authorization', `Bearer ${tokenUser}`)
+    expect(res.status).toBe(403)
+  })
+
+  test('400 sem e-mail informado', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    const res = await request(app).get('/api/admin/users/search').set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(400)
+  })
+
+  test('404 quando não encontra ninguém com esse e-mail', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.buscarPorEmail.mockResolvedValue(null)
+    const res = await request(app).get('/api/admin/users/search?email=ninguem@allowed.test').set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(404)
+  })
+
+  test('200: devolve o usuário encontrado e audita a consulta', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.buscarPorEmail.mockResolvedValue(CLIENTE)
+
+    const res = await request(app).get('/api/admin/users/search?email=cliente@allowed.test').set('Authorization', `Bearer ${tokenAdmin}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.user).toEqual({ id: 7, email: 'cliente@allowed.test', fullName: 'Cliente', plan: 'pro' })
+    expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'ok', user_id: ADMIN.id, message: expect.stringContaining('cliente@allowed.test') }))
   })
 })
 

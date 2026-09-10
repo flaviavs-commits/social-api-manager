@@ -38,6 +38,24 @@ async function updateActive(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível atualizar o usuário') }
 }
 
+// Resolve um e-mail específico para um usuário — não lista o diretório de
+// contas (listUsers/listarTodos devolve só a própria conta do admin, por
+// design: "O painel administrativo mostra somente a própria conta" em
+// server.js). Isso é o que alimenta os fluxos de gerar link e vincular
+// pagamento manualmente para um cliente: o admin já sabe o e-mail (veio de
+// um contato do cliente, ou do relatório de conciliação) e só precisa
+// resolvê-lo para um id. Consulta auditada como as demais.
+async function searchUserByEmail(req, res) {
+  try {
+    const email = String(req.query.email || '').trim()
+    if (!email) return res.status(400).json({ erro: 'Informe um e-mail.' })
+    const target = await users.buscarPorEmail(email)
+    if (!target) return res.status(404).json({ erro: 'Nenhum usuário encontrado com esse e-mail.' })
+    await addLog('ok', `Consulta por e-mail: ${target.email} (usuário #${target.id}).`, null, null, req.user.id)
+    res.json({ user: { id: target.id, email: target.email, fullName: target.fullName, plan: target.plan } })
+  } catch (error) { serverError(res, error, 'Não foi possível buscar esse usuário agora.') }
+}
+
 // Gera o Payment Link do plano já com o client_reference_id do usuário-alvo
 // (ver billingService.getPlanDirectLink), para casos em que o time precise
 // mandar o link manualmente para um cliente. Toda geração fica registrada no
@@ -80,4 +98,4 @@ async function linkPayment(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível vincular esse pagamento agora.') }
 }
 
-module.exports = { listUsers, updateRole, updateActive, getPlanLink, getReconciliationReport, linkPayment }
+module.exports = { listUsers, updateRole, updateActive, searchUserByEmail, getPlanLink, getReconciliationReport, linkPayment }
