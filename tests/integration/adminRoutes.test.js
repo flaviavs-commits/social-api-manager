@@ -17,6 +17,31 @@ jest.mock('../../src/repositories/usersRepository', () => ({
 jest.mock('../../src/repositories/contasRepository', () => ({
   listarContas: jest.fn(),
 }))
+jest.mock('../../src/repositories/billingRepository', () => ({
+  buscarPorMes: jest.fn(),
+  buscarPorGatewaySession: jest.fn(),
+  buscarPorGatewaySessions: jest.fn(),
+  criarPendente: jest.fn(),
+  atualizarItensMeuEcoo: jest.fn(),
+  reservarProcessamento: jest.fn(),
+  anexarCheckout: jest.fn(),
+  marcarFalha: jest.fn(),
+  manterProcessando: jest.fn(),
+  confirmarPagamento: jest.fn(),
+  confirmarPagamentoDireto: jest.fn(),
+  marcarFalhaPorSession: jest.fn(),
+  reservarEnvioMeuEcoo: jest.fn(),
+  marcarEnvioMeuEcooConcluido: jest.fn(),
+  marcarFalhaEnvioMeuEcoo: jest.fn(),
+}))
+jest.mock('../../src/services/billing/paymentGateway', () => ({
+  createCheckout: jest.fn(),
+  expireCheckout: jest.fn(),
+  verifyWebhook: jest.fn(),
+  isConfigured: jest.fn(() => true),
+  getCheckoutSession: jest.fn(),
+  listCheckoutSessions: jest.fn(),
+}))
 jest.mock('../../src/repositories/logsRepository', () => ({
   registrarLog: jest.fn().mockResolvedValue(undefined),
   listarLogs: jest.fn(),
@@ -29,6 +54,8 @@ jest.mock('../../src/repositories/logsRepository', () => ({
 
 const usersRepo = require('../../src/repositories/usersRepository')
 const logsRepo = require('../../src/repositories/logsRepository')
+const billingRepo = require('../../src/repositories/billingRepository')
+const paymentGateway = require('../../src/services/billing/paymentGateway')
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
@@ -228,5 +255,111 @@ describe('GET /api/admin/users/:id/plan-link/:plan', () => {
       message: expect.stringContaining(CLIENTE.email),
     }))
     expect(logsRepo.registrarLog.mock.calls[0][0].message).toContain('premium')
+  })
+})
+
+// ── GET /api/admin/billing/reconciliation ─────────────────────────────────────
+// ── POST /api/admin/billing/reconciliation/:sessionId/link ───────────────────
+// Complemento de "criar reconciliação e alerta para pagamentos não vinculados":
+// cruza a Stripe com o banco e permite vincular manualmente, sem acesso direto
+// ao banco. Decisão registrada na task — sem destinatário de alerta por
+// e-mail nesta entrega (ver task nova sobre painel de admin).
+
+function sessaoStripe(overrides = {}) {
+  return {
+    id: 'cs_stripe_1',
+    payment_status: 'paid',
+    amount_total: 10050,
+    currency: 'brl',
+    created: Math.floor(new Date('2026-09-10T12:00:00Z').getTime() / 1000),
+    client_reference_id: null,
+    customer_email: null,
+    customer_details: null,
+    payment_intent: 'pi_1',
+    ...overrides,
+  }
+}
+
+describe('GET /api/admin/billing/reconciliation', () => {
+  test('401 sem token', async () => {
+    const res = await request(app).get('/api/admin/billing/reconciliation')
+    expect(res.status).toBe(401)
+  })
+
+  test('403 para user comum', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(USER)
+    const res = await request(app).get('/api/admin/billing/reconciliation').set('Authorization', `Bearer ${tokenUser}`)
+    expect(res.status).toBe(403)
+  })
+
+  test('200: devolve as sessões pagas sem cobrança correspondente', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    paymentGateway.listCheckoutSessions.mockResolvedValue({
+      sessions: [sessaoStripe({ id: 'cs_sem_match' }), sessaoStripe({ id: 'cs_com_match' })],
+      truncated: false,
+    })
+    billingRepo.buscarPorGatewaySessions.mockResolvedValue([{ gatewaySessionId: 'cs_com_match', status: 'paid' }])
+
+    const res = await request(app).get('/api/admin/billing/reconciliation?days=15').set('Authorization', `Bearer ${tokenAdmin}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.unmatched).toHaveLength(1)
+    expect(res.body.unmatched[0].sessionId).toBe('cs_sem_match')
+    expect(paymentGateway.listCheckoutSessions).toHaveBeenCalledWith(expect.objectContaining({ createdGteSeconds: expect.any(Number) }))
+  })
+})
+
+describe('POST /api/admin/billing/reconciliation/:sessionId/link', () => {
+  const CLIENTE = { id: 7, email: 'cliente@allowed.test', role: 'user', ativo: true, plan: 'basico' }
+
+  function porId(id) {
+    if (id === ADMIN.id) return ADMIN
+    if (id === USER.id) return USER
+    if (id === CLIENTE.id) return CLIENTE
+    return null
+  }
+
+  test('401 sem token', async () => {
+    const res = await request(app).post('/api/admin/billing/reconciliation/cs_1/link').send({ userId: 7, plan: 'pro' })
+    expect(res.status).toBe(401)
+  })
+
+  test('403 para user comum', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(USER)
+    const res = await request(app)
+      .post('/api/admin/billing/reconciliation/cs_1/link')
+      .set('Authorization', `Bearer ${tokenUser}`)
+      .send({ userId: 7, plan: 'pro' })
+    expect(res.status).toBe(403)
+  })
+
+  test('200: vincula e registra auditoria no log do admin autor', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 10050 }))
+    billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 50, userId: 7, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
+
+    const res = await request(app)
+      .post(`/api/admin/billing/reconciliation/cs_manual/link`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ userId: CLIENTE.id, plan: 'pro' })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ status: 'paid' })
+    expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, toPlan: 'pro', gatewaySessionId: 'cs_manual' }))
+    expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'ok', user_id: ADMIN.id, message: expect.stringContaining(`admin #${ADMIN.id}`) }))
+  })
+
+  test('400 quando a sessão não está paga na Stripe', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ payment_status: 'unpaid' }))
+
+    const res = await request(app)
+      .post('/api/admin/billing/reconciliation/cs_1/link')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({ userId: CLIENTE.id, plan: 'pro' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('session_not_paid')
+    expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
   })
 })

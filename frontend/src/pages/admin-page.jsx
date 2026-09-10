@@ -6,6 +6,13 @@ import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 
 const roleLabels = { admin: 'Administrador', user: 'Usuário' }
 const planOptions = Object.values(PLANS)
+const reconciliationDaysOptions = [7, 15, 30]
+
+// Mesmo formatador de profile-page.jsx (não exportado de lá para não acoplar
+// as duas páginas por um utilitário de 1 linha).
+function formatCurrency(amountCents) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(amountCents || 0) / 100)
+}
 
 function Notice({ notice }) {
   return <div className="admin-notice-area"><ThemeSelector />{notice ? <p className={`admin-notice admin-notice--${notice.type}`} role="alert">{notice.text}</p> : null}</div>
@@ -37,6 +44,56 @@ function PlanLinkAction({ user, onError }) {
   }
 
   return <div className="admin-plan-link"><select value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={generate} disabled={state.busy || !plan}>{state.busy ? '…' : 'Gerar link'}</button>{state.url && <button type="button" onClick={copy}>{state.copied ? 'Copiado!' : 'Copiar link'}</button>}</div>
+}
+
+// Vincula uma sessão paga (linha do relatório de conciliação) a uma conta e
+// plano escolhidos pelo admin — a Stripe já confirmou o pagamento, então essa
+// ação só resolve qual conta recebe o quê, sem tocar direto no banco.
+function LinkPaymentAction({ item, users, onLinked, onError }) {
+  const [userId, setUserId] = useState(item.suggestedUserId ? String(item.suggestedUserId) : '')
+  const [plan, setPlan] = useState(item.suggestedPlan || planOptions[0]?.id || '')
+  const [busy, setBusy] = useState(false)
+
+  const link = async () => {
+    if (!userId) return onError('Escolha para qual usuário vincular.')
+    setBusy(true)
+    try {
+      await apiFetch(`/api/admin/billing/reconciliation/${item.sessionId}/link`, {
+        method: 'POST',
+        body: JSON.stringify({ userId: Number(userId), plan }),
+      })
+      onLinked(item.sessionId)
+    } catch (error) {
+      onError(error instanceof ApiError ? error.message : 'Não foi possível vincular esse pagamento.')
+    } finally { setBusy(false) }
+  }
+
+  return <div className="admin-plan-link"><select value={userId} onChange={event => setUserId(event.target.value)} disabled={busy} aria-label={`Usuário para vincular a sessão ${item.sessionId}`}><option value="">Escolher usuário…</option>{users.map(user => <option key={user.id} value={user.id}>{user.email}</option>)}</select><select value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={link} disabled={busy || !userId}>{busy ? '…' : 'Vincular'}</button></div>
+}
+
+// Relatório de conciliação: cruza a Stripe com o banco e mostra os pagamentos
+// confirmados sem cobrança correspondente. Alerta ativo (e-mail/push) ficou
+// para uma task futura de painel de admin — decisão registrada no IA.md; por
+// ora, a visibilidade é esta seção, aberta sempre que um admin entra aqui.
+function ReconciliationSection({ users, onError }) {
+  const [days, setDays] = useState(7)
+  const [report, setReport] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { setReport(await apiFetch(`/api/admin/billing/reconciliation?days=${days}`)) }
+    catch (error) { onError(error instanceof ApiError ? error.message : 'Não foi possível carregar a conciliação.') }
+    finally { setLoading(false) }
+  }, [days])
+
+  useEffect(() => { load() }, [load])
+
+  const handleLinked = sessionId => {
+    setReport(current => current ? { ...current, unmatched: current.unmatched.filter(item => item.sessionId !== sessionId) } : current)
+  }
+
+  return <section className="admin-content"><div className="admin-section-heading"><h2>Pagamentos não conciliados</h2><div className="admin-reconciliation-controls"><select value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select><button type="button" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Data</th><th>Valor</th><th>E-mail do comprador</th><th>Referência</th><th>Plano sugerido</th><th>Vincular</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : !report?.unmatched?.length ? <tr><td colSpan="6" className="admin-empty">Nenhum pagamento sem conciliação nos últimos {days} dias.</td></tr> : report.unmatched.map(item => <tr key={item.sessionId}><td>{new Date(item.createdAt).toLocaleString('pt-BR')}</td><td>{formatCurrency(item.amountCents)}</td><td>{item.customerEmail || '—'}</td><td>{item.clientReferenceId || '—'}</td><td>{item.suggestedPlan ? PLANS[item.suggestedPlan]?.name : '—'}</td><td><LinkPaymentAction item={item} users={users} onLinked={handleLinked} onError={onError} /></td></tr>)}</tbody></table></div>{report?.truncated && <p className="admin-notice admin-notice--error" role="status">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p>}</section>
 }
 
 export function AdminPage() {
@@ -74,5 +131,5 @@ export function AdminPage() {
   const toggleRole = user => update(user.id, 'role', { role: user.role === 'admin' ? 'user' : 'admin' }, 'Papel atualizado.')
   const toggleActive = user => update(user.id, 'ativo', { ativo: !user.ativo }, 'Situação atualizada.')
 
-return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><section className="admin-content"><Notice notice={notice} /><div className="admin-section-heading"><h2>Usuários</h2>{currentUser && <span>{currentUser.email}</span>}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th>Link de pagamento</th><th>Ações</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="admin-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="7" className="admin-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => { const isMe = user.id === currentUser?.id; const isSuperAdmin = user.role === 'super_admin'; const roleBusy = updating === `role-${user.id}`; const activeBusy = updating === `ativo-${user.id}`; return <tr key={user.id}><td>{user.email}</td><td>{user.fullName || '—'}</td><td><span className={`admin-pill admin-pill--${user.role}`}>{roleLabels[user.role] || user.role}</span></td><td><span className={`admin-pill admin-pill--${user.ativo ? 'active' : 'inactive'}`}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td><td>{user.totalContas}</td><td><PlanLinkAction user={user} onError={text => setNotice({ type: 'error', text })} /></td><td className="admin-actions"><button type="button" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => toggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button><button type="button" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => toggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button></td></tr> })}</tbody></table></div></section><footer className="admin-footer"><CopyrightNotice /></footer></main>
+return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><section className="admin-content"><Notice notice={notice} /><div className="admin-section-heading"><h2>Usuários</h2>{currentUser && <span>{currentUser.email}</span>}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th>Link de pagamento</th><th>Ações</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="admin-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="7" className="admin-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => { const isMe = user.id === currentUser?.id; const isSuperAdmin = user.role === 'super_admin'; const roleBusy = updating === `role-${user.id}`; const activeBusy = updating === `ativo-${user.id}`; return <tr key={user.id}><td>{user.email}</td><td>{user.fullName || '—'}</td><td><span className={`admin-pill admin-pill--${user.role}`}>{roleLabels[user.role] || user.role}</span></td><td><span className={`admin-pill admin-pill--${user.ativo ? 'active' : 'inactive'}`}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td><td>{user.totalContas}</td><td><PlanLinkAction user={user} onError={text => setNotice({ type: 'error', text })} /></td><td className="admin-actions"><button type="button" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => toggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button><button type="button" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => toggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button></td></tr> })}</tbody></table></div></section>{!loading && <ReconciliationSection users={users} onError={text => setNotice({ type: 'error', text })} />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
 }

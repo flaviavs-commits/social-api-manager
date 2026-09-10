@@ -48,6 +48,20 @@ async function buscarPorGatewaySession(gatewaySessionId) {
   return change || null
 }
 
+// Usado pelo relatório de conciliação: busca em uma única query quais das
+// sessões pagas na Stripe já têm cobrança correspondente no banco, evitando
+// N+1 consultas ao cruzar uma página inteira de sessões da Stripe.
+async function buscarPorGatewaySessions(gatewaySessionIds) {
+  if (!Array.isArray(gatewaySessionIds) || gatewaySessionIds.length === 0) return []
+  const { rows } = await pool.query(
+    `SELECT ${BILLING_COLUMNS}
+       FROM billing_plan_changes
+      WHERE gateway_session_id = ANY($1::text[])`,
+    [gatewaySessionIds]
+  )
+  return rows
+}
+
 async function criarPendente({ userId, fromPlan, toPlan, amountCents, currency, billingMonth, idempotencyKey, gateway, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
   const { rows: [change] } = await pool.query(
     `INSERT INTO billing_plan_changes
@@ -312,6 +326,7 @@ async function marcarFalhaEnvioMeuEcoo(id, message) {
 module.exports = {
   buscarPorMes,
   buscarPorGatewaySession,
+  buscarPorGatewaySessions,
   criarPendente,
   atualizarItensMeuEcoo,
   reservarProcessamento,

@@ -36,11 +36,12 @@ async function updateActive(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível atualizar o usuário') }
 }
 
-// Único ponto do painel admin onde um admin vê algo de outra conta que não é
-// gerenciamento de papel/situação: gera o Payment Link do plano já com o
-// client_reference_id do usuário-alvo (ver billingService.getPlanDirectLink),
-// para casos em que o time precise mandar o link manualmente para um cliente.
-// Toda geração fica registrada no log do próprio admin que a fez (auditoria).
+// Gera o Payment Link do plano já com o client_reference_id do usuário-alvo
+// (ver billingService.getPlanDirectLink), para casos em que o time precise
+// mandar o link manualmente para um cliente. Toda geração fica registrada no
+// log do próprio admin que a fez (auditoria) — um dos dois pontos do painel
+// admin em que um admin acessa algo de outra conta (o outro é getPlanLink
+// abaixo, para vincular manualmente um pagamento não conciliado).
 async function getPlanLink(req, res) {
   try {
     const id = parseId(req.params.id)
@@ -53,4 +54,28 @@ async function getPlanLink(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível gerar o link de pagamento agora.') }
 }
 
-module.exports = { listUsers, updateRole, updateActive, getPlanLink }
+// Cruza a Stripe com o banco e devolve as sessões pagas sem cobrança 'paid'
+// correspondente — pagamento que entrou sem ninguém ser creditado.
+async function getReconciliationReport(req, res) {
+  try {
+    const report = await billingService.getReconciliationReport({ days: req.query.days })
+    res.json(report)
+  } catch (error) { serverError(res, error, 'Não foi possível carregar o relatório de conciliação agora.') }
+}
+
+// Vincula manualmente uma sessão paga (normalmente vinda de uma linha do
+// relatório de conciliação) a uma conta e a um plano escolhidos pelo admin,
+// sem precisar de acesso direto ao banco. Auditado no log do admin que agiu.
+async function linkPayment(req, res) {
+  try {
+    const result = await billingService.linkPaymentManually({
+      gatewaySessionId: req.params.sessionId,
+      userId: req.body?.userId,
+      toPlan: req.body?.plan,
+      adminId: req.user.id,
+    })
+    res.json(result)
+  } catch (error) { serverError(res, error, 'Não foi possível vincular esse pagamento agora.') }
+}
+
+module.exports = { listUsers, updateRole, updateActive, getPlanLink, getReconciliationReport, linkPayment }

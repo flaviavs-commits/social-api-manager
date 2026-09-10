@@ -7,5 +7,7 @@ router.get('/users', controller.listUsers)
 router.post('/users/:id/role', controller.updateRole)
 router.post('/users/:id/ativo', controller.updateActive)
 router.get('/users/:id/plan-link/:plan', controller.getPlanLink)
+router.get('/billing/reconciliation', controller.getReconciliationReport)
+router.post('/billing/reconciliation/:sessionId/link', controller.linkPayment)
 
 module.exports = router

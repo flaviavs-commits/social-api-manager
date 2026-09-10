@@ -1,5 +1,6 @@
 jest.mock('../../src/repositories/billingRepository', () => ({
   buscarPorMes: jest.fn(),
+  buscarPorGatewaySessions: jest.fn(),
   criarPendente: jest.fn(),
   atualizarItensMeuEcoo: jest.fn(),
   reservarProcessamento: jest.fn(),
@@ -24,6 +25,8 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
   expireCheckout: jest.fn(),
   verifyWebhook: jest.fn(),
   isConfigured: jest.fn(() => true),
+  getCheckoutSession: jest.fn(),
+  listCheckoutSessions: jest.fn(),
 }))
 
 jest.mock('../../src/services/mailer', () => ({
@@ -288,5 +291,146 @@ describe('billingService.getPlanDirectLink', () => {
   test('rejeita plano inválido', () => {
     expect(() => billingService.getPlanDirectLink({ plan: 'inexistente', userId: 7 }))
       .toThrow(expect.objectContaining({ code: 'invalid_plan' }))
+  })
+})
+
+function sessaoStripe(overrides = {}) {
+  return {
+    id: 'cs_stripe_1',
+    payment_status: 'paid',
+    amount_total: 10050,
+    currency: 'brl',
+    created: Math.floor(new Date('2026-09-10T12:00:00Z').getTime() / 1000),
+    client_reference_id: null,
+    customer_email: null,
+    customer_details: null,
+    payment_intent: 'pi_1',
+    ...overrides,
+  }
+}
+
+describe('billingService.getReconciliationReport', () => {
+  test('lista só as sessões pagas sem cobrança correspondente no banco', async () => {
+    paymentGateway.listCheckoutSessions.mockResolvedValue({
+      sessions: [
+        sessaoStripe({ id: 'cs_sem_match', client_reference_id: 'user:7', customer_email: 'cliente@allowed.test' }),
+        sessaoStripe({ id: 'cs_com_match' }),
+        sessaoStripe({ id: 'cs_nao_pago', payment_status: 'unpaid' }),
+      ],
+      truncated: false,
+    })
+    billingRepo.buscarPorGatewaySessions.mockResolvedValue([
+      { gatewaySessionId: 'cs_com_match', status: 'paid' },
+    ])
+
+    const report = await billingService.getReconciliationReport({ days: 7 })
+
+    expect(report.checked).toBe(2) // só as pagas entram na contagem
+    expect(report.unmatched).toHaveLength(1)
+    expect(report.unmatched[0]).toMatchObject({
+      sessionId: 'cs_sem_match',
+      amountCents: 10050,
+      currency: 'brl',
+      suggestedUserId: 7,
+      customerEmail: 'cliente@allowed.test',
+      suggestedPlan: 'pro',
+    })
+  })
+
+  test('uma cobrança não-paga para a mesma sessão não conta como conciliada', async () => {
+    paymentGateway.listCheckoutSessions.mockResolvedValue({ sessions: [sessaoStripe({ id: 'cs_1' })], truncated: false })
+    billingRepo.buscarPorGatewaySessions.mockResolvedValue([{ gatewaySessionId: 'cs_1', status: 'failed' }])
+
+    const report = await billingService.getReconciliationReport({ days: 7 })
+
+    expect(report.unmatched.map(item => item.sessionId)).toEqual(['cs_1'])
+  })
+
+  test('limita os dias entre 1 e 30', async () => {
+    paymentGateway.listCheckoutSessions.mockResolvedValue({ sessions: [], truncated: false })
+
+    await billingService.getReconciliationReport({ days: 999 })
+    const chamada1 = paymentGateway.listCheckoutSessions.mock.calls[0][0]
+    const agora = Math.floor(Date.now() / 1000)
+    expect(chamada1.createdGteSeconds).toBeGreaterThanOrEqual(agora - 30 * 86400 - 5)
+    expect(chamada1.createdGteSeconds).toBeLessThanOrEqual(agora - 30 * 86400 + 5)
+
+    // days negativo é um número "verdadeiro" em JS (só 0/NaN caem no default),
+    // então é o caso real que exercita o piso do clamp em 1.
+    await billingService.getReconciliationReport({ days: -5 })
+    const chamada2 = paymentGateway.listCheckoutSessions.mock.calls[1][0]
+    expect(chamada2.createdGteSeconds).toBeGreaterThanOrEqual(agora - 1 * 86400 - 5)
+    expect(chamada2.createdGteSeconds).toBeLessThanOrEqual(agora - 1 * 86400 + 5)
+
+    // days: 0 é falsy em JS (`Number(0) || 7`), então cai no default de 7 —
+    // comportamento aceitável (0 não é um período válido), documentado aqui
+    // para não virar surpresa se alguém "corrigir" o `||` para `??` depois.
+    await billingService.getReconciliationReport({ days: 0 })
+    const chamada3 = paymentGateway.listCheckoutSessions.mock.calls[2][0]
+    expect(chamada3.createdGteSeconds).toBeGreaterThanOrEqual(agora - 7 * 86400 - 5)
+    expect(chamada3.createdGteSeconds).toBeLessThanOrEqual(agora - 7 * 86400 + 5)
+  })
+
+  test('repassa o truncated do gateway e não consulta o banco sem sessões pagas', async () => {
+    paymentGateway.listCheckoutSessions.mockResolvedValue({ sessions: [sessaoStripe({ payment_status: 'unpaid' })], truncated: true })
+
+    const report = await billingService.getReconciliationReport({ days: 7 })
+
+    expect(report).toEqual({ unmatched: [], checked: 0, truncated: true })
+    expect(billingRepo.buscarPorGatewaySessions).not.toHaveBeenCalled()
+  })
+})
+
+describe('billingService.linkPaymentManually', () => {
+  test('vincula a sessão paga ao usuário e plano indicados pelo admin', async () => {
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 12450 }))
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+    billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 50, userId: 7, status: 'paid', toPlan: 'premium', meuEcooSelected: true })
+    billingRepo.reservarEnvioMeuEcoo.mockResolvedValue({ id: 50, status: 'paid' })
+    mailer.enviarEmailAcessoMeuEcoo.mockResolvedValue(undefined)
+
+    const result = await billingService.linkPaymentManually({ gatewaySessionId: 'cs_manual', userId: 7, toPlan: 'premium', adminId: 1 })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7, toPlan: 'premium', amountCents: 12450, gatewaySessionId: 'cs_manual',
+    }))
+    expect(mailer.enviarEmailAcessoMeuEcoo).toHaveBeenCalled()
+  })
+
+  test('rejeita sessão não paga sem tocar no banco', async () => {
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ payment_status: 'unpaid' }))
+
+    await expect(billingService.linkPaymentManually({ gatewaySessionId: 'cs_1', userId: 7, toPlan: 'pro', adminId: 1 }))
+      .rejects.toMatchObject({ code: 'session_not_paid', statusCode: 400 })
+    expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
+  })
+
+  test('rejeita plano inválido sem consultar a Stripe', async () => {
+    await expect(billingService.linkPaymentManually({ gatewaySessionId: 'cs_1', userId: 7, toPlan: 'inexistente', adminId: 1 }))
+      .rejects.toMatchObject({ code: 'invalid_plan' })
+    expect(paymentGateway.getCheckoutSession).not.toHaveBeenCalled()
+  })
+
+  test('rejeita quando falta a sessão do gateway', async () => {
+    await expect(billingService.linkPaymentManually({ userId: 7, toPlan: 'pro', adminId: 1 }))
+      .rejects.toMatchObject({ code: 'missing_session_id' })
+  })
+
+  test('404 quando o usuário informado não existe', async () => {
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe())
+    usersRepo.buscarPorId.mockResolvedValue(null)
+
+    await expect(billingService.linkPaymentManually({ gatewaySessionId: 'cs_1', userId: 999, toPlan: 'pro', adminId: 1 }))
+      .rejects.toMatchObject({ code: 'user_not_found', statusCode: 404 })
+  })
+
+  test('409 quando já existe cobrança do mês para o usuário', async () => {
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe())
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+    billingRepo.confirmarPagamentoDireto.mockResolvedValue(null)
+
+    await expect(billingService.linkPaymentManually({ gatewaySessionId: 'cs_1', userId: 7, toPlan: 'pro', adminId: 1 }))
+      .rejects.toMatchObject({ code: 'monthly_charge_exists', statusCode: 409 })
   })
 })

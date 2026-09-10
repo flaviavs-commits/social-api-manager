@@ -127,6 +127,61 @@ async function expireCheckout(gatewaySessionId) {
   return true
 }
 
+async function getCheckoutSession(sessionId) {
+  ensureStripeConfigured()
+  const response = await requestStripe(`/checkout/sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = body?.error?.message || 'O gateway não encontrou essa sessão de pagamento.'
+    throw gatewayError(message, {
+      code: body?.error?.code || `stripe_http_${response.status}`,
+      statusCode: response.status === 404 ? 404 : response.status >= 500 ? 503 : 502,
+      uncertain: response.status >= 500,
+    })
+  }
+  return body
+}
+
+// Usada pelo relatório de conciliação: lista sessões de checkout concluídas
+// desde `createdGteSeconds` (epoch em segundos), paginando até `maxSessions`
+// para manter o custo de chamadas à Stripe previsível. Filtra só `status:
+// complete` no servidor — payment_status ainda precisa ser conferido pelo
+// chamador, porque uma sessão "complete" pode não ter sido efetivamente paga
+// (ex.: pagamento assíncrono ainda pendente).
+async function listCheckoutSessions({ createdGteSeconds, maxSessions = 500 }) {
+  ensureStripeConfigured()
+  const sessions = []
+  let startingAfter = null
+  let truncated = false
+
+  while (sessions.length < maxSessions) {
+    const params = new URLSearchParams()
+    params.set('status', 'complete')
+    params.set('limit', '100')
+    if (createdGteSeconds) params.set('created[gte]', String(createdGteSeconds))
+    if (startingAfter) params.set('starting_after', startingAfter)
+
+    const response = await requestStripe(`/checkout/sessions?${params.toString()}`, { method: 'GET' })
+    const body = await response.json().catch(() => null)
+    if (!response.ok) {
+      const message = body?.error?.message || 'O gateway não retornou a lista de sessões.'
+      throw gatewayError(message, {
+        code: body?.error?.code || `stripe_http_${response.status}`,
+        statusCode: response.status >= 500 ? 503 : 502,
+        uncertain: response.status >= 500,
+      })
+    }
+    const page = Array.isArray(body?.data) ? body.data : []
+    sessions.push(...page)
+    if (!body?.has_more || page.length === 0) break
+    if (sessions.length >= maxSessions) { truncated = Boolean(body.has_more); break }
+    startingAfter = page[page.length - 1]?.id
+    if (!startingAfter) break
+  }
+
+  return { sessions: sessions.slice(0, maxSessions), truncated }
+}
+
 function verifyWebhook(rawBody, signatureHeader) {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     throw gatewayError('O webhook do gateway ainda não foi configurado.', { code: 'payment_webhook_not_configured', statusCode: 503 })
@@ -158,4 +213,4 @@ function verifyWebhook(rawBody, signatureHeader) {
   }
 }
 
-module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError }
+module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions }

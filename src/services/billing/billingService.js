@@ -343,6 +343,87 @@ async function handleDirectLinkPayment(object) {
   return { status: 'paid' }
 }
 
+// Relatório de conciliação: cruza as sessões de checkout pagas na Stripe
+// contra billing_plan_changes e devolve só as que não têm cobrança 'paid'
+// correspondente. Diferente de logUnlinkedPayment (que só registra o que o
+// webhook já viu), este relatório consulta a Stripe diretamente — pega
+// também o caso raro de o webhook nunca ter chegado (ex.: indisponibilidade).
+// Painel admin completo (agrupamento, filtros, paginação) fica para uma task
+// futura dedicada; aqui entrega o suficiente para achar e resolver o problema
+// sem acesso direto ao banco, como pede o critério de aceite da task.
+async function getReconciliationReport({ days = 7 } = {}) {
+  const clampedDays = Math.min(Math.max(Number(days) || 7, 1), 30)
+  const createdGteSeconds = Math.floor(Date.now() / 1000) - clampedDays * 86400
+
+  const { sessions, truncated } = await paymentGateway.listCheckoutSessions({ createdGteSeconds })
+  const paidSessions = sessions.filter(session => session.payment_status === 'paid')
+  if (!paidSessions.length) return { unmatched: [], checked: 0, truncated }
+
+  const existentes = await billingRepo.buscarPorGatewaySessions(paidSessions.map(session => session.id))
+  const pagas = new Set(existentes.filter(change => change.status === 'paid').map(change => change.gatewaySessionId))
+
+  const unmatched = paidSessions
+    .filter(session => !pagas.has(session.id))
+    .map(session => {
+      const amountCents = Number(session.amount_total)
+      const currency = String(session.currency || '').toLowerCase()
+      return {
+        sessionId: session.id,
+        amountCents,
+        currency,
+        createdAt: new Date(session.created * 1000).toISOString(),
+        clientReferenceId: session.client_reference_id || null,
+        suggestedUserId: readUserIdFromClientReference(session.client_reference_id),
+        customerEmail: readCustomerEmail(session),
+        suggestedPlan: findPlanByAmount(amountCents, currency),
+        paymentIntent: readPaymentIntentId(session.payment_intent),
+      }
+    })
+
+  return { unmatched, checked: paidSessions.length, truncated }
+}
+
+// Ação administrativa do critério de aceite: vincula manualmente uma sessão
+// paga na Stripe a uma conta, informando só a sessão (normalmente já em mãos
+// vindo de uma linha do relatório de conciliação) — sem precisar mexer no
+// banco diretamente. Reaproveita confirmarPagamentoDireto, a mesma função do
+// vínculo automático por e-mail/client_reference_id: mesma idempotência por
+// gateway_session_id (reexecutar a mesma vinculação não duplica a cobrança).
+async function linkPaymentManually({ gatewaySessionId, userId, toPlan, adminId }) {
+  if (!gatewaySessionId) throw new BillingError('Informe a sessão do gateway.', 400, 'missing_session_id')
+  const canonicalToPlan = canonicalPlanId(toPlan)
+  if (!canonicalToPlan) throw new BillingError('Plano selecionado inválido.', 400, 'invalid_plan')
+
+  const session = await paymentGateway.getCheckoutSession(gatewaySessionId)
+  if (session.payment_status !== 'paid') {
+    throw new BillingError('Essa sessão não está marcada como paga na Stripe.', 400, 'session_not_paid')
+  }
+
+  const user = await usersRepo.buscarPorId(Number(userId))
+  if (!user?.id) throw new BillingError('Usuário não encontrado.', 404, 'user_not_found')
+
+  const amountCents = Number(session.amount_total)
+  const currency = String(session.currency || '').toLowerCase()
+  const confirmed = await billingRepo.confirmarPagamentoDireto({
+    userId: user.id,
+    fromPlan: normalizePlan(user.plan || DEFAULT_PLAN),
+    toPlan: canonicalToPlan,
+    amountCents,
+    currency,
+    billingMonth: billingMonth(),
+    gatewaySessionId: session.id,
+    gatewayPaymentId: readPaymentIntentId(session.payment_intent),
+  })
+
+  if (confirmed?.status !== 'paid') {
+    throw new BillingError('Já existe uma cobrança registrada no mês para esse usuário — a vinculação manual não a sobrescreve.', 409, 'monthly_charge_exists')
+  }
+
+  await addLog('ok', `Pagamento vinculado manualmente por admin #${adminId}: usuário ${user.id}, plano ${canonicalToPlan}, sessão ${session.id}.`, null, null, adminId)
+  await sendMeuEcooAccessEmail(confirmed, session, { user_id: user.id })
+  return { status: 'paid' }
+}
+
 async function handleWebhook(event) {
   const object = event?.data?.object
   if (!object?.id) return { status: 'ignored' }
@@ -385,4 +466,4 @@ async function handleWebhook(event) {
   return { status: 'ignored' }
 }
 
-module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook }
+module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook, getReconciliationReport, linkPaymentManually }

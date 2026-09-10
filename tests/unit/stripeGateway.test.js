@@ -55,4 +55,47 @@ describe('stripeGateway', () => {
     expect(stripeGateway.verifyWebhook(Buffer.from(payload), `t=${timestamp},v1=${signature}`)).toEqual(JSON.parse(payload))
     expect(() => stripeGateway.verifyWebhook(Buffer.from(payload), `t=${timestamp},v1=invalid`)).toThrow(expect.objectContaining({ code: 'invalid_webhook_signature' }))
   })
+
+  test('busca uma sessão de checkout pelo id', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ id: 'cs_123', payment_status: 'paid' }) })
+
+    const result = await stripeGateway.getCheckoutSession('cs_123')
+
+    expect(result).toEqual({ id: 'cs_123', payment_status: 'paid' })
+    const [url] = global.fetch.mock.calls[0]
+    expect(url).toBe('https://api.stripe.com/v1/checkout/sessions/cs_123')
+  })
+
+  test('propaga 404 quando a sessão não existe na Stripe', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: { message: 'No such checkout session' } }) })
+
+    await expect(stripeGateway.getCheckoutSession('cs_inexistente')).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  test('lista sessões concluídas com o filtro created[gte] e status complete', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'cs_1' }, { id: 'cs_2' }], has_more: false }),
+    })
+
+    const result = await stripeGateway.listCheckoutSessions({ createdGteSeconds: 1700000000 })
+
+    expect(result).toEqual({ sessions: [{ id: 'cs_1' }, { id: 'cs_2' }], truncated: false })
+    const [url] = global.fetch.mock.calls[0]
+    expect(url).toContain('status=complete')
+    expect(url).toContain('created%5Bgte%5D=1700000000')
+  })
+
+  test('pagina até o limite e marca truncated quando ainda há mais páginas', async () => {
+    const pagina = n => ({ id: `cs_${n}` })
+    global.fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [pagina(1)], has_more: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [pagina(2)], has_more: true }) })
+
+    const result = await stripeGateway.listCheckoutSessions({ maxSessions: 2 })
+
+    expect(result.sessions).toHaveLength(2)
+    expect(result.truncated).toBe(true)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
 })

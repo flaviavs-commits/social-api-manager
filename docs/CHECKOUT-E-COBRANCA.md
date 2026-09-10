@@ -93,6 +93,33 @@ Motivos possíveis:
 - nenhuma conta encontrada pelo id nem pelo e-mail;
 - já existe cobrança do mês para aquele usuário (o sistema não sobrescreve).
 
+### Relatório de conciliação e vínculo manual
+
+Além do log, um admin pode resolver isso sem acesso direto ao banco:
+
+```
+GET  /api/admin/billing/reconciliation?days=7            → lista sessões pagas sem cobrança 'paid' correspondente
+POST /api/admin/billing/reconciliation/:sessionId/link    → { userId, plan } vincula manualmente
+```
+
+Diferente do log, o relatório consulta a Stripe diretamente (`payment_status:
+paid` nas sessões dos últimos N dias, `created[gte]`), então também pega o
+caso raro de o webhook nunca ter chegado. `days` é limitado a 1–30; a
+resposta traz `truncated: true` se a janela tiver mais de 500 sessões pagas.
+
+O vínculo manual reaproveita `confirmarPagamentoDireto` (mesma função do
+vínculo automático) — reenviar a mesma sessão não duplica a cobrança. Toda
+geração de link e todo vínculo manual gravam log de auditoria no histórico do
+**admin que agiu**, nunca no da conta-alvo.
+
+No frontend, é a seção "Pagamentos não conciliados" em `admin-page.jsx`, logo
+abaixo da lista de usuários.
+
+⚠️ Não há alerta ativo (e-mail/push) quando um pagamento fica sem vínculo —
+decisão deliberada de 10/09/2026, registrada no `IA.md`: em vez de escolher um
+destinatário agora, ficou para uma task futura de painel de admin. Hoje, a
+visibilidade depende de alguém abrir esta seção.
+
 ## Idempotência
 
 Reentrega do mesmo evento é segura em todos os caminhos:

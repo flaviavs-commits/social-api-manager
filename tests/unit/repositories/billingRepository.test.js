@@ -44,6 +44,33 @@ beforeEach(() => {
   jest.clearAllMocks()
   client = { query: jest.fn().mockResolvedValue({ rows: [] }), release: jest.fn() }
   pool.connect.mockResolvedValue(client)
+  pool.query.mockResolvedValue({ rows: [] })
+})
+
+describe('buscarPorGatewaySessions', () => {
+  test('consulta em lote com ANY($1) e devolve as linhas', async () => {
+    const rows = [linha({ gatewaySessionId: 'cs_1' }), linha({ gatewaySessionId: 'cs_2' })]
+    pool.query.mockResolvedValue({ rows })
+
+    const resultado = await repo.buscarPorGatewaySessions(['cs_1', 'cs_2'])
+
+    expect(resultado).toEqual(rows)
+    const [sql, params] = pool.query.mock.calls[0]
+    expect(sql).toContain('ANY($1::text[])')
+    expect(params).toEqual([['cs_1', 'cs_2']])
+  })
+
+  test('devolve array vazio sem consultar o banco quando a lista está vazia', async () => {
+    const resultado = await repo.buscarPorGatewaySessions([])
+
+    expect(resultado).toEqual([])
+    expect(pool.query).not.toHaveBeenCalled()
+  })
+
+  test('devolve array vazio para entrada que não é array', async () => {
+    expect(await repo.buscarPorGatewaySessions(null)).toEqual([])
+    expect(await repo.buscarPorGatewaySessions(undefined)).toEqual([])
+  })
 })
 
 describe('confirmarPagamentoDireto', () => {
