@@ -16,10 +16,10 @@ afterAll(() => {
 })
 
 describe('stripeGateway', () => {
-  test('cria checkout hospedado com chave idempotente e sem dados de cartão', async () => {
+  test('cria checkout de ASSINATURA (mode=subscription) com chave idempotente e sem dados de cartão', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 'cs_test_123', url: 'https://checkout.stripe.test/cs_test_123' }),
+      json: async () => ({ id: 'cs_test_123', url: 'https://checkout.stripe.test/cs_test_123', customer: 'cus_novo' }),
     })
 
     const result = await stripeGateway.createCheckout({
@@ -38,13 +38,49 @@ describe('stripeGateway', () => {
       meuEcooAmountCents: 1500,
     })
 
-    expect(result).toEqual({ id: 'cs_test_123', url: 'https://checkout.stripe.test/cs_test_123' })
+    expect(result).toEqual({ id: 'cs_test_123', url: 'https://checkout.stripe.test/cs_test_123', customer: 'cus_novo' })
     const [, options] = global.fetch.mock.calls[0]
     expect(options.headers['Idempotency-Key']).toBe('plan-change-7-2026-08')
-    expect(String(options.body)).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=10050')
-    expect(String(options.body)).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bunit_amount%5D=1500')
-    expect(String(options.body)).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bproduct_data%5D%5Bname%5D=MeuEcoo')
-    expect(String(options.body)).not.toMatch(/card|cvv|cvc|number/i)
+    const body = String(options.body)
+    expect(body).toContain('mode=subscription')
+    // Os dois itens (plano + MeuEcoo) são recorrentes — o MeuEcoo também
+    // vira assinatura na mesma sessão (decisão de 10/09/2026).
+    expect(body).toContain('line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month')
+    expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month')
+    expect(body).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=10050')
+    expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bunit_amount%5D=1500')
+    expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bproduct_data%5D%5Bname%5D=MeuEcoo')
+    // subscription_data.metadata é o equivalente correto em mode=subscription
+    // (payment_intent_data só existe em mode=payment/setup).
+    expect(body).toContain('subscription_data%5Bmetadata%5D%5Bto_plan%5D=pro')
+    expect(body).not.toContain('payment_intent_data')
+    expect(body).not.toMatch(/card|cvv|cvc|number/i)
+  })
+
+  test('reaproveita o Stripe Customer existente em vez de customer_email', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'cs_test_456', url: 'https://checkout.stripe.test/cs_test_456', customer: 'cus_existente' }),
+    })
+
+    await stripeGateway.createCheckout({
+      billingId: 12,
+      userId: 7,
+      email: 'cliente@example.com',
+      stripeCustomerId: 'cus_existente',
+      fromPlan: 'basico',
+      toPlan: 'pro',
+      planName: 'EcooMidia Pro',
+      amountCents: 10050,
+      currency: 'brl',
+      billingMonth: '2026-08-01',
+      idempotencyKey: 'plan-change-7-2026-08',
+    })
+
+    const [, options] = global.fetch.mock.calls[0]
+    const body = String(options.body)
+    expect(body).toContain('customer=cus_existente')
+    expect(body).not.toContain('customer_email')
   })
 
   test('valida a assinatura do webhook sobre o corpo bruto', () => {

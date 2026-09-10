@@ -19,6 +19,7 @@ jest.mock('../../src/repositories/usersRepository', () => ({
   buscarPorId: jest.fn(),
   buscarPorEmail: jest.fn(),
   listarEmailsAdmins: jest.fn().mockResolvedValue([]),
+  salvarStripeCustomerId: jest.fn(),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -116,6 +117,35 @@ describe('billingService.requestPlanChange', () => {
     await expect(billingService.requestPlanChange({ user, targetPlan: 'premium', now: new Date('2026-08-17T12:00:00Z') }))
       .rejects.toMatchObject({ code: 'monthly_charge_exists', statusCode: 409 })
     expect(paymentGateway.createCheckout).not.toHaveBeenCalled()
+  })
+
+  test('reaproveita o Stripe Customer já salvo do usuário, sem criar um novo', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    billingRepo.criarPendente.mockResolvedValue(change())
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ status: 'processing' }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ status: 'pending', gatewaySessionId: 'cs_1', checkoutUrl: 'https://checkout.stripe.test/cs_1' }))
+    usersRepo.buscarPorId.mockResolvedValue({ ...user, stripeCustomerId: 'cus_existente' })
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.test/cs_1', customer: 'cus_existente' })
+
+    await billingService.requestPlanChange({ user, targetPlan: 'pro', now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ stripeCustomerId: 'cus_existente' }))
+    // Já tinha o mesmo customer salvo — não regrava à toa.
+    expect(usersRepo.salvarStripeCustomerId).not.toHaveBeenCalled()
+  })
+
+  test('persiste o Stripe Customer criado na primeira assinatura do usuário', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    billingRepo.criarPendente.mockResolvedValue(change())
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ status: 'processing' }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ status: 'pending', gatewaySessionId: 'cs_1', checkoutUrl: 'https://checkout.stripe.test/cs_1' }))
+    usersRepo.buscarPorId.mockResolvedValue({ ...user, stripeCustomerId: null })
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_1', url: 'https://checkout.stripe.test/cs_1', customer: 'cus_novo' })
+
+    await billingService.requestPlanChange({ user, targetPlan: 'pro', now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ stripeCustomerId: null }))
+    expect(usersRepo.salvarStripeCustomerId).toHaveBeenCalledWith(user.id, 'cus_novo')
   })
 
   test('mantém o registro em processamento quando a resposta do gateway é incerta', async () => {

@@ -147,10 +147,15 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
   }
 
   try {
+    // Reaproveita o Stripe Customer já salvo do usuário (se houver) — evita
+    // criar um Customer duplicado a cada troca de plano. Buscado aqui, não
+    // antes, para não gastar a query nos retornos antecipados acima.
+    const currentUser = await usersRepo.buscarPorId(user.id)
     const checkout = await paymentGateway.createCheckout({
       billingId: reserved.id,
       userId: user.id,
       email: user.email,
+      stripeCustomerId: currentUser?.stripeCustomerId || null,
       fromPlan: reserved.fromPlan,
       toPlan: reserved.toPlan,
       planName: selectedPlan.name,
@@ -162,6 +167,9 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
       billingMonth: reserved.billingMonth,
       idempotencyKey: reserved.idempotencyKey,
     })
+    if (checkout.customer && checkout.customer !== currentUser?.stripeCustomerId) {
+      await usersRepo.salvarStripeCustomerId(user.id, checkout.customer)
+    }
     const attached = await billingRepo.anexarCheckout(reserved.id, { gatewaySessionId: checkout.id, checkoutUrl: checkout.url })
     return resultForChange(attached || { ...reserved, status: 'pending', gatewaySessionId: checkout.id, checkoutUrl: checkout.url }, currentPlan)
   } catch (error) {

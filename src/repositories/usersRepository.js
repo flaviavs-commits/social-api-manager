@@ -8,7 +8,7 @@ function normalizarEmail(email) {
   return email.trim().toLowerCase()
 }
 
-const USER_COLS = 'id, email, role, plan, plan_active AS "planActive", plan_unrestricted, allowed_platforms AS "allowedPlatforms", full_name, avatar_url, totp_enabled, google_id, notification_preferences AS "notificationPreferences", ativo, criado_em, auth_tokens_invalidated_at'
+const USER_COLS = 'id, email, role, plan, plan_active AS "planActive", plan_unrestricted, allowed_platforms AS "allowedPlatforms", full_name, avatar_url, totp_enabled, google_id, notification_preferences AS "notificationPreferences", ativo, criado_em, auth_tokens_invalidated_at, stripe_customer_id AS "stripeCustomerId"'
 
 async function buscarPorEmail(email) {
   const { rows: [user] } = await pool.query(

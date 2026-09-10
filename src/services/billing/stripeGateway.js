@@ -61,26 +61,41 @@ async function requestStripe(path, options = {}) {
   }
 }
 
-async function createCheckout({ billingId, userId, email, fromPlan, toPlan, planName, amountCents, planAmountCents = amountCents, currency, billingMonth, idempotencyKey, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
+// Assinatura recorrente de verdade (decisão de 10/09/2026, task "definir se
+// os planos mensais são assinatura ou cobrança avulsa"). mode=subscription
+// exige que cada line_item referencie um Price recorrente — usamos
+// price_data com `recurring` inline em vez de Price pré-criado na Stripe,
+// para não ter que gerenciar Price IDs manualmente a cada mudança de preço
+// (confirmado contra docs.stripe.com/api/checkout/sessions/create,
+// 10/09/2026: price_data aceita `recurring` e isso é o suficiente).
+// O MeuEcoo também virou recorrente na mesma assinatura (decisão explícita
+// do usuário, mesma data) — os dois itens cobram todo mês juntos.
+async function createCheckout({ billingId, userId, email, stripeCustomerId, fromPlan, toPlan, planName, amountCents, planAmountCents = amountCents, currency, billingMonth, idempotencyKey, meuEcooSelected = false, meuEcooAmountCents = 0 }) {
   ensureStripeConfigured()
   if (!Number.isInteger(Number(amountCents)) || Number(amountCents) <= 0 || !Number.isInteger(Number(planAmountCents)) || Number(planAmountCents) <= 0) {
     throw gatewayError('O valor do plano não é válido.', { code: 'invalid_amount', statusCode: 400 })
   }
 
   const params = new URLSearchParams()
-  params.set('mode', 'payment')
+  params.set('mode', 'subscription')
   params.set('success_url', getReturnUrl('PAYMENT_SUCCESS_URL', '/app/perfil?billing=success'))
   params.set('cancel_url', getReturnUrl('PAYMENT_CANCEL_URL', '/app/perfil?billing=cancelled'))
-  params.set('customer_email', email)
+  // Reaproveita o mesmo Stripe Customer entre assinaturas do mesmo usuário
+  // (evita duplicar Customer a cada troca de plano); só manda customer_email
+  // na primeira vez, quando ainda não existe um Customer salvo.
+  if (stripeCustomerId) params.set('customer', stripeCustomerId)
+  else params.set('customer_email', email)
   params.set('client_reference_id', `billing:${billingId}`)
   params.set('line_items[0][price_data][currency]', String(currency).toLowerCase())
   params.set('line_items[0][price_data][unit_amount]', String(planAmountCents))
+  params.set('line_items[0][price_data][recurring][interval]', 'month')
   params.set('line_items[0][price_data][product_data][name]', `Plano ${planName}`)
   params.set('line_items[0][price_data][product_data][description]', `Troca do plano ${fromPlan} para ${toPlan}`)
   params.set('line_items[0][quantity]', '1')
   if (meuEcooSelected && Number(meuEcooAmountCents) > 0) {
     params.set('line_items[1][price_data][currency]', String(currency).toLowerCase())
     params.set('line_items[1][price_data][unit_amount]', String(Math.round(Number(meuEcooAmountCents))))
+    params.set('line_items[1][price_data][recurring][interval]', 'month')
     params.set('line_items[1][price_data][product_data][name]', 'MeuEcoo')
     params.set('line_items[1][price_data][product_data][description]', 'Acesso opcional ao MeuEcoo com cupom de 40% do plano Pro')
     params.set('line_items[1][quantity]', '1')
@@ -89,10 +104,12 @@ async function createCheckout({ billingId, userId, email, fromPlan, toPlan, plan
   params.set('metadata[user_id]', String(userId))
   params.set('metadata[to_plan]', String(toPlan))
   params.set('metadata[billing_month]', String(billingMonth))
-  params.set('payment_intent_data[metadata][billing_id]', String(billingId))
-  params.set('payment_intent_data[metadata][user_id]', String(userId))
-  params.set('payment_intent_data[metadata][to_plan]', String(toPlan))
-  params.set('payment_intent_data[metadata][billing_month]', String(billingMonth))
+  // subscription_data.metadata é o equivalente de payment_intent_data em
+  // mode=subscription (payment_intent_data só existe em mode=payment/setup).
+  params.set('subscription_data[metadata][billing_id]', String(billingId))
+  params.set('subscription_data[metadata][user_id]', String(userId))
+  params.set('subscription_data[metadata][to_plan]', String(toPlan))
+  params.set('subscription_data[metadata][billing_month]', String(billingMonth))
 
   const response = await requestStripe('/checkout/sessions', {
     method: 'POST',
@@ -114,7 +131,7 @@ async function createCheckout({ billingId, userId, email, fromPlan, toPlan, plan
   if (!body?.id || !body?.url) {
     throw gatewayError('O gateway não retornou um checkout válido.', { code: 'invalid_gateway_response', statusCode: 503, uncertain: true })
   }
-  return { id: body.id, url: body.url }
+  return { id: body.id, url: body.url, customer: body.customer || null }
 }
 
 async function expireCheckout(gatewaySessionId) {

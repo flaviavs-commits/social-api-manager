@@ -3,6 +3,30 @@
 Como um pagamento vira um plano ativo na conta do cliente, e o que fazer quando
 não vira.
 
+## ⚠️ Migração em andamento: assinatura de verdade (10/09/2026)
+
+Decisão registrada no `IA.md`: os planos vão virar assinatura recorrente de
+verdade (`mode=subscription`), em vez da cobrança avulsa atual. O trabalho foi
+quebrado em 5 tasks sequenciais — enquanto elas não estiverem todas
+concluídas, o sistema está num **estado intermediário**:
+
+- O checkout (`createCheckout`) já cria a sessão em `mode: 'subscription'`,
+  com os dois itens (plano + MeuEcoo) recorrentes mensais, e reaproveita/
+  persiste o Stripe Customer do usuário (`users.stripe_customer_id`).
+- O **primeiro pagamento** de cada assinatura continua sendo confirmado pelo
+  caminho já existente (`checkout.session.completed` → `confirmarPagamento`),
+  porque o valor cobrado na primeira fatura bate com o valor registrado.
+- A **renovação automática do mês seguinte** ainda não faz nada — o webhook
+  não trata `invoice.paid`/`invoice.payment_failed`/`customer.subscription.*`
+  até a task "webhook de ciclo de vida" ser concluída. Até lá, a assinatura é
+  cobrada pela Stripe automaticamente, mas o app não sabe (não atualiza status
+  nem revoga acesso em caso de falha/cancelamento).
+- Não existe cancelamento self-service até a task do Customer Portal.
+
+Ordem das 5 tasks: schema de assinatura (concluída) → checkout em modo
+assinatura (esta) → webhook de ciclo de vida → Customer Portal / idempotência
+de renovação (as duas seguintes, em paralelo).
+
 ## Os dois caminhos de pagamento
 
 Existem **dois** jeitos de um cliente pagar. Os dois terminam no mesmo webhook,
@@ -25,7 +49,9 @@ A sessão é criada pelo app, então já carrega tudo que o webhook precisa:
 pagamento casando `gateway_session_id` com a linha pendente.
 
 Uma cobrança por usuário por mês — garantido pelo índice único
-`(user_id, billing_month)`.
+`(user_id, billing_month)`. Essa trava foi desenhada para o modelo avulso;
+com assinatura recorrente a renovação automática não é "uma nova troca de
+plano" — revisão prevista na task "idempotência de renovação".
 
 ### 2. Payment Link estático (fora do app)
 
