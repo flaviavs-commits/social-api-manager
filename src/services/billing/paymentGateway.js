@@ -14,6 +14,7 @@ function getGateway() {
     expireCheckout: unsupportedAsync,
     getCheckoutSession: unsupportedAsync,
     listCheckoutSessions: unsupportedAsync,
+    updateSubscriptionPlan: unsupportedAsync,
     // verifyWebhook é síncrona no gateway real (chamada sem await, dentro de
     // try/catch puro na rota do webhook) — o fallback precisa lançar na hora
     // por igual, ou o erro passaria batido pelo try/catch síncrono do chamador.
@@ -45,4 +46,8 @@ function listCheckoutSessions(args) {
   return getGateway().listCheckoutSessions(args)
 }
 
-module.exports = { isConfigured, createCheckout, expireCheckout, verifyWebhook, getCheckoutSession, listCheckoutSessions }
+function updateSubscriptionPlan(args) {
+  return getGateway().updateSubscriptionPlan(args)
+}
+
+module.exports = { isConfigured, createCheckout, expireCheckout, verifyWebhook, getCheckoutSession, listCheckoutSessions, updateSubscriptionPlan }

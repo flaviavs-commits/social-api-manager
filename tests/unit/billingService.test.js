@@ -28,6 +28,7 @@ jest.mock('../../src/repositories/subscriptionsRepository', () => ({
   criar: jest.fn(),
   atualizarPorStripeSubscriptionId: jest.fn(),
   buscarPorStripeSubscriptionId: jest.fn(),
+  buscarPorUserId: jest.fn(),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -37,6 +38,7 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
   isConfigured: jest.fn(() => true),
   getCheckoutSession: jest.fn(),
   listCheckoutSessions: jest.fn(),
+  updateSubscriptionPlan: jest.fn(),
 }))
 
 jest.mock('../../src/services/mailer', () => ({
@@ -210,6 +212,40 @@ describe('billingService.requestPlanChange', () => {
     await expect(billingService.requestPlanChange({ user, targetPlan: 'gratuito' }))
       .rejects.toMatchObject({ code: 'invalid_plan', statusCode: 400 })
     expect(paymentGateway.createCheckout).not.toHaveBeenCalled()
+  })
+
+  test('com assinatura Stripe já ativa, atualiza a assinatura existente em vez de criar um novo checkout', async () => {
+    const activeUser = { ...user, plan: 'pro', planActive: true }
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ id: 3, stripeSubscriptionId: 'sub_ativa', plan: 'pro', status: 'active' })
+    paymentGateway.updateSubscriptionPlan.mockResolvedValue({ id: 'sub_ativa', status: 'active' })
+
+    const result = await billingService.requestPlanChange({ user: activeUser, targetPlan: 'premium', now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(paymentGateway.createCheckout).not.toHaveBeenCalled()
+    expect(paymentGateway.updateSubscriptionPlan).toHaveBeenCalledWith(expect.objectContaining({
+      stripeSubscriptionId: 'sub_ativa',
+      toPlan: 'premium',
+      idempotencyKey: 'subscription-update-sub_ativa-premium-2026-08',
+    }))
+    expect(subscriptionsRepo.atualizarPorStripeSubscriptionId).toHaveBeenCalledWith('sub_ativa', { plan: 'premium', status: 'active' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'premium', planActive: true })
+    expect(billingRepo.criarPendente).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ status: 'paid', plan: 'premium', charged: true, checkoutUrl: null })
+  })
+
+  test('assinatura em status incomplete não conta como ativa — continua pelo checkout dinâmico', async () => {
+    const incompleteUser = { ...user, plan: 'pro', planActive: true }
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ id: 3, stripeSubscriptionId: 'sub_incompleta', plan: 'pro', status: 'incomplete' })
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    billingRepo.criarPendente.mockResolvedValue(change({ toPlan: 'premium' }))
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ toPlan: 'premium', status: 'processing' }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ toPlan: 'premium', status: 'pending', gatewaySessionId: 'cs_premium', checkoutUrl: 'https://checkout.stripe.test/cs_premium' }))
+    paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_premium', url: 'https://checkout.stripe.test/cs_premium' })
+
+    await billingService.requestPlanChange({ user: incompleteUser, targetPlan: 'premium', now: new Date('2026-08-17T12:00:00Z') })
+
+    expect(paymentGateway.updateSubscriptionPlan).not.toHaveBeenCalled()
+    expect(paymentGateway.createCheckout).toHaveBeenCalled()
   })
 })
 

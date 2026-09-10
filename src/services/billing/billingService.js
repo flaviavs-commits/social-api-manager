@@ -84,6 +84,23 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
   const selectedPlan = PLANS[targetPlan]
   const amounts = billingAmounts(selectedPlan, meuEcoo)
 
+  // Troca de plano com uma assinatura já ativa (decisão de 10/09/2026, task
+  // "idempotência de renovação e histórico de troca de plano"): NÃO cria um
+  // novo Checkout Session. Antes desta task, toda troca — mesmo com
+  // assinatura Stripe ativa — abria uma segunda assinatura em paralelo, sem
+  // cancelar a primeira, um risco real de cobrar as duas ao mesmo tempo. A
+  // partir daqui, só a primeira assinatura do usuário passa por
+  // createCheckout; toda troca subsequente atualiza os itens da assinatura
+  // existente (updateSubscriptionPlan), e a Stripe calcula o proration
+  // sozinha. Checkout dinâmico continua existindo só para quem ainda não tem
+  // nenhuma assinatura Stripe (initialPurchase).
+  if (!initialPurchase) {
+    const activeSubscription = await subscriptionsRepo.buscarPorUserId(user.id)
+    if (activeSubscription?.stripeSubscriptionId && SUBSCRIPTION_STATUSES_GRANT_ACCESS.includes(activeSubscription.status)) {
+      return updateActiveSubscriptionPlan({ user, activeSubscription, targetPlan, selectedPlan, amounts, now })
+    }
+  }
+
   const month = billingMonth(now)
   const idempotencyKey = `plan-change-${user.id}-${month.slice(0, 7)}`
   let change = await billingRepo.buscarPorMes(user.id, month)
@@ -190,6 +207,54 @@ async function requestPlanChange({ user, targetPlan, meuEcoo = false, now = new 
     }
     await billingRepo.marcarFalha(reserved.id, { code: error.code, message: error.message })
     throw error
+  }
+}
+
+// A chave de idempotência aqui é do lado do cliente (defesa contra duplo
+// clique/retry), diferente da idempotência dos eventos do webhook — decisão
+// registrada no IA.md de 10/09/2026: os handlers de webhook já são
+// naturalmente idempotentes (UPDATE/INSERT com ON CONFLICT, nenhuma linha
+// nova por evento), então não foi criada uma tabela de deduplicação por
+// event.id. Aqui, uma chamada repetida com o mesmo plano-alvo no mesmo mês
+// gera a mesma Idempotency-Key — a Stripe devolve a resposta já processada
+// em vez de aplicar o proration duas vezes.
+async function updateActiveSubscriptionPlan({ user, activeSubscription, targetPlan, selectedPlan, amounts, now }) {
+  const month = billingMonth(now)
+  const idempotencyKey = `subscription-update-${activeSubscription.stripeSubscriptionId}-${targetPlan}-${month.slice(0, 7)}`
+
+  const updated = await paymentGateway.updateSubscriptionPlan({
+    stripeSubscriptionId: activeSubscription.stripeSubscriptionId,
+    planName: selectedPlan.name,
+    planAmountCents: Number(selectedPlan.priceCents),
+    toPlan: targetPlan,
+    currency: String(selectedPlan.currency || 'brl').toLowerCase(),
+    billingId: activeSubscription.id,
+    userId: user.id,
+    billingMonth: month,
+    meuEcooSelected: amounts.meuEcooSelected,
+    meuEcooAmountCents: amounts.meuEcooAmountCents,
+    idempotencyKey,
+  })
+
+  await subscriptionsRepo.atualizarPorStripeSubscriptionId(activeSubscription.stripeSubscriptionId, { plan: targetPlan, status: updated.status })
+  await usersRepo.atualizarPlanoPorAssinatura(user.id, { plan: targetPlan, planActive: true })
+  // Histórico da troca (item 2 do corpo da task): não cria linha em
+  // billing_plan_changes — esse fica reservado à primeira assinatura de cada
+  // usuário (checkout dinâmico). Uma trilha de auditoria mínima entra no log
+  // padrão do app, consultável na Central de Atividades/painel admin.
+  await addLog('ok', `Troca de plano em assinatura ativa: ${user.plan || 'plano anterior'} → ${targetPlan} (assinatura ${activeSubscription.stripeSubscriptionId}).`, null, null, user.id)
+
+  return {
+    status: 'paid',
+    plan: targetPlan,
+    requestedPlan: targetPlan,
+    charged: true,
+    checkoutUrl: null,
+    meuEcooSelected: amounts.meuEcooSelected,
+    meuEcooAmountCents: amounts.meuEcooAmountCents,
+    billingMonth: month,
+    charge: null,
+    httpStatus: 200,
   }
 }
 

@@ -25,14 +25,25 @@ concluídas, o sistema está num **estado intermediário**:
   `billingService.handleSubscriptionCreated/Updated/Deleted`,
   `handleInvoicePaid/PaymentFailed`, `mailer.enviarEmailFalhaCobrancaAssinatura`.
 - Não existe cancelamento self-service até a task do Customer Portal.
-- A trava `UNIQUE(user_id, billing_month)` de `billing_plan_changes` (pensada
-  para cobrança avulsa) e a chave de idempotência por evento de renovação
-  ainda não foram revisadas — task "idempotência de renovação", a última da
-  cadeia, agora desbloqueada.
+- **Trocar de plano com uma assinatura já ativa não cria mais um checkout
+  novo** (`billingService.updateActiveSubscriptionPlan`): atualiza os itens
+  da assinatura existente na Stripe via `POST /subscriptions/:id`, que calcula
+  o proration sozinha. Antes disso, toda troca — mesmo já tendo assinatura —
+  abria uma segunda assinatura em paralelo, sem cancelar a primeira (risco
+  real de cobrar as duas ao mesmo tempo). O checkout dinâmico
+  (`createCheckout`) continua existindo só para a primeira assinatura do
+  usuário. Essa troca não passa por `billing_plan_changes` — não há
+  necessidade de relaxar `UNIQUE(user_id, billing_month)`, porque essa tabela
+  segue reservada à primeira assinatura de cada usuário (seu propósito
+  original: evitar duas primeiras cobranças no mesmo mês).
+- Idempotência dos eventos de assinatura no webhook é a natural das
+  operações (UPDATE/INSERT com `ON CONFLICT`, nenhuma linha nova por
+  renovação) — decisão de 10/09/2026, sem tabela de deduplicação por
+  `event.id`.
 
-Ordem das 5 tasks: schema de assinatura (concluída) → checkout em modo
-assinatura (concluída) → webhook de ciclo de vida (esta) → Customer Portal /
-idempotência de renovação (as duas seguintes, em paralelo).
+Ordem das 5 tasks: schema de assinatura → checkout em modo assinatura →
+webhook de ciclo de vida → idempotência de renovação/histórico de troca de
+plano (todas concluídas) → Customer Portal (ainda pendente).
 
 ## Os dois caminhos de pagamento
 

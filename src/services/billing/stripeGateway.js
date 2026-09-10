@@ -134,6 +134,90 @@ async function createCheckout({ billingId, userId, email, stripeCustomerId, from
   return { id: body.id, url: body.url, customer: body.customer || null }
 }
 
+async function getSubscription(subscriptionId) {
+  ensureStripeConfigured()
+  const response = await requestStripe(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'GET' })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = body?.error?.message || 'O gateway não encontrou essa assinatura.'
+    throw gatewayError(message, {
+      code: body?.error?.code || `stripe_http_${response.status}`,
+      statusCode: response.status === 404 ? 404 : response.status >= 500 ? 503 : 502,
+      uncertain: response.status >= 500,
+    })
+  }
+  return body
+}
+
+// Troca de plano com uma assinatura já ativa (decisão de 10/09/2026, task
+// "idempotência de renovação e histórico de troca de plano"): em vez de criar
+// uma segunda assinatura em paralelo (o que a task encontrou como risco real
+// de cobrar as duas ao mesmo tempo), atualiza os itens da assinatura
+// existente — a Stripe calcula o proration sozinha na próxima fatura
+// (`proration_behavior: create_prorations`, o comportamento padrão da API,
+// confirmado contra docs.stripe.com/api/subscriptions/update). Só a primeira
+// assinatura do usuário passa por createCheckout; toda troca subsequente
+// passa por aqui.
+async function updateSubscriptionPlan({ stripeSubscriptionId, planName, planAmountCents, toPlan, currency, billingId, userId, billingMonth, meuEcooSelected = false, meuEcooAmountCents = 0, idempotencyKey }) {
+  ensureStripeConfigured()
+  const subscription = await getSubscription(stripeSubscriptionId)
+  const items = Array.isArray(subscription?.items?.data) ? subscription.items.data : []
+  if (!items.length) {
+    throw gatewayError('A assinatura não tem itens para atualizar.', { code: 'subscription_without_items', statusCode: 503, uncertain: true })
+  }
+
+  const planItem = items[0]
+  const meuEcooItem = items[1] || null
+
+  const params = new URLSearchParams()
+  params.set('proration_behavior', 'create_prorations')
+  params.set('items[0][id]', planItem.id)
+  params.set('items[0][price_data][currency]', String(currency).toLowerCase())
+  params.set('items[0][price_data][unit_amount]', String(planAmountCents))
+  params.set('items[0][price_data][recurring][interval]', 'month')
+  params.set('items[0][price_data][product_data][name]', `Plano ${planName}`)
+
+  if (meuEcooSelected && Number(meuEcooAmountCents) > 0) {
+    // Reaproveita o item existente (troca só o preço) se já havia MeuEcoo na
+    // assinatura; cria um item novo se está sendo adicionado agora.
+    if (meuEcooItem) params.set('items[1][id]', meuEcooItem.id)
+    params.set('items[1][price_data][currency]', String(currency).toLowerCase())
+    params.set('items[1][price_data][unit_amount]', String(Math.round(Number(meuEcooAmountCents))))
+    params.set('items[1][price_data][recurring][interval]', 'month')
+    params.set('items[1][price_data][product_data][name]', 'MeuEcoo')
+  } else if (meuEcooItem) {
+    // MeuEcoo estava na assinatura e deixou de ser selecionado — remove o
+    // item em vez de deixar cobrando (`deleted: true` é como a API de
+    // assinatura remove um item, diferente de simplesmente omiti-lo).
+    params.set('items[1][id]', meuEcooItem.id)
+    params.set('items[1][deleted]', 'true')
+  }
+
+  params.set('metadata[billing_id]', String(billingId))
+  params.set('metadata[user_id]', String(userId))
+  params.set('metadata[to_plan]', String(toPlan))
+  params.set('metadata[billing_month]', String(billingMonth))
+
+  const response = await requestStripe(`/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: params,
+  })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = body?.error?.message || 'O gateway recusou a atualização da assinatura.'
+    throw gatewayError(message, {
+      code: body?.error?.code || `stripe_http_${response.status}`,
+      statusCode: response.status >= 500 ? 503 : 502,
+      uncertain: response.status >= 500,
+    })
+  }
+  return { id: body.id, status: body.status }
+}
+
 async function expireCheckout(gatewaySessionId) {
   ensureStripeConfigured()
   if (!gatewaySessionId) return false
@@ -230,4 +314,4 @@ function verifyWebhook(rawBody, signatureHeader) {
   }
 }
 
-module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions }
+module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions, getSubscription, updateSubscriptionPlan }
