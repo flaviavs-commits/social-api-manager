@@ -164,7 +164,7 @@ export function ContentQueuesPage() {
         </fieldset>
 
         <div className="queues-schedule-preview"><span className="queues-preview-icon" aria-hidden="true">◷</span><div><small>PRÓXIMA ROTINA</small><strong>{form.time} · {selectedDays.length ? selectedDays.join(', ') : 'selecione os dias'}</strong><span>{selectedPlatforms.length ? `Publicação em ${selectedPlatforms.join(', ')}` : 'Escolha as redes para continuar'}</span></div></div>
-        <button className="action-button queues-submit-button" disabled={saving || !form.platforms.length || !form.days.length || (mediaRequired && !media)}><span aria-hidden="true">{saving ? '↻' : '+'}</span> {saving ? 'Enviando mídia…' : 'Criar rotina'}</button>
+        <button type="submit" className="action-button queues-submit-button" disabled={saving || !form.platforms.length || !form.days.length || (mediaRequired && !media)}><span aria-hidden="true">{saving ? '↻' : '+'}</span> {saving ? 'Enviando mídia…' : 'Criar rotina'}</button>
       </form>
 
       <section className="panel queues-list-panel">

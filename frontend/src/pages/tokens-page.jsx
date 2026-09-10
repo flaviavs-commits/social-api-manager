@@ -85,7 +85,7 @@ export function TokensPage() {
       </div>
       <div className="tokens-hero-actions">
         <span className={`tokens-health-pill${attentionCount ? ' is-attention' : ''}`}><i aria-hidden="true" />{attentionCount ? `${attentionCount} em atenção` : 'Tudo protegido'}</span>
-        <button className="action-button" disabled={loading || !tokens.length || renewingId !== null} onClick={renewAll}><span aria-hidden="true">↻</span>{renewingId === 'all' ? 'Renovando…' : 'Renovar todos'}</button>
+        <button type="button" className="action-button" disabled={loading || !tokens.length || renewingId !== null} onClick={renewAll}><span aria-hidden="true">↻</span>{renewingId === 'all' ? 'Renovando…' : 'Renovar todos'}</button>
       </div>
     </section>
 
@@ -119,9 +119,9 @@ export function TokensPage() {
           <div className="token-row-main"><span className={`token-platform-icon token-platform-icon-${token.platform}`} aria-hidden="true"><PlatformIcon platform={token.platform} className="h-5 w-5" /></span><div className="token-row-copy"><strong>{accountName}</strong><span className="token-platform-label"><PlatformIcon platform={token.platform} className="h-3 w-3" />{platformLabel(token.platform)}</span><small>{lastUsedText(token)}</small></div></div>
           <div className="token-row-expiry"><span>Validade</span><strong>{expiryText(token.expires_at || token.expiresAt)}</strong></div>
           <div className={`token-status-badge token-status-${status}`}><i aria-hidden="true" />{STATUS_LABELS[status] || 'Válido'}</div>
-          <div className="token-row-actions">{status !== 'valid' && <button className="link-button" disabled={renewingId !== null} onClick={() => renew(token.id)}>{renewingId === token.id ? 'Renovando…' : 'Renovar'}</button>}<button className="link-button danger-link" disabled={renewingId !== null} onClick={() => remove(token.id)}>Revogar</button></div>
+          <div className="token-row-actions">{status !== 'valid' && <button type="button" className="link-button" disabled={renewingId !== null} onClick={() => renew(token.id)}>{renewingId === token.id ? 'Renovando…' : 'Renovar'}</button>}<button type="button" className="link-button danger-link" disabled={renewingId !== null} onClick={() => remove(token.id)}>Revogar</button></div>
         </article>
-      })}</div> : <div className="token-empty"><span className="token-empty-icon" aria-hidden="true">⌁</span><strong>{tokens.length ? 'Nenhum token encontrado' : 'Nenhum token cadastrado'}</strong><p>{tokens.length ? 'Tente mudar os filtros ou buscar por outra conta.' : 'Conecte uma rede social para começar a publicar e acompanhar seus dados.'}</p>{tokens.length > 0 && <button className="secondary-button" onClick={clearFilters}>Limpar filtros</button>}</div>}
+      })}</div> : <div className="token-empty"><span className="token-empty-icon" aria-hidden="true">⌁</span><strong>{tokens.length ? 'Nenhum token encontrado' : 'Nenhum token cadastrado'}</strong><p>{tokens.length ? 'Tente mudar os filtros ou buscar por outra conta.' : 'Conecte uma rede social para começar a publicar e acompanhar seus dados.'}</p>{tokens.length > 0 && <button type="button" className="secondary-button" onClick={clearFilters}>Limpar filtros</button>}</div>}
     </section>
   </section>
 }

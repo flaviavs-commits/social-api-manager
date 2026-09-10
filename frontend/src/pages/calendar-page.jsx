@@ -199,15 +199,15 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview,
       <div className="calendar-detail-preview"><CalendarMediaPreview post={post}/>{error && <p className="calendar-post-warning" role="alert">{error}</p>}</div>
       <div className={`calendar-post-status-message is-${statusMessage.type}`} role={statusMessage.type === 'error' ? 'alert' : 'status'}><span className="calendar-post-status-icon" aria-hidden="true">{statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '!' : '•'}</span><div><strong>{statusMessage.title}</strong><small>{statusMessage.detail}</small></div></div>
       <div className="calendar-detail-actions">
-        {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar data/horário</button>}
-        {scheduled && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onCopy}>Copiar</button>}
-        {scheduled && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir agendamento</button>}
-        {retryableError && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRetryNow}>Tentar publicar novamente</button>}
-        {retryableError && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Reagendar tentativa</button>}
-        {failureKind === 'content' && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onReview}>Revisar no editor</button>}
-        {failureKind === 'account' && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onOpenIntegrations}>Corrigir conexão</button>}
-        {canRepeat && <button className="text-[11px] font-medium text-gold hover:underline" onClick={onRepeat}>Reagendar este post</button>}
-        {canRepeat && <button className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir post publicado</button>}
+        {scheduled && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Editar data/horário</button>}
+        {scheduled && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onCopy}>Copiar</button>}
+        {scheduled && <button type="button" className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir agendamento</button>}
+        {retryableError && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onRetryNow}>Tentar publicar novamente</button>}
+        {retryableError && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onEdit}>Reagendar tentativa</button>}
+        {failureKind === 'content' && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onReview}>Revisar no editor</button>}
+        {failureKind === 'account' && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onOpenIntegrations}>Corrigir conexão</button>}
+        {canRepeat && <button type="button" className="text-[11px] font-medium text-gold hover:underline" onClick={onRepeat}>Reagendar este post</button>}
+        {canRepeat && <button type="button" className="text-[11px] font-medium text-red-400 hover:underline" onClick={onDelete}>Excluir post publicado</button>}
       </div>
       {repeating && <form className="calendar-repeat-form calendar-repeat-form-inline" onSubmit={onRepeatSubmit}>
         <div>
@@ -535,9 +535,9 @@ export function CalendarPage({ onNavigate }) {
           <h2 className="text-2xl font-semibold text-zinc-50">{monthNames[month - 1]} de {year}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={goToToday} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Hoje</button>
-          <button onClick={() => shift(-1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Anterior</button>
-          <button onClick={() => shift(1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Próximo</button>
+          <button type="button" onClick={goToToday} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Hoje</button>
+          <button type="button" onClick={() => shift(-1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Anterior</button>
+          <button type="button" onClick={() => shift(1)} className="calendar-nav-button rounded-lg border border-subtle px-3 py-1.5 text-sm text-zinc-300 hover:border-gold/40 hover:text-gold">Próximo</button>
         </div>
       </div>
 
@@ -584,7 +584,7 @@ export function CalendarPage({ onNavigate }) {
             </button>
           )
         })}
-      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => { const failureKind = postFailureKind(post); const retryableError = ['error', 'erro'].includes(normalizePostStatus(post)) && failureKind === 'retryable'; return <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button className="link-button" onClick={() => openEditor(post)}>Editar</button><button className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}{retryableError && <><button className="link-button" onClick={() => retryPost(post)}>Tentar novamente</button><button className="link-button" onClick={() => openEditor(post)}>Reagendar</button></>}{failureKind === 'content' && <button className="link-button" onClick={() => reviewFailure(post)}>Revisar</button>}{failureKind === 'account' && <button className="link-button" onClick={() => onNavigate('integracoes')}>Conexão</button>}</span></article> }) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
+      </div></div> : <div className="calendar-list-view">{sortedPosts.length ? sortedPosts.map(post => { const failureKind = postFailureKind(post); const retryableError = ['error', 'erro'].includes(normalizePostStatus(post)) && failureKind === 'retryable'; return <article className="calendar-list-item" key={post.id}><CalendarMediaPreview post={post} compact/><span className="calendar-list-date">{new Date(postDateValue(post)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span><span className="calendar-list-platforms">{platformsOf(post).map(platform => <span key={platform} className={`calendar-list-platform calendar-list-platform-${platform}`}><PlatformIcon platform={platform} className="h-3.5 w-3.5"/>{PLATFORM_LABELS[platform] || platform}</span>)}</span><div className="calendar-list-copy"><strong>{postText(post)}</strong><small className={`calendar-list-status is-${postStatusMessage(post).type}`}>{postStatusMessage(post).title}</small>{friendlyPostError(post) && <small className="calendar-post-warning">{friendlyPostError(post)}</small>}</div><span className="calendar-list-actions">{isScheduled(post) && <><button type="button" className="link-button" onClick={() => openEditor(post)}>Editar</button><button type="button" className="link-button" onClick={() => copyScheduled(post)}>Copiar</button><button type="button" className="link-button text-red-400" onClick={() => deleteScheduled(post)}>Excluir</button></>}{retryableError && <><button type="button" className="link-button" onClick={() => retryPost(post)}>Tentar novamente</button><button type="button" className="link-button" onClick={() => openEditor(post)}>Reagendar</button></>}{failureKind === 'content' && <button type="button" className="link-button" onClick={() => reviewFailure(post)}>Revisar</button>}{failureKind === 'account' && <button type="button" className="link-button" onClick={() => onNavigate('integracoes')}>Conexão</button>}</span></article> }) : <p className="empty-state">Nenhuma publicação neste filtro.</p>}</div>}
 
       {pasting && copiedPost && <section ref={pastePanelRef} className="calendar-paste-panel mt-6 rounded-xl border border-subtle bg-surface p-5">
         <div>
@@ -593,7 +593,7 @@ export function CalendarPage({ onNavigate }) {
         </div>
         <form className="flex flex-wrap items-center gap-3" onSubmit={pastePost}>
           <label className="calendar-paste-label">Dia e horário da nova publicação<input ref={pasteInputRef} required type="datetime-local" value={pasteDate} onChange={event => setPasteDate(event.target.value)}/></label>
-          <button className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Confirmar nova publicação</button>
+          <button type="submit" className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Confirmar nova publicação</button>
           <button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setPasting(false)}>Cancelar</button>
         </form>
       </section>}
@@ -634,7 +634,7 @@ export function CalendarPage({ onNavigate }) {
               onChange={event => setDate(event.target.value)}
               className="rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100"
             />
-            <button className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Salvar</button>
+            <button type="submit" className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-black hover:brightness-110">Salvar</button>
             <button type="button" className="text-sm text-zinc-400 hover:text-zinc-200" onClick={() => setEditing(null)}>Cancelar</button>
           </form>
         </section>

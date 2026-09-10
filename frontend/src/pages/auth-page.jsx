@@ -201,26 +201,26 @@ export function LoginPage() {
   return <AuthCard>
     <h1 className="auth-title">{title}</h1>
     <p className="auth-subtitle">{register ? 'Crie sua conta para começar a organizar suas redes sociais.' : 'Entre para acessar o gerenciador das suas redes sociais'}</p>
-    {register && selectedPlan && <p className="auth-selected-plan">Tier selecionado: <strong>{PLANS[selectedPlan]?.name || selectedPlan}</strong></p>}
+    {register && selectedPlan && <p className="auth-selected-plan">Plano selecionado: <strong>{PLANS[selectedPlan]?.name || selectedPlan}</strong></p>}
     <Message message={message} />
 
     {flow === 'login-2fa' && <form onSubmit={verifyLoginCode} className="auth-form">
       <p className="auth-help">Digite o código de 6 dígitos do seu app autenticador.</p>
-      <input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" autoFocus />
-      <button className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Confirmar'}</button>
+      <input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" aria-label="Código do autenticador" autoFocus />
+      <button type="submit" className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Confirmar'}</button>
     </form>}
 
     {flow === 'forgot-2fa' && <form onSubmit={verifyResetCode} className="auth-form">
       <p className="auth-help">Digite o código do autenticador para <strong>{maskEmail(email)}</strong>.</p>
-      <input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" autoFocus />
-      <button className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Verificar código'}</button>
+      <input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" aria-label="Código do autenticador" autoFocus />
+      <button type="submit" className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Verificar código'}</button>
       <button type="button" className="auth-button auth-button--secondary" onClick={() => setFlow('forgot-email')}>Corrigir e-mail</button>
     </form>}
 
     {flow === 'forgot-email' && <form onSubmit={startReset} className="auth-form">
       <label className="auth-label" htmlFor="forgot-email">Informe seu e-mail</label>
       <input id="forgot-email" className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} autoFocus required />
-      <button className="auth-button" disabled={busy}>{busy ? 'Enviando…' : 'Enviar link de redefinição'}</button>
+      <button type="submit" className="auth-button" disabled={busy}>{busy ? 'Enviando…' : 'Enviar link de redefinição'}</button>
     </form>}
 
     {flow === 'forgot-sent' && <div className="auth-form">
@@ -236,7 +236,7 @@ export function LoginPage() {
         <label className="auth-label" htmlFor="password">Senha</label>
         <input id="password" className="auth-input" type="password" minLength={register ? PASSWORD_MIN_LENGTH : undefined} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} required />
         {register && <p className="auth-help">Use de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.</p>}
-        <button className="auth-button" disabled={busy}>{busy ? 'Aguarde…' : register ? 'Criar conta' : 'Entrar'}</button>
+        <button type="submit" className="auth-button" disabled={busy}>{busy ? 'Aguarde…' : register ? 'Criar conta' : 'Entrar'}</button>
       </form>
       {!register && <a className="auth-link auth-forgot" href="#forgot" onClick={event => { event.preventDefault(); setFlow('forgot-email'); setMessage(null) }}>Esqueceu sua senha?</a>}
       <div className="auth-divider"><span>ou</span></div>
@@ -347,7 +347,7 @@ export function CreateAccountPage() {
             <div className="checkout-section-heading"><span>04</span><div><h2>Pagamento seguro</h2><p>Você será levado ao checkout hospedado do gateway depois de criar a conta.</p></div></div>
             <div className="checkout-pix-box"><strong>Checkout protegido</strong><p>Os dados de pagamento são informados diretamente no gateway. O aplicativo não recebe nem armazena número de cartão, validade ou CVV.</p><span>✓ Uma cobrança por usuário no mês</span></div>
             <label className="checkout-terms"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> <span>Li e aceito a <a href="/privacy-policy" target="_blank" rel="noreferrer">Política de Privacidade</a> e os <a href="/terms-of-service" target="_blank" rel="noreferrer">Termos de Uso</a>.</span></label>
-            <button className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e ir ao pagamento' : 'Continuar'} <span>→</span></button>
+            <button type="submit" className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e ir ao pagamento' : 'Continuar'} <span>→</span></button>
             <p className="checkout-security">⌁ Cadastro protegido · Não armazenamos dados sensíveis do cartão</p>
           </form>
         </section>
@@ -391,7 +391,7 @@ export function ResetPasswordPage() {
     finally { setBusy(false) }
   }
 
-  return <AuthCard><h1 className="auth-title">Criar nova senha</h1><p className="auth-subtitle">{valid === null ? 'Verificando seu link…' : valid ? 'Escolha uma nova senha para acessar sua conta.' : 'Esse link não é mais válido ou já expirou.'}</p><Message message={message} />{valid && <form onSubmit={submit} className="auth-form"><label className="auth-label" htmlFor="new-password">Nova senha</label><input id="new-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} autoFocus required /><div className="auth-rules">{Object.entries({ length: '8 a 72 caracteres', uppercase: '1 letra maiúscula', number: '1 número', special: '1 caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div><label className="auth-label" htmlFor="confirm-password">Confirme a nova senha</label><input id="confirm-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={confirmation} onChange={event => setConfirmation(event.target.value)} required /><button className="auth-button" disabled={busy}>{busy ? 'Salvando…' : 'Salvar nova senha'}</button></form>}<p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
+  return <AuthCard><h1 className="auth-title">Criar nova senha</h1><p className="auth-subtitle">{valid === null ? 'Verificando seu link…' : valid ? 'Escolha uma nova senha para acessar sua conta.' : 'Esse link não é mais válido ou já expirou.'}</p><Message message={message} />{valid && <form onSubmit={submit} className="auth-form"><label className="auth-label" htmlFor="new-password">Nova senha</label><input id="new-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} autoFocus required /><div className="auth-rules">{Object.entries({ length: '8 a 72 caracteres', uppercase: '1 letra maiúscula', number: '1 número', special: '1 caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''}>{rules[key] ? '✓' : '○'} {label}</span>)}</div><label className="auth-label" htmlFor="confirm-password">Confirme a nova senha</label><input id="confirm-password" className="auth-input" type="password" minLength={PASSWORD_MIN_LENGTH} maxLength="72" value={confirmation} onChange={event => setConfirmation(event.target.value)} required /><button type="submit" className="auth-button" disabled={busy}>{busy ? 'Salvando…' : 'Salvar nova senha'}</button></form>}<p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
 }
 
 export function VerifyTwoFactorPage() {
@@ -416,5 +416,5 @@ export function VerifyTwoFactorPage() {
     finally { setBusy(false) }
   }
 
-  return <AuthCard><h1 className="auth-title">Verificação em 2 fatores</h1><p className="auth-subtitle">Digite o código de 6 dígitos do seu app autenticador para concluir o login.</p><Message message={message} /><form onSubmit={submit} className="auth-form"><input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" autoFocus required /><button className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Confirmar'}</button></form><p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
+  return <AuthCard><h1 className="auth-title">Verificação em 2 fatores</h1><p className="auth-subtitle">Digite o código de 6 dígitos do seu app autenticador para concluir o login.</p><Message message={message} /><form onSubmit={submit} className="auth-form"><input className="auth-input auth-input--code" inputMode="numeric" maxLength="6" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} placeholder="000000" aria-label="Código do autenticador" autoFocus required /><button type="submit" className="auth-button" disabled={busy}>{busy ? 'Verificando…' : 'Confirmar'}</button></form><p className="auth-switch"><a className="auth-link" href="/login.html">Voltar para o login</a></p></AuthCard>
 }

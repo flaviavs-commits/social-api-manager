@@ -414,7 +414,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         {visualFormat === 'carousel' && <label className="ai-carousel-count">Quantidade de slides<select value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>{[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}</select></label>}
         <p>O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
       </fieldset>
-      <button className="action-button ai-generate-button" disabled={loading || loadingMore}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
+      <button type="submit" className="action-button ai-generate-button" disabled={loading || loadingMore}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
     </form>
     {error && <p className="error-message" role="alert">{error}</p>}
   </section>

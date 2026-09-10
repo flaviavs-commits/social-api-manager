@@ -203,7 +203,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
           <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
           <div className="comment-reply-identity"><SafeAvatar src={post?.avatarUrl} className="comment-reply-identity-avatar" fallback={<PlatformIcon platform={platform} className="h-3 w-3" />} /><span>Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong></span></div>
           <div className="comment-reply-form">
-          <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
+          <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." aria-label="Resposta ao comentário" disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
           <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
           </div>
           {savedTexts.length > 0 && <select className="mt-2 w-full rounded-lg border border-subtle bg-app px-2 py-1 text-xs text-zinc-300" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title || item.body.slice(0, 50)}</option>)}</select>}
