@@ -1,4 +1,5 @@
 const billingRepo = require('../../repositories/billingRepository')
+const subscriptionsRepo = require('../../repositories/subscriptionsRepository')
 const usersRepo = require('../../repositories/usersRepository')
 const paymentGateway = require('./paymentGateway')
 const mailer = require('../mailer')
@@ -462,6 +463,145 @@ async function linkPaymentManually({ gatewaySessionId, userId, toPlan, adminId }
   return { status: 'paid' }
 }
 
+// Ciclo de vida da assinatura (task "webhook de ciclo de vida", 10/09/2026).
+// Estados que concedem acesso vs. revogam, conferido ao vivo contra
+// docs.stripe.com/billing/subscriptions/webhooks: 'past_due' é aviso, não
+// revogação (a Stripe já tenta cobrar de novo sozinha via Smart Retries).
+const SUBSCRIPTION_STATUSES_GRANT_ACCESS = ['trialing', 'active']
+const SUBSCRIPTION_STATUSES_REVOKE_ACCESS = ['canceled', 'unpaid']
+
+// user_id vem em subscription_data.metadata (gravado na criação do checkout,
+// task "checkout em modo assinatura") — é a via principal, mais direta que
+// resolver pelo Customer. O Customer é o fallback para eventos em que a
+// metadata não sobrevive (ex.: assinatura editada manualmente no dashboard
+// da Stripe, sem passar pelo nosso checkout).
+async function resolveSubscriptionUser(object) {
+  const metadataUserId = Number(object?.metadata?.user_id)
+  if (Number.isInteger(metadataUserId) && metadataUserId > 0) {
+    const user = await usersRepo.buscarPorId(metadataUserId)
+    if (user?.id) return user
+  }
+  if (object?.customer) {
+    const user = await usersRepo.buscarPorStripeCustomerId(object.customer)
+    if (user?.id) return user
+  }
+  return null
+}
+
+function subscriptionPeriodEnd(object) {
+  const seconds = Number(object?.current_period_end)
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : null
+}
+
+// Mesmo padrão de logUnlinkedPayment/alertUnlinkedPaymentAdmins (decisão do
+// próprio corpo da task): nenhum evento de assinatura some silenciosamente
+// sem log e sem avisar os admins, mesmo quando não é possível vinculá-lo a
+// uma conta.
+async function logUnlinkedSubscriptionEvent(object, reason) {
+  await addLog(
+    'err',
+    `Evento de assinatura sem vínculo com uma conta (${reason}). ` +
+    `subscription=${object?.id || object?.subscription || 'desconhecida'} ` +
+    `customer=${object?.customer || 'desconhecido'}`
+  )
+  await alertUnlinkedPaymentAdmins(object, reason)
+  return { status: 'unlinked', reason }
+}
+
+async function handleSubscriptionCreated(object) {
+  const user = await resolveSubscriptionUser(object)
+  if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'não foi possível identificar a conta da nova assinatura')
+
+  const toPlan = canonicalPlanId(object?.metadata?.to_plan)
+  await subscriptionsRepo.criar({
+    userId: user.id,
+    stripeSubscriptionId: object.id,
+    stripePriceId: object?.items?.data?.[0]?.price?.id || null,
+    plan: toPlan || normalizePlan(user.plan || DEFAULT_PLAN),
+    status: object.status,
+    currentPeriodEnd: subscriptionPeriodEnd(object),
+    cancelAtPeriodEnd: object?.cancel_at_period_end === true,
+  })
+
+  if (toPlan && SUBSCRIPTION_STATUSES_GRANT_ACCESS.includes(object.status)) {
+    await usersRepo.atualizarPlanoPorAssinatura(user.id, { plan: toPlan, planActive: true })
+  }
+  return { status: 'ok' }
+}
+
+async function handleSubscriptionUpdated(object) {
+  const toPlan = canonicalPlanId(object?.metadata?.to_plan)
+  let subscription = await subscriptionsRepo.atualizarPorStripeSubscriptionId(object.id, {
+    status: object.status,
+    currentPeriodEnd: subscriptionPeriodEnd(object),
+    cancelAtPeriodEnd: object?.cancel_at_period_end === true,
+    plan: toPlan || null,
+    stripePriceId: object?.items?.data?.[0]?.price?.id || null,
+  })
+
+  const user = await resolveSubscriptionUser(object)
+  if (!subscription) {
+    // O evento 'created' não chegou antes deste (reentrega fora de ordem, ou
+    // assinatura criada fora do nosso checkout) — cria a linha agora em vez
+    // de descartar o evento.
+    if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'assinatura desconhecida e conta não identificada')
+    subscription = await subscriptionsRepo.criar({
+      userId: user.id,
+      stripeSubscriptionId: object.id,
+      stripePriceId: object?.items?.data?.[0]?.price?.id || null,
+      plan: toPlan || normalizePlan(user.plan || DEFAULT_PLAN),
+      status: object.status,
+      currentPeriodEnd: subscriptionPeriodEnd(object),
+      cancelAtPeriodEnd: object?.cancel_at_period_end === true,
+    })
+  }
+  if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'não foi possível identificar a conta da assinatura atualizada')
+
+  if (SUBSCRIPTION_STATUSES_GRANT_ACCESS.includes(object.status)) {
+    await usersRepo.atualizarPlanoPorAssinatura(user.id, { plan: subscription?.plan || toPlan || null, planActive: true })
+  } else if (SUBSCRIPTION_STATUSES_REVOKE_ACCESS.includes(object.status)) {
+    await usersRepo.atualizarPlanoPorAssinatura(user.id, { planActive: false })
+  }
+  return { status: 'ok' }
+}
+
+async function handleSubscriptionDeleted(object) {
+  await subscriptionsRepo.atualizarPorStripeSubscriptionId(object.id, { status: 'canceled' })
+  const user = await resolveSubscriptionUser(object)
+  if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'não foi possível identificar a conta da assinatura cancelada')
+  await usersRepo.atualizarPlanoPorAssinatura(user.id, { planActive: false })
+  return { status: 'ok' }
+}
+
+// invoice.paid não carrega a metadata do checkout (metadata é da assinatura,
+// não da fatura) — resolve pelo Customer, plano igual ao já salvo em
+// `subscriptions` (a fonte de verdade do plano contratado).
+async function handleInvoicePaid(object) {
+  const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
+  if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'não foi possível identificar a conta da fatura paga')
+
+  const subscription = object?.subscription ? await subscriptionsRepo.buscarPorStripeSubscriptionId(object.subscription) : null
+  await usersRepo.atualizarPlanoPorAssinatura(user.id, { plan: subscription?.plan || null, planActive: true })
+  return { status: 'paid' }
+}
+
+// past_due é aviso, não revogação (ver SUBSCRIPTION_STATUSES_REVOKE_ACCESS) —
+// aqui só registra o log para acompanhamento; 'customer.subscription.updated'
+// (que a Stripe dispara junto) é quem sincroniza o status 'past_due' em si.
+// Notificar o cliente por e-mail fica fora do escopo desta task (o corpo da
+// task só pede os 3 itens de "o que fazer", nenhum deles é e-mail ao
+// cliente) — registrado aqui para não passar como decisão silenciosa.
+async function handleInvoicePaymentFailed(object) {
+  const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
+  await addLog(
+    'err',
+    `Falha de cobrança recorrente da assinatura (invoice.payment_failed). ` +
+    `invoice=${object?.id || 'desconhecida'} customer=${object?.customer || 'desconhecido'}` +
+    (user?.id ? ` user=${user.id}` : ' (conta não identificada)')
+  )
+  return { status: 'failed' }
+}
+
 async function handleWebhook(event) {
   const object = event?.data?.object
   if (!object?.id) return { status: 'ignored' }
@@ -516,6 +656,12 @@ async function handleWebhook(event) {
     await billingRepo.marcarFalhaPorSession(object.id, { code: 'checkout_expired', message: 'O checkout expirou antes da confirmação.' })
     return { status: 'failed' }
   }
+
+  if (event.type === 'customer.subscription.created') return handleSubscriptionCreated(object)
+  if (event.type === 'customer.subscription.updated') return handleSubscriptionUpdated(object)
+  if (event.type === 'customer.subscription.deleted') return handleSubscriptionDeleted(object)
+  if (event.type === 'invoice.paid') return handleInvoicePaid(object)
+  if (event.type === 'invoice.payment_failed') return handleInvoicePaymentFailed(object)
 
   return { status: 'ignored' }
 }

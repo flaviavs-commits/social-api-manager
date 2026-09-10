@@ -16,16 +16,22 @@ concluídas, o sistema está num **estado intermediário**:
 - O **primeiro pagamento** de cada assinatura continua sendo confirmado pelo
   caminho já existente (`checkout.session.completed` → `confirmarPagamento`),
   porque o valor cobrado na primeira fatura bate com o valor registrado.
-- A **renovação automática do mês seguinte** ainda não faz nada — o webhook
-  não trata `invoice.paid`/`invoice.payment_failed`/`customer.subscription.*`
-  até a task "webhook de ciclo de vida" ser concluída. Até lá, a assinatura é
-  cobrada pela Stripe automaticamente, mas o app não sabe (não atualiza status
-  nem revoga acesso em caso de falha/cancelamento).
+- O webhook já trata o **ciclo de vida da assinatura**:
+  `customer.subscription.created/updated/deleted` sincronizam a tabela
+  `subscriptions` e `users.plan_active`; `invoice.paid` confirma renovação
+  (concede acesso); `invoice.payment_failed` só registra log (não revoga —
+  `past_due` é aviso, a Stripe tenta cobrar de novo sozinha). Ver
+  `billingService.handleSubscriptionCreated/Updated/Deleted`,
+  `handleInvoicePaid/PaymentFailed`.
 - Não existe cancelamento self-service até a task do Customer Portal.
+- A trava `UNIQUE(user_id, billing_month)` de `billing_plan_changes` (pensada
+  para cobrança avulsa) e a chave de idempotência por evento de renovação
+  ainda não foram revisadas — task "idempotência de renovação", a última da
+  cadeia, agora desbloqueada.
 
 Ordem das 5 tasks: schema de assinatura (concluída) → checkout em modo
-assinatura (esta) → webhook de ciclo de vida → Customer Portal / idempotência
-de renovação (as duas seguintes, em paralelo).
+assinatura (concluída) → webhook de ciclo de vida (esta) → Customer Portal /
+idempotência de renovação (as duas seguintes, em paralelo).
 
 ## Os dois caminhos de pagamento
 

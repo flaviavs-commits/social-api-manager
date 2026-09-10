@@ -217,6 +217,20 @@ async function buscarPorStripeCustomerId(stripeCustomerId) {
   return user || null
 }
 
+// Sincroniza plan/plan_active a partir do ciclo de vida da assinatura Stripe
+// (task "webhook de ciclo de vida", 10/09/2026) — diferente da UPDATE em
+// billingRepository (que também zera plan_unrestricted, porque acompanha uma
+// cobrança avulsa nova). Aqui plan_unrestricted (override manual de admin)
+// nunca é tocado: uma renovação/cancelamento automáticos não devem apagar uma
+// liberação manual concedida por um admin.
+async function atualizarPlanoPorAssinatura(userId, { plan = null, planActive }) {
+  const { rows: [user] } = await pool.query(
+    `UPDATE users SET plan = COALESCE($1, plan), plan_active = $2 WHERE id = $3 AND ativo = TRUE RETURNING id, plan, plan_active AS "planActive"`,
+    [plan, planActive, userId]
+  )
+  return user || null
+}
+
 async function contarAdmins() {
   const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND ativo = TRUE`)
   return Number(r.total)
@@ -259,5 +273,5 @@ module.exports = {
   buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
   listarTodos, obterMetricasAgregadas, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo,
-  salvarStripeCustomerId, buscarPorStripeCustomerId
+  salvarStripeCustomerId, buscarPorStripeCustomerId, atualizarPlanoPorAssinatura
 }

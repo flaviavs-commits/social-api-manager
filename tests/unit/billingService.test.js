@@ -18,8 +18,16 @@ jest.mock('../../src/repositories/billingRepository', () => ({
 jest.mock('../../src/repositories/usersRepository', () => ({
   buscarPorId: jest.fn(),
   buscarPorEmail: jest.fn(),
+  buscarPorStripeCustomerId: jest.fn(),
   listarEmailsAdmins: jest.fn().mockResolvedValue([]),
   salvarStripeCustomerId: jest.fn(),
+  atualizarPlanoPorAssinatura: jest.fn(),
+}))
+
+jest.mock('../../src/repositories/subscriptionsRepository', () => ({
+  criar: jest.fn(),
+  atualizarPorStripeSubscriptionId: jest.fn(),
+  buscarPorStripeSubscriptionId: jest.fn(),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -37,6 +45,7 @@ jest.mock('../../src/services/mailer', () => ({
 }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
+const subscriptionsRepo = require('../../src/repositories/subscriptionsRepository')
 const usersRepo = require('../../src/repositories/usersRepository')
 const paymentGateway = require('../../src/services/billing/paymentGateway')
 const mailer = require('../../src/services/mailer')
@@ -346,6 +355,149 @@ describe('billingService.handleWebhook', () => {
     // O e-mail é normalizado antes da busca.
     expect(usersRepo.buscarPorEmail).toHaveBeenCalledWith('cliente@allowed.test')
     expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, toPlan: 'pro' }))
+  })
+})
+
+describe('billingService.handleWebhook — ciclo de vida da assinatura', () => {
+  test('customer.subscription.created grava a assinatura e concede acesso quando já vem active', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.created',
+      data: { object: {
+        id: 'sub_123', customer: 'cus_123', status: 'active', current_period_end: 1800000000,
+        cancel_at_period_end: false, items: { data: [{ price: { id: 'price_123' } }] },
+        metadata: { user_id: '7', to_plan: 'pro' },
+      } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(subscriptionsRepo.criar).toHaveBeenCalledWith({
+      userId: 7,
+      stripeSubscriptionId: 'sub_123',
+      stripePriceId: 'price_123',
+      plan: 'pro',
+      status: 'active',
+      currentPeriodEnd: new Date(1800000000 * 1000),
+      cancelAtPeriodEnd: false,
+    })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
+  })
+
+  test('customer.subscription.created com status incomplete não concede acesso ainda', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.created',
+      data: { object: { id: 'sub_incompleta', customer: 'cus_123', status: 'incomplete', metadata: { user_id: '7', to_plan: 'pro' } } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+  })
+
+  test('customer.subscription.updated sincroniza status e concede acesso quando vira active', async () => {
+    subscriptionsRepo.atualizarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro', status: 'active' })
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_123', customer: 'cus_123', status: 'active', current_period_end: 1800000000 } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
+  })
+
+  test('customer.subscription.updated revoga o acesso quando o status vira unpaid', async () => {
+    subscriptionsRepo.atualizarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro', status: 'unpaid' })
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    await billingService.handleWebhook({
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_123', customer: 'cus_123', status: 'unpaid' } },
+    })
+
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { planActive: false })
+  })
+
+  test('customer.subscription.updated não altera o acesso quando o status é past_due (aviso, não revogação)', async () => {
+    subscriptionsRepo.atualizarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro', status: 'past_due' })
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    await billingService.handleWebhook({
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_123', customer: 'cus_123', status: 'past_due' } },
+    })
+
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+  })
+
+  test('customer.subscription.updated cria a assinatura quando o evento created nunca chegou', async () => {
+    subscriptionsRepo.atualizarPorStripeSubscriptionId.mockResolvedValue(null)
+    subscriptionsRepo.criar.mockResolvedValue({ id: 1, userId: 7, plan: 'pro', status: 'active' })
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_tardia', customer: 'cus_123', status: 'active', metadata: { to_plan: 'pro' } } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(subscriptionsRepo.criar).toHaveBeenCalled()
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
+  })
+
+  test('customer.subscription.deleted marca a assinatura cancelada e revoga o acesso', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_123', customer: 'cus_123', status: 'canceled' } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(subscriptionsRepo.atualizarPorStripeSubscriptionId).toHaveBeenCalledWith('sub_123', { status: 'canceled' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { planActive: false })
+  })
+
+  test('invoice.paid concede acesso usando o plano já salvo na assinatura', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+    subscriptionsRepo.buscarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro' })
+
+    const result = await billingService.handleWebhook({
+      type: 'invoice.paid',
+      data: { object: { id: 'in_123', customer: 'cus_123', subscription: 'sub_123' } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
+  })
+
+  test('invoice.paid sem conta identificada vira unlinked e avisa os admins', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue(null)
+    usersRepo.listarEmailsAdmins.mockResolvedValue(['admin@vitissouls.com'])
+
+    const result = await billingService.handleWebhook({
+      type: 'invoice.paid',
+      data: { object: { id: 'in_orfa', customer: 'cus_desconhecido', subscription: 'sub_desconhecida' } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+    expect(mailer.enviarEmailAlertaPagamentoNaoVinculado).toHaveBeenCalled()
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+  })
+
+  test('invoice.payment_failed registra o log sem revogar o acesso (past_due é aviso)', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    const result = await billingService.handleWebhook({
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_falha', customer: 'cus_123' } },
+    })
+
+    expect(result).toEqual({ status: 'failed' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
   })
 })
 
