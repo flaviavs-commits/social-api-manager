@@ -119,6 +119,34 @@ describe('obterMetricasAgregadas', () => {
   })
 })
 
+describe('salvarStripeCustomerId / buscarPorStripeCustomerId', () => {
+  test('salva o customer id e devolve a linha atualizada', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 7, stripeCustomerId: 'cus_123' }] })
+
+    const result = await repo.salvarStripeCustomerId(7, 'cus_123')
+
+    expect(result).toEqual({ id: 7, stripeCustomerId: 'cus_123' })
+    expect(pool.query).toHaveBeenCalledWith(expect.any(String), ['cus_123', 7])
+  })
+
+  test('busca o usuário pelo customer id, só entre contas ativas', async () => {
+    const user = { id: 7, email: 'cliente@allowed.test' }
+    pool.query.mockResolvedValueOnce({ rows: [user] })
+
+    const result = await repo.buscarPorStripeCustomerId('cus_123')
+
+    expect(result).toEqual(user)
+    const [sql, params] = pool.query.mock.calls[0]
+    expect(sql).toContain('ativo = TRUE')
+    expect(params).toEqual(['cus_123'])
+  })
+
+  test('devolve null quando não encontra', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    expect(await repo.buscarPorStripeCustomerId('cus_inexistente')).toBeNull()
+  })
+})
+
 describe('contarAdmins', () => {
   test('retorna número de admins', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ total: '2' }] })

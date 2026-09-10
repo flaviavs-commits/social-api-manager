@@ -235,6 +235,32 @@ async function ensureBillingTables() {
   await bestEffort("UPDATE billing_plan_changes SET to_plan = 'premium' WHERE to_plan = 'agencia'")
 }
 
+// Modelo de dados para assinatura recorrente (ver src/db/migrations/077_subscriptions.sql
+// para o raciocínio completo — decisão de 10/09/2026, "virar assinatura").
+async function ensureSubscriptionsTable() {
+  await bestEffort(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      stripe_subscription_id TEXT UNIQUE,
+      stripe_price_id TEXT,
+      plan TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'incomplete' CHECK (status IN (
+        'trialing', 'active', 'incomplete', 'incomplete_expired',
+        'past_due', 'canceled', 'unpaid', 'paused'
+      )),
+      current_period_end TIMESTAMPTZ,
+      cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions (user_id)')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions (stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL')
+  await bestEffort('ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT UNIQUE')
+  await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users (stripe_customer_id) WHERE stripe_customer_id IS NOT NULL')
+}
+
 async function runMigrations() {
   await Promise.all([
     requiredQuery(`
@@ -355,6 +381,7 @@ async function runMigrations() {
   ])
   await ensureUserPlanColumns()
   await ensureBillingTables()
+  await ensureSubscriptionsTable()
 }
 
 module.exports = { runMigrations }

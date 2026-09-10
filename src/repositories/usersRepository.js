@@ -198,6 +198,25 @@ async function obterMetricasAgregadas() {
   }
 }
 
+// Reaproveitado entre toda assinatura futura do mesmo usuário (task
+// "checkout em modo assinatura"), para não criar um Stripe Customer
+// duplicado a cada checkout. Ver src/db/migrations/077_subscriptions.sql.
+async function salvarStripeCustomerId(userId, stripeCustomerId) {
+  const { rows: [user] } = await pool.query(
+    `UPDATE users SET stripe_customer_id = $1 WHERE id = $2 RETURNING id, stripe_customer_id AS "stripeCustomerId"`,
+    [stripeCustomerId, userId]
+  )
+  return user || null
+}
+
+async function buscarPorStripeCustomerId(stripeCustomerId) {
+  const { rows: [user] } = await pool.query(
+    `SELECT ${USER_COLS} FROM users WHERE stripe_customer_id = $1 AND ativo = TRUE`,
+    [stripeCustomerId]
+  )
+  return user || null
+}
+
 async function contarAdmins() {
   const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND ativo = TRUE`)
   return Number(r.total)
@@ -239,5 +258,6 @@ module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
   buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
-  listarTodos, obterMetricasAgregadas, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo
+  listarTodos, obterMetricasAgregadas, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo,
+  salvarStripeCustomerId, buscarPorStripeCustomerId
 }
