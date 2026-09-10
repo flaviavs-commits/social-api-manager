@@ -4,25 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Página não encontrada</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
   <style>
-    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #10131a; color: #f5f7fb; }
+    :root { color-scheme: light; font-family: 'IBM Plex Sans', system-ui, sans-serif; --app-bg: #f7f4ea; --text: #172631; --muted: #637984; --accent: #9b6410; }
+    :root[data-theme='dark'] { color-scheme: dark; --app-bg: #111217; --text: #eef0f6; --muted: #9096a8; --accent: #d1993e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); background: var(--app-bg); color: var(--text); }
+    @supports (background: color-mix(in srgb, black, white)) { body { background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 16%, transparent), transparent 28rem), var(--app-bg); } }
     main { width: min(90vw, 34rem); padding: 2rem; text-align: center; }
     main img { display: block; width: 190px; max-width: 100%; height: auto; margin: 0 auto 2.5rem; }
-    h1 { margin: 0 0 .5rem; font-size: 4rem; }
-    p { color: #b8c0d0; }
-    a { color: #9db7ff; }
-    .copyright-notice { margin-top: 2rem; color: #7f8aa3; font-size: .8rem; }
+    h1 { margin: 0 0 .5rem; color: var(--accent); font-size: clamp(3rem, 14vw, 4rem); line-height: 1; }
+    p { color: var(--muted); line-height: 1.6; }
+    a { color: var(--accent); font-weight: 600; }
+    a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .copyright-notice { margin-top: 2rem; color: var(--muted); font-size: .8rem; }
   </style>
 </head>
 <body>
   <main>
-    <a href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.svg" alt="Meu Ecoo Mídia"></a>
+    <a href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia"></a>
     <h1>404</h1>
     <p>A página que você tentou acessar não existe ou foi removida.</p>
     <a href="/">Voltar para o início</a>
     <p class="copyright-notice">© <span data-current-year></span> Meu Ecoo Mídia. Todos os direitos reservados.</p>
   </main>
-  <script>document.querySelectorAll('[data-current-year]').forEach(element => { element.textContent = new Date().getFullYear() })</script>
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('meu-ecoo:theme:v2') === 'dark' ? 'dark' : 'light'
+    } catch {}
+    document.querySelectorAll('[data-current-year]').forEach(element => { element.textContent = new Date().getFullYear() })
+  </script>
 </body>
 </html>
