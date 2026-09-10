@@ -313,11 +313,11 @@ app.get('/support', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/support.html'))
 })
 app.get('/sobre', (req, res) => {
-  return sendReactShell(req, res)
+  return res.redirect(301, '/')
 })
 
 app.get('/como-funciona', (req, res) => {
-  return sendReactShell(req, res)
+  return res.redirect(301, '/#como-funciona')
 })
 
 // O dashboard React é servido pela mesma URL pública do produto.

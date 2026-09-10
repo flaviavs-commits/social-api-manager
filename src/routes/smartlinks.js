@@ -6,7 +6,7 @@ const apiRouter = Router()
 const publicRouter = Router()
 const SLUG_MAX_LENGTH = 60
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const RESERVED_SLUGS = new Set(['api', 'app', 'assets', 'auth', 'go', 'login', 'support', 'privacy-policy', 'terms-of-service', 'como-funciona', 'criar-conta'])
+const RESERVED_SLUGS = new Set(['api', 'app', 'assets', 'auth', 'go', 'login', 'support', 'privacy-policy', 'terms-of-service', 'sobre', 'como-funciona', 'criar-conta'])
 const slugify = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, SLUG_MAX_LENGTH)
 const normalizeSlug = value => slugify(String(value || '').trim())
 const slugError = slug => {
