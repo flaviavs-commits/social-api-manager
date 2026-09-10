@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PLANS, getMeuEcooPricing } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 import logo from '../../../public/logo.png'
@@ -127,22 +127,39 @@ function HandCircleCallout() {
   </div>
 }
 
+function ScrollCue() {
+  const [ready, setReady] = useState(false)
+  const [hidden, setHidden] = useState(false)
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setReady(true))
+    const onScroll = () => setHidden(window.scrollY > 40)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+
+  return <a
+    className={`mkt-scrollcue${ready ? ' is-ready' : ''}${hidden ? ' is-hidden' : ''}`}
+    href="#recursos"
+    aria-label="Role para explorar"
+  >
+    <span className="mkt-scrollcue-label">Role para explorar</span>
+    <span className="mkt-scrollcue-rail" aria-hidden="true"><i /></span>
+    <span className="mkt-scrollcue-chevron" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+    </span>
+  </a>
+}
+
 function HeroStage() {
-  const highlightsId = useId()
-  return <div className="mkt-stage mkt-stage--render">
+  return <div className="mkt-stage mkt-stage--render" onDragStart={event => event.preventDefault()}>
     <img className="mkt-hero-render" src={heroPhone} width={1122} height={1402}
       alt="Celular Ecoo Mídia com publicações para Instagram, Facebook, TikTok e YouTube em um só lugar."
-      fetchPriority="high" decoding="async" />
-    {/* Keep the original screen white above the studio-background blend.
-        This inset follows this exact asset; it is not a replacement UI. */}
-    <svg className="mkt-hero-highlights" viewBox="0 0 1122 1402" aria-hidden="true" focusable="false">
-      <defs>
-        <clipPath id={highlightsId}>
-          <path d="M805 143Q849 135 854 184L755 1160Q750 1214 702 1217L329 1207Q275 1202 278 1157L402 303Q410 248 460 232Z" />
-        </clipPath>
-      </defs>
-      <image href={heroPhone} width="1122" height="1402" clipPath={`url(#${highlightsId})`} />
-    </svg>
+      fetchPriority="high" decoding="async" draggable={false} onDragStart={event => event.preventDefault()} />
   </div>
 }
 
@@ -178,7 +195,6 @@ export function LandingPage() {
         <a className="is-active" href="#conteudo" onClick={() => setMenuOpen(false)}><Icon name="home" size={18} />Início</a>
         <a href="#recursos" onClick={() => setMenuOpen(false)}><Icon name="bulb" size={18} />O que você ganha</a>
         <a href="#como-funciona" onClick={() => setMenuOpen(false)}><Icon name="help" size={18} />Como funciona</a>
-        <a className="mkt-nav-login" href="/login.html">Entrar <Icon name="arrow" size={17} /></a>
       </div>
       <AccountMenu />
       <button className="mkt-menu" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} aria-controls="mkt-navigation" onClick={() => setMenuOpen(value => !value)}><Icon name={menuOpen ? 'close' : 'menu'} /></button>
@@ -193,6 +209,7 @@ export function LandingPage() {
           </div>
         </div>
         <HeroStage />
+        <ScrollCue />
       </section>
       <section className="mkt-section mkt-container" id="recursos" aria-labelledby="features-title">
         <div className="mkt-section-head"><p className="mkt-eyebrow">Menos trabalho manual</p><h2 id="features-title">Sua lista de tarefas<br />em um só lugar.</h2><p>Do primeiro rascunho ao relatório, tudo no mesmo fluxo — sem pular entre aplicativos.</p></div>

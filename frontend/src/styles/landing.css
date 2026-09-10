@@ -72,7 +72,6 @@ html[data-theme="dark"] .mkt-header { background: rgba(23,21,15,.82); }
   content: ""; position: absolute; left: 27px; right: 0; bottom: 2px;
   height: 2px; border-radius: 2px; background: var(--mkt-green-deep);
 }
-.mkt-nav-login { font-weight: 600 !important; }
 
 /* ---------- menu de conta (popup) ---------- */
 .mkt-account { --acc-size: 44px; position: relative; flex: 0 0 auto; line-height: 0; }
@@ -175,8 +174,9 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
 /* ---------- hero ---------- */
 .marketing-page main { position: relative; overflow-x: clip; }
 .mkt-hero {
+  position: relative;
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: center;
-  gap: clamp(32px, 4vw, 64px); padding-block: 24px 88px; min-height: 72vh;
+  gap: clamp(32px, 4vw, 64px); padding-block: 24px 96px; min-height: 82vh;
 }
 .mkt-hero-copy { max-width: 620px; }
 @media (min-width: 861px) {
@@ -191,6 +191,7 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
 .mkt-stage--render::after { content: none; }
 .mkt-hero-render {
   display: block; width: 100%; height: auto; object-fit: contain;
+  -webkit-user-drag: none; user-select: none; -webkit-user-select: none; pointer-events: none;
   /* Blend the baked-in studio background, not the product's whites.
      Only the empty outer shadow margin is feathered; never the callout/icons. */
   mix-blend-mode: darken;
@@ -200,10 +201,6 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
   -webkit-mask-image: var(--edge-mask); -webkit-mask-composite: source-in;
   mask-image: var(--edge-mask); mask-composite: intersect;
 }
-.mkt-hero-highlights {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  display: block; overflow: visible; pointer-events: none;
-}
 /* The supplied artwork was lit for the cream hero. Keep the existing dark
    presentation instead of blending its colors into a nearly black surface. */
 html[data-theme="dark"] .mkt-hero-render {
@@ -212,7 +209,6 @@ html[data-theme="dark"] .mkt-hero-render {
     linear-gradient(to right, transparent, #000 8%, #000 92%, transparent),
     linear-gradient(to bottom, transparent, #000 7%, #000 93%, transparent);
 }
-html[data-theme="dark"] .mkt-hero-highlights { display: none; }
 @media (min-width: 1200px) {
   .mkt-stage.mkt-stage--render {
     width: 108%; max-width: 648px; margin-inline: 0; justify-self: center;
@@ -253,6 +249,50 @@ html[data-theme="dark"] .marketing-page h1 em::after {
   box-shadow: 0 9px 20px -13px rgba(58,46,18,.42);
 }
 .mkt-hero-note { color: var(--mkt-muted); font-size: 13px; font-weight: 400; opacity: .82; }
+
+/* ---------- "role para explorar" ---------- */
+.mkt-scrollcue {
+  position: absolute; left: 50%; bottom: clamp(16px, 3vh, 30px); z-index: 6;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  margin: 0; padding: 8px 14px;
+  color: var(--mkt-green-soft); text-align: center;
+  opacity: 0; transform: translate(-50%, 12px);
+  transition: opacity .55s ease, transform .55s cubic-bezier(.22, 1, .36, 1);
+}
+.mkt-scrollcue.is-ready { opacity: .8; transform: translate(-50%, 0); }
+.mkt-scrollcue.is-ready:hover { opacity: 1; }
+.mkt-scrollcue.is-ready.is-hidden {
+  opacity: 0; transform: translate(-50%, 10px); pointer-events: none;
+}
+.mkt-scrollcue-label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase;
+  padding-left: .3em;
+}
+.mkt-scrollcue-rail {
+  position: relative; display: block; width: 2px; height: 34px; flex: none;
+  border-radius: 2px; overflow: hidden;
+  background: linear-gradient(var(--mkt-border), transparent);
+}
+.mkt-scrollcue-rail i {
+  position: absolute; left: -1px; right: -1px; top: -100%; height: 100%;
+  background: linear-gradient(to bottom, transparent, var(--mkt-gold) 55%, transparent);
+  animation: mkt-scrollcue-travel 2.4s cubic-bezier(.6, 0, .35, 1) infinite;
+}
+.mkt-scrollcue:hover .mkt-scrollcue-rail i { animation-duration: 1.6s; }
+.mkt-scrollcue-chevron { display: block; line-height: 0; margin-top: -3px; color: var(--mkt-gold); }
+.mkt-scrollcue-chevron svg {
+  width: 15px; height: 15px; display: block;
+  animation: mkt-scrollcue-nudge 2.4s ease-in-out infinite;
+}
+@keyframes mkt-scrollcue-travel {
+  0% { transform: translateY(0); opacity: 0; }
+  25%, 75% { opacity: 1; }
+  100% { transform: translateY(200%); opacity: 0; }
+}
+@keyframes mkt-scrollcue-nudge {
+  0%, 100% { transform: translateY(0); opacity: .65; }
+  50% { transform: translateY(3px); opacity: 1; }
+}
 
 /* faixa de benefícios logo abaixo do hero */
 .marketing-page .mkt-hero-benefits {
@@ -616,8 +656,14 @@ html[data-theme="dark"] .marketing-page h1 em::after {
   .mkt-nav-links > a { padding: 12px 6px; font-size: 16px; }
   .mkt-nav-links > a.is-active::after { display: none; }
   .mkt-account { order: 1; }
-  .mkt-hero { grid-template-columns: 1fr; padding-block: 12px 48px; gap: 36px; justify-items: start; min-height: 0; }
+  .mkt-hero { grid-template-columns: 1fr; padding-block: 12px 48px; gap: 28px; justify-items: start; min-height: 0; }
   .mkt-hero-copy { max-width: none; }
+  .mkt-scrollcue {
+    position: static; order: 3; align-self: center;
+    left: auto; bottom: auto; margin: 4px 0 0; padding: 4px 12px;
+  }
+  .mkt-scrollcue.is-ready { transform: translateY(0); }
+  .mkt-scrollcue.is-ready.is-hidden { transform: translateY(8px); }
   .marketing-page h1 { font-size: clamp(44px, 10vw, 64px); }
   .marketing-page .mkt-hero-sub { max-width: none; }
   .mkt-stage { order: 2; align-self: center; max-width: 360px; }
@@ -657,6 +703,8 @@ html[data-theme="dark"] .marketing-page h1 em::after {
   .mkt-hero-actions { width: 100%; align-items: flex-start; flex-wrap: wrap; gap: 11px 16px; }
   .mkt-hero-actions .mkt-button { width: 100%; }
   .mkt-hero-note { flex-basis: 100%; }
+  .mkt-scrollcue { margin-top: 8px; gap: 8px; }
+  .mkt-scrollcue-label { letter-spacing: .24em; }
   .mkt-badge { font-size: 11.5px; padding: 8px 16px 8px 13px; letter-spacing: .07em; }
   .mkt-hero-benefits { grid-template-columns: 1fr; row-gap: 20px; }
   .mkt-hero-benefits li + li { border-left: 0; }
