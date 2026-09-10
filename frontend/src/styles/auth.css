@@ -2,6 +2,7 @@
   --red: #fb7185;
   --green: #4ade80;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -14,7 +15,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 24px 60px #0008;
+  box-shadow: var(--shadow-md);
 }
 
 .auth-brand {
@@ -104,7 +105,7 @@
   border: 1px solid var(--accent);
   border-radius: 7px;
   background: var(--accent);
-  color: #111217;
+  color: var(--on-accent);
   font: 600 14px inherit;
   cursor: pointer;
   text-align: center;
@@ -250,6 +251,7 @@
 
 .checkout-page {
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 30px 20px 64px;
   background: radial-gradient(circle at 12% 8%, var(--accent-glow), transparent 28rem), var(--app-bg);
 }
@@ -857,6 +859,10 @@
   .auth-card {
     padding: 28px 20px;
   }
+
+  .auth-rules {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 840px) {
@@ -955,4 +961,12 @@
 
 @media (max-width: 620px) {
   .checkout-discount-choice { grid-template-columns: 1fr; }
+}
+
+/* Auth surfaces do not live inside .app-shell-modern, so they need their own
+ * visible keyboard focus treatment. */
+.auth-page :is(button, a, input, select, textarea):focus-visible,
+.checkout-page :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
 }

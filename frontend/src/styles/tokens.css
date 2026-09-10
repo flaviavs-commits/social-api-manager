@@ -7,6 +7,7 @@
  */
 :root {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-synthesis: none;
 
   --app-bg: #111217;
