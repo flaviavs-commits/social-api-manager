@@ -31,8 +31,8 @@ jest.mock('../../src/repositories/billingRepository', () => ({
   marcarEnvioMeuEcooConcluido: jest.fn(),
   marcarFalhaEnvioMeuEcoo: jest.fn(),
 }))
-jest.mock('../../src/repositories/usersRepository', () => ({ buscarPorId: jest.fn(), buscarPorEmail: jest.fn() }))
-jest.mock('../../src/services/mailer', () => ({ enviarEmailAcessoMeuEcoo: jest.fn() }))
+jest.mock('../../src/repositories/usersRepository', () => ({ buscarPorId: jest.fn(), buscarPorEmail: jest.fn(), listarEmailsAdmins: jest.fn().mockResolvedValue([]) }))
+jest.mock('../../src/services/mailer', () => ({ enviarEmailAcessoMeuEcoo: jest.fn(), enviarEmailAlertaPagamentoNaoVinculado: jest.fn().mockResolvedValue(undefined) }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
 const usersRepo = require('../../src/repositories/usersRepository')
@@ -309,6 +309,19 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
     expect(billingRepo.confirmarPagamentoDireto).not.toHaveBeenCalled()
     expect(usersRepo.buscarPorId).not.toHaveBeenCalled()
     expect(usersRepo.buscarPorEmail).not.toHaveBeenCalled()
+  })
+
+  test('avisa todo admin ativo por e-mail quando o pagamento fica unlinked, de ponta a ponta pelo webhook HTTP', async () => {
+    usersRepo.listarEmailsAdmins.mockResolvedValue(['tiago@vitissouls.com', 'brenoaugusto@vitissouls.com'])
+
+    const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({ id: 'cs_link_aviso_admin' })))
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ received: true, status: 'unlinked' })
+    expect(mailer.enviarEmailAlertaPagamentoNaoVinculado).toHaveBeenCalledWith(
+      ['tiago@vitissouls.com', 'brenoaugusto@vitissouls.com'],
+      expect.objectContaining({ sessionId: 'cs_link_aviso_admin' })
+    )
   })
 
   test('sinaliza client_reference_id fora do padrão e sem e-mail conhecido', async () => {

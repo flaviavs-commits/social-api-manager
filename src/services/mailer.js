@@ -85,4 +85,40 @@ async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { 
   })
 }
 
-module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado }
+async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sessionId, amountCents, currency, clientReferenceId, customerEmail, adminUrl }) {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para o alerta de cobrança')
+  const safeReason = escapeHtml(reason || 'motivo não informado')
+  const safeSessionId = escapeHtml(sessionId || 'desconhecida')
+  const valor = Number.isFinite(Number(amountCents)) ? `${(Number(amountCents) / 100).toFixed(2)} ${String(currency || '').toUpperCase()}` : 'valor desconhecido'
+  const safeClientRef = escapeHtml(clientReferenceId || 'ausente')
+  const safeCustomerEmail = escapeHtml(customerEmail || 'ausente')
+  const safeAdminUrl = escapeHtml(adminUrl)
+
+  await transporter.sendMail({
+    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+    to: recipients.join(', '),
+    subject: '⚠️ Pagamento confirmado sem conta vinculada',
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #222;">
+        <h2 style="color: #c0392b;">Um pagamento entrou sem creditar nenhum cliente</h2>
+        <p>A Stripe confirmou um pagamento, mas o sistema não conseguiu associá-lo a nenhuma conta. O cliente pagou e ainda não recebeu o plano.</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0;">
+          <tr><td style="padding: 4px 8px; color: #888;">Motivo</td><td style="padding: 4px 8px;">${safeReason}</td></tr>
+          <tr><td style="padding: 4px 8px; color: #888;">Sessão</td><td style="padding: 4px 8px;">${safeSessionId}</td></tr>
+          <tr><td style="padding: 4px 8px; color: #888;">Valor</td><td style="padding: 4px 8px;">${valor}</td></tr>
+          <tr><td style="padding: 4px 8px; color: #888;">Referência</td><td style="padding: 4px 8px;">${safeClientRef}</td></tr>
+          <tr><td style="padding: 4px 8px; color: #888;">E-mail do comprador</td><td style="padding: 4px 8px;">${safeCustomerEmail}</td></tr>
+        </table>
+        <p style="margin: 24px 0;">
+          <a href="${safeAdminUrl}" style="display: inline-block; background: #6c8cff; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Vincular no painel admin
+          </a>
+        </p>
+        <p style="color: #999; font-size: 12px;">Se o botão não abrir, copie este endereço: <a href="${safeAdminUrl}">${safeAdminUrl}</a></p>
+      </div>
+    `,
+    text: `Um pagamento entrou sem creditar nenhum cliente. Motivo: ${reason || 'não informado'}. Sessão: ${sessionId || 'desconhecida'}. Valor: ${valor}. Referência: ${clientReferenceId || 'ausente'}. E-mail do comprador: ${customerEmail || 'ausente'}. Vincule em: ${adminUrl}`
+  })
+}
+
+module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado }

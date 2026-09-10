@@ -182,6 +182,24 @@ describe('contarSuperAdmins', () => {
   })
 })
 
+describe('listarEmailsAdmins', () => {
+  test('retorna só os e-mails de admin/super_admin ativos', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ email: 'brenoaugusto@vitissouls.com' }, { email: 'tiago@vitissouls.com' }] })
+
+    const emails = await repo.listarEmailsAdmins()
+
+    expect(emails).toEqual(['brenoaugusto@vitissouls.com', 'tiago@vitissouls.com'])
+    const [sql] = pool.query.mock.calls[0]
+    expect(sql).toContain("role IN ('admin', 'super_admin')")
+    expect(sql).toContain('ativo = TRUE')
+  })
+
+  test('retorna array vazio quando não há admin', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [] })
+    expect(await repo.listarEmailsAdmins()).toEqual([])
+  })
+})
+
 describe('salvarSegredoTotp / buscarTotp', () => {
   test('salvarSegredoTotp cifra o segredo antes de gravar', async () => {
     pool.query.mockResolvedValueOnce({ rows: [] })

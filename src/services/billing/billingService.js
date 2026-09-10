@@ -279,9 +279,38 @@ async function sendMeuEcooAccessEmail(change, object, metadata) {
   }
 }
 
+function adminPanelUrl() {
+  const base = process.env.FRONTEND_URL || process.env.BASE_URL || ''
+  return `${base.replace(/\/$/, '')}/admin.html`
+}
+
+// Decisão registrada no IA.md de 10/09/2026 (task "decidir escopo e
+// destinatário de alerta"): todo admin ativo recebe o aviso, imediatamente
+// por evento. Best-effort — se o e-mail falhar (ex.: Gmail não configurado),
+// registra o próprio erro no log em vez de propagar e derrubar o webhook;
+// o pagamento já está registrado no log de erro principal de qualquer forma.
+async function alertUnlinkedPaymentAdmins(object, reason) {
+  try {
+    const recipients = await usersRepo.listarEmailsAdmins()
+    if (!recipients.length) return
+    await mailer.enviarEmailAlertaPagamentoNaoVinculado(recipients, {
+      reason,
+      sessionId: object?.id,
+      amountCents: Number(object?.amount_total),
+      currency: object?.currency,
+      clientReferenceId: object?.client_reference_id,
+      customerEmail: readCustomerEmail(object),
+      adminUrl: adminPanelUrl(),
+    })
+  } catch (error) {
+    await addLog('err', `Falha ao enviar alerta de pagamento não vinculado: ${error.message}`)
+  }
+}
+
 // Um pagamento confirmado que não conseguimos vincular a nenhuma conta é
 // dinheiro que entrou sem ninguém ser creditado. Nunca falha silenciosamente:
-// registra o que faltou para permitir a reconciliação manual.
+// registra o que faltou para permitir a reconciliação manual e avisa todo
+// admin por e-mail.
 async function logUnlinkedPayment(object, reason) {
   await addLog(
     'err',
@@ -292,6 +321,7 @@ async function logUnlinkedPayment(object, reason) {
     `client_reference_id=${object?.client_reference_id || 'ausente'} ` +
     `email=${readCustomerEmail(object) || 'ausente'}`
   )
+  await alertUnlinkedPaymentAdmins(object, reason)
   return { status: 'unlinked', reason }
 }
 

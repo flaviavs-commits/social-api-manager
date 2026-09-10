@@ -189,6 +189,17 @@ async function contarSuperAdmins() {
   return Number(r.total)
 }
 
+// Usado pelo alerta de pagamento não vinculado: todo admin ativo recebe o
+// aviso (decisão registrada no IA.md de 10/09/2026). super_admin também
+// entra — hoje é convertido em admin a cada boot (runtimeMigrations.js), mas
+// incluir os dois papéis evita depender dessa conversão já ter rodado.
+async function listarEmailsAdmins() {
+  const { rows } = await pool.query(
+    `SELECT email FROM users WHERE role IN ('admin', 'super_admin') AND ativo = TRUE ORDER BY email`
+  )
+  return rows.map(row => row.email)
+}
+
 async function atualizarRole(id, role) {
   const { rows: [user] } = await pool.query(
     `UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, role`,
@@ -209,5 +220,5 @@ module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
   buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
-  listarTodos, contarAdmins, contarSuperAdmins, atualizarRole, atualizarAtivo
+  listarTodos, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo
 }

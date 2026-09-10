@@ -18,6 +18,7 @@ jest.mock('../../src/repositories/billingRepository', () => ({
 jest.mock('../../src/repositories/usersRepository', () => ({
   buscarPorId: jest.fn(),
   buscarPorEmail: jest.fn(),
+  listarEmailsAdmins: jest.fn().mockResolvedValue([]),
 }))
 
 jest.mock('../../src/services/billing/paymentGateway', () => ({
@@ -31,6 +32,7 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
 
 jest.mock('../../src/services/mailer', () => ({
   enviarEmailAcessoMeuEcoo: jest.fn(),
+  enviarEmailAlertaPagamentoNaoVinculado: jest.fn().mockResolvedValue(undefined),
 }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
@@ -276,6 +278,48 @@ describe('billingService.handleWebhook', () => {
     // O e-mail é normalizado antes da busca.
     expect(usersRepo.buscarPorEmail).toHaveBeenCalledWith('cliente@allowed.test')
     expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, toPlan: 'pro' }))
+  })
+})
+
+describe('billingService.handleWebhook — alerta de pagamento não vinculado', () => {
+  test('avisa todo admin ativo quando o pagamento fica sem vínculo', async () => {
+    usersRepo.listarEmailsAdmins.mockResolvedValue(['tiago@vitissouls.com', 'brenoaugusto@vitissouls.com'])
+    process.env.FRONTEND_URL = 'https://meuecoomidia.com.br'
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_sem_admin_aviso', payment_status: 'paid', amount_total: 999, currency: 'brl', client_reference_id: 'user:7' } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
+    expect(mailer.enviarEmailAlertaPagamentoNaoVinculado).toHaveBeenCalledWith(
+      ['tiago@vitissouls.com', 'brenoaugusto@vitissouls.com'],
+      expect.objectContaining({ sessionId: 'cs_sem_admin_aviso', amountCents: 999, currency: 'brl', adminUrl: 'https://meuecoomidia.com.br/admin.html' })
+    )
+    delete process.env.FRONTEND_URL
+  })
+
+  test('não envia e-mail quando não há admin cadastrado', async () => {
+    usersRepo.listarEmailsAdmins.mockResolvedValue([])
+
+    await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_sem_admins', payment_status: 'paid', amount_total: 999, currency: 'brl' } },
+    })
+
+    expect(mailer.enviarEmailAlertaPagamentoNaoVinculado).not.toHaveBeenCalled()
+  })
+
+  test('falha no envio do alerta não derruba o status unlinked (best-effort)', async () => {
+    usersRepo.listarEmailsAdmins.mockResolvedValue(['tiago@vitissouls.com'])
+    mailer.enviarEmailAlertaPagamentoNaoVinculado.mockRejectedValueOnce(new Error('Gmail indisponível'))
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_email_falha', payment_status: 'paid', amount_total: 999, currency: 'brl' } },
+    })
+
+    expect(result).toMatchObject({ status: 'unlinked' })
   })
 })
 
