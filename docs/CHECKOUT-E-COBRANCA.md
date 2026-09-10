@@ -39,7 +39,8 @@ sozinho quem pagou e o que comprou.
 ## ⚠️ Ao enviar um link fixo, use o endpoint — não copie do JSON
 
 ```
-GET /api/billing/plan-link/:plan     (autenticado, como o próprio cliente)
+GET /api/billing/plan-link/:plan                    (autenticado, como o próprio cliente)
+GET /api/admin/users/:id/plan-link/:plan             (autenticado, qualquer admin — gera para outra conta)
 → { "url": "https://buy.stripe.com/...?client_reference_id=user:7&prefilled_email=..." }
 ```
 
@@ -47,6 +48,11 @@ O `client_reference_id` é o que amarra o pagamento à conta
 ([doc oficial](https://docs.stripe.com/payment-links/url-parameters)).
 Copiar a URL crua de `config/plans.json` remove essa marcação e joga o
 pagamento no caminho de fallback abaixo.
+
+A rota `/api/admin/...` é o único ponto do painel admin em que um admin acessa
+algo de outra conta — decisão registrada no `IA.md` de 10/09/2026. Cada geração
+fica auditada no log do próprio admin que gerou (`adminController.getPlanLink`).
+No frontend, é a coluna "Link de pagamento" em `admin-page.jsx`.
 
 ## Como o webhook identifica a conta
 

@@ -1,6 +1,8 @@
 const users = require('../../repositories/usersRepository')
 const { parseId, serverError } = require('../../utils/http')
 const { invalidarCacheUsuario } = require('../../middleware/requireAuth')
+const billingService = require('../../services/billing/billingService')
+const { addLog } = require('../../middleware/logger')
 
 async function listUsers(req, res) {
   try { res.json({ data: await users.listarTodos(req.user.id) }) }
@@ -34,4 +36,21 @@ async function updateActive(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível atualizar o usuário') }
 }
 
-module.exports = { listUsers, updateRole, updateActive }
+// Único ponto do painel admin onde um admin vê algo de outra conta que não é
+// gerenciamento de papel/situação: gera o Payment Link do plano já com o
+// client_reference_id do usuário-alvo (ver billingService.getPlanDirectLink),
+// para casos em que o time precise mandar o link manualmente para um cliente.
+// Toda geração fica registrada no log do próprio admin que a fez (auditoria).
+async function getPlanLink(req, res) {
+  try {
+    const id = parseId(req.params.id)
+    if (id === null) return res.status(400).json({ erro: 'id inválido' })
+    const target = await users.buscarPorId(id)
+    if (!target) return res.status(404).json({ erro: 'Usuário não encontrado' })
+    const url = billingService.getPlanDirectLink({ plan: req.params.plan, userId: target.id, email: target.email })
+    await addLog('ok', `Link de pagamento do plano "${req.params.plan}" gerado para ${target.email} (usuário #${target.id}).`, null, null, req.user.id)
+    res.json({ url })
+  } catch (error) { serverError(res, error, 'Não foi possível gerar o link de pagamento agora.') }
+}
+
+module.exports = { listUsers, updateRole, updateActive, getPlanLink }

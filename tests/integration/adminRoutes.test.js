@@ -17,8 +17,18 @@ jest.mock('../../src/repositories/usersRepository', () => ({
 jest.mock('../../src/repositories/contasRepository', () => ({
   listarContas: jest.fn(),
 }))
+jest.mock('../../src/repositories/logsRepository', () => ({
+  registrarLog: jest.fn().mockResolvedValue(undefined),
+  listarLogs: jest.fn(),
+  listarLogsDesde: jest.fn(),
+  limparLogs: jest.fn(),
+  broadcastEvent: jest.fn(),
+  listarEventosDesde: jest.fn(),
+  limparAntigos: jest.fn(),
+}))
 
 const usersRepo = require('../../src/repositories/usersRepository')
+const logsRepo = require('../../src/repositories/logsRepository')
 const { gerarTokenSessao } = require('../../src/utils/authToken')
 
 const app = require('../../src/server')
@@ -130,5 +140,93 @@ describe('POST /api/admin/users/:id/ativo', () => {
       .set('Authorization', `Bearer ${tokenAdmin}`)
       .send({ ativo: false })
     expect(res.status).toBe(403)
+  })
+})
+
+// ── GET /api/admin/users/:id/plan-link/:plan ──────────────────────────────────
+// Único ponto do painel admin em que um admin acessa dado de outra conta:
+// gera o Payment Link do plano com o client_reference_id do usuário-alvo.
+// Decisão registrada na task "definir quem gera o link de pagamento" — Trilha B,
+// resposta do usuário: criar tela admin, aberta para qualquer admin.
+
+describe('GET /api/admin/users/:id/plan-link/:plan', () => {
+  const CLIENTE = { id: 7, email: 'cliente@allowed.test', role: 'user', ativo: true, plan: 'basico' }
+
+  function porId(id) {
+    if (id === ADMIN.id) return ADMIN
+    if (id === USER.id) return USER
+    if (id === CLIENTE.id) return CLIENTE
+    return null
+  }
+
+  test('401 sem token', async () => {
+    const res = await request(app).get(`/api/admin/users/${CLIENTE.id}/plan-link/pro`)
+    expect(res.status).toBe(401)
+  })
+
+  test('403 para user comum', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(USER)
+    const res = await request(app)
+      .get(`/api/admin/users/${CLIENTE.id}/plan-link/pro`)
+      .set('Authorization', `Bearer ${tokenUser}`)
+    expect(res.status).toBe(403)
+  })
+
+  test('400 id de usuário inválido', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    const res = await request(app)
+      .get('/api/admin/users/abc/plan-link/pro')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(400)
+  })
+
+  test('404 quando o usuário-alvo não existe', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => (id === ADMIN.id ? ADMIN : null))
+    const res = await request(app)
+      .get('/api/admin/users/999/plan-link/pro')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(404)
+  })
+
+  test('400 plano inválido', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    const res = await request(app)
+      .get(`/api/admin/users/${CLIENTE.id}/plan-link/inexistente`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('invalid_plan')
+  })
+
+  test('200: gera o link com o client_reference_id do usuário-alvo, não do admin', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    const res = await request(app)
+      .get(`/api/admin/users/${CLIENTE.id}/plan-link/pro`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(200)
+    expect(res.body.url).toContain('https://buy.stripe.com/')
+    expect(res.body.url).toContain(`client_reference_id=user%3A${CLIENTE.id}`)
+    expect(res.body.url).toContain('prefilled_email=cliente%40allowed.test')
+    expect(res.body.url).not.toContain(`user%3A${ADMIN.id}`)
+  })
+
+  test('200: qualquer admin pode gerar (decisão registrada: não restrito a super_admin)', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    const res = await request(app)
+      .get(`/api/admin/users/${CLIENTE.id}/plan-link/basico`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(res.status).toBe(200)
+  })
+
+  test('registra auditoria no log do admin que gerou o link', async () => {
+    usersRepo.buscarPorId.mockImplementation(async id => porId(id))
+    await request(app)
+      .get(`/api/admin/users/${CLIENTE.id}/plan-link/premium`)
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+    expect(logsRepo.registrarLog).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'ok',
+      user_id: ADMIN.id,
+      message: expect.stringContaining(CLIENTE.email),
+    }))
+    expect(logsRepo.registrarLog.mock.calls[0][0].message).toContain('premium')
   })
 })
