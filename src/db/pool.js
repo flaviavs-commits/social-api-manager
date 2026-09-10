@@ -14,6 +14,8 @@ const postgresCa = process.env.PGSSL_CA_B64
     })()
   : String(process.env.PGSSL_CA || '').replace(/\\n/g, '\n')
 const postgresFingerprint = String(process.env.PGSSL_SERVER_FINGERPRINT || '').replace(/[^a-f0-9]/gi, '').toUpperCase()
+const configuredPoolMax = Number(process.env.PG_POOL_MAX)
+const poolMax = Number.isFinite(configuredPoolMax) && configuredPoolMax > 0 ? configuredPoolMax : 10
 
 function checkPostgresCertificate(hostname, certificate) {
   if (postgresFingerprint && certificate?.fingerprint256) {
@@ -35,12 +37,10 @@ const pool = new Pool({
         ...(postgresFingerprint ? { checkServerIdentity: checkPostgresCertificate } : {})
       }
     : undefined,
-  // Default do driver é max=10, o que esgota rápido com várias chamadas
-  // paralelas (dashboard, analytics) concorrendo pela mesma conexão. Subido
-  // para 30 depois que a publicação multi-plataforma/multi-post passou a
-  // rodar em paralelo (publisher.js, scheduler.js), aumentando o pico de
-  // queries concorrentes por publicação.
-  max: 30,
+  // O pool é por réplica. Mantê-lo configurável e moderado evita multiplicar
+  // conexões no PostgreSQL quando a API escala horizontalmente no Railway.
+  // Use PG_POOL_MAX maior somente após medir a capacidade do banco.
+  max: poolMax,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
   statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS || 30000),
