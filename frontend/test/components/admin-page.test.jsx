@@ -67,8 +67,49 @@ describe('AdminPage — link de pagamento por usuário', () => {
   })
 })
 
+describe('AdminPage — navegação por abas', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, '', '/admin.html')
+  })
+
+  it('abre na aba Usuários por padrão e troca para Conciliação ao clicar', async () => {
+    mockApi()
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByText('cliente@allowed.test')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Usuários' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByText(/Pagamentos não conciliados/)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Conciliação' }))
+
+    await waitFor(() => expect(screen.getByText(/Pagamentos não conciliados/)).toBeInTheDocument())
+    expect(screen.queryByText('cliente@allowed.test')).not.toBeInTheDocument()
+  })
+
+  it('reflete a aba na URL e responde a uma navegação popstate para outra aba', async () => {
+    mockApi()
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByText('cliente@allowed.test')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Conciliação' }))
+    await waitFor(() => expect(screen.getByText(/Pagamentos não conciliados/)).toBeInTheDocument())
+    expect(window.location.search).toContain('tab=conciliacao')
+
+    // Simula o navegador restaurando a URL anterior (botão "voltar") sem
+    // depender de history.back() real do jsdom, que não é confiável em teste.
+    window.history.replaceState({}, '', '/admin.html?tab=usuarios')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Usuários' })).toHaveAttribute('aria-current', 'page'))
+    expect(screen.queryByText(/Pagamentos não conciliados/)).not.toBeInTheDocument()
+  })
+})
+
 describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, '', '/admin.html')
+  })
 
   const ITEM = {
     sessionId: 'cs_sem_match',
@@ -82,17 +123,27 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
     paymentIntent: 'pi_1',
   }
 
+  // A seção só monta na aba "Conciliação" — abre direto lá via URL para não
+  // repetir o clique em cada teste.
+  async function renderNaAbaConciliacao() {
+    window.history.pushState({}, '', '/admin.html?tab=conciliacao')
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Conciliação' })).toHaveAttribute('aria-current', 'page'))
+  }
+
   it('mostra o estado vazio quando não há pagamento pendente de conciliação', async () => {
     mockApi()
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByText(/Nenhum pagamento sem conciliação/)).toBeInTheDocument())
   })
 
   it('lista um pagamento não conciliado com o plano sugerido pré-selecionado', async () => {
     mockApi({ report: { unmatched: [ITEM], checked: 3, truncated: false } })
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
 
-    await waitFor(() => expect(screen.getByText('cliente@allowed.test')).toBeInTheDocument())
+    // O e-mail aparece na célula da tabela e também como opção do select de
+    // usuário; getByRole('cell', ...) ignora a segunda.
+    await waitFor(() => expect(screen.getByRole('cell', { name: 'cliente@allowed.test' })).toBeInTheDocument())
     expect(screen.getByText('R$ 100,50')).toBeInTheDocument()
     expect(screen.getByLabelText('Plano para vincular a sessão cs_sem_match')).toHaveValue('pro')
   })
@@ -103,7 +154,7 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
       report: { unmatched: [ITEM], checked: 1, truncated: false },
       extra: { '/api/admin/billing/reconciliation/cs_sem_match/link': () => Promise.resolve({ status: 'paid' }) },
     })
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByLabelText('Usuário para vincular a sessão cs_sem_match')).toHaveValue('7'))
 
     await userEvent.click(screen.getByRole('button', { name: 'Vincular' }))
@@ -120,7 +171,7 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
       report: { unmatched: [ITEM], checked: 1, truncated: false },
       extra: { '/api/admin/billing/reconciliation/cs_sem_match/link': () => Promise.reject(new api.ApiError('Essa sessão não está marcada como paga na Stripe.', 400)) },
     })
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Vincular' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: 'Vincular' }))
@@ -131,13 +182,13 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
 
   it('avisa quando o relatório foi cortado pelo limite de sessões', async () => {
     mockApi({ report: { unmatched: [], checked: 500, truncated: true } })
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByText(/lista foi cortada em 500 sessões/)).toBeInTheDocument())
   })
 
   it('recarrega com o período escolhido no seletor de dias', async () => {
     const apiFetch = mockApi()
-    render(<AdminPage />)
+    await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByText(/Nenhum pagamento sem conciliação/)).toBeInTheDocument())
 
     await userEvent.selectOptions(screen.getByDisplayValue('Últimos 7 dias'), '30')
