@@ -23,6 +23,7 @@ function mockApi(overrides = {}) {
       return Promise.resolve(overrides.report || EMPTY_REPORT)
     }
     if (path === '/api/logs?limit=200') return Promise.resolve({ logs: overrides.logs || [] })
+    if (path === '/api/admin/dashboard') return Promise.resolve(overrides.metrics || { totalUsuarios: 0, porPlano: {}, ativos: 0, desativados: 0, pagamentosNaoConciliados: 0 })
     if (overrides.extra?.[path]) return overrides.extra[path]()
     return Promise.reject(new Error(`rota não mockada: ${path}`))
   })
@@ -309,5 +310,51 @@ describe('AdminPage — histórico de ações administrativas', () => {
 
     expect(screen.queryByText('Papel alterado para "user".')).not.toBeInTheDocument()
     expect(screen.getByText(/Falha ao enviar alerta/)).toBeInTheDocument()
+  })
+})
+
+describe('AdminPage — dashboard de métricas agregadas', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, '', '/admin.html')
+  })
+
+  async function renderNaAbaDashboard() {
+    window.history.pushState({}, '', '/admin.html?tab=dashboard')
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page'))
+  }
+
+  it('mostra as métricas agregadas vindas de /api/admin/dashboard', async () => {
+    mockApi({ metrics: { totalUsuarios: 12, porPlano: { basico: 8, pro: 4 }, ativos: 10, desativados: 2, pagamentosNaoConciliados: 3 } })
+    await renderNaAbaDashboard()
+
+    await waitFor(() => expect(screen.getByText('12')).toBeInTheDocument())
+    expect(screen.getByText('Usuários no total')).toBeInTheDocument()
+    expect(screen.getByText('10')).toBeInTheDocument()
+    expect(screen.getByText('Contas ativas')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText(/Pagamentos não conciliados/)).toBeInTheDocument()
+    expect(screen.getByText('EcooMidia Básico')).toBeInTheDocument()
+    expect(screen.getByText('EcooMidia Pro')).toBeInTheDocument()
+  })
+
+  it('não mostra nenhum dado individual (nome/e-mail) na aba dashboard', async () => {
+    mockApi({ metrics: { totalUsuarios: 1, porPlano: { basico: 1 }, ativos: 1, desativados: 0, pagamentosNaoConciliados: 0 } })
+    await renderNaAbaDashboard()
+
+    await waitFor(() => expect(screen.getByText('Usuários no total')).toBeInTheDocument())
+    expect(screen.queryByText('admin@allowed.test')).not.toBeInTheDocument()
+  })
+
+  it('recarrega ao clicar em Atualizar', async () => {
+    const apiFetch = mockApi()
+    await renderNaAbaDashboard()
+    await waitFor(() => expect(screen.getByText('Usuários no total')).toBeInTheDocument())
+    apiFetch.mockClear()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Atualizar' }))
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/admin/dashboard'))
   })
 })

@@ -88,6 +88,37 @@ describe('listarTodos', () => {
   })
 })
 
+describe('obterMetricasAgregadas', () => {
+  test('devolve só números agregados, sem nenhum dado individual', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ plan: 'basico', total: '3' }, { plan: 'pro', total: '1' }] })
+      .mockResolvedValueOnce({ rows: [{ ativo: true, total: '3' }, { ativo: false, total: '1' }] })
+      .mockResolvedValueOnce({ rows: [{ total: '4' }] })
+
+    const metrics = await repo.obterMetricasAgregadas()
+
+    expect(metrics).toEqual({
+      totalUsuarios: 4,
+      porPlano: { basico: 3, pro: 1 },
+      ativos: 3,
+      desativados: 1,
+    })
+    // Confere que nenhuma das 3 queries seleciona colunas de identificação.
+    for (const [sql] of pool.query.mock.calls) {
+      expect(sql).not.toMatch(/\bemail\b|\bid\b|full_name/i)
+    }
+  })
+
+  test('zera quando a base está vazia', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: '0' }] })
+
+    expect(await repo.obterMetricasAgregadas()).toEqual({ totalUsuarios: 0, porPlano: {}, ativos: 0, desativados: 0 })
+  })
+})
+
 describe('contarAdmins', () => {
   test('retorna número de admins', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ total: '2' }] })

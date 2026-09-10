@@ -10,6 +10,7 @@ jest.mock('../../src/repositories/usersRepository', () => ({
   buscarPorId: jest.fn(),
   buscarPorEmail: jest.fn(),
   listarTodos: jest.fn(),
+  obterMetricasAgregadas: jest.fn(),
   atualizarRole: jest.fn(),
   atualizarAtivo: jest.fn(),
   contarSuperAdmins: jest.fn(),
@@ -343,6 +344,46 @@ function sessaoStripe(overrides = {}) {
     ...overrides,
   }
 }
+
+// ── GET /api/admin/dashboard ──────────────────────────────────────────────────
+// Exceção documentada à política de "sem diretório global" (IA.md,
+// 10/09/2026): só contagens agregadas, sem nenhum dado individual.
+
+describe('GET /api/admin/dashboard', () => {
+  test('401 sem token', async () => {
+    const res = await request(app).get('/api/admin/dashboard')
+    expect(res.status).toBe(401)
+  })
+
+  test('403 para user comum', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(USER)
+    const res = await request(app).get('/api/admin/dashboard').set('Authorization', `Bearer ${tokenUser}`)
+    expect(res.status).toBe(403)
+  })
+
+  test('200: combina métricas agregadas com a contagem de pagamentos não conciliados', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.obterMetricasAgregadas.mockResolvedValue({ totalUsuarios: 10, porPlano: { basico: 7, pro: 3 }, ativos: 9, desativados: 1 })
+    paymentGateway.listCheckoutSessions.mockResolvedValue({ sessions: [sessaoStripe({ id: 'cs_x' })], truncated: false })
+    billingRepo.buscarPorGatewaySessions.mockResolvedValue([])
+
+    const res = await request(app).get('/api/admin/dashboard').set('Authorization', `Bearer ${tokenAdmin}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ totalUsuarios: 10, porPlano: { basico: 7, pro: 3 }, ativos: 9, desativados: 1, pagamentosNaoConciliados: 1 })
+  })
+
+  test('200: não quebra quando a conciliação falha (ex.: Stripe não configurada)', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(ADMIN)
+    usersRepo.obterMetricasAgregadas.mockResolvedValue({ totalUsuarios: 5, porPlano: { basico: 5 }, ativos: 5, desativados: 0 })
+    paymentGateway.listCheckoutSessions.mockRejectedValue(Object.assign(new Error('não configurado'), { code: 'payment_gateway_not_configured', statusCode: 503 }))
+
+    const res = await request(app).get('/api/admin/dashboard').set('Authorization', `Bearer ${tokenAdmin}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ totalUsuarios: 5, pagamentosNaoConciliados: 0 })
+  })
+})
 
 describe('GET /api/admin/billing/reconciliation', () => {
   test('401 sem token', async () => {

@@ -74,6 +74,19 @@ async function getPlanLink(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível gerar o link de pagamento agora.') }
 }
 
+// Resumo agregado para o dashboard do painel admin (ver
+// usersRepository.obterMetricasAgregadas — exceção documentada à política de
+// "sem diretório global", só números, sem nenhum dado individual).
+async function getDashboard(req, res) {
+  try {
+    const [metrics, reconciliation] = await Promise.all([
+      users.obterMetricasAgregadas(),
+      billingService.getReconciliationReport({ days: 7 }).catch(() => ({ unmatched: [] })),
+    ])
+    res.json({ ...metrics, pagamentosNaoConciliados: reconciliation.unmatched.length })
+  } catch (error) { serverError(res, error, 'Não foi possível carregar as métricas agora.') }
+}
+
 // Cruza a Stripe com o banco e devolve as sessões pagas sem cobrança 'paid'
 // correspondente — pagamento que entrou sem ninguém ser creditado.
 async function getReconciliationReport(req, res) {
@@ -98,4 +111,4 @@ async function linkPayment(req, res) {
   } catch (error) { serverError(res, error, 'Não foi possível vincular esse pagamento agora.') }
 }
 
-module.exports = { listUsers, updateRole, updateActive, searchUserByEmail, getPlanLink, getReconciliationReport, linkPayment }
+module.exports = { listUsers, updateRole, updateActive, searchUserByEmail, getPlanLink, getDashboard, getReconciliationReport, linkPayment }

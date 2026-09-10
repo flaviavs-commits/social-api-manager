@@ -179,6 +179,25 @@ async function listarTodos(userId) {
   return rows.map(r => ({ ...r, totalContas: Number(r.totalContas) }))
 }
 
+// Exceção documentada e deliberada à política de "admin não vê dado de
+// outra conta" (server.js): só números agregados, sem nenhum dado
+// individual (nome, e-mail, id) — decisão registrada no IA.md de
+// 10/09/2026, Trilha B, pergunta feita explicitamente ao usuário antes de
+// implementar. Usada pelo dashboard do painel admin.
+async function obterMetricasAgregadas() {
+  const [porPlano, porSituacao, total] = await Promise.all([
+    pool.query(`SELECT plan, COUNT(*) AS total FROM users WHERE ativo = TRUE GROUP BY plan`),
+    pool.query(`SELECT ativo, COUNT(*) AS total FROM users GROUP BY ativo`),
+    pool.query(`SELECT COUNT(*) AS total FROM users`),
+  ])
+  return {
+    totalUsuarios: Number(total.rows[0]?.total || 0),
+    porPlano: Object.fromEntries(porPlano.rows.map(r => [r.plan, Number(r.total)])),
+    ativos: Number(porSituacao.rows.find(r => r.ativo === true)?.total || 0),
+    desativados: Number(porSituacao.rows.find(r => r.ativo === false)?.total || 0),
+  }
+}
+
 async function contarAdmins() {
   const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND ativo = TRUE`)
   return Number(r.total)
@@ -220,5 +239,5 @@ module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
   buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
-  listarTodos, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo
+  listarTodos, obterMetricasAgregadas, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo
 }

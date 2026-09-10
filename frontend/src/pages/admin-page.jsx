@@ -26,6 +26,7 @@ const TABS = [
   ['usuarios', 'Usuários'],
   ['conciliacao', 'Conciliação'],
   ['historico', 'Histórico'],
+  ['dashboard', 'Dashboard'],
 ]
 
 const LOG_TYPE_LABELS = { err: 'Erro', ok: 'Sucesso', info: 'Informação' }
@@ -191,6 +192,20 @@ function HistorySection() {
   return <section className="admin-content"><div className="admin-section-heading"><h2>Histórico de ações administrativas</h2><div className="admin-reconciliation-controls"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar…" aria-label="Buscar no histórico" /><select value={type} onChange={event => setType(event.target.value)} aria-label="Filtrar tipo de atividade"><option value="all">Todos os tipos</option>{Object.entries(LOG_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button type="button" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div>{error && <p className="admin-notice admin-notice--error" role="alert">{error}</p>}<div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Quando</th><th>Tipo</th><th>Ação</th></tr></thead><tbody>{loading ? <tr><td colSpan="3" className="admin-empty">Carregando…</td></tr> : !visibleLogs.length ? <tr><td colSpan="3" className="admin-empty">{search || type !== 'all' ? 'Nenhuma ação corresponde aos filtros.' : 'Nenhuma ação administrativa registrada ainda.'}</td></tr> : visibleLogs.map(log => <tr key={log.id}><td>{log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '—'}</td><td><span className={`admin-pill admin-pill--${log.type === 'err' ? 'inactive' : log.type === 'ok' ? 'active' : 'user'}`}>{LOG_TYPE_LABELS[log.type] || 'Atividade'}</span></td><td>{log.message}</td></tr>)}</tbody></table></div></section>
 }
 
+// Dashboard: GET /api/admin/dashboard devolve só contagens agregadas, sem
+// nenhum dado individual (nome, e-mail, id) — exceção documentada e
+// deliberada à política de "sem diretório global", decidida em 10/09/2026
+// (Trilha B, pergunta feita explicitamente antes de implementar; ver IA.md e
+// usersRepository.obterMetricasAgregadas).
+function DashboardSection() {
+  const loadMetrics = useCallback(() => apiFetch('/api/admin/dashboard'), [])
+  const { value: metrics, loading, error, reload } = useApiResource(loadMetrics, null)
+
+  const planEntries = metrics ? Object.entries(metrics.porPlano).sort(([, a], [, b]) => b - a) : []
+
+  return <section className="admin-content"><div className="admin-section-heading"><h2>Dashboard</h2><div className="admin-reconciliation-controls"><button type="button" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div>{error && <p className="admin-notice admin-notice--error" role="alert">{error}</p>}{loading ? <p className="admin-empty">Carregando…</p> : metrics && <div className="admin-stats"><div className="admin-stat-card"><strong>{metrics.totalUsuarios}</strong><span>Usuários no total</span></div><div className="admin-stat-card"><strong>{metrics.ativos}</strong><span>Contas ativas</span></div><div className="admin-stat-card"><strong>{metrics.desativados}</strong><span>Contas desativadas</span></div><div className="admin-stat-card admin-stat-card--warning"><strong>{metrics.pagamentosNaoConciliados}</strong><span>Pagamentos não conciliados (7 dias)</span></div>{planEntries.map(([plan, total]) => <div className="admin-stat-card" key={plan}><strong>{total}</strong><span>{PLANS[plan]?.name || plan}</span></div>)}</div>}</section>
+}
+
 export function AdminPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [users, setUsers] = useState([])
@@ -242,5 +257,5 @@ export function AdminPage() {
   const toggleActive = user => update(user.id, 'ativo', { ativo: !user.ativo }, 'Situação atualizada.')
   const onError = text => setNotice({ type: 'error', text })
 
-  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection onError={onError} />}{tab === 'historico' && <HistorySection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
+  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection onError={onError} />}{tab === 'historico' && <HistorySection />}{tab === 'dashboard' && <DashboardSection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
 }
