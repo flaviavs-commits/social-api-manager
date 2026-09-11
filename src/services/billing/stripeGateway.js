@@ -218,6 +218,42 @@ async function updateSubscriptionPlan({ stripeSubscriptionId, planName, planAmou
   return { id: body.id, status: body.status }
 }
 
+// Cancelamento self-service via Customer Portal (task 4/5 da quebra de
+// assinatura): a Stripe hospeda a própria tela de cancelar/trocar
+// cartão/ver faturas — o app só cria a sessão e redireciona. Confirmado
+// contra docs.stripe.com/api/customer_portal/sessions/create, 10/09/2026:
+// `customer` + `return_url` bastam; sem `configuration`, usa a configuração
+// padrão da conta Stripe (portal.stripe.com define o que o cliente pode
+// fazer — cancelar, trocar cartão, ver faturas — fora do código do app).
+async function createPortalSession(stripeCustomerId) {
+  ensureStripeConfigured()
+  // "Tem Stripe Customer?" é regra de negócio (decide se o usuário já
+  // assinou alguma vez), não do gateway — validada em billingService antes
+  // de chegar aqui. Este módulo só fala com a API da Stripe.
+  const params = new URLSearchParams()
+  params.set('customer', stripeCustomerId)
+  params.set('return_url', getReturnUrl('BILLING_PORTAL_RETURN_URL', '/app/perfil'))
+
+  const response = await requestStripe('/billing_portal/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params,
+  })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = body?.error?.message || 'O gateway recusou a criação do portal.'
+    throw gatewayError(message, {
+      code: body?.error?.code || `stripe_http_${response.status}`,
+      statusCode: response.status >= 500 ? 503 : 502,
+      uncertain: response.status >= 500,
+    })
+  }
+  if (!body?.url) {
+    throw gatewayError('O gateway não retornou uma sessão de portal válida.', { code: 'invalid_gateway_response', statusCode: 503, uncertain: true })
+  }
+  return { url: body.url }
+}
+
 async function expireCheckout(gatewaySessionId) {
   ensureStripeConfigured()
   if (!gatewaySessionId) return false
@@ -314,4 +350,4 @@ function verifyWebhook(rawBody, signatureHeader) {
   }
 }
 
-module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions, getSubscription, updateSubscriptionPlan }
+module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions, getSubscription, updateSubscriptionPlan, createPortalSession }

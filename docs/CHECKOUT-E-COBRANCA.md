@@ -3,12 +3,11 @@
 Como um pagamento vira um plano ativo na conta do cliente, e o que fazer quando
 não vira.
 
-## ⚠️ Migração em andamento: assinatura de verdade (10/09/2026)
+## Assinatura de verdade (migração concluída em 10-11/09/2026)
 
-Decisão registrada no `IA.md`: os planos vão virar assinatura recorrente de
-verdade (`mode=subscription`), em vez da cobrança avulsa atual. O trabalho foi
-quebrado em 5 tasks sequenciais — enquanto elas não estiverem todas
-concluídas, o sistema está num **estado intermediário**:
+Decisão registrada no `IA.md`: os planos viraram assinatura recorrente de
+verdade (`mode=subscription`), em vez da cobrança avulsa que existia antes. O
+trabalho foi quebrado em 5 tasks sequenciais, todas concluídas:
 
 - O checkout (`createCheckout`) já cria a sessão em `mode: 'subscription'`,
   com os dois itens (plano + MeuEcoo) recorrentes mensais, e reaproveita/
@@ -24,7 +23,14 @@ concluídas, o sistema está num **estado intermediário**:
   tenta cobrar de novo sozinha). Ver
   `billingService.handleSubscriptionCreated/Updated/Deleted`,
   `handleInvoicePaid/PaymentFailed`, `mailer.enviarEmailFalhaCobrancaAssinatura`.
-- Não existe cancelamento self-service até a task do Customer Portal.
+- **Cancelamento self-service via Customer Portal**: `POST /api/billing/portal`
+  cria uma sessão hospedada pela própria Stripe (`stripeGateway.createPortalSession`,
+  confirmado contra `docs.stripe.com/api/customer_portal/sessions/create`) —
+  o cliente cancela, troca cartão e vê faturas sem nenhuma tela própria do
+  app. Exige `users.stripe_customer_id` já preenchido (alguém que nunca
+  assinou recebe `400 no_stripe_customer`). `GET /api/billing/status` expõe
+  `subscription.manageable` para o frontend decidir se mostra o botão
+  "Gerenciar assinatura" no perfil.
 - **Trocar de plano com uma assinatura já ativa não cria mais um checkout
   novo** (`billingService.updateActiveSubscriptionPlan`): atualiza os itens
   da assinatura existente na Stripe via `POST /subscriptions/:id`, que calcula
@@ -43,7 +49,7 @@ concluídas, o sistema está num **estado intermediário**:
 
 Ordem das 5 tasks: schema de assinatura → checkout em modo assinatura →
 webhook de ciclo de vida → idempotência de renovação/histórico de troca de
-plano (todas concluídas) → Customer Portal (ainda pendente).
+plano → Customer Portal.
 
 ## Os dois caminhos de pagamento
 

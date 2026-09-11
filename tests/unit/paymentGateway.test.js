@@ -12,6 +12,7 @@ describe('paymentGateway — seleção de gateway', () => {
     await expect(paymentGateway.getCheckoutSession('cs_1')).rejects.toMatchObject({ code: 'payment_gateway_unsupported' })
     await expect(paymentGateway.listCheckoutSessions({})).rejects.toMatchObject({ code: 'payment_gateway_unsupported' })
     await expect(paymentGateway.updateSubscriptionPlan({})).rejects.toMatchObject({ code: 'payment_gateway_unsupported' })
+    await expect(paymentGateway.createPortalSession('cus_1')).rejects.toMatchObject({ code: 'payment_gateway_unsupported' })
     expect(paymentGateway.isConfigured()).toBe(false)
   })
 

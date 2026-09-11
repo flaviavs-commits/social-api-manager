@@ -39,6 +39,7 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
   getCheckoutSession: jest.fn(),
   listCheckoutSessions: jest.fn(),
   updateSubscriptionPlan: jest.fn(),
+  createPortalSession: jest.fn(),
 }))
 
 jest.mock('../../src/services/mailer', () => ({
@@ -771,5 +772,65 @@ describe('billingService.linkPaymentManually', () => {
 
     await expect(billingService.linkPaymentManually({ gatewaySessionId: 'cs_1', userId: 7, toPlan: 'pro', adminId: 1 }))
       .rejects.toMatchObject({ code: 'monthly_charge_exists', statusCode: 409 })
+  })
+})
+
+describe('billingService.getStatus', () => {
+  test('expõe a assinatura ativa como gerenciável pelo portal', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({
+      status: 'active', plan: 'pro', cancelAtPeriodEnd: false, currentPeriodEnd: '2026-10-10T00:00:00.000Z',
+    })
+
+    const status = await billingService.getStatus({ userId: 7, currentPlan: 'pro', planActive: true })
+
+    expect(status.subscription).toEqual({
+      status: 'active', plan: 'pro', cancelAtPeriodEnd: false, currentPeriodEnd: '2026-10-10T00:00:00.000Z', manageable: true,
+    })
+  })
+
+  test('assinatura cancelada não é gerenciável', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ status: 'canceled', plan: 'pro', cancelAtPeriodEnd: true, currentPeriodEnd: null })
+
+    const status = await billingService.getStatus({ userId: 7, currentPlan: 'pro', planActive: true })
+
+    expect(status.subscription.manageable).toBe(false)
+  })
+
+  test('sem assinatura no banco, subscription é null', async () => {
+    billingRepo.buscarPorMes.mockResolvedValue(null)
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue(null)
+
+    const status = await billingService.getStatus({ userId: 7, currentPlan: 'basico', planActive: true })
+
+    expect(status.subscription).toBeNull()
+  })
+})
+
+describe('billingService.createBillingPortalSession', () => {
+  test('cria a sessão do portal com o Stripe Customer do usuário', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, stripeCustomerId: 'cus_123' })
+    paymentGateway.createPortalSession.mockResolvedValue({ url: 'https://billing.stripe.com/p/session?secret=xyz' })
+
+    const result = await billingService.createBillingPortalSession({ userId: 7 })
+
+    expect(result).toEqual({ url: 'https://billing.stripe.com/p/session?secret=xyz' })
+    expect(paymentGateway.createPortalSession).toHaveBeenCalledWith('cus_123')
+  })
+
+  test('rejeita quando o usuário nunca teve um Stripe Customer', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, stripeCustomerId: null })
+
+    await expect(billingService.createBillingPortalSession({ userId: 7 }))
+      .rejects.toMatchObject({ code: 'no_stripe_customer', statusCode: 400 })
+    expect(paymentGateway.createPortalSession).not.toHaveBeenCalled()
+  })
+
+  test('rejeita quando o usuário não existe', async () => {
+    usersRepo.buscarPorId.mockResolvedValue(null)
+
+    await expect(billingService.createBillingPortalSession({ userId: 999 }))
+      .rejects.toMatchObject({ code: 'no_stripe_customer' })
   })
 })

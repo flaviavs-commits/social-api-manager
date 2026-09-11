@@ -277,7 +277,10 @@ function getPlanDirectLink({ plan, userId, email }) {
 
 async function getStatus({ userId, currentPlan, planActive }) {
   const month = billingMonth()
-  const charge = await billingRepo.buscarPorMes(userId, month)
+  const [charge, subscription] = await Promise.all([
+    billingRepo.buscarPorMes(userId, month),
+    subscriptionsRepo.buscarPorUserId(userId),
+  ])
   return {
     currentPlan: normalizePlan(currentPlan || DEFAULT_PLAN),
     planActive: planActive !== false,
@@ -285,7 +288,29 @@ async function getStatus({ userId, currentPlan, planActive }) {
     billingMonth: month,
     charge: publicCharge(charge),
     gatewayConfigured: paymentGateway.isConfigured(),
+    // O frontend usa isso para decidir se mostra o botão "Gerenciar
+    // assinatura" (Customer Portal) — só faz sentido quando há uma
+    // assinatura Stripe de verdade em vigor, não numa cobrança avulsa antiga
+    // ou numa assinatura já cancelada/nunca chegou a ativar.
+    subscription: subscription ? {
+      status: subscription.status,
+      plan: subscription.plan,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd === true,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      manageable: SUBSCRIPTION_STATUSES_GRANT_ACCESS.includes(subscription.status),
+    } : null,
   }
+}
+
+// Cancelamento self-service via Customer Portal (task 4/5 da quebra de
+// assinatura): a Stripe hospeda a tela de cancelar/trocar cartão/ver
+// faturas — nenhuma UI própria de cancelamento é construída aqui.
+async function createBillingPortalSession({ userId }) {
+  const user = await usersRepo.buscarPorId(userId)
+  if (!user?.stripeCustomerId) {
+    throw new BillingError('Você ainda não tem uma assinatura paga para gerenciar.', 400, 'no_stripe_customer')
+  }
+  return paymentGateway.createPortalSession(user.stripeCustomerId)
 }
 
 function readPaymentIntentId(value) {
@@ -748,4 +773,4 @@ async function handleWebhook(event) {
   return { status: 'ignored' }
 }
 
-module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook, getReconciliationReport, linkPaymentManually }
+module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook, getReconciliationReport, linkPaymentManually, createBillingPortalSession }

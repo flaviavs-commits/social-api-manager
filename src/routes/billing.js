@@ -66,6 +66,31 @@ router.post('/plan-change', planChangeLimiter, async (req, res) => {
   }
 })
 
+// Ação pouco frequente (cancelar/trocar cartão), mas sensível o bastante
+// para ter orçamento próprio em vez de compartilhar o de plan-change.
+const portalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRateLimitStore('billing-portal'),
+  message: { erro: 'Muitas tentativas de abrir o portal de cobrança. Aguarde alguns minutos.' },
+})
+
+router.post('/portal', portalLimiter, async (req, res) => {
+  try {
+    const result = await billingService.createBillingPortalSession({ userId: req.user.id })
+    res.json(result)
+  } catch (error) {
+    const statusCode = Number(error.statusCode) || 500
+    await addLog('err', `Falha ao abrir o portal de cobrança: ${error.message}`, null, null, req.user.id)
+    return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 500).json({
+      erro: error.code === 'no_stripe_customer' ? error.message : 'Não foi possível abrir o portal de cobrança agora.',
+      code: error.code || 'billing_error',
+    })
+  }
+})
+
 router.get('/plan-link/:plan', planLinkLimiter, async (req, res) => {
   try {
     const url = billingService.getPlanDirectLink({ plan: req.params.plan, userId: req.user.id, email: req.user.email })

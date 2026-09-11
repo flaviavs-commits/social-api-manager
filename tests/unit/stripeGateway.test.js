@@ -134,4 +134,22 @@ describe('stripeGateway', () => {
     expect(result.truncated).toBe(true)
     expect(global.fetch).toHaveBeenCalledTimes(2)
   })
+
+  test('cria uma sessão do Customer Portal com o customer e a return_url', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ id: 'bps_1', url: 'https://billing.stripe.com/p/session?secret=xyz' }) })
+
+    const result = await stripeGateway.createPortalSession('cus_123')
+
+    expect(result).toEqual({ url: 'https://billing.stripe.com/p/session?secret=xyz' })
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('https://api.stripe.com/v1/billing_portal/sessions')
+    expect(String(options.body)).toContain('customer=cus_123')
+    expect(String(options.body)).toContain('return_url=https%3A%2F%2Fapp.example.com%2Fapp%2Fperfil')
+  })
+
+  test('propaga o erro do gateway ao criar sessão do portal', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { message: 'No such customer' } }) })
+
+    await expect(stripeGateway.createPortalSession('cus_inexistente')).rejects.toMatchObject({ statusCode: 502 })
+  })
 })
