@@ -1,0 +1,24 @@
+/* Four camera planes; nothing runs when scroll is at rest. No wallpaper motifs. */
+.story-atmosphere { position: absolute; left: 50%; top: 0; width: 100vw; height: 100%; transform: translateX(-50%); pointer-events: none; z-index: -1; overflow: clip; mask-image: linear-gradient(to bottom,transparent,#000 9%,#000 91%,transparent); }
+.story-ambient-lights { position: absolute; inset: -12%; transform: translate3d(var(--ambient-light-x,0px),var(--ambient-light-y,0px),0); }
+.story-ambient-plate { position: absolute; inset: 0; opacity: 0; }
+.story-ambient-plate--0 { opacity: 1; background: radial-gradient(ellipse at 74% 52%,#dec89d85,transparent 54%); }
+.story-ambient-plate--1 { background: radial-gradient(ellipse at 65% 38%,#eed2b4a6,transparent 54%); }
+.story-ambient-plate--2 { background: radial-gradient(ellipse at 80% 67%,#d7bd8485,transparent 58%); }
+.story-ambient-plate--3 { background: radial-gradient(ellipse at 64% 43%,#e5ddcca6,transparent 54%); }
+.story-ambient-plate--4 { background: radial-gradient(ellipse at 73% 56%,#f0dcb799,transparent 55%); }
+.story-ambient-plate--5 { background: radial-gradient(ellipse at 72% 30%,#e0e0d4c9,transparent 58%); }
+.story-far-space, .story-mid-space, .story-near-space { position: absolute; inset: 0; }
+.story-far-space { transform: translate3d(0,var(--camera-far-y,0px),0); }
+.story-depth-frame { position: absolute; left: 42%; top: 93%; width: 250px; height: 330px; padding: 30px; border: 1px solid var(--mkt-green); border-radius: 10px; color: var(--mkt-green); opacity: .07; transform: perspective(1200px) rotateY(24deg) rotateZ(-9deg); }
+.story-depth-frame span { font-size: 13px; }
+.story-depth-frame b { display: block; margin-top: 45px; font-size: 44px; line-height: 1.1; letter-spacing: -.04em; font-weight: 500; }
+.story-mid-space { transform: translate3d(0,var(--camera-mid-y,0px),0); }
+.story-depth-strip { position: absolute; right: 0; bottom: -10%; width: 45%; height: 115%; display: flex; flex-direction: column; align-items: end; padding-right: 2.5%; color: var(--mkt-green); opacity: .13; font-size: 12px; transform: perspective(1500px) rotateY(-15deg); }
+.story-depth-strip > i { width: 1px; flex: 1; margin: 18px 20px; background: linear-gradient(transparent,var(--mkt-green),transparent); }
+.story-near-space { transform: translate3d(0,var(--camera-near-y,0px),0); opacity: var(--near-presence,0); }
+.story-passing-frame { position: absolute; right: -7%; top: 30%; width: 330px; height: 380px; padding: 38px; border: 1px solid #c7aa70; border-radius: 14px; background: #e5d5b4; color: var(--mkt-green); transform: perspective(900px) rotateY(-26deg) rotateZ(10deg); filter: blur(3px); }
+.story-passing-frame span { font-size: 18px; }
+.story-passing-frame b { display: block; margin-top: 95px; font-size: 38px; line-height: 1.05; }
+@media (max-width: 860px) { .story-far-space,.story-mid-space,.story-near-space { display: none; } .story-ambient-lights { inset: -5%; } }
+@media (prefers-reduced-motion: reduce) { .story-far-space,.story-mid-space,.story-near-space { display: none; } .story-ambient-lights { transform: none; } }

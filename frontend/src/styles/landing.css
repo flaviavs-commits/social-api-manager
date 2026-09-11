@@ -487,156 +487,6 @@ html[data-theme="dark"] .marketing-page h1 em::after {
 .mkt-section-head h2 { margin-top: 14px; }
 .mkt-section-head > p:last-child:not(.mkt-eyebrow) { color: var(--mkt-muted); font-size: 18px; margin-top: 16px; max-width: 620px; }
 
-.mkt-scroll-timeline {
-  --timeline-rail-width: 76px;
-  --timeline-track-height: min(70vh, 640px);
-  display: grid;
-  grid-template-columns: var(--timeline-rail-width) minmax(0, 1fr);
-  gap: clamp(28px, 5vw, 76px);
-  max-width: 1120px;
-  margin-inline: auto;
-}
-.mkt-scroll-timeline-rail {
-  position: sticky;
-  top: 15vh;
-  align-self: start;
-  height: var(--timeline-track-height);
-  min-height: 420px;
-}
-.mkt-scroll-timeline-line,
-.mkt-scroll-timeline-progress {
-  position: absolute;
-  top: 12px;
-  bottom: 12px;
-  left: 50%;
-  width: 2px;
-  border-radius: 999px;
-  transform: translateX(-50%);
-}
-.mkt-scroll-timeline-line {
-  background: linear-gradient(180deg, rgba(107,82,23,.16), rgba(107,82,23,.06) 48%, rgba(107,82,23,.22));
-}
-.mkt-scroll-timeline-progress {
-  top: 12px;
-  bottom: auto;
-  height: calc(100% - 24px);
-  background: linear-gradient(180deg, var(--mkt-gold) 0%, #e04d8a 52%, #4da9c9 100%);
-  box-shadow: 0 0 18px rgba(224,77,138,.24);
-  transform: translate3d(-50%, 0, 0) scaleY(0);
-  transform-origin: top;
-  will-change: transform;
-}
-.mkt-scroll-timeline-orb {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  border: 4px solid var(--mkt-bg);
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 26%, #fff7d4 0 10%, var(--mkt-gold) 32%, #e04d8a 65%, #4da9c9 100%);
-  box-shadow: 0 0 0 5px rgba(224,165,46,.13), 0 0 30px rgba(224,77,138,.35);
-  transform: translate3d(-50%, 12px, 0);
-  will-change: transform;
-}
-.mkt-scroll-timeline-list { display: grid; gap: 22px; }
-.mkt-scroll-timeline-card {
-  --timeline-opacity: .22;
-  --timeline-shift: 24px;
-  --timeline-scale: .965;
-  --timeline-saturation: .72;
-  position: relative;
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 22px;
-  min-height: 224px;
-  padding: 30px 34px;
-  overflow: hidden;
-  border: 1px solid rgba(232,225,208,.24);
-  border-radius: 26px;
-  background:
-    radial-gradient(circle at 92% 0%, rgba(224,77,138,.22), transparent 40%),
-    radial-gradient(circle at 0% 100%, rgba(77,169,201,.18), transparent 38%),
-    linear-gradient(135deg, #211d17 0%, #2b2118 55%, #17151a 100%);
-  color: #fffaf0;
-  opacity: var(--timeline-opacity);
-  transform: translate3d(0, var(--timeline-shift), 0) scale(var(--timeline-scale));
-  filter: saturate(var(--timeline-saturation));
-  box-shadow: 0 24px 50px -32px rgba(44,31,13,.65);
-  transition: border-color .45s ease, box-shadow .45s ease, filter .45s ease;
-  will-change: transform, opacity;
-}
-.mkt-scroll-timeline-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: linear-gradient(180deg, var(--mkt-gold), #e04d8a 52%, #4da9c9);
-  opacity: .32;
-  transition: opacity .45s ease;
-}
-.mkt-scroll-timeline-card::after {
-  content: "";
-  position: absolute;
-  right: -18%;
-  bottom: -70%;
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  background: rgba(224,165,46,.12);
-  filter: blur(28px);
-  pointer-events: none;
-}
-.mkt-scroll-timeline-card.is-active {
-  border-color: rgba(224,165,46,.72);
-  box-shadow: 0 30px 66px -30px rgba(44,31,13,.82), 0 0 0 1px rgba(224,165,46,.16);
-  filter: saturate(1);
-}
-.mkt-scroll-timeline-card.is-active::before { opacity: 1; }
-.mkt-scroll-timeline-card-icon {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #fff0bd 0%, var(--mkt-gold) 44%, #e04d8a 100%);
-  color: #261d0d;
-  box-shadow: 0 12px 24px rgba(0,0,0,.24), 0 1px 0 rgba(255,255,255,.65) inset;
-}
-.mkt-scroll-timeline-card-copy { position: relative; z-index: 1; min-width: 0; }
-.mkt-feature-tag {
-  margin-bottom: 8px;
-  color: var(--mkt-gold);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-.mkt-scroll-timeline-card h3 { margin-bottom: 10px; color: #fffaf0; font-size: clamp(22px, 2.4vw, 30px); }
-.mkt-scroll-timeline-card .mkt-feature-copy { max-width: 620px; margin: 0; color: rgba(255,250,240,.72); font-size: 16px; line-height: 1.65; }
-.mkt-scroll-timeline-card-index {
-  position: relative;
-  z-index: 1;
-  align-self: start;
-  color: rgba(255,250,240,.36);
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: .12em;
-}
-.mkt-scroll-timeline-card-arrow {
-  position: absolute;
-  right: 32px;
-  bottom: 26px;
-  z-index: 1;
-  display: inline-flex;
-  color: var(--mkt-gold);
-  opacity: .7;
-  transition: transform .35s ease, opacity .35s ease;
-}
-.mkt-scroll-timeline-card.is-active .mkt-scroll-timeline-card-arrow { transform: translateX(6px); opacity: 1; }
 
 .mkt-proof {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none;
@@ -783,13 +633,6 @@ html[data-theme="dark"] .marketing-page h1 em::after {
   .mkt-stage { order: 2; align-self: center; max-width: 360px; }
   .mkt-hero-benefits { padding: 22px 10px; }
   .mkt-hero-benefits li { padding-inline: 16px; }
-  .mkt-scroll-timeline { grid-template-columns: 28px minmax(0, 1fr); gap: 18px; }
-  .mkt-scroll-timeline-rail { top: 16vh; height: min(70vh, 560px); min-height: 360px; }
-  .mkt-scroll-timeline-card { grid-template-columns: 48px minmax(0, 1fr); gap: 16px; min-height: 194px; padding: 24px 22px; }
-  .mkt-scroll-timeline-card-icon { width: 48px; height: 48px; border-radius: 16px; }
-  .mkt-scroll-timeline-card-index { position: absolute; top: 22px; right: 22px; }
-  .mkt-scroll-timeline-card h3 { padding-right: 34px; }
-  .mkt-scroll-timeline-card-arrow { right: 22px; bottom: 20px; }
   .mkt-proof { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 30px; }
   .mkt-proof li:nth-child(odd) { border-left: 0; padding-left: 0; }
   .mkt-plans { grid-template-columns: 1fr; }
@@ -828,17 +671,6 @@ html[data-theme="dark"] .marketing-page h1 em::after {
   .mkt-badge { font-size: 11.5px; padding: 8px 16px 8px 13px; letter-spacing: .07em; }
   .mkt-hero-benefits { grid-template-columns: 1fr; row-gap: 20px; }
   .mkt-hero-benefits li + li { border-left: 0; }
-  .mkt-scroll-timeline { grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
-  .mkt-scroll-timeline-rail { top: 16vh; height: 58vh; min-height: 300px; }
-  .mkt-scroll-timeline-line, .mkt-scroll-timeline-progress { width: 1px; }
-  .mkt-scroll-timeline-orb { width: 16px; height: 16px; top: -8px; border-width: 3px; }
-  .mkt-scroll-timeline-list { gap: 14px; }
-  .mkt-scroll-timeline-card { grid-template-columns: 38px minmax(0, 1fr); gap: 14px; min-height: 0; padding: 22px 18px 28px; border-radius: 20px; }
-  .mkt-scroll-timeline-card-icon { width: 38px; height: 38px; border-radius: 13px; }
-  .mkt-scroll-timeline-card-index { top: 19px; right: 18px; font-size: 11px; }
-  .mkt-scroll-timeline-card h3 { font-size: 21px; }
-  .mkt-scroll-timeline-card .mkt-feature-copy { font-size: 15px; }
-  .mkt-scroll-timeline-card-arrow { right: 18px; bottom: 17px; }
 }
 /* ---------- callout "4 redes em um só lugar!" desenhado sobre o celular ---------- */
 .mkt-stage.mkt-stage--render { position: relative; }
@@ -892,16 +724,6 @@ html[data-theme="dark"] .marketing-page h1 em::after {
     transition: none !important; animation: none !important; scroll-behavior: auto;
   }
   .mkt-callout-ring, .mkt-callout-arrow { stroke-dashoffset: 0; }
-  .mkt-scroll-timeline-rail { position: relative; top: auto; }
-  .mkt-scroll-timeline-card,
-  .mkt-scroll-timeline-card.is-active,
-  .mkt-scroll-timeline-card.is-past {
-    opacity: 1 !important;
-    transform: none !important;
-    filter: none !important;
-  }
-  .mkt-scroll-timeline-progress { transform: translateX(-50%) scaleY(0) !important; }
-  .mkt-scroll-timeline-orb { transform: translate3d(-50%, 12px, 0) !important; }
 }
 
 /* Landing aliases intentionally resolve through the global semantic palette. */

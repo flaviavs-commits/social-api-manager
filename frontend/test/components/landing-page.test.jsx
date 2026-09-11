@@ -19,15 +19,23 @@ describe('LandingPage', () => {
     }
   })
 
-  it('turns the resources section into a scroll-linked timeline', () => {
+  it('keeps all six resources mounted, exposes one step and offers direct navigation', () => {
     render(<LandingPage />)
     const timeline = screen.getByRole('region', { name: 'Recursos em destaque' })
 
-    expect(timeline).toHaveClass('mkt-scroll-timeline')
-    expect(timeline.querySelectorAll('.mkt-scroll-timeline-card')).toHaveLength(6)
-    expect(timeline.querySelector('.mkt-scroll-timeline-progress')).toBeInTheDocument()
-    expect(timeline.querySelector('.mkt-scroll-timeline-orb')).toBeInTheDocument()
+    expect(timeline).toHaveClass('mkt-product-story')
+    expect(timeline.querySelectorAll('.story-step')).toHaveLength(6)
+    expect(within(timeline).getAllByRole('article')).toHaveLength(1)
+    expect(timeline.querySelectorAll('.story-step[inert]')).toHaveLength(5)
+    expect(within(timeline).getAllByRole('button', { name: /Etapa/ })).toHaveLength(6)
+    expect(within(timeline).getByRole('link', { name: /Pular etapas/ })).toHaveAttribute('href', '#como-funciona')
+    expect(timeline.querySelector('.story-progress')).toBeInTheDocument()
+    expect(timeline.querySelector('.story-indicator')).toBeInTheDocument()
     expect(timeline.querySelectorAll('[aria-current="step"]')).toHaveLength(1)
+    expect(timeline.querySelectorAll('.story-hero')).toHaveLength(1)
+    expect(timeline.querySelectorAll('.story-social')).toHaveLength(4)
+    expect(timeline.textContent).not.toMatch(/café|aurora|nativa|sem lactose|12,4k|8,1%|LinkedIn|Pinterest/i)
+    expect([...timeline.querySelectorAll('.story-step')].at(-1)).toHaveTextContent('Entenda sem montar planilhas.')
   })
 
   it('opens the mobile navigation and closes it after choosing a section or pressing Escape', () => {
