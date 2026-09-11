@@ -201,7 +201,7 @@ video {
 
   .app-sidebar > a[title='Administração']::before {
     content: '⚙';
-    font-size: 18px;
+    font-size: var(--text-lg);
   }
 
   .app-sidebar .sidebar-logout {
@@ -216,7 +216,7 @@ video {
 
   .app-sidebar .sidebar-logout::before {
     content: '↪';
-    font-size: 19px;
+    font-size: var(--text-lg);
   }
 
   .app-topbar-modern {
@@ -259,7 +259,7 @@ video {
 
   .app-topbar-modern .create-post-button::before {
     content: '+';
-    font-size: 20px;
+    font-size: var(--text-xl);
     line-height: 1;
   }
 
@@ -557,7 +557,7 @@ video {
 
   .app-topbar-modern .create-post-button::before {
     content: '+';
-    font-size: 20px;
+    font-size: var(--text-xl);
     line-height: 1;
   }
 
@@ -593,7 +593,7 @@ video {
   .mobile-bottom-nav button {
     min-height: 42px;
     padding: 6px 2px;
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
 
   .page-view {
@@ -634,7 +634,7 @@ video {
   .page-view select,
   .page-view textarea {
     max-width: 100%;
-    font-size: 16px;
+    font-size: var(--text-md);
   }
 
   .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
@@ -1076,7 +1076,7 @@ video {
 
   .app-topbar-modern nav > span:last-child {
     max-width: 34vw;
-    font-size: 13px;
+    font-size: var(--text-xs);
   }
 
   .dashboard-metrics,

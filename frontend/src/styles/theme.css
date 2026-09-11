@@ -19,7 +19,7 @@
   background: transparent;
   border: 0;
   border-radius: 999px;
-  font: 600 11px/1 inherit;
+  font: 600 var(--text-xs)/1 inherit;
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;
 }
@@ -66,7 +66,7 @@
 
   .theme-selector button {
     padding: 6px 8px;
-    font-size: 14px;
+    font-size: var(--text-sm);
   }
 
   .site-header-actions {

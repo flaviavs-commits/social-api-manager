@@ -201,8 +201,7 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
   -webkit-mask-image: var(--edge-mask); -webkit-mask-composite: source-in;
   mask-image: var(--edge-mask); mask-composite: intersect;
 }
-/* The supplied artwork was lit for the cream hero. Keep the existing dark
-   presentation instead of blending its colors into a nearly black surface. */
+/* The same artwork blends into both semantic theme backgrounds. */
 html[data-theme="dark"] .mkt-hero-render {
   mix-blend-mode: normal;
   --edge-mask:
@@ -763,4 +762,34 @@ html[data-theme="dark"] .marketing-page h1 em::after {
     transition: none !important; animation: none !important; scroll-behavior: auto;
   }
   .mkt-callout-ring, .mkt-callout-arrow { stroke-dashoffset: 0; }
+}
+
+/* Landing aliases intentionally resolve through the global semantic palette. */
+.marketing-page {
+  --mkt-bg: var(--brand-paper);
+  --mkt-surface: var(--brand-surface);
+  --mkt-text: var(--brand-ink);
+  --mkt-muted: var(--brand-ink-muted);
+  --mkt-border: var(--brand-border);
+  --mkt-tint: var(--brand-surface-soft);
+  --mkt-gold: var(--brand-gold);
+  --mkt-green: var(--brand-gold-strong);
+  --mkt-green-deep: var(--accent-strong);
+  --mkt-green-soft: var(--brand-gold-strong);
+  --mkt-h1: var(--brand-ink);
+  --mkt-h1-accent: var(--brand-gold-strong);
+}
+html[data-theme="dark"] .marketing-page {
+  --mkt-bg: var(--brand-paper);
+  --mkt-surface: var(--brand-surface);
+  --mkt-text: var(--brand-ink);
+  --mkt-muted: var(--brand-ink-muted);
+  --mkt-border: var(--brand-border);
+  --mkt-tint: var(--brand-surface-soft);
+  --mkt-gold: var(--brand-gold);
+  --mkt-green: var(--brand-gold-strong);
+  --mkt-green-deep: var(--accent-strong);
+  --mkt-green-soft: var(--brand-gold-strong);
+  --mkt-h1: var(--brand-ink);
+  --mkt-h1-accent: var(--brand-gold-strong);
 }

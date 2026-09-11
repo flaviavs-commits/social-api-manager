@@ -134,7 +134,7 @@ canvas {
 .page-view textarea,
 .auth-input {
   max-width: 100%;
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 
 .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
@@ -418,7 +418,7 @@ canvas {
 }
 
 .admin-header h1 {
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 
 .admin-content {

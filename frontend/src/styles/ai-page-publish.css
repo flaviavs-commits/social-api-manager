@@ -9,7 +9,7 @@
 .ai-publish-platform-copy {
   margin: -4px 0 16px;
   color: #9096a8;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
 }
 
@@ -48,7 +48,7 @@
 .ai-publish-platform-actions .secondary-button {
   min-height: 38px;
   padding: 9px 14px;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .ai-visual-format-picker {
@@ -64,7 +64,7 @@
 .ai-visual-format-picker legend {
   padding: 0 5px;
   color: #b4bacc;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
@@ -108,13 +108,13 @@
 
 .ai-visual-format-options strong {
   color: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .ai-visual-format-options small,
 .ai-visual-format-picker > p {
   color: #707687;
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
@@ -128,7 +128,7 @@
   justify-content: space-between;
   gap: 10px;
   color: #b4bacc;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .ai-carousel-count select {
@@ -139,7 +139,7 @@
   background: #111217;
   color: #eef0f6;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .ai-generated-carousel {
@@ -167,7 +167,7 @@
   border-radius: 7px;
   background: rgba(209, 153, 62, .07);
   color: #c7a96a;
-  font-size: 10px;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
