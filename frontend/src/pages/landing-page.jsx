@@ -155,6 +155,103 @@ function ScrollCue() {
   </a>
 }
 
+function ScrollTimeline() {
+  const sectionRef = useRef(null)
+  const railRef = useRef(null)
+  const progressRef = useRef(null)
+  const orbRef = useRef(null)
+  const cardRefs = useRef([])
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  useEffect(() => {
+    const section = sectionRef.current
+    const rail = railRef.current
+    if (!section || !rail) return undefined
+
+    const reducedMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let frame = 0
+    let lastActive = -1
+    let smoothProgress = 0
+    let initialized = false
+
+    const update = () => {
+      frame = 0
+      const rect = section.getBoundingClientRect()
+      const viewport = window.innerHeight || document.documentElement.clientHeight || 1
+      const start = viewport * 0.34
+      const total = Math.max(1, rect.height - viewport * 0.42)
+      const current = start - rect.top
+      const targetProgress = reducedMotion ? 0 : Math.max(0, Math.min(1, current / total))
+      if (!initialized || reducedMotion) smoothProgress = targetProgress
+      else smoothProgress += (targetProgress - smoothProgress) * 0.18
+      initialized = true
+      const progress = smoothProgress
+      const trackHeight = Math.max(0, rail.clientHeight - 24)
+      const orbY = 12 + progress * trackHeight
+
+      progressRef.current?.style.setProperty('transform', `translate3d(-50%, 0, 0) scaleY(${progress})`)
+      orbRef.current?.style.setProperty('transform', `translate3d(-50%, ${orbY}px, 0)`)
+
+      cardRefs.current.forEach((card, index) => {
+        if (!card) return
+        const position = index / Math.max(1, features.length - 1)
+        const distance = Math.min(1, Math.abs(position - progress) * 2.15)
+        const focus = 1 - distance
+        card.style.setProperty('--timeline-opacity', (0.22 + focus * 0.78).toFixed(3))
+        card.style.setProperty('--timeline-shift', `${(distance * 24).toFixed(2)}px`)
+        card.style.setProperty('--timeline-scale', (0.965 + focus * 0.035).toFixed(4))
+        card.style.setProperty('--timeline-saturation', (0.72 + focus * 0.28).toFixed(3))
+      })
+
+      const next = Math.min(features.length - 1, Math.round(progress * (features.length - 1)))
+      if (next !== lastActive) {
+        lastActive = next
+        setActiveIndex(next)
+      }
+      if (!reducedMotion && Math.abs(targetProgress - smoothProgress) > 0.001) frame = requestAnimationFrame(update)
+    }
+
+    const requestUpdate = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+
+    update()
+    window.addEventListener('scroll', requestUpdate, { passive: true })
+    window.addEventListener('resize', requestUpdate)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', requestUpdate)
+      window.removeEventListener('resize', requestUpdate)
+    }
+  }, [])
+
+  return <div ref={sectionRef} className="mkt-scroll-timeline" role="region" aria-label="Recursos em destaque">
+    <div ref={railRef} className="mkt-scroll-timeline-rail" aria-hidden="true">
+      <span className="mkt-scroll-timeline-line" />
+      <span ref={progressRef} className="mkt-scroll-timeline-progress" />
+      <span ref={orbRef} className="mkt-scroll-timeline-orb" />
+    </div>
+    <div className="mkt-scroll-timeline-list">
+      {features.map(([icon, tag, title, copy], index) => <article
+        key={icon}
+        ref={node => { cardRefs.current[index] = node }}
+        className={`mkt-scroll-timeline-card${index === activeIndex ? ' is-active' : ''}${index < activeIndex ? ' is-past' : ''}`}
+        aria-current={index === activeIndex ? 'step' : undefined}
+      >
+        <span className="mkt-scroll-timeline-card-icon"><Icon name={icon} /></span>
+        <div className="mkt-scroll-timeline-card-copy">
+          <p className="mkt-feature-tag">{tag}</p>
+          <h3>{title}</h3>
+          <p className="mkt-feature-copy">{copy}</p>
+        </div>
+        <span className="mkt-scroll-timeline-card-index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+        <span className="mkt-scroll-timeline-card-arrow" aria-hidden="true"><Icon name="arrow" size={18} /></span>
+      </article>)}
+    </div>
+  </div>
+}
+
 function HeroStage() {
   return <div className="mkt-stage mkt-stage--render" onDragStart={event => event.preventDefault()}>
     <img className="mkt-hero-render" src={heroPhone} width={1122} height={1402}
@@ -213,13 +310,7 @@ export function LandingPage() {
       </section>
       <section className="mkt-section mkt-container" id="recursos" aria-labelledby="features-title">
         <div className="mkt-section-head"><p className="mkt-eyebrow">Menos trabalho manual</p><h2 id="features-title">Sua lista de tarefas<br />em um só lugar.</h2><p>Do primeiro rascunho ao relatório, tudo no mesmo fluxo — sem pular entre aplicativos.</p></div>
-        <div className="mkt-features">{features.map(([icon, tag, title, copy]) => <article key={icon}>
-          <span className="mkt-feature-icon"><Icon name={icon} /></span>
-          <p className="mkt-feature-tag">{tag}</p>
-          <h3>{title}</h3>
-          <p className="mkt-feature-copy">{copy}</p>
-          <span className="mkt-feature-arrow" aria-hidden="true"><Icon name="arrow" size={18} /></span>
-        </article>)}</div>
+        <ScrollTimeline />
         <ul className="mkt-proof" aria-label="Resumo do que a plataforma faz">
           {proofPoints.map(([value, label]) => <li key={value}><strong>{value}</strong><span>{label}</span></li>)}
         </ul>

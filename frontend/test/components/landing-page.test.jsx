@@ -19,6 +19,17 @@ describe('LandingPage', () => {
     }
   })
 
+  it('turns the resources section into a scroll-linked timeline', () => {
+    render(<LandingPage />)
+    const timeline = screen.getByRole('region', { name: 'Recursos em destaque' })
+
+    expect(timeline).toHaveClass('mkt-scroll-timeline')
+    expect(timeline.querySelectorAll('.mkt-scroll-timeline-card')).toHaveLength(6)
+    expect(timeline.querySelector('.mkt-scroll-timeline-progress')).toBeInTheDocument()
+    expect(timeline.querySelector('.mkt-scroll-timeline-orb')).toBeInTheDocument()
+    expect(timeline.querySelectorAll('[aria-current="step"]')).toHaveLength(1)
+  })
+
   it('opens the mobile navigation and closes it after choosing a section or pressing Escape', () => {
     render(<LandingPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
