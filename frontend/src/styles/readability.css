@@ -31,7 +31,6 @@ html[data-theme] .app-shell-modern .page-view :is(input:not([type='checkbox']):n
   line-height: 1.5;
 }
 html[data-theme] .app-shell-modern .sidebar-navigation button {
-  min-height: 44px !important;
   font-size: var(--text-base) !important;
 }
 html[data-theme] .app-shell-modern .sidebar-nav-group-label {

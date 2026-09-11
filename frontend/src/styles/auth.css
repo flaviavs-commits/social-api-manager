@@ -245,8 +245,17 @@
   font-size: var(--text-xs);
 }
 
-.auth-rules .is-valid {
+.auth-rules > span,
+.checkout-password-rules > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.auth-rules [data-state='valid'],
+.checkout-password-rules [data-state='valid'] {
   color: var(--green);
+  font-weight: 700;
 }
 
 .checkout-page {
@@ -423,8 +432,14 @@
   font-size: var(--text-xs);
 }
 
-.checkout-password-rules .is-valid {
+.checkout-password-rules [data-state='valid'] {
   color: var(--green);
+  font-weight: 700;
+}
+
+.auth-rules [data-state='pending'],
+.checkout-password-rules [data-state='pending'] {
+  color: var(--muted);
 }
 
 .checkout-plan-grid {

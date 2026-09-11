@@ -1,4 +1,4 @@
-export function Button({ children, href, variant = 'primary' }) {
-  const className = `felixo-button felixo-button--${variant}`
-  return href ? <a className={className} href={href}>{children}</a> : <button type="button" className={className}>{children}</button>
+export function Button({ children, href, variant = 'primary', size = 'md', className: customClassName = '', type = 'button', ...props }) {
+  const className = ['felixo-button', `felixo-button--${variant}`, `felixo-button--${size}`, customClassName].filter(Boolean).join(' ')
+  return href ? <a className={className} href={href} {...props}>{children}</a> : <button type={type} className={className} {...props}>{children}</button>
 }

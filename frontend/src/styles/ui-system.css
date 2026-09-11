@@ -2251,3 +2251,99 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-kpi-row strong {
     font-size: var(--text-md);
   }
 }
+
+/* Accessibility contract: preserve a usable hit area and expose selected
+ * states through shape, weight, and focus treatment in addition to color. */
+html[data-theme] .app-shell-modern :is(
+  .sidebar-navigation button,
+  .sidebar-logout,
+  .mobile-bottom-nav button,
+  .app-topbar-modern .topbar-icon-button,
+  .app-topbar-modern .topbar-text-action,
+  .app-topbar-modern .create-post-button,
+  .app-desktop-menu-button,
+  .app-mobile-menu-button,
+  .theme-selector button,
+  .user-profile-pill,
+  .profile-menu > button,
+  .notification-see-all,
+  main .action-button,
+  main .secondary-button,
+  .dashboard-page .link-button,
+  .analytics-net-item,
+  .analytics-period-btn,
+  .analytics-tab,
+  .preview-network-tab,
+  .dashboard-filter-buttons button,
+  .token-filter-toolbar button,
+  .dashboard-platform-switch button,
+  .dashboard-period-switch button,
+  .drafts-v2-filter-tabs button,
+  .queues-filter-tabs button,
+  .media-library-folder-tabs button,
+  .calendar-view-toggle button
+) {
+  min-height: var(--touch-target) !important;
+}
+
+html[data-theme] .app-shell-modern :is(
+  .app-topbar-modern .topbar-icon-button,
+  .app-topbar-modern .topbar-text-action
+) {
+  min-width: var(--touch-target);
+}
+
+html[data-theme] .app-shell-modern .app-desktop-menu-button {
+  min-width: var(--touch-target);
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-net-item,
+  .analytics-period-btn,
+  .analytics-tab,
+  .preview-network-tab,
+  .dashboard-filter-buttons button,
+  .token-filter-toolbar button,
+  .dashboard-platform-switch button,
+  .dashboard-period-switch button,
+  .drafts-v2-filter-tabs button,
+  .queues-filter-tabs button,
+  .media-library-folder-tabs button,
+  .calendar-view-toggle button
+) {
+  border-width: 1px;
+  border-style: solid;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+html[data-theme] .app-shell-modern :is(
+  .analytics-net-item.active,
+  .analytics-net-item[aria-pressed='true'],
+  .analytics-period-btn.active,
+  .analytics-period-btn[aria-pressed='true'],
+  .analytics-tab.active,
+  .analytics-tab[aria-selected='true'],
+  .preview-network-tab.is-active,
+  .preview-network-tab[aria-selected='true'],
+  .dashboard-filter-buttons button.active,
+  .dashboard-filter-buttons button[aria-pressed='true'],
+  .token-filter-toolbar button.is-active,
+  .token-filter-toolbar button[aria-pressed='true'],
+  .dashboard-platform-switch button.is-active,
+  .dashboard-platform-switch button[aria-pressed='true'],
+  .dashboard-period-switch button.is-active,
+  .dashboard-period-switch button[aria-pressed='true'],
+  .drafts-v2-filter-tabs button.is-active,
+  .drafts-v2-filter-tabs button[aria-selected='true'],
+  .queues-filter-tabs button.is-active,
+  .queues-filter-tabs button[aria-selected='true'],
+  .media-library-folder-tabs button.is-active,
+  .media-library-folder-tabs button[aria-selected='true'],
+  .calendar-view-toggle button.active,
+  .calendar-view-toggle button[aria-pressed='true']
+) {
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px var(--accent);
+  font-weight: 700;
+}
