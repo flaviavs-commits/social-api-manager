@@ -47,6 +47,7 @@ jest.mock('../../src/services/mailer', () => ({
   enviarEmailAcessoMeuEcoo: jest.fn(),
   enviarEmailAlertaPagamentoNaoVinculado: jest.fn().mockResolvedValue(undefined),
   enviarEmailFalhaCobrancaAssinatura: jest.fn().mockResolvedValue(undefined),
+  enviarEmailAlertaEventoStripe: jest.fn().mockResolvedValue(undefined),
 }))
 
 const billingRepo = require('../../src/repositories/billingRepository')
@@ -872,5 +873,69 @@ describe('billingService.cancelSubscriptionForUser', () => {
 
     await expect(billingService.cancelSubscriptionForUser(7)).rejects.toMatchObject({ code: 'stripe_http_500' })
     expect(subscriptionsRepo.atualizarPorStripeSubscriptionId).not.toHaveBeenCalled()
+  })
+})
+
+describe('billingService.handleWebhook — charge.refunded', () => {
+  test('reembolso total: resolve a conta pelo Customer e revoga o acesso', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    const result = await billingService.handleWebhook({
+      type: 'charge.refunded',
+      data: { object: { id: 'ch_1', customer: 'cus_1', amount: 10050, amount_refunded: 10050, currency: 'brl', refunded: true } },
+    })
+
+    expect(result).toEqual({ status: 'refunded' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { planActive: false })
+    expect(mailer.enviarEmailAlertaEventoStripe).not.toHaveBeenCalled()
+  })
+
+  test('reembolso total sem conta identificada: alerta em vez de revogar silenciosamente', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue(null)
+
+    const result = await billingService.handleWebhook({
+      type: 'charge.refunded',
+      data: { object: { id: 'ch_2', customer: 'cus_desconhecido', amount: 10050, amount_refunded: 10050, currency: 'brl', refunded: true } },
+    })
+
+    expect(result).toEqual({ status: 'unlinked' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+    expect(mailer.enviarEmailAlertaEventoStripe).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ title: 'Reembolso total sem conta identificada' })
+    )
+  })
+
+  test('reembolso parcial: não revoga sozinho, só alerta', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test' })
+
+    const result = await billingService.handleWebhook({
+      type: 'charge.refunded',
+      data: { object: { id: 'ch_3', customer: 'cus_1', amount: 10050, amount_refunded: 2000, currency: 'brl', refunded: false } },
+    })
+
+    expect(result).toEqual({ status: 'partial_refund' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+    expect(mailer.enviarEmailAlertaEventoStripe).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ title: 'Reembolso parcial recebido — decisão manual necessária' })
+    )
+  })
+})
+
+describe('billingService.handleWebhook — charge.dispute.created', () => {
+  test('nunca revoga acesso sozinho, só alerta', async () => {
+    const result = await billingService.handleWebhook({
+      type: 'charge.dispute.created',
+      data: { object: { id: 'du_1', charge: 'ch_1', payment_intent: 'pi_1', amount: 10050, currency: 'brl', status: 'needs_response', reason: 'fraudulent' } },
+    })
+
+    expect(result).toEqual({ status: 'disputed' })
+    expect(usersRepo.atualizarPlanoPorAssinatura).not.toHaveBeenCalled()
+    expect(usersRepo.buscarPorStripeCustomerId).not.toHaveBeenCalled()
+    expect(mailer.enviarEmailAlertaEventoStripe).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.objectContaining({ title: 'Disputa/chargeback aberta' })
+    )
   })
 })

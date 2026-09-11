@@ -104,6 +104,29 @@ algo de outra conta — decisão registrada no `IA.md` de 10/09/2026. Cada gera�
 fica auditada no log do próprio admin que gerou (`adminController.getPlanLink`).
 No frontend, é a coluna "Link de pagamento" em `admin-page.jsx`.
 
+## Reembolso e disputa (charge.refunded / charge.dispute.created)
+
+Decisão registrada no `IA.md` de 11/09/2026 (Trilha B, task "decidir o que
+fazer em reembolso e disputa"):
+
+| Evento | Ação |
+| --- | --- |
+| Reembolso **total** (`charge.refunded`, `refunded: true`) | Revoga o acesso na hora — o dinheiro já voltou. |
+| Reembolso **parcial** (`amount_refunded > 0`, `refunded: false`) | **Não** revoga sozinho — pode ser cortesia pontual. Só alerta um admin. |
+| Disputa/chargeback (`charge.dispute.created`) | **Nunca** revoga sozinho — pode ser engano do cliente, e leva dias para resolver. Só alerta. |
+
+`Dispute` não carrega `customer` diretamente (só `charge`/`payment_intent`) —
+o handler de disputa não tenta resolver a conta, para não gastar uma chamada
+extra à Stripe numa decisão que é sempre "alertar, nunca agir sozinho"; o
+admin já pode abrir o `charge` no dashboard. O alerta reaproveita
+`mailer.enviarEmailAlertaEventoStripe`, genérico (não é o mesmo e-mail de
+"pagamento sem conta vinculada" — aqui a conta já é conhecida).
+
+⚠️ **Não testado contra `stripe trigger` real** — os handlers foram validados
+com payloads sintéticos fiéis ao formato documentado da Stripe (testes
+unitários com mutação), mas nunca com um evento real disparado pela CLI.
+Mesma limitação já registrada para os eventos de assinatura.
+
 ## Como o webhook identifica a conta
 
 `POST /api/billing/stripe/webhook` (público, corpo bruto, assinatura HMAC

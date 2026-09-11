@@ -427,6 +427,20 @@ async function alertUnlinkedPaymentAdmins(object, reason) {
   }
 }
 
+// Mesmo padrão best-effort de alertUnlinkedPaymentAdmins, reaproveitado por
+// reembolso parcial e disputa (task "decidir o que fazer em reembolso e
+// disputa", 11/09/2026) — casos em que a conta já é conhecida, então o
+// alerta genérico ("vincular no painel") não se aplica.
+async function alertAdminsEventoStripe(title, description, rows) {
+  try {
+    const recipients = await usersRepo.listarEmailsAdmins()
+    if (!recipients.length) return
+    await mailer.enviarEmailAlertaEventoStripe(recipients, { title, description, rows, adminUrl: adminPanelUrl() })
+  } catch (error) {
+    await addLog('err', `Falha ao enviar alerta de evento Stripe (${title}): ${error.message}`)
+  }
+}
+
 // Um pagamento confirmado que não conseguimos vincular a nenhuma conta é
 // dinheiro que entrou sem ninguém ser creditado. Nunca falha silenciosamente:
 // registra o que faltou para permitir a reconciliação manual e avisa todo
@@ -730,6 +744,63 @@ async function handleInvoicePaymentFailed(object) {
   return { status: 'failed' }
 }
 
+// Decisão registrada no IA.md de 11/09/2026 (task "decidir o que fazer em
+// reembolso e disputa", Trilha B): reembolso TOTAL revoga acesso na hora —
+// o dinheiro já voltou, não faz sentido o cliente continuar com acesso
+// completo. Reembolso PARCIAL não revoga sozinho (pode ser cortesia
+// pontual): só alerta um admin para decidir caso a caso. `charge.refunded`
+// (boolean) só é true em reembolso total — confirmado contra
+// docs.stripe.com/api/charges/object, 11/09/2026; reembolso parcial só move
+// `amount_refunded`, sem marcar `refunded`.
+async function handleChargeRefunded(object) {
+  const isFullRefund = object?.refunded === true
+  const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
+
+  if (!isFullRefund) {
+    await addLog('err', `Reembolso parcial recebido (charge.refunded). charge=${object?.id || 'desconhecida'} customer=${object?.customer || 'desconhecido'} valor_reembolsado=${object?.amount_refunded} de ${object?.amount} ${String(object?.currency || '').toUpperCase()}` + (user?.id ? ` user=${user.id}` : ' (conta não identificada)'))
+    await alertAdminsEventoStripe(
+      'Reembolso parcial recebido — decisão manual necessária',
+      'A Stripe registrou um reembolso parcial. O acesso do cliente não foi revogado automaticamente — avalie se cabe alguma ação.',
+      [['Charge', object?.id], ['Cliente (Stripe)', object?.customer], ['Conta no app', user?.id ? `#${user.id} (${user.email})` : 'não identificada'], ['Valor reembolsado', `${Number(object?.amount_refunded || 0) / 100} de ${Number(object?.amount || 0) / 100} ${String(object?.currency || '').toUpperCase()}`]]
+    )
+    return { status: 'partial_refund' }
+  }
+
+  if (!user?.id) {
+    await addLog('err', `Reembolso total sem conta identificada (charge.refunded). charge=${object?.id || 'desconhecida'} customer=${object?.customer || 'desconhecido'}`)
+    await alertAdminsEventoStripe(
+      'Reembolso total sem conta identificada',
+      'A Stripe confirmou um reembolso total, mas não foi possível identificar a conta para revogar o acesso — verifique manualmente.',
+      [['Charge', object?.id], ['Cliente (Stripe)', object?.customer], ['Valor', `${Number(object?.amount || 0) / 100} ${String(object?.currency || '').toUpperCase()}`]]
+    )
+    return { status: 'unlinked' }
+  }
+
+  await usersRepo.atualizarPlanoPorAssinatura(user.id, { planActive: false })
+  await addLog('ok', `Acesso revogado por reembolso total (charge.refunded). charge=${object.id} user=${user.id}`, null, null, user.id)
+  return { status: 'refunded' }
+}
+
+// Disputa/chargeback (task "decidir o que fazer em reembolso e disputa",
+// 11/09/2026): só alerta um admin, nunca revoga acesso sozinho — diferente
+// do reembolso, uma disputa pode ser engano do cliente e leva dias para
+// resolver; cortar acesso de quem nunca devia ter sido cortado é pior do
+// que aguardar uma decisão humana. Não tenta resolver a conta: o objeto
+// Dispute não carrega `customer` diretamente (confirmado contra
+// docs.stripe.com/api/disputes/object, 11/09/2026 — só `charge`/
+// `payment_intent`), e buscar o Charge só para identificar o cliente seria
+// uma chamada extra à Stripe sem necessidade, já que a decisão é sempre
+// alertar, nunca agir sozinho — o admin já pode olhar o charge no dashboard.
+async function handleChargeDisputeCreated(object) {
+  await addLog('err', `Disputa/chargeback aberta (charge.dispute.created). dispute=${object?.id || 'desconhecida'} charge=${object?.charge || 'desconhecido'} motivo=${object?.reason || 'não informado'} status=${object?.status || 'desconhecido'}`)
+  await alertAdminsEventoStripe(
+    'Disputa/chargeback aberta',
+    'Um cliente contestou uma cobrança junto ao banco. O acesso não foi revogado — disputas podem ser resolvidas a favor da empresa, e podem levar dias.',
+    [['Disputa', object?.id], ['Charge', object?.charge], ['Motivo', object?.reason], ['Status', object?.status], ['Valor', `${Number(object?.amount || 0) / 100} ${String(object?.currency || '').toUpperCase()}`]]
+  )
+  return { status: 'disputed' }
+}
+
 async function handleWebhook(event) {
   const object = event?.data?.object
   if (!object?.id) return { status: 'ignored' }
@@ -790,6 +861,8 @@ async function handleWebhook(event) {
   if (event.type === 'customer.subscription.deleted') return handleSubscriptionDeleted(object)
   if (event.type === 'invoice.paid') return handleInvoicePaid(object)
   if (event.type === 'invoice.payment_failed') return handleInvoicePaymentFailed(object)
+  if (event.type === 'charge.refunded') return handleChargeRefunded(object)
+  if (event.type === 'charge.dispute.created') return handleChargeDisputeCreated(object)
 
   return { status: 'ignored' }
 }
