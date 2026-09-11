@@ -2,7 +2,8 @@
 // Montadas em /auth/login/* no server.js (app.use('/auth/login', authRoutes))
 process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
-process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test'
+process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test,internal.test'
+process.env.FREE_INTERNAL_EMAIL_DOMAINS = 'internal.test'
 
 const request = require('supertest')
 
@@ -172,6 +173,30 @@ describe('POST /auth/login/register', () => {
 
     expect(res.status).toBe(200)
     expect(meuEcoo.sincronizarCredencial).toHaveBeenCalledWith('pro@allowed.test', 'AbcSegura@1234', 'Cliente Pro')
+  })
+
+  test('cadastro normal exige pagamento e cria com plan_active=FALSE', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue(null)
+    usersRepo.criar.mockResolvedValue({ id: 8, email: 'cliente@allowed.test' })
+    credRepo.criar.mockResolvedValue(undefined)
+
+    const res = await request(app).post(`${BASE}/register`).send({ email: 'cliente@allowed.test', password: 'AbcSegura@1234' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.requiresPayment).toBe(true)
+    expect(usersRepo.criar).toHaveBeenCalledWith(expect.objectContaining({ planActive: false }))
+  })
+
+  test('conta de domínio interno não exige pagamento e é criada já ativa', async () => {
+    usersRepo.buscarPorEmail.mockResolvedValue(null)
+    usersRepo.criar.mockResolvedValue({ id: 9, email: 'interno@internal.test' })
+    credRepo.criar.mockResolvedValue(undefined)
+
+    const res = await request(app).post(`${BASE}/register`).send({ email: 'interno@internal.test', password: 'AbcSegura@1234' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.requiresPayment).toBe(false)
+    expect(usersRepo.criar).toHaveBeenCalledWith(expect.objectContaining({ planActive: true }))
   })
 })
 

@@ -56,6 +56,38 @@ describe('criar', () => {
     const params = pool.query.mock.calls[0][1]
     expect(params[1]).toBeNull()
   })
+
+  test('cria com plan_active=FALSE por padrão (cadastro normal, aguarda pagamento)', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 4 }] })
+    await repo.criar({ email: 'cliente@x.com' })
+    const [sql, params] = pool.query.mock.calls[0]
+    expect(sql).toContain('plan_active')
+    expect(params).toEqual(['cliente@x.com', null, 'basico', false, ['instagram', 'youtube', 'tiktok', 'facebook']])
+  })
+
+  test('cria com plan_active=TRUE quando planActive é passado (conta interna isenta)', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 5 }] })
+    await repo.criar({ email: 'interno@vitissouls.com', planActive: true })
+    const params = pool.query.mock.calls[0][1]
+    expect(params[3]).toBe(true)
+  })
+})
+
+describe('criarComGoogle', () => {
+  test('devolve planActive no RETURNING (evita a inconsistência do redirect pós-cadastro)', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 6, email: 'g@x.com', fullName: 'G', planActive: false }] })
+    const result = await repo.criarComGoogle({ email: 'g@x.com', fullName: 'G', googleId: 'goog_1' })
+    expect(result.planActive).toBe(false)
+    const [sql] = pool.query.mock.calls[0]
+    expect(sql).toContain('plan_active AS "planActive"')
+  })
+
+  test('cria com plan_active=TRUE quando planActive é passado', async () => {
+    pool.query.mockResolvedValueOnce({ rows: [{ id: 7 }] })
+    await repo.criarComGoogle({ email: 'interno@vitissouls.com', googleId: 'goog_2', planActive: true })
+    const params = pool.query.mock.calls[0][1]
+    expect(params[4]).toBe(true)
+  })
 })
 
 describe('atualizarRole', () => {

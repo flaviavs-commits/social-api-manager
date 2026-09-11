@@ -45,22 +45,33 @@ async function buscarPorGoogleId(googleId) {
   return user || null
 }
 
-async function criar({ email, fullName, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'] }) {
+// planActive=true é usado só para contas de domínio interno isentas de
+// pagamento (ver src/utils/allowedEmailDomain.js, isFreeInternalEmail) — o
+// cadastro normal continua criando com plan_active=FALSE até o webhook do
+// gateway confirmar o pagamento.
+async function criar({ email, fullName, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'], planActive = false }) {
   const { rows: [user] } = await pool.query(
     `INSERT INTO users (email, full_name, plan, plan_active, plan_unrestricted, allowed_platforms)
-     VALUES ($1, $2, $3, FALSE, FALSE, $4::text[])
-     RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null, plan, allowedPlatforms]
+     VALUES ($1, $2, $3, $4, FALSE, $5::text[])
+     RETURNING id, email, full_name AS "fullName", plan_active AS "planActive"`,
+    [normalizarEmail(email), fullName || null, plan, planActive === true, allowedPlatforms]
   )
   return user
 }
 
-async function criarComGoogle({ email, fullName, googleId, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'] }) {
+// planActive no RETURNING (correção de bug pré-existente, achado ao mexer
+// aqui): sem ele, o objeto devolvido por esta função nunca tinha
+// `planActive`, e o redirect pós-cadastro Google em auth.js comparava
+// `user.planActive === false` contra `undefined` — sempre falso, então toda
+// conta nova via Google caía em '/app.html' em vez de '/app/perfil', mesmo
+// sem pagamento. Não era falha de segurança (requireAuth sempre reconsulta o
+// banco a cada requisição), só UX errada logo após o cadastro.
+async function criarComGoogle({ email, fullName, googleId, plan = 'basico', allowedPlatforms = ['instagram', 'youtube', 'tiktok', 'facebook'], planActive = false }) {
   const { rows: [user] } = await pool.query(
     `INSERT INTO users (email, full_name, google_id, plan, plan_active, plan_unrestricted, allowed_platforms)
-     VALUES ($1, $2, $3, $4, FALSE, FALSE, $5::text[])
-     RETURNING id, email, full_name AS "fullName"`,
-    [normalizarEmail(email), fullName || null, googleId, plan, allowedPlatforms]
+     VALUES ($1, $2, $3, $4, $5, FALSE, $6::text[])
+     RETURNING id, email, full_name AS "fullName", plan_active AS "planActive"`,
+    [normalizarEmail(email), fullName || null, googleId, plan, planActive === true, allowedPlatforms]
   )
   return user
 }

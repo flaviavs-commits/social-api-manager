@@ -14,7 +14,7 @@ const { verificarTokenSessaoDetalhado, verificarTokenPending2fa, gerarGoogleOAut
 const { issueAuthSession, issuePending2fa, clearAuthCookies, clearPending2faCookie, readCookie, issueGoogleOAuthStateCookie, clearGoogleOAuthStateCookie, AUTH_COOKIE, PENDING_2FA_COOKIE, GOOGLE_OAUTH_STATE_COOKIE } = require('../utils/authCookie')
 const { sincronizarCredencial, autenticarViaMeuEcoo } = require('../services/meuEcoo')
 const { DEFAULT_PLAN, PLANS, SUPPORTED_PLATFORMS, getPlanConnectionLimit, getPlanPlatforms, normalizePlan } = require('../config/plans')
-const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
+const { allowedEmailDomainLabel, isAllowedEmail, isFreeInternalEmail } = require('../utils/allowedEmailDomain')
 const { bestEffortEnsureZernioProfile } = require('../services/zernioProfileService')
 
 const BCRYPT_COST = 12
@@ -180,11 +180,17 @@ router.post('/register', loginLimiter, async (req, res) => {
       return res.status(409).json({ erro: 'Já existe uma conta com esse e-mail.' })
     }
 
-    const user = await usersRepo.criar({ email, fullName, plan, allowedPlatforms: selectedPlatforms })
+    // Conta de domínio interno (decisão do dono do produto, 11/09/2026): usa
+    // a aplicação sem pagar. Só afeta se a conta paga ou não — continua
+    // passando por todo o resto do cadastro normalmente (senha, plataformas
+    // escolhidas, plano solicitado).
+    const freeInternal = isFreeInternalEmail(email)
+    const user = await usersRepo.criar({ email, fullName, plan, allowedPlatforms: selectedPlatforms, planActive: freeInternal })
     const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
     await credentialsRepo.criar(user.id, passwordHash)
     // O cliente Pro/Premium já pode acessar o MeuEcoo assim que o pagamento
-    // for confirmado. A sincronização é best-effort e não bloqueia o cadastro.
+    // for confirmado (ou de imediato, se a conta é isenta). A sincronização é
+    // best-effort e não bloqueia o cadastro.
     if (PLANS[selectedPlan].meuEcooAccess !== 'none') {
       void sincronizarCredencial(email, password, fullName)
     }
@@ -197,7 +203,7 @@ router.post('/register', loginLimiter, async (req, res) => {
       ok: true,
       plan,
       selectedPlan,
-      requiresPayment: true,
+      requiresPayment: !freeInternal,
       allowedPlatforms: selectedPlatforms,
       maxConnections,
     }, token)
@@ -546,7 +552,8 @@ router.get('/google/callback', async (req, res) => {
         user = await usersRepo.criarComGoogle({
           email: profile.email,
           fullName: profile.name,
-          googleId: profile.id
+          googleId: profile.id,
+          planActive: isFreeInternalEmail(profile.email),
         })
       }
     }
