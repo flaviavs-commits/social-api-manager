@@ -122,10 +122,14 @@ admin já pode abrir o `charge` no dashboard. O alerta reaproveita
 `mailer.enviarEmailAlertaEventoStripe`, genérico (não é o mesmo e-mail de
 "pagamento sem conta vinculada" — aqui a conta já é conhecida).
 
-⚠️ **Não testado contra `stripe trigger` real** — os handlers foram validados
-com payloads sintéticos fiéis ao formato documentado da Stripe (testes
-unitários com mutação), mas nunca com um evento real disparado pela CLI.
-Mesma limitação já registrada para os eventos de assinatura.
+✅ **Validado contra a Stripe real em 11/09/2026** (ver seção abaixo,
+"Validado contra a Stripe real" — reembolso total e disputa, os dois com
+conta e assinatura reais em modo teste). Comportamento confirmado igual ao
+descrito na tabela acima: reembolso total revogou `plan_active` na hora;
+disputa não revogou (`plan_active` continuou `TRUE`), só gerou o log de
+alerta — o e-mail em si falhou por credencial do Gmail expirada em produção
+(achado à parte, não é bug deste handler; ver task de infra aberta para o
+e-mail).
 
 ## Validado contra a Stripe real (11/09/2026)
 
