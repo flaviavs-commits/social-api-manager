@@ -152,4 +152,21 @@ describe('stripeGateway', () => {
 
     await expect(stripeGateway.createPortalSession('cus_inexistente')).rejects.toMatchObject({ statusCode: 502 })
   })
+
+  test('cancela a assinatura com DELETE e devolve id/status', async () => {
+    global.fetch.mockResolvedValue({ ok: true, json: async () => ({ id: 'sub_123', status: 'canceled' }) })
+
+    const result = await stripeGateway.cancelSubscription('sub_123')
+
+    expect(result).toEqual({ id: 'sub_123', status: 'canceled' })
+    const [url, options] = global.fetch.mock.calls[0]
+    expect(url).toBe('https://api.stripe.com/v1/subscriptions/sub_123')
+    expect(options.method).toBe('DELETE')
+  })
+
+  test('propaga 404 ao cancelar assinatura inexistente', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: { message: 'No such subscription' } }) })
+
+    await expect(stripeGateway.cancelSubscription('sub_inexistente')).rejects.toMatchObject({ statusCode: 404 })
+  })
 })

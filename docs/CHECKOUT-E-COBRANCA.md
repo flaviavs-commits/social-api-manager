@@ -104,6 +104,69 @@ algo de outra conta — decisão registrada no `IA.md` de 10/09/2026. Cada gera�
 fica auditada no log do próprio admin que gerou (`adminController.getPlanLink`).
 No frontend, é a coluna "Link de pagamento" em `admin-page.jsx`.
 
+## Reembolso e disputa (charge.refunded / charge.dispute.created)
+
+Decisão registrada no `IA.md` de 11/09/2026 (Trilha B, task "decidir o que
+fazer em reembolso e disputa"):
+
+| Evento | Ação |
+| --- | --- |
+| Reembolso **total** (`charge.refunded`, `refunded: true`) | Revoga o acesso na hora — o dinheiro já voltou. |
+| Reembolso **parcial** (`amount_refunded > 0`, `refunded: false`) | **Não** revoga sozinho — pode ser cortesia pontual. Só alerta um admin. |
+| Disputa/chargeback (`charge.dispute.created`) | **Nunca** revoga sozinho — pode ser engano do cliente, e leva dias para resolver. Só alerta. |
+
+`Dispute` não carrega `customer` diretamente (só `charge`/`payment_intent`) —
+o handler de disputa não tenta resolver a conta, para não gastar uma chamada
+extra à Stripe numa decisão que é sempre "alertar, nunca agir sozinho"; o
+admin já pode abrir o `charge` no dashboard. O alerta reaproveita
+`mailer.enviarEmailAlertaEventoStripe`, genérico (não é o mesmo e-mail de
+"pagamento sem conta vinculada" — aqui a conta já é conhecida).
+
+✅ **Validado contra a Stripe real em 11/09/2026** (ver seção abaixo,
+"Validado contra a Stripe real" — reembolso total e disputa, os dois com
+conta e assinatura reais em modo teste). Comportamento confirmado igual ao
+descrito na tabela acima: reembolso total revogou `plan_active` na hora;
+disputa não revogou (`plan_active` continuou `TRUE`), só gerou o log de
+alerta — o e-mail em si falhou por credencial do Gmail expirada em produção
+(achado à parte, não é bug deste handler; ver task de infra aberta para o
+e-mail).
+
+## Validado contra a Stripe real (11/09/2026)
+
+Achado ao investigar a task "validar ciclo de vida da assinatura contra a
+Stripe real": o endpoint de webhook configurado na conta Stripe
+(`we_1UDp4tDRwXiBR0NCKfoVXrin`, produção) estava inscrito **só** em
+`checkout.session.completed`/`async_payment_succeeded`/`async_payment_failed`/
+`expired` — nenhum dos eventos de assinatura, fatura ou reembolso/disputa
+implementados desde a task "webhook de ciclo de vida da assinatura"
+(`c7e8399`) jamais havia sido enviado pela Stripe. Não era bug no código, era
+o endpoint nunca ter sido reconfigurado depois que esse código foi escrito.
+Corrigido via API da Stripe (`POST /v1/webhook_endpoints/:id`,
+`enabled_events`), adicionando `customer.subscription.created/updated/deleted`,
+`invoice.paid`, `invoice.payment_failed`, `charge.refunded` e
+`charge.dispute.created` à lista.
+
+Com o endpoint corrigido, validado ao vivo contra produção (modo teste da
+Stripe, sem cobrar ninguém real): conta descartável criada no Postgres
+(`plan_active = FALSE`), Stripe Customer + Test Clock + assinatura de teste
+real (cartão `pm_card_visa`, sempre aprova) vinculada via
+`subscription.metadata.user_id` (mesmo formato gravado por
+`subscription_data.metadata` no checkout real) e `stripe_customer_id` salvo
+no usuário (mesmo passo que `requestPlanChange` faz na criação do checkout).
+Resultado, confirmado direto na tabela `users` de produção:
+
+- `customer.subscription.created` + `invoice.paid` chegaram e
+  `plan_active` virou `TRUE`.
+- Ao cancelar a assinatura na Stripe, `customer.subscription.deleted`
+  chegou e `plan_active` virou `FALSE`.
+
+Test Clock, customer e assinatura de teste foram apagados ao final; a conta
+descartável foi desativada (`ativo = FALSE`) — nada de teste ficou ativo em
+produção. `charge.refunded`/`charge.dispute.created` continuam **sem**
+validação ao vivo (só testes unitários com mutação) — simular um reembolso
+real exige a assinatura já ter passado por um ciclo de cobrança de verdade,
+fora do escopo desta validação.
+
 ## Como o webhook identifica a conta
 
 `POST /api/billing/stripe/webhook` (público, corpo bruto, assinatura HMAC
@@ -185,6 +248,38 @@ Reentrega do mesmo evento é segura em todos os caminhos:
   de inserir e devolve a existente;
 - `confirmarPagamento` não reprocessa linha já `paid`;
 - o e-mail do MeuEcoo tem reserva atômica (`reservarEnvioMeuEcoo`).
+
+## ⚠️ Antes de remover uma conta, cancele a assinatura na Stripe
+
+Hoje **não existe nenhum endpoint no app para excluir uma conta** — a única
+forma de remover um usuário é acesso direto ao Postgres de produção.
+
+Se a conta tiver uma assinatura ativa e você só apagar a linha em `users`
+(mesmo com `ON DELETE CASCADE` limpando `subscriptions` e o resto), **a
+assinatura continua ativa e cobrando na Stripe**. O cliente não existe mais
+no app, mas o cartão dele continua sendo debitado todo mês, sem nada no lado
+da aplicação avisando isso — risco financeiro e de reputação real, não
+teórico (foi descoberto ao remover uma conta de teste em 11/09/2026; por
+sorte aquela conta nunca teve assinatura).
+
+**Antes de qualquer `DELETE FROM users` de uma conta que pode ter pago:**
+
+```sql
+SELECT stripe_customer_id FROM users WHERE id = <id>;
+SELECT stripe_subscription_id, status FROM subscriptions WHERE user_id = <id> ORDER BY created_at DESC LIMIT 1;
+```
+
+Se houver `stripe_subscription_id` com status diferente de `canceled`,
+cancele **antes** de apagar — via dashboard da Stripe (Customers → assinatura
+→ Cancel subscription) ou chamando `billingService.cancelSubscriptionForUser(userId)`
+num script/REPL contra o app (função pronta desde 11/09/2026, ainda sem
+endpoint HTTP que a exponha — nenhuma decisão foi tomada ainda sobre quem
+pode excluir uma conta e por qual caminho; ver task "quem gera o link de
+pagamento" para o mesmo tipo de decisão já resolvida em outro contexto).
+
+Quando um endpoint de exclusão/desativação de conta for criado, ele deve
+chamar essa função antes de remover o usuário — não repetir a lógica de
+cancelamento na mão.
 
 ## Variáveis de ambiente
 

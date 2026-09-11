@@ -254,6 +254,27 @@ async function createPortalSession(stripeCustomerId) {
   return { url: body.url }
 }
 
+// Cancela a assinatura imediatamente (task "cancelar a assinatura Stripe
+// antes de excluir uma conta", 11/09/2026) — usada antes de remover um
+// usuário que ainda tem assinatura ativa, para não deixar a Stripe cobrando
+// um cliente que não existe mais no app. Confirmado contra
+// docs.stripe.com/api/subscriptions/cancel: `DELETE /subscriptions/:id`,
+// sem parâmetros obrigatórios; a resposta já vem com `status: "canceled"`.
+async function cancelSubscription(subscriptionId) {
+  ensureStripeConfigured()
+  const response = await requestStripe(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message = body?.error?.message || 'O gateway recusou o cancelamento da assinatura.'
+    throw gatewayError(message, {
+      code: body?.error?.code || `stripe_http_${response.status}`,
+      statusCode: response.status === 404 ? 404 : response.status >= 500 ? 503 : 502,
+      uncertain: response.status >= 500,
+    })
+  }
+  return { id: body.id, status: body.status }
+}
+
 async function expireCheckout(gatewaySessionId) {
   ensureStripeConfigured()
   if (!gatewaySessionId) return false
@@ -350,4 +371,4 @@ function verifyWebhook(rawBody, signatureHeader) {
   }
 }
 
-module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions, getSubscription, updateSubscriptionPlan, createPortalSession }
+module.exports = { createCheckout, expireCheckout, verifyWebhook, isConfigured, gatewayError, getCheckoutSession, listCheckoutSessions, getSubscription, updateSubscriptionPlan, createPortalSession, cancelSubscription }

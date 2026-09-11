@@ -121,6 +121,40 @@ async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sess
   })
 }
 
+// Alerta genérico para eventos da Stripe que precisam de atenção humana, mas
+// não são "pagamento sem conta" (esse já tem e-mail próprio, com o botão de
+// vincular — não se aplica aqui: nos casos abaixo a conta já é conhecida, o
+// que muda é o que aconteceu com o dinheiro). Decisão registrada no IA.md de
+// 11/09/2026 (task "decidir o que fazer em reembolso e disputa").
+async function enviarEmailAlertaEventoStripe(recipients, { title, description, rows = [], adminUrl }) {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para o alerta de cobrança')
+  const safeTitle = escapeHtml(title)
+  const safeDescription = escapeHtml(description)
+  const safeAdminUrl = escapeHtml(adminUrl)
+  const rowsHtml = rows.map(([label, value]) => `<tr><td style="padding: 4px 8px; color: #888;">${escapeHtml(label)}</td><td style="padding: 4px 8px;">${escapeHtml(value ?? 'não informado')}</td></tr>`).join('')
+  const rowsText = rows.map(([label, value]) => `${label}: ${value ?? 'não informado'}`).join('. ')
+
+  await transporter.sendMail({
+    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+    to: recipients.join(', '),
+    subject: `⚠️ ${title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #222;">
+        <h2 style="color: #c0392b;">${safeTitle}</h2>
+        <p>${safeDescription}</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0;">${rowsHtml}</table>
+        <p style="margin: 24px 0;">
+          <a href="${safeAdminUrl}" style="display: inline-block; background: #6c8cff; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Abrir painel admin
+          </a>
+        </p>
+        <p style="color: #999; font-size: 12px;">Se o botão não abrir, copie este endereço: <a href="${safeAdminUrl}">${safeAdminUrl}</a></p>
+      </div>
+    `,
+    text: `${title}. ${description} ${rowsText} Painel: ${adminUrl}`,
+  })
+}
+
 // Decisão registrada no IA.md de 10/09/2026 (task "decidir alerta ao cliente
 // em falha de cobrança recorrente"): e-mail simples, disparado a cada
 // tentativa que falhar (não só perto do cancelamento) — sem link de
@@ -147,4 +181,4 @@ async function enviarEmailFalhaCobrancaAssinatura(email, { fullName, planName })
   })
 }
 
-module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado, enviarEmailFalhaCobrancaAssinatura }
+module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado, enviarEmailFalhaCobrancaAssinatura, enviarEmailAlertaEventoStripe }
