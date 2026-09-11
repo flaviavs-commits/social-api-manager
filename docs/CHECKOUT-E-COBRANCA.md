@@ -127,6 +127,42 @@ com payloads sintéticos fiéis ao formato documentado da Stripe (testes
 unitários com mutação), mas nunca com um evento real disparado pela CLI.
 Mesma limitação já registrada para os eventos de assinatura.
 
+## Validado contra a Stripe real (11/09/2026)
+
+Achado ao investigar a task "validar ciclo de vida da assinatura contra a
+Stripe real": o endpoint de webhook configurado na conta Stripe
+(`we_1UDp4tDRwXiBR0NCKfoVXrin`, produção) estava inscrito **só** em
+`checkout.session.completed`/`async_payment_succeeded`/`async_payment_failed`/
+`expired` — nenhum dos eventos de assinatura, fatura ou reembolso/disputa
+implementados desde a task "webhook de ciclo de vida da assinatura"
+(`c7e8399`) jamais havia sido enviado pela Stripe. Não era bug no código, era
+o endpoint nunca ter sido reconfigurado depois que esse código foi escrito.
+Corrigido via API da Stripe (`POST /v1/webhook_endpoints/:id`,
+`enabled_events`), adicionando `customer.subscription.created/updated/deleted`,
+`invoice.paid`, `invoice.payment_failed`, `charge.refunded` e
+`charge.dispute.created` à lista.
+
+Com o endpoint corrigido, validado ao vivo contra produção (modo teste da
+Stripe, sem cobrar ninguém real): conta descartável criada no Postgres
+(`plan_active = FALSE`), Stripe Customer + Test Clock + assinatura de teste
+real (cartão `pm_card_visa`, sempre aprova) vinculada via
+`subscription.metadata.user_id` (mesmo formato gravado por
+`subscription_data.metadata` no checkout real) e `stripe_customer_id` salvo
+no usuário (mesmo passo que `requestPlanChange` faz na criação do checkout).
+Resultado, confirmado direto na tabela `users` de produção:
+
+- `customer.subscription.created` + `invoice.paid` chegaram e
+  `plan_active` virou `TRUE`.
+- Ao cancelar a assinatura na Stripe, `customer.subscription.deleted`
+  chegou e `plan_active` virou `FALSE`.
+
+Test Clock, customer e assinatura de teste foram apagados ao final; a conta
+descartável foi desativada (`ativo = FALSE`) — nada de teste ficou ativo em
+produção. `charge.refunded`/`charge.dispute.created` continuam **sem**
+validação ao vivo (só testes unitários com mutação) — simular um reembolso
+real exige a assinatura já ter passado por um ciclo de cobrança de verdade,
+fora do escopo desta validação.
+
 ## Como o webhook identifica a conta
 
 `POST /api/billing/stripe/webhook` (público, corpo bruto, assinatura HMAC
