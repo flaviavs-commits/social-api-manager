@@ -40,6 +40,7 @@ jest.mock('../../src/services/billing/paymentGateway', () => ({
   listCheckoutSessions: jest.fn(),
   updateSubscriptionPlan: jest.fn(),
   createPortalSession: jest.fn(),
+  cancelSubscription: jest.fn(),
 }))
 
 jest.mock('../../src/services/mailer', () => ({
@@ -832,5 +833,44 @@ describe('billingService.createBillingPortalSession', () => {
 
     await expect(billingService.createBillingPortalSession({ userId: 999 }))
       .rejects.toMatchObject({ code: 'no_stripe_customer' })
+  })
+})
+
+describe('billingService.cancelSubscriptionForUser', () => {
+  test('cancela na Stripe e sincroniza o registro local', async () => {
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ stripeSubscriptionId: 'sub_1', status: 'active' })
+    paymentGateway.cancelSubscription.mockResolvedValue({ id: 'sub_1', status: 'canceled' })
+
+    const result = await billingService.cancelSubscriptionForUser(7)
+
+    expect(result).toEqual({ status: 'canceled', stripeSubscriptionId: 'sub_1' })
+    expect(paymentGateway.cancelSubscription).toHaveBeenCalledWith('sub_1')
+    expect(subscriptionsRepo.atualizarPorStripeSubscriptionId).toHaveBeenCalledWith('sub_1', { status: 'canceled' })
+  })
+
+  test('é no-op quando o usuário nunca teve assinatura', async () => {
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue(null)
+
+    const result = await billingService.cancelSubscriptionForUser(7)
+
+    expect(result).toEqual({ status: 'no_subscription' })
+    expect(paymentGateway.cancelSubscription).not.toHaveBeenCalled()
+  })
+
+  test('é no-op quando a assinatura já está cancelada', async () => {
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ stripeSubscriptionId: 'sub_1', status: 'canceled' })
+
+    const result = await billingService.cancelSubscriptionForUser(7)
+
+    expect(result).toEqual({ status: 'no_subscription' })
+    expect(paymentGateway.cancelSubscription).not.toHaveBeenCalled()
+  })
+
+  test('propaga o erro do gateway sem sincronizar o registro local', async () => {
+    subscriptionsRepo.buscarPorUserId.mockResolvedValue({ stripeSubscriptionId: 'sub_1', status: 'active' })
+    paymentGateway.cancelSubscription.mockRejectedValue(Object.assign(new Error('falhou'), { code: 'stripe_http_500', statusCode: 503 }))
+
+    await expect(billingService.cancelSubscriptionForUser(7)).rejects.toMatchObject({ code: 'stripe_http_500' })
+    expect(subscriptionsRepo.atualizarPorStripeSubscriptionId).not.toHaveBeenCalled()
   })
 })

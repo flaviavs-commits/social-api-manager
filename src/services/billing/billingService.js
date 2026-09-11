@@ -313,6 +313,27 @@ async function createBillingPortalSession({ userId }) {
   return paymentGateway.createPortalSession(user.stripeCustomerId)
 }
 
+// Peça reutilizável para quando um endpoint de exclusão/desativação de conta
+// existir (task "cancelar a assinatura Stripe antes de excluir uma conta",
+// 11/09/2026): sem isso, remover um usuário que ainda tem assinatura ativa
+// deixa a Stripe cobrando um cliente que não existe mais no app. Idempotente
+// e segura de chamar em qualquer conta — sem assinatura, ou já cancelada, é
+// no-op (não é erro: a maioria das contas nunca teve uma assinatura Stripe).
+// Atualiza `subscriptions` localmente na hora, em vez de confiar só no
+// webhook `customer.subscription.deleted` chegar depois — se o chamador for
+// excluir o usuário logo em seguida, o registro local já precisa refletir o
+// cancelamento antes disso acontecer (o webhook, quando chegar, só confirma
+// o mesmo estado, de forma idempotente).
+async function cancelSubscriptionForUser(userId) {
+  const subscription = await subscriptionsRepo.buscarPorUserId(userId)
+  if (!subscription?.stripeSubscriptionId || subscription.status === 'canceled') {
+    return { status: 'no_subscription' }
+  }
+  const canceled = await paymentGateway.cancelSubscription(subscription.stripeSubscriptionId)
+  await subscriptionsRepo.atualizarPorStripeSubscriptionId(subscription.stripeSubscriptionId, { status: canceled.status || 'canceled' })
+  return { status: 'canceled', stripeSubscriptionId: subscription.stripeSubscriptionId }
+}
+
 function readPaymentIntentId(value) {
   return typeof value === 'string' ? value : value?.id || null
 }
@@ -773,4 +794,4 @@ async function handleWebhook(event) {
   return { status: 'ignored' }
 }
 
-module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook, getReconciliationReport, linkPaymentManually, createBillingPortalSession }
+module.exports = { BillingError, billingMonth, publicCharge, requestPlanChange, getStatus, getPlanDirectLink, handleWebhook, getReconciliationReport, linkPaymentManually, createBillingPortalSession, cancelSubscriptionForUser }

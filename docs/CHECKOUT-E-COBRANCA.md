@@ -186,6 +186,38 @@ Reentrega do mesmo evento é segura em todos os caminhos:
 - `confirmarPagamento` não reprocessa linha já `paid`;
 - o e-mail do MeuEcoo tem reserva atômica (`reservarEnvioMeuEcoo`).
 
+## ⚠️ Antes de remover uma conta, cancele a assinatura na Stripe
+
+Hoje **não existe nenhum endpoint no app para excluir uma conta** — a única
+forma de remover um usuário é acesso direto ao Postgres de produção.
+
+Se a conta tiver uma assinatura ativa e você só apagar a linha em `users`
+(mesmo com `ON DELETE CASCADE` limpando `subscriptions` e o resto), **a
+assinatura continua ativa e cobrando na Stripe**. O cliente não existe mais
+no app, mas o cartão dele continua sendo debitado todo mês, sem nada no lado
+da aplicação avisando isso — risco financeiro e de reputação real, não
+teórico (foi descoberto ao remover uma conta de teste em 11/09/2026; por
+sorte aquela conta nunca teve assinatura).
+
+**Antes de qualquer `DELETE FROM users` de uma conta que pode ter pago:**
+
+```sql
+SELECT stripe_customer_id FROM users WHERE id = <id>;
+SELECT stripe_subscription_id, status FROM subscriptions WHERE user_id = <id> ORDER BY created_at DESC LIMIT 1;
+```
+
+Se houver `stripe_subscription_id` com status diferente de `canceled`,
+cancele **antes** de apagar — via dashboard da Stripe (Customers → assinatura
+→ Cancel subscription) ou chamando `billingService.cancelSubscriptionForUser(userId)`
+num script/REPL contra o app (função pronta desde 11/09/2026, ainda sem
+endpoint HTTP que a exponha — nenhuma decisão foi tomada ainda sobre quem
+pode excluir uma conta e por qual caminho; ver task "quem gera o link de
+pagamento" para o mesmo tipo de decisão já resolvida em outro contexto).
+
+Quando um endpoint de exclusão/desativação de conta for criado, ele deve
+chamar essa função antes de remover o usuário — não repetir a lógica de
+cancelamento na mão.
+
 ## Variáveis de ambiente
 
 | Variável | Uso |
